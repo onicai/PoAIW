@@ -1,0 +1,29 @@
+type StatusCode = nat16;
+type GameStateCanister = 
+ service {
+   addOfficialCanister: () -> (AuthRecordResult);
+   upload_backend_canister_wasm_bytes_chunk: (vec nat8) -> (FileUploadResult);
+   upload_knowledgebase_canister_wasm_bytes_chunk: (vec nat8) ->
+    (FileUploadResult);
+ };
+type FileUploadResult = 
+ variant {
+   Err: ApiError;
+   Ok: FileUploadRecord;
+ };
+type FileUploadRecord = record {creationResult: text;};
+type AuthRecordResult = 
+ variant {
+   Err: ApiError;
+   Ok: AuthRecord;
+ };
+type AuthRecord = record {auth: text;};
+type ApiError = 
+ variant {
+   InvalidId;
+   Other: text;
+   StatusCode: StatusCode;
+   Unauthorized;
+   ZeroAddress;
+ };
+service : () -> GameStateCanister

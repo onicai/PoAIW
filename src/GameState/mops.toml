@@ -1,0 +1,3 @@
+[dependencies]
+base = "0.13.5"
+uuid = "https://github.com/aviate-labs/uuid.mo#v0.2.0"
