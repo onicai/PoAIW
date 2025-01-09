@@ -32,17 +32,34 @@ module Types {
         #MAInerAgent;
     };
 
+    public type CanisterAddress = Text;
+
     public type OfficialProtocolCanister = {
-        address : Text;
+        address : CanisterAddress;
         canisterType: ProtocolCanisterType;
         creationTimestamp : Nat64;
         createdBy : Principal;
     };
 
     public type CanisterInput = {
-        address : Text;
+        address : CanisterAddress;
         canisterType: ProtocolCanisterType;
     };
+
+    //-------------------------------------------------------------------------
+    public type Challenge = {
+        challengeId : Text;
+        creationTimestamp : Nat64;
+        createdBy : CanisterAddress;
+        challengePrompt : Text;
+        closedTimestamp : ?Nat64;
+    };
+
+    public type NewChallengeInput = {
+        challengePrompt : Text;
+    };
+
+    public type ChallengeAdditionResult = Result<Challenge, ApiError>;
 
     //-------------------------------------------------------------------------
 

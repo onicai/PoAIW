@@ -10,12 +10,13 @@ import Nat64 "mo:base/Nat64";
 import Int "mo:base/Int";
 import Time "mo:base/Time";
 import Iter "mo:base/Iter";
+import List "mo:base/List";
 
 import Types "./Types";
+import Utils "Utils";
 
 actor class GameStateCanister() = this {
 
-    // TODO
     // Official Challenger canisters
     stable var challengerCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
     var challengerCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -49,10 +50,76 @@ actor class GameStateCanister() = this {
     };
 
     // Open challenges
+    stable var openChallengesStorageStable : [(Text, Types.Challenge)] = [];
+    var openChallengesStorage : HashMap.HashMap<Text, Types.Challenge> = HashMap.HashMap(0, Text.equal, Text.hash);
+
+    private func putOpenChallenge(challengeId : Text, challengeEntry : Types.Challenge) : Bool {
+        openChallengesStorage.put(challengeId, challengeEntry);
+        return true;
+    };
+
+    private func getOpenChallenge(challengeId : Text) : ?Types.Challenge {
+        switch (openChallengesStorage.get(challengeId)) {
+            case (null) { return null; };
+            case (?challengeEntry) { return ?challengeEntry; };
+        };
+    };
+
+    private func getOpenChallenges() : [Types.Challenge] {
+        return Iter.toArray(openChallengesStorage.vals());
+    };
+
+    private func removeOpenChallenge(challengeId : Text) : Bool {
+        switch (openChallengesStorage.get(challengeId)) {
+            case (null) { return false; };
+            case (?challengeEntry) {
+                let removeResult = openChallengesStorage.remove(challengeId);
+                return true;
+            };
+        };
+    };
 
     // Recently closed challenges
+    stable var closedChallenges : List.List<Types.Challenge> = List.nil<Types.Challenge>();
+
+    private func putClosedChallenge(challengeEntry : Types.Challenge) : Bool {
+        let putResult = List.push<Types.Challenge>(challengeEntry, closedChallenges);
+        return true;
+    };
+
+    private func getClosedChallenge(challengeId : Text) : ?Types.Challenge {
+        return List.find<Types.Challenge>(closedChallenges, func(challengeEntry: Types.Challenge) : Bool { challengeEntry.challengeId == challengeId } ); 
+    };
+
+    private func getClosedChallenges() : [Types.Challenge] {
+        return List.toArray<Types.Challenge>(closedChallenges);
+    };
+
+    private func removeClosedChallenge(challengeId : Text) : Bool {
+        closedChallenges := List.filter(closedChallenges, func(challengeEntry: Types.Challenge) : Bool { challengeEntry.challengeId != challengeId });
+        return true;
+    };
 
     // Challenges archive
+    stable var archivedChallenges : List.List<Types.Challenge> = List.nil<Types.Challenge>();
+
+    private func putArchivedChallenge(challengeEntry : Types.Challenge) : Bool {
+        let putResult = List.push<Types.Challenge>(challengeEntry, archivedChallenges);
+        return true;
+    };
+
+    private func getArchivedChallenge(challengeId : Text) : ?Types.Challenge {
+        return List.find<Types.Challenge>(archivedChallenges, func(challengeEntry: Types.Challenge) : Bool { challengeEntry.challengeId == challengeId } ); 
+    };
+
+    private func getArchivedChallenges() : [Types.Challenge] {
+        return List.toArray<Types.Challenge>(archivedChallenges);
+    };
+
+    private func removeArchivedChallenge(challengeId : Text) : Bool {
+        archivedChallenges := List.filter(archivedChallenges, func(challengeEntry: Types.Challenge) : Bool { challengeEntry.challengeId != challengeId });
+        return true;
+    };
 
     // TODO: settings
     
@@ -124,27 +191,42 @@ actor class GameStateCanister() = this {
     };
 
     // Function for Challenger canister to add new challenge
-    public shared (msg) func upload_backend_canister_wasm_bytes_chunk(bytesChunk : [Nat8]) : async Types.FileUploadResult {
+    public shared (msg) func addNewChallenge(newChallenge : Types.NewChallengeInput) : async Types.ChallengeAdditionResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
+        switch (getChallengerCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?challengerEntry) {
+                let challengeId : Text = await Utils.newRandomUniqueId();
 
-        return #Ok({ creationResult = "Success" });
+                let challengeAdded : Types.Challenge = {
+                    challengeId : Text = challengeId;
+                    creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                    createdBy : Types.CanisterAddress = challengerEntry.address;
+                    challengePrompt : Text = newChallenge.challengePrompt;
+                    closedTimestamp : ?Nat64 = null;
+                };
+
+                let putResult = putOpenChallenge(challengeId, challengeAdded);
+                return #Ok(challengeAdded);                
+            };
+        };
     };
 
 // Upgrade Hooks
     system func preupgrade() {
         challengerCanistersStorageStable := Iter.toArray(challengerCanistersStorage.entries());
         judgeCanistersStorageStable := Iter.toArray(judgeCanistersStorage.entries());
+        openChallengesStorageStable := Iter.toArray(openChallengesStorage.entries());
     };
 
     system func postupgrade() {
         challengerCanistersStorage := HashMap.fromIter(Iter.fromArray(challengerCanistersStorageStable), challengerCanistersStorageStable.size(), Text.equal, Text.hash);
         challengerCanistersStorageStable := [];
         judgeCanistersStorage := HashMap.fromIter(Iter.fromArray(judgeCanistersStorageStable), judgeCanistersStorageStable.size(), Text.equal, Text.hash);
-        judgeCanistersStorageStable := [];    
+        judgeCanistersStorageStable := [];  
+        openChallengesStorage := HashMap.fromIter(Iter.fromArray(openChallengesStorageStable), openChallengesStorageStable.size(), Text.equal, Text.hash);
+        openChallengesStorageStable := [];
     };
 };
