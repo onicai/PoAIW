@@ -25,6 +25,26 @@ module Types {
     public type AuthRecordResult = Result<AuthRecord, ApiError>;
 
     //-------------------------------------------------------------------------
+    public type ProtocolCanisterType = {
+        #Challenger;
+        #Judge;
+        #Verifier;
+        #MAInerAgent;
+    };
+
+    public type OfficialProtocolCanister = {
+        address : Text;
+        canisterType: ProtocolCanisterType;
+        creationTimestamp : Nat64;
+        createdBy : Principal;
+    };
+
+    public type CanisterInput = {
+        address : Text;
+        canisterType: ProtocolCanisterType;
+    };
+
+    //-------------------------------------------------------------------------
 
     public type FileUploadRecord = {
         creationResult : Text;
