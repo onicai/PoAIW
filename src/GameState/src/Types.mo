@@ -54,7 +54,11 @@ module Types {
         ownedBy: Principal;
     };
 
-    public type MainerAgentCanisterAdditionResult = Result<OfficialProtocolCanister, ApiError>;
+    public type MainerAgentCanisterResult = Result<OfficialProtocolCanister, ApiError>;
+
+    public type CanisterRetrieveInput = {
+        address : CanisterAddress;
+    };
 
     //-------------------------------------------------------------------------
     public type Challenge = {

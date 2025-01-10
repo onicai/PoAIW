@@ -70,8 +70,13 @@ actor class GameStateCanister() = this {
     var mainerAgentCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
     
     private func putMainerAgentCanister(canisterAddress : Text, canisterEntry : Types.OfficialProtocolCanister) : Bool {
-        mainerAgentCanistersStorage.put(canisterAddress, canisterEntry);
-        return true;
+        switch (getMainerAgentCanister(canisterAddress)) {
+            case (null) {
+                mainerAgentCanistersStorage.put(canisterAddress, canisterEntry);
+                return true;
+            };
+            case (?canisterEntry) { return false; }; //existing entry
+        };
     };
 
     private func getMainerAgentCanister(canisterAddress : Text) : ?Types.OfficialProtocolCanister {
@@ -226,7 +231,7 @@ actor class GameStateCanister() = this {
     };
 
     // Function for Challenger canister to retrieve current challenges
-    public shared (msg) func getCurrentChallenges() : async Types.ChallengesResult {
+    public shared query (msg) func getCurrentChallenges() : async Types.ChallengesResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -266,7 +271,7 @@ actor class GameStateCanister() = this {
     };
 
     // Function for mAIner Agent Creator canister to add new mAIner agent for user
-    public shared (msg) func addNewMainerAgentCanister(canisterEntryToAdd : Types.MainerAgentCanisterInput) : async Types.MainerAgentCanisterAdditionResult {
+    public shared (msg) func addNewMainerAgentCanister(canisterEntryToAdd : Types.MainerAgentCanisterInput) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -292,6 +297,26 @@ actor class GameStateCanister() = this {
                     return #Err(#Other("An error adding the canister occurred"));
                 };
                 return #Ok(canisterEntry);             
+            };
+        };
+    };
+
+    // Function to retrieve info on a mAIner agent canister
+    public shared query (msg) func getMainerAgentCanisterInfo(canisterEntryToRetrieve : Types.CanisterRetrieveInput) : async Types.MainerAgentCanisterResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Only official Challenger canisters may call this
+        switch (getMainerAgentCanister(canisterEntryToRetrieve.address)) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?mainerAgentEntry) {
+                if (Principal.isController(msg.caller)) {
+                    return #Ok(mainerAgentEntry);
+                } else if (msg.caller == mainerAgentEntry.ownedBy or msg.caller == mainerAgentEntry.createdBy) {
+                    return #Ok(mainerAgentEntry);
+                } else {
+                    return #Err(#Unauthorized);
+                };                               
             };
         };
     };
