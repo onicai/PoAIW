@@ -10,20 +10,32 @@ export type ApiError = { 'InvalidId' : null } |
 export interface AuthRecord { 'auth' : string }
 export type AuthRecordResult = { 'Ok' : AuthRecord } |
   { 'Err' : ApiError };
-export interface FileUploadRecord { 'creationResult' : string }
-export type FileUploadResult = { 'Ok' : FileUploadRecord } |
+export type CanisterAddress = string;
+export interface CanisterInput {
+  'canisterType' : ProtocolCanisterType,
+  'address' : CanisterAddress,
+}
+export interface Challenge {
+  'challengePrompt' : string,
+  'creationTimestamp' : bigint,
+  'createdBy' : CanisterAddress,
+  'challengeId' : string,
+  'closedTimestamp' : [] | [bigint],
+}
+export type ChallengeAdditionResult = { 'Ok' : Challenge } |
+  { 'Err' : ApiError };
+export type ChallengesResult = { 'Ok' : Array<Challenge> } |
   { 'Err' : ApiError };
 export interface GameStateCanister {
-  'addOfficialCanister' : ActorMethod<[], AuthRecordResult>,
-  'upload_backend_canister_wasm_bytes_chunk' : ActorMethod<
-    [Uint8Array | number[]],
-    FileUploadResult
-  >,
-  'upload_knowledgebase_canister_wasm_bytes_chunk' : ActorMethod<
-    [Uint8Array | number[]],
-    FileUploadResult
-  >,
+  'addNewChallenge' : ActorMethod<[NewChallengeInput], ChallengeAdditionResult>,
+  'addOfficialCanister' : ActorMethod<[CanisterInput], AuthRecordResult>,
+  'getCurrentChallenges' : ActorMethod<[], ChallengesResult>,
 }
+export interface NewChallengeInput { 'challengePrompt' : string }
+export type ProtocolCanisterType = { 'Challenger' : null } |
+  { 'Judge' : null } |
+  { 'Verifier' : null } |
+  { 'MAInerAgent' : null };
 export type StatusCode = number;
 export interface _SERVICE extends GameStateCanister {}
 export declare const idlFactory: IDL.InterfaceFactory;

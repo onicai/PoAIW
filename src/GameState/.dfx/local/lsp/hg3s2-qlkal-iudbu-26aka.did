@@ -20,11 +20,14 @@ type Challenge = record {
   closedTimestamp : opt nat64;
 };
 type ChallengeAdditionResult = variant { Ok : Challenge; Err : ApiError };
-type ChallengesResult = variant { Ok : vec Challenge; Err : ApiError };
+type FileUploadRecord = record { creationResult : text };
+type FileUploadResult = variant { Ok : FileUploadRecord; Err : ApiError };
 type GameStateCanister = service {
   addNewChallenge : (NewChallengeInput) -> (ChallengeAdditionResult);
   addOfficialCanister : (CanisterInput) -> (AuthRecordResult);
-  getCurrentChallenges : () -> (ChallengesResult);
+  upload_knowledgebase_canister_wasm_bytes_chunk : (vec nat8) -> (
+      FileUploadResult,
+    );
 };
 type NewChallengeInput = record { challengePrompt : text };
 type ProtocolCanisterType = variant {

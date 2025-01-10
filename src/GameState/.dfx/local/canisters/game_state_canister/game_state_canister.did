@@ -1,17 +1,42 @@
 type StatusCode = nat16;
+type ProtocolCanisterType = 
+ variant {
+   Challenger;
+   Judge;
+   MAInerAgent;
+   Verifier;
+ };
+type NewChallengeInput = record {challengePrompt: text;};
 type GameStateCanister = 
  service {
-   addOfficialCanister: () -> (AuthRecordResult);
-   upload_backend_canister_wasm_bytes_chunk: (vec nat8) -> (FileUploadResult);
-   upload_knowledgebase_canister_wasm_bytes_chunk: (vec nat8) ->
-    (FileUploadResult);
+   addNewChallenge: (NewChallengeInput) -> (ChallengeAdditionResult);
+   addOfficialCanister: (CanisterInput) -> (AuthRecordResult);
+   getCurrentChallenges: () -> (ChallengesResult);
  };
-type FileUploadResult = 
+type ChallengesResult = 
  variant {
    Err: ApiError;
-   Ok: FileUploadRecord;
+   Ok: vec Challenge;
  };
-type FileUploadRecord = record {creationResult: text;};
+type ChallengeAdditionResult = 
+ variant {
+   Err: ApiError;
+   Ok: Challenge;
+ };
+type Challenge = 
+ record {
+   challengeId: text;
+   challengePrompt: text;
+   closedTimestamp: opt nat64;
+   createdBy: CanisterAddress;
+   creationTimestamp: nat64;
+ };
+type CanisterInput = 
+ record {
+   address: CanisterAddress;
+   canisterType: ProtocolCanisterType;
+ };
+type CanisterAddress = text;
 type AuthRecordResult = 
  variant {
    Err: ApiError;

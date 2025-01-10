@@ -1,4 +1,27 @@
 // Version: 1.0.0
+type CanisterAddress = Text;
+type Challenge =
+  {
+    challengeId : Text;
+    challengePrompt : Text;
+    closedTimestamp : ?Nat64;
+    createdBy : CanisterAddress;
+    creationTimestamp : Nat64
+  };
+type List<T> = ?(T, List<T>);
+type OfficialProtocolCanister =
+  {
+    address : CanisterAddress;
+    canisterType : ProtocolCanisterType;
+    createdBy : Principal;
+    creationTimestamp : Nat64
+  };
+type ProtocolCanisterType = {#Challenger; #Judge; #MAInerAgent; #Verifier};
 actor {
-  
+  stable var archivedChallenges : ?(Challenge, List<Challenge>);
+  stable var challengerCanistersStorageStable :
+    [(Text, OfficialProtocolCanister)];
+  stable var closedChallenges : ?(Challenge, List<Challenge>);
+  stable var judgeCanistersStorageStable : [(Text, OfficialProtocolCanister)];
+  stable var openChallengesStorageStable : [(Text, Challenge)]
 };

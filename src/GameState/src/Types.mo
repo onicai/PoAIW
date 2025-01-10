@@ -61,6 +61,8 @@ module Types {
 
     public type ChallengeAdditionResult = Result<Challenge, ApiError>;
 
+    public type ChallengesResult = Result<[Challenge], ApiError>;
+
     //-------------------------------------------------------------------------
 
     public type FileUploadRecord = {

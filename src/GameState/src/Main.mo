@@ -179,15 +179,18 @@ actor class GameStateCanister() = this {
     };
 
     // Function for Challenger canister to retrieve current challenges
-    public shared (msg) func upload_knowledgebase_canister_wasm_bytes_chunk(bytesChunk : [Nat8]) : async Types.FileUploadResult {
+    public shared (msg) func getCurrentChallenges() : async Types.ChallengesResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#Unauthorized);
+        // Only official Challenger canisters may call this
+        switch (getChallengerCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?challengerEntry) {
+                let challenges : [Types.Challenge] = getOpenChallenges();
+                return #Ok(challenges);                
+            };
         };
-
-        return #Ok({ creationResult = "Success" });
     };
 
     // Function for Challenger canister to add new challenge
@@ -195,6 +198,7 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        // Only official Challenger canisters may call this
         switch (getChallengerCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
             case (?challengerEntry) {
