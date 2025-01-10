@@ -14,14 +14,20 @@ type OfficialProtocolCanister =
     address : CanisterAddress;
     canisterType : ProtocolCanisterType;
     createdBy : Principal;
-    creationTimestamp : Nat64
+    creationTimestamp : Nat64;
+    ownedBy : Principal
   };
-type ProtocolCanisterType = {#Challenger; #Judge; #MAInerAgent; #Verifier};
+type ProtocolCanisterType =
+  {#Challenger; #Judge; #MainerAgent; #MainerCreator; #Verifier};
 actor {
   stable var archivedChallenges : ?(Challenge, List<Challenge>);
   stable var challengerCanistersStorageStable :
     [(Text, OfficialProtocolCanister)];
   stable var closedChallenges : ?(Challenge, List<Challenge>);
   stable var judgeCanistersStorageStable : [(Text, OfficialProtocolCanister)];
+  stable var mainerAgentCanistersStorageStable :
+    [(Text, OfficialProtocolCanister)];
+  stable var mainerCreatorCanistersStorageStable :
+    [(Text, OfficialProtocolCanister)];
   stable var openChallengesStorageStable : [(Text, Challenge)]
 };

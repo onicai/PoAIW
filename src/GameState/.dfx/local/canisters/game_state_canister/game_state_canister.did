@@ -3,15 +3,39 @@ type ProtocolCanisterType =
  variant {
    Challenger;
    Judge;
-   MAInerAgent;
+   MainerAgent;
+   MainerCreator;
    Verifier;
  };
+type OfficialProtocolCanister = 
+ record {
+   address: CanisterAddress;
+   canisterType: ProtocolCanisterType;
+   createdBy: principal;
+   creationTimestamp: nat64;
+   ownedBy: principal;
+ };
 type NewChallengeInput = record {challengePrompt: text;};
+type MainerAgentCanisterResult = 
+ variant {
+   Err: ApiError;
+   Ok: OfficialProtocolCanister;
+ };
+type MainerAgentCanisterInput = 
+ record {
+   address: CanisterAddress;
+   canisterType: ProtocolCanisterType;
+   ownedBy: principal;
+ };
 type GameStateCanister = 
  service {
    addNewChallenge: (NewChallengeInput) -> (ChallengeAdditionResult);
+   addNewMainerAgentCanister: (MainerAgentCanisterInput) ->
+    (MainerAgentCanisterResult);
    addOfficialCanister: (CanisterInput) -> (AuthRecordResult);
-   getCurrentChallenges: () -> (ChallengesResult);
+   getCurrentChallenges: () -> (ChallengesResult) query;
+   getMainerAgentCanisterInfo: (CanisterRetrieveInput) ->
+    (MainerAgentCanisterResult) query;
  };
 type ChallengesResult = 
  variant {
@@ -31,6 +55,7 @@ type Challenge =
    createdBy: CanisterAddress;
    creationTimestamp: nat64;
  };
+type CanisterRetrieveInput = record {address: CanisterAddress;};
 type CanisterInput = 
  record {
    address: CanisterAddress;

@@ -15,6 +15,7 @@ export interface CanisterInput {
   'canisterType' : ProtocolCanisterType,
   'address' : CanisterAddress,
 }
+export interface CanisterRetrieveInput { 'address' : CanisterAddress }
 export interface Challenge {
   'challengePrompt' : string,
   'creationTimestamp' : bigint,
@@ -28,14 +29,37 @@ export type ChallengesResult = { 'Ok' : Array<Challenge> } |
   { 'Err' : ApiError };
 export interface GameStateCanister {
   'addNewChallenge' : ActorMethod<[NewChallengeInput], ChallengeAdditionResult>,
+  'addNewMainerAgentCanister' : ActorMethod<
+    [MainerAgentCanisterInput],
+    MainerAgentCanisterResult
+  >,
   'addOfficialCanister' : ActorMethod<[CanisterInput], AuthRecordResult>,
   'getCurrentChallenges' : ActorMethod<[], ChallengesResult>,
+  'getMainerAgentCanisterInfo' : ActorMethod<
+    [CanisterRetrieveInput],
+    MainerAgentCanisterResult
+  >,
 }
+export interface MainerAgentCanisterInput {
+  'canisterType' : ProtocolCanisterType,
+  'ownedBy' : Principal,
+  'address' : CanisterAddress,
+}
+export type MainerAgentCanisterResult = { 'Ok' : OfficialProtocolCanister } |
+  { 'Err' : ApiError };
 export interface NewChallengeInput { 'challengePrompt' : string }
-export type ProtocolCanisterType = { 'Challenger' : null } |
+export interface OfficialProtocolCanister {
+  'canisterType' : ProtocolCanisterType,
+  'ownedBy' : Principal,
+  'creationTimestamp' : bigint,
+  'createdBy' : Principal,
+  'address' : CanisterAddress,
+}
+export type ProtocolCanisterType = { 'MainerAgent' : null } |
+  { 'Challenger' : null } |
   { 'Judge' : null } |
   { 'Verifier' : null } |
-  { 'MAInerAgent' : null };
+  { 'MainerCreator' : null };
 export type StatusCode = number;
 export interface _SERVICE extends GameStateCanister {}
 export declare const idlFactory: IDL.InterfaceFactory;

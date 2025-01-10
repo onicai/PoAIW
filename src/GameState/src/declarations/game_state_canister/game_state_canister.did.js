@@ -21,10 +21,27 @@ export const idlFactory = ({ IDL }) => {
     'Err' : ApiError,
   });
   const ProtocolCanisterType = IDL.Variant({
+    'MainerAgent' : IDL.Null,
     'Challenger' : IDL.Null,
     'Judge' : IDL.Null,
     'Verifier' : IDL.Null,
-    'MAInerAgent' : IDL.Null,
+    'MainerCreator' : IDL.Null,
+  });
+  const MainerAgentCanisterInput = IDL.Record({
+    'canisterType' : ProtocolCanisterType,
+    'ownedBy' : IDL.Principal,
+    'address' : CanisterAddress,
+  });
+  const OfficialProtocolCanister = IDL.Record({
+    'canisterType' : ProtocolCanisterType,
+    'ownedBy' : IDL.Principal,
+    'creationTimestamp' : IDL.Nat64,
+    'createdBy' : IDL.Principal,
+    'address' : CanisterAddress,
+  });
+  const MainerAgentCanisterResult = IDL.Variant({
+    'Ok' : OfficialProtocolCanister,
+    'Err' : ApiError,
   });
   const CanisterInput = IDL.Record({
     'canisterType' : ProtocolCanisterType,
@@ -36,14 +53,25 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : IDL.Vec(Challenge),
     'Err' : ApiError,
   });
+  const CanisterRetrieveInput = IDL.Record({ 'address' : CanisterAddress });
   const GameStateCanister = IDL.Service({
     'addNewChallenge' : IDL.Func(
         [NewChallengeInput],
         [ChallengeAdditionResult],
         [],
       ),
+    'addNewMainerAgentCanister' : IDL.Func(
+        [MainerAgentCanisterInput],
+        [MainerAgentCanisterResult],
+        [],
+      ),
     'addOfficialCanister' : IDL.Func([CanisterInput], [AuthRecordResult], []),
-    'getCurrentChallenges' : IDL.Func([], [ChallengesResult], []),
+    'getCurrentChallenges' : IDL.Func([], [ChallengesResult], ['query']),
+    'getMainerAgentCanisterInfo' : IDL.Func(
+        [CanisterRetrieveInput],
+        [MainerAgentCanisterResult],
+        ['query'],
+      ),
   });
   return GameStateCanister;
 };
