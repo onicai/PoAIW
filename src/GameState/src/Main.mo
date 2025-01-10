@@ -34,6 +34,16 @@ actor class GameStateCanister() = this {
         };
     };
 
+    private func removeChallengerCanister(canisterAddress : Text) : Bool {
+        switch (challengerCanistersStorage.get(canisterAddress)) {
+            case (null) { return false; };
+            case (?canisterEntry) {
+                let removeResult = challengerCanistersStorage.remove(canisterAddress);
+                return true;
+            };
+        };
+    };
+
     // Official Judge canisters
     stable var judgeCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
     var judgeCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -50,6 +60,16 @@ actor class GameStateCanister() = this {
         };
     };
 
+    private func removeJudgeCanister(canisterAddress : Text) : Bool {
+        switch (judgeCanistersStorage.get(canisterAddress)) {
+            case (null) { return false; };
+            case (?canisterEntry) {
+                let removeResult = judgeCanistersStorage.remove(canisterAddress);
+                return true;
+            };
+        };
+    };
+
     // Official mAIner Creator canisters
     stable var mainerCreatorCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
     var mainerCreatorCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -63,6 +83,16 @@ actor class GameStateCanister() = this {
         switch (mainerCreatorCanistersStorage.get(canisterAddress)) {
             case (null) { return null; };
             case (?canisterEntry) { return ?canisterEntry; };
+        };
+    };
+
+    private func removeMainerCreatorCanister(canisterAddress : Text) : Bool {
+        switch (mainerCreatorCanistersStorage.get(canisterAddress)) {
+            case (null) { return false; };
+            case (?canisterEntry) {
+                let removeResult = mainerCreatorCanistersStorage.remove(canisterAddress);
+                return true;
+            };
         };
     };
 
@@ -84,6 +114,16 @@ actor class GameStateCanister() = this {
         switch (mainerAgentCanistersStorage.get(canisterAddress)) {
             case (null) { return null; };
             case (?canisterEntry) { return ?canisterEntry; };
+        };
+    };
+
+    private func removeMainerAgentCanister(canisterAddress : Text) : Bool {
+        switch (mainerAgentCanistersStorage.get(canisterAddress)) {
+            case (null) { return false; };
+            case (?canisterEntry) {
+                let removeResult = mainerAgentCanistersStorage.remove(canisterAddress);
+                return true;
+            };
         };
     };
 
@@ -175,6 +215,30 @@ actor class GameStateCanister() = this {
                 };
             };
             case (_) { return null; };
+        };
+    };
+
+    private func verifyChallenge(status : Types.ChallengeStatus, challengeId: Text) : Bool {
+        switch (status) {
+            case (#Open) {
+                switch (getOpenChallenge(challengeId)) {
+                    case (null) { return false; };
+                    case (?challengeEntry) { return true; };
+                };
+            };
+            case (#Closed) {
+                switch (getClosedChallenge(challengeId)) {
+                    case (null) { return false; };
+                    case (?challengeEntry) { return true; };
+                };
+            };
+            case (#Archived) {
+                switch (getArchivedChallenge(challengeId)) {
+                    case (null) { return false; };
+                    case (?challengeEntry) { return true; };
+                };
+            };
+            case (_) { return false; };
         };
     };
     
@@ -352,13 +416,52 @@ actor class GameStateCanister() = this {
         switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
             case (?mainerAgentEntry) {
-                let challengeResponse : ?Types.Challenge = await getRandomChallenge(#Open);
-                switch (challengeResponse) {
+                let challengeResult : ?Types.Challenge = await getRandomChallenge(#Open);
+                switch (challengeResult) {
                     case (?challenge) {
                         return #Ok(challenge);                
                     };
                     case (_) { return #Err(#FailedOperation); };
                 };             
+            };
+        };
+    };
+
+    // Function for mAIner agent canister to submit a response to an open challenge
+    public shared (msg) func submitChallengeResponse(challengeResponseSubmitted : Types.ChallengeResponseSubmissionInput) : async Types.ChallengeResponseSubmissionResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Only official mAIner agent canisters may call this
+        switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?mainerAgentEntry) {
+                // Check that submission record looks correct
+                if (challengeResponseSubmitted.submittedBy != msg.caller) {
+                    return #Err(#Unauthorized);
+                };
+
+                // TODO: Verify that submission is charged with cycles
+
+                // Verify that challenge is open
+                if (not verifyChallenge(#Open, challengeResponseSubmitted.challengeId)) {
+                    // TODO: return part of cycles (e.g. 80%)
+                    return #Err(#InvalidId);
+                };
+
+                // TODO: Forward submission to responsible Judge
+                /* let forwardedResult : ?Types.Challenge = await getRandomChallenge(#Open);
+                switch (forwardedResult) {
+                    case (#Ok(forwardedResultValue)) {
+                        if (forwardedResultValue) {
+                            return #Ok(forwardedResultValue);
+                        } else {
+                            return #Err(#FailedOperation);
+                        }; 
+                    };
+                    case (_) { return #Err(#FailedOperation); };
+                };   */     
+                return #Err(#FailedOperation); 
             };
         };
     };

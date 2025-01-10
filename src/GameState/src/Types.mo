@@ -88,6 +88,31 @@ module Types {
 
     public type ChallengesResult = Result<[Challenge], ApiError>;
 
+    public type ChallengeResponseSubmissionInput = {
+        challengeId : Text;
+        submittedBy : Principal;
+        response : Text;
+    };
+
+    public type ChallengeResponseSubmissionStatus = {
+        #FailedSubmission;
+        #Submitted;
+        #Judged;
+        #Processed;
+        #Other : Text;
+    };
+
+    public type ChallengeResponseSubmission = {
+        submissionId : Text;
+        challengeId : Text;
+        submittedBy : Principal;
+        response : Text;
+        submittedTimestamp : Nat64;
+        status: ChallengeResponseSubmissionStatus;
+    };
+
+    public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmission, ApiError>;
+
     //-------------------------------------------------------------------------
 
     public type FileUploadRecord = {
