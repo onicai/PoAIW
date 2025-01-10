@@ -29,7 +29,8 @@ module Types {
         #Challenger;
         #Judge;
         #Verifier;
-        #MAInerAgent;
+        #MainerCreator;
+        #MainerAgent;
     };
 
     public type CanisterAddress = Text;
@@ -46,6 +47,14 @@ module Types {
         address : CanisterAddress;
         canisterType: ProtocolCanisterType;
     };
+
+    public type MainerAgentCanisterInput = {
+        address : CanisterAddress;
+        canisterType: ProtocolCanisterType;
+        ownedBy: Principal;
+    };
+
+    public type MainerAgentCanisterAdditionResult = Result<OfficialProtocolCanister, ApiError>;
 
     //-------------------------------------------------------------------------
     public type Challenge = {

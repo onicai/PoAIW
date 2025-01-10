@@ -49,17 +49,33 @@ actor class GameStateCanister() = this {
         };
     };
 
-    // Official mAIner agent canisters
-    stable var mainerCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
-    var mainerCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
+    // Official mAIner Creator canisters
+    stable var mainerCreatorCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
+    var mainerCreatorCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
     
-    private func putMainerCanister(canisterAddress : Text, canisterEntry : Types.OfficialProtocolCanister) : Bool {
-        mainerCanistersStorage.put(canisterAddress, canisterEntry);
+    private func putMainerCreatorCanister(canisterAddress : Text, canisterEntry : Types.OfficialProtocolCanister) : Bool {
+        mainerCreatorCanistersStorage.put(canisterAddress, canisterEntry);
         return true;
     };
 
-    private func getMainerCanister(canisterAddress : Text) : ?Types.OfficialProtocolCanister {
-        switch (mainerCanistersStorage.get(canisterAddress)) {
+    private func getMainerCreatorCanister(canisterAddress : Text) : ?Types.OfficialProtocolCanister {
+        switch (mainerCreatorCanistersStorage.get(canisterAddress)) {
+            case (null) { return null; };
+            case (?canisterEntry) { return ?canisterEntry; };
+        };
+    };
+
+    // Official mAIner agent canisters (owned by users)
+    stable var mainerAgentCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
+    var mainerAgentCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
+    
+    private func putMainerAgentCanister(canisterAddress : Text, canisterEntry : Types.OfficialProtocolCanister) : Bool {
+        mainerAgentCanistersStorage.put(canisterAddress, canisterEntry);
+        return true;
+    };
+
+    private func getMainerAgentCanister(canisterAddress : Text) : ?Types.OfficialProtocolCanister {
+        switch (mainerAgentCanistersStorage.get(canisterAddress)) {
             case (null) { return null; };
             case (?canisterEntry) { return ?canisterEntry; };
         };
@@ -190,6 +206,19 @@ actor class GameStateCanister() = this {
                     return #Err(#Other("An error adding the canister occurred"));
                 };
             };
+            case (#MainerCreator) {
+                let canisterEntry : Types.OfficialProtocolCanister = {
+                    address : Text = canisterEntryToAdd.address;
+                    canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
+                    creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                    createdBy : Principal = msg.caller;
+                    ownedBy : Principal = Principal.fromActor(this);
+                };
+                let putResponse = putMainerCreatorCanister(canisterEntryToAdd.address, canisterEntry);
+                if (not putResponse) {
+                    return #Err(#Other("An error adding the canister occurred"));
+                };
+            };
             case (_) { return #Err(#Other("Unsupported")); }
         };
         let authRecord = { auth = "You added the canister." };
@@ -236,11 +265,43 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Function for mAIner Agent Creator canister to add new mAIner agent for user
+    public shared (msg) func addNewMainerAgentCanister(canisterEntryToAdd : Types.MainerAgentCanisterInput) : async Types.MainerAgentCanisterAdditionResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        switch (canisterEntryToAdd.canisterType) {
+            case (#MainerAgent) {
+                // continue
+            };
+            case (_) { return #Err(#Other("Unsupported")); }
+        };
+        // Only official mAIner Agent Creator canisters may call this
+        switch (getMainerCreatorCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?mainerCreatorEntry) {
+                let canisterEntry : Types.OfficialProtocolCanister = {
+                    address : Text = canisterEntryToAdd.address;
+                    canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
+                    creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                    createdBy : Principal = msg.caller;
+                    ownedBy : Principal = canisterEntryToAdd.ownedBy;
+                };
+                let putResponse = putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry);
+                if (not putResponse) {
+                    return #Err(#Other("An error adding the canister occurred"));
+                };
+                return #Ok(canisterEntry);             
+            };
+        };
+    };
+
 // Upgrade Hooks
     system func preupgrade() {
         challengerCanistersStorageStable := Iter.toArray(challengerCanistersStorage.entries());
         judgeCanistersStorageStable := Iter.toArray(judgeCanistersStorage.entries());
-        mainerCanistersStorageStable := Iter.toArray(mainerCanistersStorage.entries());
+        mainerCreatorCanistersStorageStable := Iter.toArray(mainerCreatorCanistersStorage.entries());
+        mainerAgentCanistersStorageStable := Iter.toArray(mainerAgentCanistersStorage.entries());
         openChallengesStorageStable := Iter.toArray(openChallengesStorage.entries());
     };
 
@@ -249,8 +310,10 @@ actor class GameStateCanister() = this {
         challengerCanistersStorageStable := [];
         judgeCanistersStorage := HashMap.fromIter(Iter.fromArray(judgeCanistersStorageStable), judgeCanistersStorageStable.size(), Text.equal, Text.hash);
         judgeCanistersStorageStable := [];
-        mainerCanistersStorage := HashMap.fromIter(Iter.fromArray(mainerCanistersStorageStable), mainerCanistersStorageStable.size(), Text.equal, Text.hash);
-        mainerCanistersStorageStable := [];
+        mainerCreatorCanistersStorage := HashMap.fromIter(Iter.fromArray(mainerCreatorCanistersStorageStable), mainerCreatorCanistersStorageStable.size(), Text.equal, Text.hash);
+        mainerCreatorCanistersStorageStable := [];
+        mainerAgentCanistersStorage := HashMap.fromIter(Iter.fromArray(mainerAgentCanistersStorageStable), mainerAgentCanistersStorageStable.size(), Text.equal, Text.hash);
+        mainerAgentCanistersStorageStable := [];
         openChallengesStorage := HashMap.fromIter(Iter.fromArray(openChallengesStorageStable), openChallengesStorageStable.size(), Text.equal, Text.hash);
         openChallengesStorageStable := [];
     };
