@@ -6,8 +6,10 @@ type Challenge =
     challengePrompt : Text;
     closedTimestamp : ?Nat64;
     createdBy : CanisterAddress;
-    creationTimestamp : Nat64
+    creationTimestamp : Nat64;
+    status : ChallengeStatus
   };
+type ChallengeStatus = {#Archived; #Closed; #Open; #Other : Text};
 type List<T> = ?(T, List<T>);
 type OfficialProtocolCanister =
   {

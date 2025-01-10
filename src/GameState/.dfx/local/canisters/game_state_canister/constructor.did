@@ -1,4 +1,5 @@
 type ApiError = variant {
+  FailedOperation;
   InvalidId;
   ZeroAddress;
   Unauthorized;
@@ -14,6 +15,7 @@ type CanisterInput = record {
 };
 type CanisterRetrieveInput = record { address : CanisterAddress };
 type Challenge = record {
+  status : ChallengeStatus;
   challengePrompt : text;
   creationTimestamp : nat64;
   createdBy : CanisterAddress;
@@ -21,6 +23,8 @@ type Challenge = record {
   closedTimestamp : opt nat64;
 };
 type ChallengeAdditionResult = variant { Ok : Challenge; Err : ApiError };
+type ChallengeResult = variant { Ok : Challenge; Err : ApiError };
+type ChallengeStatus = variant { Open; Closed; Archived; Other : text };
 type ChallengesResult = variant { Ok : vec Challenge; Err : ApiError };
 type GameStateCanister = service {
   addNewChallenge : (NewChallengeInput) -> (ChallengeAdditionResult);
@@ -32,6 +36,7 @@ type GameStateCanister = service {
   getMainerAgentCanisterInfo : (CanisterRetrieveInput) -> (
       MainerAgentCanisterResult,
     ) query;
+  getRandomOpenChallenge : () -> (ChallengeResult);
 };
 type MainerAgentCanisterInput = record {
   canisterType : ProtocolCanisterType;

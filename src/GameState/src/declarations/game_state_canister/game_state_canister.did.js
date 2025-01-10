@@ -1,7 +1,14 @@
 export const idlFactory = ({ IDL }) => {
   const NewChallengeInput = IDL.Record({ 'challengePrompt' : IDL.Text });
+  const ChallengeStatus = IDL.Variant({
+    'Open' : IDL.Null,
+    'Closed' : IDL.Null,
+    'Archived' : IDL.Null,
+    'Other' : IDL.Text,
+  });
   const CanisterAddress = IDL.Text;
   const Challenge = IDL.Record({
+    'status' : ChallengeStatus,
     'challengePrompt' : IDL.Text,
     'creationTimestamp' : IDL.Nat64,
     'createdBy' : CanisterAddress,
@@ -10,6 +17,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const StatusCode = IDL.Nat16;
   const ApiError = IDL.Variant({
+    'FailedOperation' : IDL.Null,
     'InvalidId' : IDL.Null,
     'ZeroAddress' : IDL.Null,
     'Unauthorized' : IDL.Null,
@@ -54,6 +62,7 @@ export const idlFactory = ({ IDL }) => {
     'Err' : ApiError,
   });
   const CanisterRetrieveInput = IDL.Record({ 'address' : CanisterAddress });
+  const ChallengeResult = IDL.Variant({ 'Ok' : Challenge, 'Err' : ApiError });
   const GameStateCanister = IDL.Service({
     'addNewChallenge' : IDL.Func(
         [NewChallengeInput],
@@ -72,6 +81,7 @@ export const idlFactory = ({ IDL }) => {
         [MainerAgentCanisterResult],
         ['query'],
       ),
+    'getRandomOpenChallenge' : IDL.Func([], [ChallengeResult], []),
   });
   return GameStateCanister;
 };

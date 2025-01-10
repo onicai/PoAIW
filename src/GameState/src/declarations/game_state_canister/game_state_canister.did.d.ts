@@ -2,7 +2,8 @@ import type { Principal } from '@dfinity/principal';
 import type { ActorMethod } from '@dfinity/agent';
 import type { IDL } from '@dfinity/candid';
 
-export type ApiError = { 'InvalidId' : null } |
+export type ApiError = { 'FailedOperation' : null } |
+  { 'InvalidId' : null } |
   { 'ZeroAddress' : null } |
   { 'Unauthorized' : null } |
   { 'StatusCode' : StatusCode } |
@@ -17,6 +18,7 @@ export interface CanisterInput {
 }
 export interface CanisterRetrieveInput { 'address' : CanisterAddress }
 export interface Challenge {
+  'status' : ChallengeStatus,
   'challengePrompt' : string,
   'creationTimestamp' : bigint,
   'createdBy' : CanisterAddress,
@@ -25,6 +27,12 @@ export interface Challenge {
 }
 export type ChallengeAdditionResult = { 'Ok' : Challenge } |
   { 'Err' : ApiError };
+export type ChallengeResult = { 'Ok' : Challenge } |
+  { 'Err' : ApiError };
+export type ChallengeStatus = { 'Open' : null } |
+  { 'Closed' : null } |
+  { 'Archived' : null } |
+  { 'Other' : string };
 export type ChallengesResult = { 'Ok' : Array<Challenge> } |
   { 'Err' : ApiError };
 export interface GameStateCanister {
@@ -39,6 +47,7 @@ export interface GameStateCanister {
     [CanisterRetrieveInput],
     MainerAgentCanisterResult
   >,
+  'getRandomOpenChallenge' : ActorMethod<[], ChallengeResult>,
 }
 export interface MainerAgentCanisterInput {
   'canisterType' : ProtocolCanisterType,

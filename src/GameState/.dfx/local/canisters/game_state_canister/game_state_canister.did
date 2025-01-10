@@ -36,11 +36,24 @@ type GameStateCanister =
    getCurrentChallenges: () -> (ChallengesResult) query;
    getMainerAgentCanisterInfo: (CanisterRetrieveInput) ->
     (MainerAgentCanisterResult) query;
+   getRandomOpenChallenge: () -> (ChallengeResult);
  };
 type ChallengesResult = 
  variant {
    Err: ApiError;
    Ok: vec Challenge;
+ };
+type ChallengeStatus = 
+ variant {
+   Archived;
+   Closed;
+   Open;
+   Other: text;
+ };
+type ChallengeResult = 
+ variant {
+   Err: ApiError;
+   Ok: Challenge;
  };
 type ChallengeAdditionResult = 
  variant {
@@ -54,6 +67,7 @@ type Challenge =
    closedTimestamp: opt nat64;
    createdBy: CanisterAddress;
    creationTimestamp: nat64;
+   status: ChallengeStatus;
  };
 type CanisterRetrieveInput = record {address: CanisterAddress;};
 type CanisterInput = 
@@ -70,6 +84,7 @@ type AuthRecordResult =
 type AuthRecord = record {auth: text;};
 type ApiError = 
  variant {
+   FailedOperation;
    InvalidId;
    Other: text;
    StatusCode: StatusCode;
