@@ -39,6 +39,7 @@ module Types {
         canisterType: ProtocolCanisterType;
         creationTimestamp : Nat64;
         createdBy : Principal;
+        ownedBy: Principal;
     };
 
     public type CanisterInput = {

@@ -49,6 +49,22 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Official mAIner agent canisters
+    stable var mainerCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
+    var mainerCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
+    
+    private func putMainerCanister(canisterAddress : Text, canisterEntry : Types.OfficialProtocolCanister) : Bool {
+        mainerCanistersStorage.put(canisterAddress, canisterEntry);
+        return true;
+    };
+
+    private func getMainerCanister(canisterAddress : Text) : ?Types.OfficialProtocolCanister {
+        switch (mainerCanistersStorage.get(canisterAddress)) {
+            case (null) { return null; };
+            case (?canisterEntry) { return ?canisterEntry; };
+        };
+    };
+
     // Open challenges
     stable var openChallengesStorageStable : [(Text, Types.Challenge)] = [];
     var openChallengesStorage : HashMap.HashMap<Text, Types.Challenge> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -154,6 +170,7 @@ actor class GameStateCanister() = this {
                     canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
                     creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                     createdBy : Principal = msg.caller;
+                    ownedBy : Principal = Principal.fromActor(this);
                 };
                 let putResponse = putChallengerCanister(canisterEntryToAdd.address, canisterEntry);
                 if (not putResponse) {
@@ -166,6 +183,7 @@ actor class GameStateCanister() = this {
                     canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
                     creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                     createdBy : Principal = msg.caller;
+                    ownedBy : Principal = Principal.fromActor(this);
                 };
                 let putResponse = putJudgeCanister(canisterEntryToAdd.address, canisterEntry);
                 if (not putResponse) {
@@ -222,6 +240,7 @@ actor class GameStateCanister() = this {
     system func preupgrade() {
         challengerCanistersStorageStable := Iter.toArray(challengerCanistersStorage.entries());
         judgeCanistersStorageStable := Iter.toArray(judgeCanistersStorage.entries());
+        mainerCanistersStorageStable := Iter.toArray(mainerCanistersStorage.entries());
         openChallengesStorageStable := Iter.toArray(openChallengesStorage.entries());
     };
 
@@ -229,7 +248,9 @@ actor class GameStateCanister() = this {
         challengerCanistersStorage := HashMap.fromIter(Iter.fromArray(challengerCanistersStorageStable), challengerCanistersStorageStable.size(), Text.equal, Text.hash);
         challengerCanistersStorageStable := [];
         judgeCanistersStorage := HashMap.fromIter(Iter.fromArray(judgeCanistersStorageStable), judgeCanistersStorageStable.size(), Text.equal, Text.hash);
-        judgeCanistersStorageStable := [];  
+        judgeCanistersStorageStable := [];
+        mainerCanistersStorage := HashMap.fromIter(Iter.fromArray(mainerCanistersStorageStable), mainerCanistersStorageStable.size(), Text.equal, Text.hash);
+        mainerCanistersStorageStable := [];
         openChallengesStorage := HashMap.fromIter(Iter.fromArray(openChallengesStorageStable), openChallengesStorageStable.size(), Text.equal, Text.hash);
         openChallengesStorageStable := [];
     };
