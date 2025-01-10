@@ -8,6 +8,7 @@ module Types {
         #Unauthorized;
         #InvalidId;
         #ZeroAddress;
+        #FailedOperation;
         #Other : Text;
         #StatusCode : StatusCode;
     };
@@ -66,7 +67,15 @@ module Types {
         creationTimestamp : Nat64;
         createdBy : CanisterAddress;
         challengePrompt : Text;
+        status : ChallengeStatus;
         closedTimestamp : ?Nat64;
+    };
+
+    public type ChallengeStatus = {
+        #Open;
+        #Closed;
+        #Archived;
+        #Other : Text;
     };
 
     public type NewChallengeInput = {
@@ -74,6 +83,8 @@ module Types {
     };
 
     public type ChallengeAdditionResult = Result<Challenge, ApiError>;
+
+    public type ChallengeResult = Result<Challenge, ApiError>;
 
     public type ChallengesResult = Result<[Challenge], ApiError>;
 

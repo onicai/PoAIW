@@ -11,6 +11,7 @@ import Int "mo:base/Int";
 import Time "mo:base/Time";
 import Iter "mo:base/Iter";
 import List "mo:base/List";
+import Nat "mo:base/Nat";
 
 import Types "./Types";
 import Utils "Utils";
@@ -158,6 +159,26 @@ actor class GameStateCanister() = this {
         return true;
     };
 
+    // Challenges helper functions
+    private func getRandomChallenge(status : Types.ChallengeStatus) : async ?Types.Challenge {
+        switch (status) {
+            case (#Open) {
+                let challengeIds : [Text] = Iter.toArray(challengerCanistersStorage.keys());
+                let numberOfChallenges : Nat = challengeIds.size();
+
+                let randomInt : ?Int = await Utils.nextRandomInt(0, numberOfChallenges);
+                switch (randomInt) {
+                    case (?intToUse) {
+                        return getOpenChallenge(challengeIds[Int.abs(intToUse)]);
+                    };
+                    case (_) { return null; };
+                };
+            };
+            case (_) { return null; };
+        };
+    };
+    
+
     // TODO: settings
     
 
@@ -261,6 +282,7 @@ actor class GameStateCanister() = this {
                     creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                     createdBy : Types.CanisterAddress = challengerEntry.address;
                     challengePrompt : Text = newChallenge.challengePrompt;
+                    status : Types.ChallengeStatus = #Open;
                     closedTimestamp : ?Nat64 = null;
                 };
 
@@ -317,6 +339,26 @@ actor class GameStateCanister() = this {
                 } else {
                     return #Err(#Unauthorized);
                 };                               
+            };
+        };
+    };
+
+    // Function for mAIner agent canister to retrieve a random open challenge
+    public shared (msg) func getRandomOpenChallenge() : async Types.ChallengeResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Only official mAIner agent canisters may call this
+        switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?mainerAgentEntry) {
+                let challengeResponse : ?Types.Challenge = await getRandomChallenge(#Open);
+                switch (challengeResponse) {
+                    case (?challenge) {
+                        return #Ok(challenge);                
+                    };
+                    case (_) { return #Err(#FailedOperation); };
+                };             
             };
         };
     };
