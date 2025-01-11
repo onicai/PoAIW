@@ -108,11 +108,14 @@ actor class GameStateCanister() = this {
     // Official mAIner agent canisters (owned by users)
     stable var mainerAgentCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
     var mainerAgentCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
-    
+    stable var userToMainerAgentsStorageStable : [(Principal, List.List<Types.OfficialProtocolCanister>)] = [];
+    var userToMainerAgentsStorage : HashMap.HashMap<Principal, List.List<Types.OfficialProtocolCanister>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+
     private func putMainerAgentCanister(canisterAddress : Text, canisterEntry : Types.OfficialProtocolCanister) : Bool {
         switch (getMainerAgentCanister(canisterAddress)) {
             case (null) {
                 mainerAgentCanistersStorage.put(canisterAddress, canisterEntry);
+                // TODO: add to userToMainerAgentsStorage
                 return true;
             };
             case (?canisterEntry) { return false; }; //existing entry
@@ -131,10 +134,13 @@ actor class GameStateCanister() = this {
             case (null) { return false; };
             case (?canisterEntry) {
                 let removeResult = mainerAgentCanistersStorage.remove(canisterAddress);
+                // TODO: remove from userToMainerAgentsStorage
                 return true;
             };
         };
     };
+
+    // TODO: put, get, remove for userToMainerAgentsStorage
 
     // Open challenges
     stable var openChallengesStorageStable : [(Text, Types.Challenge)] = [];
@@ -279,6 +285,143 @@ actor class GameStateCanister() = this {
             };
             case (_) { return null; };
         };
+    };
+
+    // Winner declaration per challenge id
+    stable var winnerDeclarationForChallengeStable : [(Text, Types.ChallengeWinnerDeclaration)] = [];
+    var winnerDeclarationForChallenge : HashMap.HashMap<Text, Types.ChallengeWinnerDeclaration> = HashMap.HashMap(0, Text.equal, Text.hash);
+  
+    private func putWinnerDeclarationForChallenge(challengeId : Text, challengeWinnerDeclaration : Types.ChallengeWinnerDeclaration) : Bool {
+        winnerDeclarationForChallenge.put(challengeId, challengeWinnerDeclaration);
+        return true;
+    };
+
+    private func getWinnerDeclarationForChallenge(challengeId : Text) : ?Types.ChallengeWinnerDeclaration {
+        switch (winnerDeclarationForChallenge.get(challengeId)) {
+            case (null) { return null; };
+            case (?challengeEntry) { return ?challengeEntry; };
+        };
+    };
+
+    // Scored responses mapped to challenge id
+    stable var scoredResponsesPerChallengeStable : [(Text, List.List<Types.ScoredResponse>)] = [];
+    var scoredResponsesPerChallenge : HashMap.HashMap<Text, List.List<Types.ScoredResponse>> = HashMap.HashMap(0, Text.equal, Text.hash);
+  
+    private func putScoredResponseForChallenge(scoredResponseEntry : Types.ScoredResponse) : Nat {
+        let currentScoredResponses : List.List<Types.ScoredResponse> = getScoredResponsesForChallenge(scoredResponseEntry.challengeId);
+        let updatedScoredResponses = List.push<Types.ScoredResponse>(scoredResponseEntry, currentScoredResponses);
+        scoredResponsesPerChallenge.put(scoredResponseEntry.challengeId, updatedScoredResponses);
+        // return number of scored responses for this challenge
+        return List.size<Types.ScoredResponse>(updatedScoredResponses);
+    };
+
+    private func getScoredResponse(challengeId : Text, submissionId : Text) : ?Types.ScoredResponse {
+        let currentScoredResponses : List.List<Types.ScoredResponse> = getScoredResponsesForChallenge(challengeId);
+        return List.find(currentScoredResponses, func(scoredResponseEntry: Types.ScoredResponse) : Bool { scoredResponseEntry.submissionId == submissionId });
+    };
+
+    private func getScoredResponsesForChallenge(challengeId : Text) : List.List<Types.ScoredResponse> {
+        let scoredResponsesForChallenge : ?List.List<Types.ScoredResponse> = scoredResponsesPerChallenge.get(challengeId);
+        switch (scoredResponsesForChallenge) {
+            case (null) { return List.nil<Types.ScoredResponse>(); };
+            case (?scoredResponsesForChallenge) { return scoredResponsesForChallenge; };
+        };
+    };
+
+    private func deleteScoredResponsesForChallenge(challengeId : Text, submissionId : Text) : Text {
+        let currentScoredResponses : List.List<Types.ScoredResponse> = getScoredResponsesForChallenge(challengeId);
+        let updatedScoredResponses = List.filter(currentScoredResponses, func(scoredResponseEntry: Types.ScoredResponse) : Bool { scoredResponseEntry.submissionId != submissionId });
+        scoredResponsesPerChallenge.put(challengeId, updatedScoredResponses);
+        return challengeId;
+    };
+
+    private func getParticipantEntryFromScoredResponse(scoredResponse : Types.ScoredResponse) : ?Types.ChallengeParticipantEntry {
+        switch (getMainerAgentCanister(Principal.toText(scoredResponse.submittedBy))) {
+            case (null) { return null; };
+            case (?mainerAgentEntry) {
+                let ownedBy : Principal = mainerAgentEntry.ownedBy;
+                let participantEntry : Types.ChallengeParticipantEntry = {
+                    submissionId : Text = scoredResponse.submissionId;
+                    submittedBy : Principal = scoredResponse.submittedBy;
+                    ownedBy: Principal = ownedBy;
+                };
+
+                return ?participantEntry;                                            
+            };
+        };
+    };
+
+    private func rankScoredResponsesForChallenge(challengeId : Text) : ?Types.ChallengeWinnerDeclaration {
+        // Get all scored responses for this challenge
+        let currentScoredResponses : List.List<Types.ScoredResponse> = getScoredResponsesForChallenge(challengeId);
+        let currentScoredResponsesIter : Iter.Iter<Types.ScoredResponse> = Iter.fromList(currentScoredResponses);
+
+        let participantsList : List.List<Types.ChallengeParticipantEntry> = List.nil<Types.ChallengeParticipantEntry>();
+
+        // 1st Place (winner)
+        let winnerScoredResponseEntry : ?Types.ScoredResponse = currentScoredResponsesIter.next();
+        switch (winnerScoredResponseEntry) {
+            case (null) { return null };
+            case (?winnerScoredResponse) {
+                let winnerParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(winnerScoredResponse);
+                switch (winnerParticipantEntry) {
+                    case (null) { return null };
+                    case (?winnerParticipant) {
+                        var pushParticipantResult = List.push<Types.ChallengeParticipantEntry>(winnerParticipant, participantsList);
+                        // 2nd Place
+                        let secondPlaceScoredResponseEntry : ?Types.ScoredResponse = currentScoredResponsesIter.next();
+                        switch (secondPlaceScoredResponseEntry) {
+                            case (null) { return null };
+                            case (?secondPlaceScoredResponse) {
+                                let secondPlaceParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(secondPlaceScoredResponse);
+                                switch (secondPlaceParticipantEntry) {
+                                    case (null) { return null };
+                                    case (?secondPlaceParticipant) {
+                                        var pushParticipantResult = List.push<Types.ChallengeParticipantEntry>(secondPlaceParticipant, participantsList);
+                                        // 3rd Place
+                                        let thirdPlaceScoredResponseEntry : ?Types.ScoredResponse = currentScoredResponsesIter.next();
+                                        switch (thirdPlaceScoredResponseEntry) {
+                                            case (null) { return null };
+                                            case (?thirdPlaceScoredResponse) {
+                                                let thirdPlaceParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(thirdPlaceScoredResponse);
+                                                switch (thirdPlaceParticipantEntry) {
+                                                    case (null) { return null };
+                                                    case (?thirdPlaceParticipant) {
+                                                        var pushParticipantResult = List.push<Types.ChallengeParticipantEntry>(thirdPlaceParticipant, participantsList);
+                                                        // Remaining participants
+                                                        for (nextScoredResponse in currentScoredResponsesIter) {
+                                                            var nextParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(nextScoredResponse);
+                                                            switch (nextParticipantEntry) {
+                                                                case (null) { };
+                                                                case (?nextParticipant) { var pushParticipantResult = List.push<Types.ChallengeParticipantEntry>(nextParticipant, participantsList); };
+                                                            };
+                                                        };
+
+                                                        let challengeWinnerDeclaration : Types.ChallengeWinnerDeclaration = {
+                                                            challengeId : Text = challengeId;
+                                                            finalizedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                                                            winner : Types.ChallengeParticipantEntry = winnerParticipant;
+                                                            secondPlace : Types.ChallengeParticipantEntry = secondPlaceParticipant;
+                                                            thirdPlace : Types.ChallengeParticipantEntry = thirdPlaceParticipant;
+                                                            participants : List.List<Types.ChallengeParticipantEntry> = participantsList;
+                                                        };
+                                                        // Store the winner declaration
+                                                        let putResult = putWinnerDeclarationForChallenge(challengeId, challengeWinnerDeclaration);
+
+                                                        return ?challengeWinnerDeclaration;
+                                                    };
+                                                };
+                                            };
+                                        };
+                                    };
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+
     };
     
 
@@ -530,7 +673,7 @@ actor class GameStateCanister() = this {
                             return #Err(#Unauthorized);                    
                         };
 
-                        // TODO: store submission
+                        // Forward submission to responsible Judge
                         let submissionId : Text = await Utils.newRandomUniqueId();
                         let submissionToForward : Types.ChallengeResponseSubmission = {
                             submissionId : Text = submissionId;
@@ -540,8 +683,6 @@ actor class GameStateCanister() = this {
                             submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                             status: Types.ChallengeResponseSubmissionStatus = #Received;
                         };
-
-                        // Forward submission to responsible Judge
                         
                         let judgeAddress = judgeCanister.address;
 
@@ -550,15 +691,12 @@ actor class GameStateCanister() = this {
 
                         switch (result) {
                             case (true) {
-                                let submissionEntry : Types.ChallengeResponseSubmission = {
+                                let submissionEntry : Types.ChallengeResponseSubmissionReturn = {
+                                    success : Bool = true;
                                     submissionId : Text = submissionToForward.submissionId;
-                                    challengeId : Text = submissionToForward.challengeId;
-                                    submittedBy : Principal = submissionToForward.submittedBy;
-                                    response : Text = submissionToForward.response;
                                     submittedTimestamp : Nat64 = submissionToForward.submittedTimestamp;
                                     status: Types.ChallengeResponseSubmissionStatus = #Submitted;
                                 };
-                                // TODO: store submission (update)
                                 return #Ok(submissionEntry);
                             };
                             case (_) { return #Err(#FailedOperation); };
@@ -569,13 +707,85 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Function for Judge canister to add a new scored response
+    stable let THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE = 20; // TODO: determine threshold how many scored responses are needed before challenge is closed (for ranking and winner declaration)
+    public shared (msg) func addNewScoredResponse(scoredResponseInput : Types.ScoredResponseInput) : async Types.ScoredResponseResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Only official Judge canisters may call this
+        switch (getJudgeCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?judgeEntry) {
+                // Sanity checks on scored response
+                if (scoredResponseInput.judgedBy != msg.caller) {
+                    return #Err(#Unauthorized);
+                };
+                // TODO: likely we want to store the submissions from the mAIners and check here that it was an actual submission and that the data matches up
+
+                // Verify that challenge is open
+                if (not verifyChallenge(#Open, scoredResponseInput.challengeId)) {
+                    // TODO: likely we want to store the scored response nevertheless for the closed challenge
+                    return #Err(#InvalidId);
+                };
+                
+                // Determine if Judge is responsible for this challenge
+                let responsibleJudgeCanisterEntry : ?Types.OfficialProtocolCanister = getJudgeCanisterForChallenge(#Open, scoredResponseInput.challengeId);
+                switch (responsibleJudgeCanisterEntry) {
+                    case (null) {
+                        return #Err(#Unauthorized);
+                    };
+                    case (?responsibleJudgeCanister) {
+                        // Store scored response for challenge
+                        let scoredResponseEntry : Types.ScoredResponse = {
+                            submissionId : Text = scoredResponseInput.submissionId;
+                            challengeId : Text = scoredResponseInput.challengeId;
+                            submittedBy : Principal = scoredResponseInput.submittedBy;
+                            response : Text = scoredResponseInput.response;
+                            submittedTimestamp : Nat64 = scoredResponseInput.submittedTimestamp;
+                            status: Types.ChallengeResponseSubmissionStatus = #Judged;
+                            judgedBy: Principal = scoredResponseInput.judgedBy;
+                            score: Nat = scoredResponseInput.score;
+                            judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                        };
+
+                        let numberOfScoredResponsesForChallenge : Nat = putScoredResponseForChallenge(scoredResponseEntry);
+
+                        // Determine if ranking of scored responses can be triggered
+                        if (numberOfScoredResponsesForChallenge >= THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE) {
+                            // Rank scored responses
+                            let rankResult : ?Types.ChallengeWinnerDeclaration = rankScoredResponsesForChallenge(scoredResponseInput.challengeId);
+                            switch (rankResult) {
+                                case (null) {
+                                    // TODO: error handling (e.g. put into queue and try ranking again later)
+                                };
+                                case (?challengeWinnerDeclaration) {
+                                    // TODO: declare winner                                    
+                                };
+                            };
+                        };
+
+                        // Return
+                        let result : Types.ScoredResponseReturn = {
+                            success : Bool = true;
+                        };
+                        return #Ok(result);                      
+                    };
+                };               
+            };
+        };
+    };
+
 // Upgrade Hooks
     system func preupgrade() {
         challengerCanistersStorageStable := Iter.toArray(challengerCanistersStorage.entries());
         judgeCanistersStorageStable := Iter.toArray(judgeCanistersStorage.entries());
         mainerCreatorCanistersStorageStable := Iter.toArray(mainerCreatorCanistersStorage.entries());
         mainerAgentCanistersStorageStable := Iter.toArray(mainerAgentCanistersStorage.entries());
+        userToMainerAgentsStorageStable := Iter.toArray(userToMainerAgentsStorage.entries());
         openChallengesStorageStable := Iter.toArray(openChallengesStorage.entries());
+        scoredResponsesPerChallengeStable := Iter.toArray(scoredResponsesPerChallenge.entries());
+        winnerDeclarationForChallengeStable := Iter.toArray(winnerDeclarationForChallenge.entries());
     };
 
     system func postupgrade() {
@@ -587,7 +797,13 @@ actor class GameStateCanister() = this {
         mainerCreatorCanistersStorageStable := [];
         mainerAgentCanistersStorage := HashMap.fromIter(Iter.fromArray(mainerAgentCanistersStorageStable), mainerAgentCanistersStorageStable.size(), Text.equal, Text.hash);
         mainerAgentCanistersStorageStable := [];
+        userToMainerAgentsStorage := HashMap.fromIter(Iter.fromArray(userToMainerAgentsStorageStable), userToMainerAgentsStorageStable.size(), Principal.equal, Principal.hash);
+        userToMainerAgentsStorageStable := [];
         openChallengesStorage := HashMap.fromIter(Iter.fromArray(openChallengesStorageStable), openChallengesStorageStable.size(), Text.equal, Text.hash);
         openChallengesStorageStable := [];
+        scoredResponsesPerChallenge := HashMap.fromIter(Iter.fromArray(scoredResponsesPerChallengeStable), scoredResponsesPerChallengeStable.size(), Text.equal, Text.hash);
+        scoredResponsesPerChallengeStable := [];
+        winnerDeclarationForChallenge := HashMap.fromIter(Iter.fromArray(winnerDeclarationForChallengeStable), winnerDeclarationForChallengeStable.size(), Text.equal, Text.hash);
+        winnerDeclarationForChallengeStable := [];
     };
 };

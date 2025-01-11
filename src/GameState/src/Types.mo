@@ -1,6 +1,7 @@
 import Blob "mo:base/Blob";
 import Principal "mo:base/Principal";
 import Nat16 "mo:base/Nat16";
+import List "mo:base/List";
 
 module Types {
     //-------------------------------------------------------------------------
@@ -113,7 +114,59 @@ module Types {
         status: ChallengeResponseSubmissionStatus;
     };
 
-    public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmission, ApiError>;
+    public type ChallengeResponseSubmissionReturn = {
+        success : Bool;
+        submissionId : Text;
+        submittedTimestamp : Nat64;
+        status: ChallengeResponseSubmissionStatus;
+    };
+
+    public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmissionReturn, ApiError>;
+
+    public type ScoredResponseInput = {
+        submissionId : Text;
+        challengeId : Text;
+        submittedBy : Principal;
+        response : Text;
+        submittedTimestamp : Nat64;
+        status: ChallengeResponseSubmissionStatus;
+        judgedBy: Principal;
+        score: Nat;
+    };
+
+    public type ScoredResponse = {
+        submissionId : Text;
+        challengeId : Text;
+        submittedBy : Principal;
+        response : Text;
+        submittedTimestamp : Nat64;
+        status: ChallengeResponseSubmissionStatus;
+        judgedBy: Principal;
+        score: Nat;
+        judgedTimestamp : Nat64;
+    };
+
+    public type ScoredResponseReturn = {
+        success : Bool;
+    };
+
+    public type ScoredResponseResult = Result<ScoredResponseReturn, ApiError>;
+
+    //-------------------------------------------------------------------------
+    public type ChallengeWinnerDeclaration = {
+        challengeId : Text;
+        finalizedTimestamp : Nat64;
+        winner : ChallengeParticipantEntry;
+        secondPlace : ChallengeParticipantEntry;
+        thirdPlace : ChallengeParticipantEntry;
+        participants : List.List<ChallengeParticipantEntry>;
+    };
+
+    public type ChallengeParticipantEntry = {
+        submissionId : Text;
+        submittedBy : Principal;
+        ownedBy: Principal;
+    };
 
     //-------------------------------------------------------------------------
 
