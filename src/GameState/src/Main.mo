@@ -12,6 +12,7 @@ import Time "mo:base/Time";
 import Iter "mo:base/Iter";
 import List "mo:base/List";
 import Nat "mo:base/Nat";
+import Order "mo:base/Order";
 
 import Types "./Types";
 import Utils "Utils";
@@ -351,15 +352,31 @@ actor class GameStateCanister() = this {
         };
     };
 
+    private func compareScoredResponses(resA : Types.ScoredResponse, resB : Types.ScoredResponse) : Order.Order {
+        // Note: the sort logic is in increasing order, i.e. if we want the highest scoring entries first we need to reverse the logic
+        if (resA.score > resB.score) {
+            // response A scored higher and should be listed first
+            return #less;
+        } else if (resA.score == resB.score) {
+            // responses A and B scored equally
+            return #equal;
+        } else {
+            // response B scored higher and response AI should be listed after
+            return #greater;
+        };
+    };
+
     private func rankScoredResponsesForChallenge(challengeId : Text) : ?Types.ChallengeWinnerDeclaration {
         // Get all scored responses for this challenge
         let currentScoredResponses : List.List<Types.ScoredResponse> = getScoredResponsesForChallenge(challengeId);
         let currentScoredResponsesIter : Iter.Iter<Types.ScoredResponse> = Iter.fromList(currentScoredResponses);
+        // Sort
+        let sortedScoredResponsesIter : Iter.Iter<Types.ScoredResponse> = Iter.sort<Types.ScoredResponse>(currentScoredResponsesIter, compareScoredResponses);
 
         let participantsList : List.List<Types.ChallengeParticipantEntry> = List.nil<Types.ChallengeParticipantEntry>();
 
         // 1st Place (winner)
-        let winnerScoredResponseEntry : ?Types.ScoredResponse = currentScoredResponsesIter.next();
+        let winnerScoredResponseEntry : ?Types.ScoredResponse = sortedScoredResponsesIter.next();
         switch (winnerScoredResponseEntry) {
             case (null) { return null };
             case (?winnerScoredResponse) {
@@ -369,7 +386,7 @@ actor class GameStateCanister() = this {
                     case (?winnerParticipant) {
                         var pushParticipantResult = List.push<Types.ChallengeParticipantEntry>(winnerParticipant, participantsList);
                         // 2nd Place
-                        let secondPlaceScoredResponseEntry : ?Types.ScoredResponse = currentScoredResponsesIter.next();
+                        let secondPlaceScoredResponseEntry : ?Types.ScoredResponse = sortedScoredResponsesIter.next();
                         switch (secondPlaceScoredResponseEntry) {
                             case (null) { return null };
                             case (?secondPlaceScoredResponse) {
@@ -379,7 +396,7 @@ actor class GameStateCanister() = this {
                                     case (?secondPlaceParticipant) {
                                         var pushParticipantResult = List.push<Types.ChallengeParticipantEntry>(secondPlaceParticipant, participantsList);
                                         // 3rd Place
-                                        let thirdPlaceScoredResponseEntry : ?Types.ScoredResponse = currentScoredResponsesIter.next();
+                                        let thirdPlaceScoredResponseEntry : ?Types.ScoredResponse = sortedScoredResponsesIter.next();
                                         switch (thirdPlaceScoredResponseEntry) {
                                             case (null) { return null };
                                             case (?thirdPlaceScoredResponse) {
@@ -389,7 +406,7 @@ actor class GameStateCanister() = this {
                                                     case (?thirdPlaceParticipant) {
                                                         var pushParticipantResult = List.push<Types.ChallengeParticipantEntry>(thirdPlaceParticipant, participantsList);
                                                         // Remaining participants
-                                                        for (nextScoredResponse in currentScoredResponsesIter) {
+                                                        for (nextScoredResponse in sortedScoredResponsesIter) {
                                                             var nextParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(nextScoredResponse);
                                                             switch (nextParticipantEntry) {
                                                                 case (null) { };
