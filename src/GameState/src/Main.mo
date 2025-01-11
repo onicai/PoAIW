@@ -70,6 +70,15 @@ actor class GameStateCanister() = this {
         };
     };
 
+    private func getRandomJudgeCanister() : ?Types.OfficialProtocolCanister {
+        // TODO: this function isn't random but always returns the first entry
+        let canisterIds : Iter.Iter<Types.OfficialProtocolCanister> = judgeCanistersStorage.vals();
+        switch (canisterIds.next()) {
+            case (null) { return null; };
+            case (?canisterEntry) { return ?canisterEntry; };
+        };
+    };
+
     // Official mAIner Creator canisters
     stable var mainerCreatorCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
     var mainerCreatorCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -241,6 +250,36 @@ actor class GameStateCanister() = this {
             case (_) { return false; };
         };
     };
+
+    private func getJudgeCanisterForChallenge(status : Types.ChallengeStatus, challengeId: Text) : ?Types.OfficialProtocolCanister {
+        switch (status) {
+            case (#Open) {
+                switch (getOpenChallenge(challengeId)) {
+                    case (null) { return null; };
+                    case (?challengeEntry) {
+                        return getJudgeCanister(challengeEntry.responsibleJudgeAddress);
+                    };
+                };
+            };
+            case (#Closed) {
+                switch (getClosedChallenge(challengeId)) {
+                    case (null) { return null; };
+                    case (?challengeEntry) {
+                        return getJudgeCanister(challengeEntry.responsibleJudgeAddress);
+                    };
+                };
+            };
+            case (#Archived) {
+                switch (getArchivedChallenge(challengeId)) {
+                    case (null) { return null; };
+                    case (?challengeEntry) {
+                        return getJudgeCanister(challengeEntry.responsibleJudgeAddress);
+                    };
+                };
+            };
+            case (_) { return null; };
+        };
+    };
     
 
     // TODO: settings
@@ -335,23 +374,35 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        // TODO: require cycles for adding new challenge
+
         // Only official Challenger canisters may call this
         switch (getChallengerCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
             case (?challengerEntry) {
-                let challengeId : Text = await Utils.newRandomUniqueId();
+                // Determine which Judge will be responsible for this challenge
+                let judgeCanisterEntry : ?Types.OfficialProtocolCanister = getRandomJudgeCanister();
+                switch (judgeCanisterEntry) {
+                    case (null) {
+                        return #Err(#FailedOperation);
+                    };
+                    case (?judgeCanister) {
+                        let challengeId : Text = await Utils.newRandomUniqueId();
 
-                let challengeAdded : Types.Challenge = {
-                    challengeId : Text = challengeId;
-                    creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                    createdBy : Types.CanisterAddress = challengerEntry.address;
-                    challengePrompt : Text = newChallenge.challengePrompt;
-                    status : Types.ChallengeStatus = #Open;
-                    closedTimestamp : ?Nat64 = null;
-                };
+                        let challengeAdded : Types.Challenge = {
+                            challengeId : Text = challengeId;
+                            creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            createdBy : Types.CanisterAddress = challengerEntry.address;
+                            challengePrompt : Text = newChallenge.challengePrompt;
+                            status : Types.ChallengeStatus = #Open;
+                            closedTimestamp : ?Nat64 = null;
+                            responsibleJudgeAddress : Types.CanisterAddress = judgeCanister.address;
+                        };
 
-                let putResult = putOpenChallenge(challengeId, challengeAdded);
-                return #Ok(challengeAdded);                
+                        let putResult = putOpenChallenge(challengeId, challengeAdded);
+                        return #Ok(challengeAdded);                        
+                    };
+                };               
             };
         };
     };
@@ -428,40 +479,92 @@ actor class GameStateCanister() = this {
     };
 
     // Function for mAIner agent canister to submit a response to an open challenge
+    stable let CYCLES_MILLION = 1_000_000;
+    stable let CYCLES_BILLION = 1_000_000_000;
+    stable let CYCLES_TRILLION = 1_000_000_000_000;
+    stable let SUBMISSION_CYCLES_REQUIRED : Nat = 100 * CYCLES_BILLION; // TODO: determine how many cycles are needed to process one submission (incl. judge)
+    stable let FAILED_SUBMISSION_CYCLES_CUT : Nat = SUBMISSION_CYCLES_REQUIRED / 5;
+    stable let JUDGE_CYCLES_PROVISION_PER_SUBMISSION : Nat = 80 * CYCLES_BILLION; // TODO: determine how many cycles should be forwarded to judge per submission
+
     public shared (msg) func submitChallengeResponse(challengeResponseSubmitted : Types.ChallengeResponseSubmissionInput) : async Types.ChallengeResponseSubmissionResult {
         if (Principal.isAnonymous(msg.caller)) {
+            let cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
             return #Err(#Unauthorized);
+        };
+        // Verify that submission is charged with cycles
+        if (Cycles.available() < SUBMISSION_CYCLES_REQUIRED) {
+            let cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+            return #Err(#Unauthorized);                    
         };
         // Only official mAIner agent canisters may call this
         switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
-            case (null) { return #Err(#Unauthorized); };
+            case (null) {
+                let cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                return #Err(#Unauthorized);
+            };
             case (?mainerAgentEntry) {
                 // Check that submission record looks correct
                 if (challengeResponseSubmitted.submittedBy != msg.caller) {
+                    let cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
                     return #Err(#Unauthorized);
                 };
 
-                // TODO: Verify that submission is charged with cycles
-
                 // Verify that challenge is open
                 if (not verifyChallenge(#Open, challengeResponseSubmitted.challengeId)) {
-                    // TODO: return part of cycles (e.g. 80%)
+                    let cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
                     return #Err(#InvalidId);
                 };
 
-                // TODO: Forward submission to responsible Judge
-                /* let forwardedResult : ?Types.Challenge = await getRandomChallenge(#Open);
-                switch (forwardedResult) {
-                    case (#Ok(forwardedResultValue)) {
-                        if (forwardedResultValue) {
-                            return #Ok(forwardedResultValue);
-                        } else {
-                            return #Err(#FailedOperation);
-                        }; 
+                // Get Judge responsible for challenge
+                let judgeCanisterEntry : ?Types.OfficialProtocolCanister = getJudgeCanisterForChallenge(#Open, challengeResponseSubmitted.challengeId);
+                switch (judgeCanisterEntry) {
+                    case (null) {
+                        let cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                        return #Err(#FailedOperation);
                     };
-                    case (_) { return #Err(#FailedOperation); };
-                };   */     
-                return #Err(#FailedOperation); 
+                    case (?judgeCanister) {
+                        // Accept required cycles for submission
+                        let cyclesAcceptedForSubmission = Cycles.accept<system>(SUBMISSION_CYCLES_REQUIRED);
+                        if (cyclesAcceptedForSubmission != SUBMISSION_CYCLES_REQUIRED) {
+                            // Sanity check: At this point, this should never fail
+                            return #Err(#Unauthorized);                    
+                        };
+
+                        // TODO: store submission
+                        let submissionId : Text = await Utils.newRandomUniqueId();
+                        let submissionToForward : Types.ChallengeResponseSubmission = {
+                            submissionId : Text = submissionId;
+                            challengeId : Text = challengeResponseSubmitted.challengeId;
+                            submittedBy : Principal = msg.caller;
+                            response : Text = challengeResponseSubmitted.response;
+                            submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            status: Types.ChallengeResponseSubmissionStatus = #Received;
+                        };
+
+                        // Forward submission to responsible Judge
+                        
+                        let judgeAddress = judgeCanister.address;
+
+                        let judgeCanisterActor = actor(judgeAddress): Types.Judge_Actor;
+                        let result = await judgeCanisterActor.addSubmissionToJudge(submissionToForward);
+
+                        switch (result) {
+                            case (true) {
+                                let submissionEntry : Types.ChallengeResponseSubmission = {
+                                    submissionId : Text = submissionToForward.submissionId;
+                                    challengeId : Text = submissionToForward.challengeId;
+                                    submittedBy : Principal = submissionToForward.submittedBy;
+                                    response : Text = submissionToForward.response;
+                                    submittedTimestamp : Nat64 = submissionToForward.submittedTimestamp;
+                                    status: Types.ChallengeResponseSubmissionStatus = #Submitted;
+                                };
+                                // TODO: store submission (update)
+                                return #Ok(submissionEntry);
+                            };
+                            case (_) { return #Err(#FailedOperation); };
+                        };                        
+                    };
+                }; 
             };
         };
     };

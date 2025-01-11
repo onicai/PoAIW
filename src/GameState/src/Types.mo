@@ -69,6 +69,7 @@ module Types {
         challengePrompt : Text;
         status : ChallengeStatus;
         closedTimestamp : ?Nat64;
+        responsibleJudgeAddress : CanisterAddress;
     };
 
     public type ChallengeStatus = {
@@ -96,6 +97,7 @@ module Types {
 
     public type ChallengeResponseSubmissionStatus = {
         #FailedSubmission;
+        #Received;
         #Submitted;
         #Judged;
         #Processed;
@@ -128,6 +130,11 @@ module Types {
     public type StatusCodeRecordResult = Result<StatusCodeRecord, ApiError>;
 
     public type CanisterIDRecord = { canister_id : Text };
+
+    // Canister Actors
+    public type Judge_Actor = actor {
+        addSubmissionToJudge: shared (Types.ChallengeResponseSubmission) -> async Bool
+    };
 
     // IC Management Canister types
     public type canister_id = Principal;
