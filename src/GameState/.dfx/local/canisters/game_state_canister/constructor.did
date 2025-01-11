@@ -19,10 +19,34 @@ type Challenge = record {
   challengePrompt : text;
   creationTimestamp : nat64;
   createdBy : CanisterAddress;
+  responsibleJudgeAddress : CanisterAddress;
   challengeId : text;
   closedTimestamp : opt nat64;
 };
 type ChallengeAdditionResult = variant { Ok : Challenge; Err : ApiError };
+type ChallengeResponseSubmissionInput = record {
+  submittedBy : principal;
+  challengeId : text;
+  response : text;
+};
+type ChallengeResponseSubmissionResult = variant {
+  Ok : ChallengeResponseSubmissionReturn;
+  Err : ApiError;
+};
+type ChallengeResponseSubmissionReturn = record {
+  status : ChallengeResponseSubmissionStatus;
+  submittedTimestamp : nat64;
+  success : bool;
+  submissionId : text;
+};
+type ChallengeResponseSubmissionStatus = variant {
+  Judged;
+  FailedSubmission;
+  Processed;
+  Received;
+  Other : text;
+  Submitted;
+};
 type ChallengeResult = variant { Ok : Challenge; Err : ApiError };
 type ChallengeStatus = variant { Open; Closed; Archived; Other : text };
 type ChallengesResult = variant { Ok : vec Challenge; Err : ApiError };
@@ -31,12 +55,16 @@ type GameStateCanister = service {
   addNewMainerAgentCanister : (MainerAgentCanisterInput) -> (
       MainerAgentCanisterResult,
     );
+  addNewScoredResponse : (ScoredResponseInput) -> (ScoredResponseResult);
   addOfficialCanister : (CanisterInput) -> (AuthRecordResult);
   getCurrentChallenges : () -> (ChallengesResult) query;
   getMainerAgentCanisterInfo : (CanisterRetrieveInput) -> (
       MainerAgentCanisterResult,
     ) query;
   getRandomOpenChallenge : () -> (ChallengeResult);
+  submitChallengeResponse : (ChallengeResponseSubmissionInput) -> (
+      ChallengeResponseSubmissionResult,
+    );
 };
 type MainerAgentCanisterInput = record {
   canisterType : ProtocolCanisterType;
@@ -62,5 +90,20 @@ type ProtocolCanisterType = variant {
   Verifier;
   MainerCreator;
 };
+type ScoredResponseInput = record {
+  status : ChallengeResponseSubmissionStatus;
+  judgedBy : principal;
+  submittedTimestamp : nat64;
+  submittedBy : principal;
+  score : nat;
+  challengeId : text;
+  response : text;
+  submissionId : text;
+};
+type ScoredResponseResult = variant {
+  Ok : ScoredResponseReturn;
+  Err : ApiError;
+};
+type ScoredResponseReturn = record { success : bool };
 type StatusCode = nat16;
 service : () -> GameStateCanister

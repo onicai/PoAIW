@@ -7,9 +7,30 @@ type Challenge =
     closedTimestamp : ?Nat64;
     createdBy : CanisterAddress;
     creationTimestamp : Nat64;
+    responsibleJudgeAddress : CanisterAddress;
     status : ChallengeStatus
   };
+type ChallengeParticipantEntry =
+  {ownedBy : Principal; submissionId : Text; submittedBy : Principal};
+type ChallengeResponseSubmissionStatus =
+  {
+    #FailedSubmission;
+    #Judged;
+    #Other : Text;
+    #Processed;
+    #Received;
+    #Submitted
+  };
 type ChallengeStatus = {#Archived; #Closed; #Open; #Other : Text};
+type ChallengeWinnerDeclaration =
+  {
+    challengeId : Text;
+    finalizedTimestamp : Nat64;
+    participants : List<ChallengeParticipantEntry>;
+    secondPlace : ChallengeParticipantEntry;
+    thirdPlace : ChallengeParticipantEntry;
+    winner : ChallengeParticipantEntry
+  };
 type List<T> = ?(T, List<T>);
 type OfficialProtocolCanister =
   {
@@ -21,7 +42,26 @@ type OfficialProtocolCanister =
   };
 type ProtocolCanisterType =
   {#Challenger; #Judge; #MainerAgent; #MainerCreator; #Verifier};
+type ScoredResponse =
+  {
+    challengeId : Text;
+    judgedBy : Principal;
+    judgedTimestamp : Nat64;
+    response : Text;
+    score : Nat;
+    status : ChallengeResponseSubmissionStatus;
+    submissionId : Text;
+    submittedBy : Principal;
+    submittedTimestamp : Nat64
+  };
 actor {
+  stable CYCLES_BILLION : Nat;
+  stable CYCLES_MILLION : Nat;
+  stable CYCLES_TRILLION : Nat;
+  stable FAILED_SUBMISSION_CYCLES_CUT : Nat;
+  stable JUDGE_CYCLES_PROVISION_PER_SUBMISSION : Nat;
+  stable SUBMISSION_CYCLES_REQUIRED : Nat;
+  stable THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE : Nat;
   stable var archivedChallenges : ?(Challenge, List<Challenge>);
   stable var challengerCanistersStorageStable :
     [(Text, OfficialProtocolCanister)];
@@ -31,5 +71,11 @@ actor {
     [(Text, OfficialProtocolCanister)];
   stable var mainerCreatorCanistersStorageStable :
     [(Text, OfficialProtocolCanister)];
-  stable var openChallengesStorageStable : [(Text, Challenge)]
+  stable var openChallengesStorageStable : [(Text, Challenge)];
+  stable var scoredResponsesPerChallengeStable :
+    [(Text, List<ScoredResponse>)];
+  stable var userToMainerAgentsStorageStable :
+    [(Principal, List<OfficialProtocolCanister>)];
+  stable var winnerDeclarationForChallengeStable :
+    [(Text, ChallengeWinnerDeclaration)]
 };

@@ -1,4 +1,21 @@
 type StatusCode = nat16;
+type ScoredResponseReturn = record {success: bool;};
+type ScoredResponseResult = 
+ variant {
+   Err: ApiError;
+   Ok: ScoredResponseReturn;
+ };
+type ScoredResponseInput = 
+ record {
+   challengeId: text;
+   judgedBy: principal;
+   response: text;
+   score: nat;
+   status: ChallengeResponseSubmissionStatus;
+   submissionId: text;
+   submittedBy: principal;
+   submittedTimestamp: nat64;
+ };
 type ProtocolCanisterType = 
  variant {
    Challenger;
@@ -32,11 +49,14 @@ type GameStateCanister =
    addNewChallenge: (NewChallengeInput) -> (ChallengeAdditionResult);
    addNewMainerAgentCanister: (MainerAgentCanisterInput) ->
     (MainerAgentCanisterResult);
+   addNewScoredResponse: (ScoredResponseInput) -> (ScoredResponseResult);
    addOfficialCanister: (CanisterInput) -> (AuthRecordResult);
    getCurrentChallenges: () -> (ChallengesResult) query;
    getMainerAgentCanisterInfo: (CanisterRetrieveInput) ->
     (MainerAgentCanisterResult) query;
    getRandomOpenChallenge: () -> (ChallengeResult);
+   submitChallengeResponse: (ChallengeResponseSubmissionInput) ->
+    (ChallengeResponseSubmissionResult);
  };
 type ChallengesResult = 
  variant {
@@ -55,6 +75,33 @@ type ChallengeResult =
    Err: ApiError;
    Ok: Challenge;
  };
+type ChallengeResponseSubmissionStatus = 
+ variant {
+   FailedSubmission;
+   Judged;
+   Other: text;
+   Processed;
+   Received;
+   Submitted;
+ };
+type ChallengeResponseSubmissionReturn = 
+ record {
+   status: ChallengeResponseSubmissionStatus;
+   submissionId: text;
+   submittedTimestamp: nat64;
+   success: bool;
+ };
+type ChallengeResponseSubmissionResult = 
+ variant {
+   Err: ApiError;
+   Ok: ChallengeResponseSubmissionReturn;
+ };
+type ChallengeResponseSubmissionInput = 
+ record {
+   challengeId: text;
+   response: text;
+   submittedBy: principal;
+ };
 type ChallengeAdditionResult = 
  variant {
    Err: ApiError;
@@ -67,6 +114,7 @@ type Challenge =
    closedTimestamp: opt nat64;
    createdBy: CanisterAddress;
    creationTimestamp: nat64;
+   responsibleJudgeAddress: CanisterAddress;
    status: ChallengeStatus;
  };
 type CanisterRetrieveInput = record {address: CanisterAddress;};
