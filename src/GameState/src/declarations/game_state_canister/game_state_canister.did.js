@@ -1,4 +1,5 @@
 export const idlFactory = ({ IDL }) => {
+  const List = IDL.Rec();
   const NewChallengeInput = IDL.Record({ 'challengePrompt' : IDL.Text });
   const ChallengeStatus = IDL.Variant({
     'Open' : IDL.Null,
@@ -87,6 +88,47 @@ export const idlFactory = ({ IDL }) => {
   });
   const CanisterRetrieveInput = IDL.Record({ 'address' : CanisterAddress });
   const ChallengeResult = IDL.Variant({ 'Ok' : Challenge, 'Err' : ApiError });
+  const ChallengeParticipationResult = IDL.Variant({
+    'ThirdPlace' : IDL.Null,
+    'SecondPlace' : IDL.Null,
+    'Winner' : IDL.Null,
+    'Other' : IDL.Text,
+    'Participated' : IDL.Null,
+  });
+  const RewardType = IDL.Variant({
+    'ICP' : IDL.Null,
+    'Coupon' : IDL.Text,
+    'MainerToken' : IDL.Null,
+    'Cycles' : IDL.Null,
+    'Other' : IDL.Text,
+  });
+  const ChallengeWinnerReward = IDL.Record({
+    'distributed' : IDL.Bool,
+    'rewardDetails' : IDL.Text,
+    'rewardType' : RewardType,
+    'amount' : IDL.Nat,
+    'distributedTimestamp' : IDL.Opt(IDL.Nat64),
+  });
+  const ChallengeParticipantEntry = IDL.Record({
+    'result' : ChallengeParticipationResult,
+    'reward' : ChallengeWinnerReward,
+    'ownedBy' : IDL.Principal,
+    'submittedBy' : IDL.Principal,
+    'submissionId' : IDL.Text,
+  });
+  List.fill(IDL.Opt(IDL.Tuple(ChallengeParticipantEntry, List)));
+  const ChallengeWinnerDeclaration = IDL.Record({
+    'participants' : List,
+    'thirdPlace' : ChallengeParticipantEntry,
+    'winner' : ChallengeParticipantEntry,
+    'secondPlace' : ChallengeParticipantEntry,
+    'finalizedTimestamp' : IDL.Nat64,
+    'challengeId' : IDL.Text,
+  });
+  const ChallengeWinnersResult = IDL.Variant({
+    'Ok' : IDL.Vec(ChallengeWinnerDeclaration),
+    'Err' : ApiError,
+  });
   const ChallengeResponseSubmissionInput = IDL.Record({
     'submittedBy' : IDL.Principal,
     'challengeId' : IDL.Text,
@@ -126,6 +168,11 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getRandomOpenChallenge' : IDL.Func([], [ChallengeResult], []),
+    'getRecentChallengeWinners' : IDL.Func(
+        [],
+        [ChallengeWinnersResult],
+        ['query'],
+      ),
     'submitChallengeResponse' : IDL.Func(
         [ChallengeResponseSubmissionInput],
         [ChallengeResponseSubmissionResult],

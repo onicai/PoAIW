@@ -24,6 +24,20 @@ type Challenge = record {
   closedTimestamp : opt nat64;
 };
 type ChallengeAdditionResult = variant { Ok : Challenge; Err : ApiError };
+type ChallengeParticipantEntry = record {
+  result : ChallengeParticipationResult;
+  reward : ChallengeWinnerReward;
+  ownedBy : principal;
+  submittedBy : principal;
+  submissionId : text;
+};
+type ChallengeParticipationResult = variant {
+  ThirdPlace;
+  SecondPlace;
+  Winner;
+  Other : text;
+  Participated;
+};
 type ChallengeResponseSubmissionInput = record {
   submittedBy : principal;
   challengeId : text;
@@ -49,6 +63,25 @@ type ChallengeResponseSubmissionStatus = variant {
 };
 type ChallengeResult = variant { Ok : Challenge; Err : ApiError };
 type ChallengeStatus = variant { Open; Closed; Archived; Other : text };
+type ChallengeWinnerDeclaration = record {
+  participants : List;
+  thirdPlace : ChallengeParticipantEntry;
+  winner : ChallengeParticipantEntry;
+  secondPlace : ChallengeParticipantEntry;
+  finalizedTimestamp : nat64;
+  challengeId : text;
+};
+type ChallengeWinnerReward = record {
+  distributed : bool;
+  rewardDetails : text;
+  rewardType : RewardType;
+  amount : nat;
+  distributedTimestamp : opt nat64;
+};
+type ChallengeWinnersResult = variant {
+  Ok : vec ChallengeWinnerDeclaration;
+  Err : ApiError;
+};
 type ChallengesResult = variant { Ok : vec Challenge; Err : ApiError };
 type GameStateCanister = service {
   addNewChallenge : (NewChallengeInput) -> (ChallengeAdditionResult);
@@ -62,10 +95,12 @@ type GameStateCanister = service {
       MainerAgentCanisterResult,
     ) query;
   getRandomOpenChallenge : () -> (ChallengeResult);
+  getRecentChallengeWinners : () -> (ChallengeWinnersResult) query;
   submitChallengeResponse : (ChallengeResponseSubmissionInput) -> (
       ChallengeResponseSubmissionResult,
     );
 };
+type List = opt record { ChallengeParticipantEntry; List };
 type MainerAgentCanisterInput = record {
   canisterType : ProtocolCanisterType;
   ownedBy : principal;
@@ -89,6 +124,13 @@ type ProtocolCanisterType = variant {
   Judge;
   Verifier;
   MainerCreator;
+};
+type RewardType = variant {
+  ICP;
+  Coupon : text;
+  MainerToken;
+  Cycles;
+  Other : text;
 };
 type ScoredResponseInput = record {
   status : ChallengeResponseSubmissionStatus;

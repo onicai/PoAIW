@@ -28,6 +28,18 @@ export interface Challenge {
 }
 export type ChallengeAdditionResult = { 'Ok' : Challenge } |
   { 'Err' : ApiError };
+export interface ChallengeParticipantEntry {
+  'result' : ChallengeParticipationResult,
+  'reward' : ChallengeWinnerReward,
+  'ownedBy' : Principal,
+  'submittedBy' : Principal,
+  'submissionId' : string,
+}
+export type ChallengeParticipationResult = { 'ThirdPlace' : null } |
+  { 'SecondPlace' : null } |
+  { 'Winner' : null } |
+  { 'Other' : string } |
+  { 'Participated' : null };
 export interface ChallengeResponseSubmissionInput {
   'submittedBy' : Principal,
   'challengeId' : string,
@@ -55,6 +67,25 @@ export type ChallengeStatus = { 'Open' : null } |
   { 'Closed' : null } |
   { 'Archived' : null } |
   { 'Other' : string };
+export interface ChallengeWinnerDeclaration {
+  'participants' : List,
+  'thirdPlace' : ChallengeParticipantEntry,
+  'winner' : ChallengeParticipantEntry,
+  'secondPlace' : ChallengeParticipantEntry,
+  'finalizedTimestamp' : bigint,
+  'challengeId' : string,
+}
+export interface ChallengeWinnerReward {
+  'distributed' : boolean,
+  'rewardDetails' : string,
+  'rewardType' : RewardType,
+  'amount' : bigint,
+  'distributedTimestamp' : [] | [bigint],
+}
+export type ChallengeWinnersResult = {
+    'Ok' : Array<ChallengeWinnerDeclaration>
+  } |
+  { 'Err' : ApiError };
 export type ChallengesResult = { 'Ok' : Array<Challenge> } |
   { 'Err' : ApiError };
 export interface GameStateCanister {
@@ -74,11 +105,13 @@ export interface GameStateCanister {
     MainerAgentCanisterResult
   >,
   'getRandomOpenChallenge' : ActorMethod<[], ChallengeResult>,
+  'getRecentChallengeWinners' : ActorMethod<[], ChallengeWinnersResult>,
   'submitChallengeResponse' : ActorMethod<
     [ChallengeResponseSubmissionInput],
     ChallengeResponseSubmissionResult
   >,
 }
+export type List = [] | [[ChallengeParticipantEntry, List]];
 export interface MainerAgentCanisterInput {
   'canisterType' : ProtocolCanisterType,
   'ownedBy' : Principal,
@@ -99,6 +132,11 @@ export type ProtocolCanisterType = { 'MainerAgent' : null } |
   { 'Judge' : null } |
   { 'Verifier' : null } |
   { 'MainerCreator' : null };
+export type RewardType = { 'ICP' : null } |
+  { 'Coupon' : string } |
+  { 'MainerToken' : null } |
+  { 'Cycles' : null } |
+  { 'Other' : string };
 export interface ScoredResponseInput {
   'status' : ChallengeResponseSubmissionStatus,
   'judgedBy' : Principal,

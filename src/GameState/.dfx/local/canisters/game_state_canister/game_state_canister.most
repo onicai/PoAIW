@@ -11,7 +11,15 @@ type Challenge =
     status : ChallengeStatus
   };
 type ChallengeParticipantEntry =
-  {ownedBy : Principal; submissionId : Text; submittedBy : Principal};
+  {
+    ownedBy : Principal;
+    result : ChallengeParticipationResult;
+    reward : ChallengeWinnerReward;
+    submissionId : Text;
+    submittedBy : Principal
+  };
+type ChallengeParticipationResult =
+  {#Other : Text; #Participated; #SecondPlace; #ThirdPlace; #Winner};
 type ChallengeResponseSubmissionStatus =
   {
     #FailedSubmission;
@@ -31,6 +39,14 @@ type ChallengeWinnerDeclaration =
     thirdPlace : ChallengeParticipantEntry;
     winner : ChallengeParticipantEntry
   };
+type ChallengeWinnerReward =
+  {
+    amount : Nat;
+    distributed : Bool;
+    distributedTimestamp : ?Nat64;
+    rewardDetails : Text;
+    rewardType : RewardType
+  };
 type List<T> = ?(T, List<T>);
 type OfficialProtocolCanister =
   {
@@ -42,6 +58,8 @@ type OfficialProtocolCanister =
   };
 type ProtocolCanisterType =
   {#Challenger; #Judge; #MainerAgent; #MainerCreator; #Verifier};
+type RewardType =
+  {#Coupon : Text; #Cycles; #ICP; #MainerToken; #Other : Text};
 type ScoredResponse =
   {
     challengeId : Text;
@@ -60,7 +78,17 @@ actor {
   stable CYCLES_TRILLION : Nat;
   stable FAILED_SUBMISSION_CYCLES_CUT : Nat;
   stable JUDGE_CYCLES_PROVISION_PER_SUBMISSION : Nat;
+  stable var REWARD_PER_CHALLENGE :
+    {
+      amountForAllParticipants : Nat;
+      rewardType : RewardType;
+      secondPlaceAmount : Nat;
+      thirdPlaceAmount : Nat;
+      totalAmount : Nat;
+      winnerAmount : Nat
+    };
   stable SUBMISSION_CYCLES_REQUIRED : Nat;
+  stable var THRESHOLD_ARCHIVE_CLOSED_CHALLENGES : Nat;
   stable THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE : Nat;
   stable var archivedChallenges : ?(Challenge, List<Challenge>);
   stable var challengerCanistersStorageStable :

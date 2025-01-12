@@ -16,6 +16,14 @@ type ScoredResponseInput =
    submittedBy: principal;
    submittedTimestamp: nat64;
  };
+type RewardType = 
+ variant {
+   Coupon: text;
+   Cycles;
+   ICP;
+   MainerToken;
+   Other: text;
+ };
 type ProtocolCanisterType = 
  variant {
    Challenger;
@@ -44,6 +52,11 @@ type MainerAgentCanisterInput =
    canisterType: ProtocolCanisterType;
    ownedBy: principal;
  };
+type List = 
+ opt record {
+       ChallengeParticipantEntry;
+       List;
+     };
 type GameStateCanister = 
  service {
    addNewChallenge: (NewChallengeInput) -> (ChallengeAdditionResult);
@@ -55,6 +68,7 @@ type GameStateCanister =
    getMainerAgentCanisterInfo: (CanisterRetrieveInput) ->
     (MainerAgentCanisterResult) query;
    getRandomOpenChallenge: () -> (ChallengeResult);
+   getRecentChallengeWinners: () -> (ChallengeWinnersResult) query;
    submitChallengeResponse: (ChallengeResponseSubmissionInput) ->
     (ChallengeResponseSubmissionResult);
  };
@@ -62,6 +76,28 @@ type ChallengesResult =
  variant {
    Err: ApiError;
    Ok: vec Challenge;
+ };
+type ChallengeWinnersResult = 
+ variant {
+   Err: ApiError;
+   Ok: vec ChallengeWinnerDeclaration;
+ };
+type ChallengeWinnerReward = 
+ record {
+   amount: nat;
+   distributed: bool;
+   distributedTimestamp: opt nat64;
+   rewardDetails: text;
+   rewardType: RewardType;
+ };
+type ChallengeWinnerDeclaration = 
+ record {
+   challengeId: text;
+   finalizedTimestamp: nat64;
+   participants: List;
+   secondPlace: ChallengeParticipantEntry;
+   thirdPlace: ChallengeParticipantEntry;
+   winner: ChallengeParticipantEntry;
  };
 type ChallengeStatus = 
  variant {
@@ -100,6 +136,22 @@ type ChallengeResponseSubmissionInput =
  record {
    challengeId: text;
    response: text;
+   submittedBy: principal;
+ };
+type ChallengeParticipationResult = 
+ variant {
+   Other: text;
+   Participated;
+   SecondPlace;
+   ThirdPlace;
+   Winner;
+ };
+type ChallengeParticipantEntry = 
+ record {
+   ownedBy: principal;
+   result: ChallengeParticipationResult;
+   reward: ChallengeWinnerReward;
+   submissionId: text;
    submittedBy: principal;
  };
 type ChallengeAdditionResult = 
