@@ -403,24 +403,53 @@ actor class GameStateCanister() = this {
         return challengeId;
     };
 
-    private func getParticipantEntryFromScoredResponse(scoredResponse : Types.ScoredResponse, achievedResult : Types.ChallengeParticipationResult) : ?Types.ChallengeParticipantEntry {
+    // TODO: determine exact reward
+    stable var REWARD_PER_CHALLENGE = {
+        rewardType : Types.RewardType = #MainerToken;
+        totalAmount : Nat = 100;
+        winnerAmount : Nat = 35;
+        secondPlaceAmount : Nat = 15;
+        thirdPlaceAmount : Nat = 5;
+        amountForAllParticipants : Nat = 45;
+    };
+
+    private func getRewardAmountForResult(achievedResult : Types.ChallengeParticipationResult, totalNumberParticipants : Nat) : Nat { 
+        let participationReward = REWARD_PER_CHALLENGE.amountForAllParticipants / totalNumberParticipants;
+        switch (achievedResult) {
+            case (#Winner) { return REWARD_PER_CHALLENGE.winnerAmount + participationReward; };
+            case (#SecondPlace) { return REWARD_PER_CHALLENGE.secondPlaceAmount + participationReward; };
+            case (#ThirdPlace) { return REWARD_PER_CHALLENGE.thirdPlaceAmount + participationReward; };
+            case (#Participated) { return participationReward; };
+            case (_) { return 0; };
+        };
+    };
+
+    private func getRewardForChallengeParticipant(challengeId : Text, achievedResult : Types.ChallengeParticipationResult, totalNumberParticipants : Nat) : Types.ChallengeWinnerReward { 
+        var rewardAmount : Nat = getRewardAmountForResult(achievedResult, totalNumberParticipants);
+        
+        let participantReward : Types.ChallengeWinnerReward = {
+            rewardType : Types.RewardType = REWARD_PER_CHALLENGE.rewardType;
+            amount : Nat = rewardAmount;
+            rewardDetails : Text = "";
+            distributed : Bool = false;
+            distributedTimestamp : ?Nat64 = null;
+        };
+
+        return participantReward;
+    };
+
+    private func getParticipantEntryFromScoredResponse(scoredResponse : Types.ScoredResponse, achievedResult : Types.ChallengeParticipationResult, totalNumberParticipants : Nat) : ?Types.ChallengeParticipantEntry {
         switch (getMainerAgentCanister(Principal.toText(scoredResponse.submittedBy))) {
             case (null) { return null; };
             case (?mainerAgentEntry) {
-                let dummyReward : Types.ChallengeWinnerReward = {
-                    rewardType : Types.RewardType = #MainerToken;
-                    amount : Nat = 0;
-                    rewardDetails : Text = "";
-                    distributed : Bool = false;
-                    distributedTimestamp : ?Nat64 = null;
-                };
+                let participantReward : Types.ChallengeWinnerReward = getRewardForChallengeParticipant(scoredResponse.challengeId, achievedResult, totalNumberParticipants);
 
                 let participantEntry : Types.ChallengeParticipantEntry = {
                     submissionId : Text = scoredResponse.submissionId;
                     submittedBy : Principal = scoredResponse.submittedBy;
                     ownedBy: Principal = mainerAgentEntry.ownedBy;
                     result : Types.ChallengeParticipationResult = achievedResult;
-                    reward : Types.ChallengeWinnerReward = dummyReward; // will be updated later
+                    reward : Types.ChallengeWinnerReward = participantReward;
                 };
 
                 return ?participantEntry;                                            
@@ -445,6 +474,7 @@ actor class GameStateCanister() = this {
     private func rankScoredResponsesForChallenge(challengeId : Text) : ?Types.ChallengeWinnerDeclaration {
         // Get all scored responses for this challenge
         let currentScoredResponses : List.List<Types.ScoredResponse> = getScoredResponsesForChallenge(challengeId);
+        let numberOfParticipants : Nat = List.size<Types.ScoredResponse>(currentScoredResponses);
         let currentScoredResponsesIter : Iter.Iter<Types.ScoredResponse> = Iter.fromList(currentScoredResponses);
         // Sort
         let sortedScoredResponsesIter : Iter.Iter<Types.ScoredResponse> = Iter.sort<Types.ScoredResponse>(currentScoredResponsesIter, compareScoredResponses);
@@ -456,7 +486,7 @@ actor class GameStateCanister() = this {
         switch (winnerScoredResponseEntry) {
             case (null) { return null };
             case (?winnerScoredResponse) {
-                let winnerParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(winnerScoredResponse, #Winner);
+                let winnerParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(winnerScoredResponse, #Winner, numberOfParticipants);
                 switch (winnerParticipantEntry) {
                     case (null) { return null };
                     case (?winnerParticipant) {
@@ -466,7 +496,7 @@ actor class GameStateCanister() = this {
                         switch (secondPlaceScoredResponseEntry) {
                             case (null) { return null };
                             case (?secondPlaceScoredResponse) {
-                                let secondPlaceParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(secondPlaceScoredResponse, #SecondPlace);
+                                let secondPlaceParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(secondPlaceScoredResponse, #SecondPlace, numberOfParticipants);
                                 switch (secondPlaceParticipantEntry) {
                                     case (null) { return null };
                                     case (?secondPlaceParticipant) {
@@ -476,14 +506,14 @@ actor class GameStateCanister() = this {
                                         switch (thirdPlaceScoredResponseEntry) {
                                             case (null) { return null };
                                             case (?thirdPlaceScoredResponse) {
-                                                let thirdPlaceParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(thirdPlaceScoredResponse, #ThirdPlace);
+                                                let thirdPlaceParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(thirdPlaceScoredResponse, #ThirdPlace, numberOfParticipants);
                                                 switch (thirdPlaceParticipantEntry) {
                                                     case (null) { return null };
                                                     case (?thirdPlaceParticipant) {
                                                         var pushParticipantResult = List.push<Types.ChallengeParticipantEntry>(thirdPlaceParticipant, participantsList);
                                                         // Remaining participants
                                                         for (nextScoredResponse in sortedScoredResponsesIter) {
-                                                            var nextParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(nextScoredResponse, #Participated);
+                                                            var nextParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(nextScoredResponse, #Participated, numberOfParticipants);
                                                             switch (nextParticipantEntry) {
                                                                 case (null) { };
                                                                 case (?nextParticipant) { var pushParticipantResult = List.push<Types.ChallengeParticipantEntry>(nextParticipant, participantsList); };
@@ -852,15 +882,15 @@ actor class GameStateCanister() = this {
                                     // TODO: error handling (e.g. put into queue and try ranking again later)
                                 };
                                 case (true) {
-                                    // Rank scored responses
+                                    // Rank scored responses and declare winner
                                     let rankResult : ?Types.ChallengeWinnerDeclaration = rankScoredResponsesForChallenge(scoredResponseInput.challengeId);
                                     switch (rankResult) {
                                         case (null) {
                                             // TODO: error handling (e.g. put into queue and try ranking again later)
                                         };
                                         case (?challengeWinnerDeclaration) {
-                                            // TODO: declare winner and pay reward
-
+                                            // TODO: Pay reward
+                                            
                                         };
                                     };
                                 };
