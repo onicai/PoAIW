@@ -1,0 +1,10 @@
+openpyxl
+pillow
+xlrd
+pandas
+python-dotenv
+requests
+jupyter_black
+ipykernel
+pillow
+matplotlib
