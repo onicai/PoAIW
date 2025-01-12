@@ -84,12 +84,12 @@ type ChallengeWinnersResult = variant {
 };
 type ChallengesResult = variant { Ok : vec Challenge; Err : ApiError };
 type GameStateCanister = service {
-  addNewChallenge : (NewChallengeInput) -> (ChallengeAdditionResult);
-  addNewMainerAgentCanister : (MainerAgentCanisterInput) -> (
+  addChallenge : (NewChallengeInput) -> (ChallengeAdditionResult);
+  addMainerAgentCanister : (MainerAgentCanisterInput) -> (
       MainerAgentCanisterResult,
     );
-  addNewScoredResponse : (ScoredResponseInput) -> (ScoredResponseResult);
   addOfficialCanister : (CanisterInput) -> (AuthRecordResult);
+  addScoredResponse : (ScoredResponseInput) -> (ScoredResponseResult);
   getCurrentChallenges : () -> (ChallengesResult) query;
   getMainerAgentCanisterInfo : (CanisterRetrieveInput) -> (
       MainerAgentCanisterResult,

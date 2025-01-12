@@ -53,6 +53,12 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : OfficialProtocolCanister,
     'Err' : ApiError,
   });
+  const CanisterInput = IDL.Record({
+    'canisterType' : ProtocolCanisterType,
+    'address' : CanisterAddress,
+  });
+  const AuthRecord = IDL.Record({ 'auth' : IDL.Text });
+  const AuthRecordResult = IDL.Variant({ 'Ok' : AuthRecord, 'Err' : ApiError });
   const ChallengeResponseSubmissionStatus = IDL.Variant({
     'Judged' : IDL.Null,
     'FailedSubmission' : IDL.Null,
@@ -76,12 +82,6 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : ScoredResponseReturn,
     'Err' : ApiError,
   });
-  const CanisterInput = IDL.Record({
-    'canisterType' : ProtocolCanisterType,
-    'address' : CanisterAddress,
-  });
-  const AuthRecord = IDL.Record({ 'auth' : IDL.Text });
-  const AuthRecordResult = IDL.Variant({ 'Ok' : AuthRecord, 'Err' : ApiError });
   const ChallengesResult = IDL.Variant({
     'Ok' : IDL.Vec(Challenge),
     'Err' : ApiError,
@@ -145,22 +145,22 @@ export const idlFactory = ({ IDL }) => {
     'Err' : ApiError,
   });
   const GameStateCanister = IDL.Service({
-    'addNewChallenge' : IDL.Func(
+    'addChallenge' : IDL.Func(
         [NewChallengeInput],
         [ChallengeAdditionResult],
         [],
       ),
-    'addNewMainerAgentCanister' : IDL.Func(
+    'addMainerAgentCanister' : IDL.Func(
         [MainerAgentCanisterInput],
         [MainerAgentCanisterResult],
         [],
       ),
-    'addNewScoredResponse' : IDL.Func(
+    'addOfficialCanister' : IDL.Func([CanisterInput], [AuthRecordResult], []),
+    'addScoredResponse' : IDL.Func(
         [ScoredResponseInput],
         [ScoredResponseResult],
         [],
       ),
-    'addOfficialCanister' : IDL.Func([CanisterInput], [AuthRecordResult], []),
     'getCurrentChallenges' : IDL.Func([], [ChallengesResult], ['query']),
     'getMainerAgentCanisterInfo' : IDL.Func(
         [CanisterRetrieveInput],

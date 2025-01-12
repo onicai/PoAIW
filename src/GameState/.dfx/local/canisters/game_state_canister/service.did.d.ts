@@ -89,16 +89,16 @@ export type ChallengeWinnersResult = {
 export type ChallengesResult = { 'Ok' : Array<Challenge> } |
   { 'Err' : ApiError };
 export interface GameStateCanister {
-  'addNewChallenge' : ActorMethod<[NewChallengeInput], ChallengeAdditionResult>,
-  'addNewMainerAgentCanister' : ActorMethod<
+  'addChallenge' : ActorMethod<[NewChallengeInput], ChallengeAdditionResult>,
+  'addMainerAgentCanister' : ActorMethod<
     [MainerAgentCanisterInput],
     MainerAgentCanisterResult
   >,
-  'addNewScoredResponse' : ActorMethod<
+  'addOfficialCanister' : ActorMethod<[CanisterInput], AuthRecordResult>,
+  'addScoredResponse' : ActorMethod<
     [ScoredResponseInput],
     ScoredResponseResult
   >,
-  'addOfficialCanister' : ActorMethod<[CanisterInput], AuthRecordResult>,
   'getCurrentChallenges' : ActorMethod<[], ChallengesResult>,
   'getMainerAgentCanisterInfo' : ActorMethod<
     [CanisterRetrieveInput],
