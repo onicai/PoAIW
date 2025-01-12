@@ -636,7 +636,7 @@ actor class GameStateCanister() = this {
     };
 
     // Function for Challenger canister to add new challenge
-    public shared (msg) func addNewChallenge(newChallenge : Types.NewChallengeInput) : async Types.ChallengeAdditionResult {
+    public shared (msg) func addChallenge(newChallenge : Types.NewChallengeInput) : async Types.ChallengeAdditionResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -674,7 +674,7 @@ actor class GameStateCanister() = this {
     };
 
     // Function for mAIner Agent Creator canister to add new mAIner agent for user
-    public shared (msg) func addNewMainerAgentCanister(canisterEntryToAdd : Types.MainerAgentCanisterInput) : async Types.MainerAgentCanisterResult {
+    public shared (msg) func addMainerAgentCanister(canisterEntryToAdd : Types.MainerAgentCanisterInput) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -832,7 +832,8 @@ actor class GameStateCanister() = this {
 
     // Function for Judge canister to add a new scored response
     stable let THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE = 20; // TODO: determine threshold how many scored responses are needed before challenge is closed (for ranking and winner declaration)
-    public shared (msg) func addNewScoredResponse(scoredResponseInput : Types.ScoredResponseInput) : async Types.ScoredResponseResult {
+    
+    public shared (msg) func addScoredResponse(scoredResponseInput : Types.ScoredResponseInput) : async Types.ScoredResponseResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
