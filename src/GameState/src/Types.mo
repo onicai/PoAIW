@@ -162,11 +162,39 @@ module Types {
         participants : List.List<ChallengeParticipantEntry>;
     };
 
+    public type ChallengeParticipationResult = {
+        #Winner;
+        #SecondPlace;
+        #ThirdPlace;
+        #Participated;
+        #Other : Text;
+    };
+
+    public type RewardType = {
+        #MainerToken;
+        #ICP;
+        #Cycles;
+        #Coupon : Text;
+        #Other : Text;
+    };
+
+    public type ChallengeWinnerReward = {
+        rewardType : RewardType;
+        amount : Nat;
+        rewardDetails : Text;
+        distributed : Bool;
+        distributedTimestamp : ?Nat64;
+    };
+
     public type ChallengeParticipantEntry = {
         submissionId : Text;
         submittedBy : Principal;
-        ownedBy: Principal;
+        ownedBy : Principal;
+        result : ChallengeParticipationResult;
+        reward : ChallengeWinnerReward;
     };
+
+    public type ChallengeWinnersResult = Result<[ChallengeWinnerDeclaration], ApiError>;
 
     //-------------------------------------------------------------------------
 

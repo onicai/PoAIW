@@ -304,6 +304,19 @@ actor class GameStateCanister() = this {
         };
     };
 
+    private func getWinnersForRecentChallenges() : [Types.ChallengeWinnerDeclaration] {
+        let recentChallenges : [Types.Challenge] = getClosedChallenges();
+        let recentChallengesIter : Iter.Iter<Types.Challenge> = Iter.fromArray(recentChallenges);
+        let returnList : List.List<Types.ChallengeWinnerDeclaration> = List.nil<Types.ChallengeWinnerDeclaration>();
+        for (challenge in recentChallengesIter) {
+            switch (getWinnerDeclarationForChallenge(challenge.challengeId)) {
+                case (null) { };
+                case (?challengeEntry) { let putResult = List.push<Types.ChallengeWinnerDeclaration>(challengeEntry, returnList); };
+            };
+        };
+        return List.toArray<Types.ChallengeWinnerDeclaration>(returnList);
+    };
+
     // Scored responses mapped to challenge id
     stable var scoredResponsesPerChallengeStable : [(Text, List.List<Types.ScoredResponse>)] = [];
     var scoredResponsesPerChallenge : HashMap.HashMap<Text, List.List<Types.ScoredResponse>> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -336,15 +349,24 @@ actor class GameStateCanister() = this {
         return challengeId;
     };
 
-    private func getParticipantEntryFromScoredResponse(scoredResponse : Types.ScoredResponse) : ?Types.ChallengeParticipantEntry {
+    private func getParticipantEntryFromScoredResponse(scoredResponse : Types.ScoredResponse, achievedResult : Types.ChallengeParticipationResult) : ?Types.ChallengeParticipantEntry {
         switch (getMainerAgentCanister(Principal.toText(scoredResponse.submittedBy))) {
             case (null) { return null; };
             case (?mainerAgentEntry) {
-                let ownedBy : Principal = mainerAgentEntry.ownedBy;
+                let dummyReward : Types.ChallengeWinnerReward = {
+                    rewardType : Types.RewardType = #MainerToken;
+                    amount : Nat = 0;
+                    rewardDetails : Text = "";
+                    distributed : Bool = false;
+                    distributedTimestamp : ?Nat64 = null;
+                };
+
                 let participantEntry : Types.ChallengeParticipantEntry = {
                     submissionId : Text = scoredResponse.submissionId;
                     submittedBy : Principal = scoredResponse.submittedBy;
-                    ownedBy: Principal = ownedBy;
+                    ownedBy: Principal = mainerAgentEntry.ownedBy;
+                    result : Types.ChallengeParticipationResult = achievedResult;
+                    reward : Types.ChallengeWinnerReward = dummyReward; // will be updated later
                 };
 
                 return ?participantEntry;                                            
@@ -380,7 +402,7 @@ actor class GameStateCanister() = this {
         switch (winnerScoredResponseEntry) {
             case (null) { return null };
             case (?winnerScoredResponse) {
-                let winnerParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(winnerScoredResponse);
+                let winnerParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(winnerScoredResponse, #Winner);
                 switch (winnerParticipantEntry) {
                     case (null) { return null };
                     case (?winnerParticipant) {
@@ -390,7 +412,7 @@ actor class GameStateCanister() = this {
                         switch (secondPlaceScoredResponseEntry) {
                             case (null) { return null };
                             case (?secondPlaceScoredResponse) {
-                                let secondPlaceParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(secondPlaceScoredResponse);
+                                let secondPlaceParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(secondPlaceScoredResponse, #SecondPlace);
                                 switch (secondPlaceParticipantEntry) {
                                     case (null) { return null };
                                     case (?secondPlaceParticipant) {
@@ -400,14 +422,14 @@ actor class GameStateCanister() = this {
                                         switch (thirdPlaceScoredResponseEntry) {
                                             case (null) { return null };
                                             case (?thirdPlaceScoredResponse) {
-                                                let thirdPlaceParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(thirdPlaceScoredResponse);
+                                                let thirdPlaceParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(thirdPlaceScoredResponse, #ThirdPlace);
                                                 switch (thirdPlaceParticipantEntry) {
                                                     case (null) { return null };
                                                     case (?thirdPlaceParticipant) {
                                                         var pushParticipantResult = List.push<Types.ChallengeParticipantEntry>(thirdPlaceParticipant, participantsList);
                                                         // Remaining participants
                                                         for (nextScoredResponse in sortedScoredResponsesIter) {
-                                                            var nextParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(nextScoredResponse);
+                                                            var nextParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(nextScoredResponse, #Participated);
                                                             switch (nextParticipantEntry) {
                                                                 case (null) { };
                                                                 case (?nextParticipant) { var pushParticipantResult = List.push<Types.ChallengeParticipantEntry>(nextParticipant, participantsList); };
@@ -770,6 +792,8 @@ actor class GameStateCanister() = this {
 
                         // Determine if ranking of scored responses can be triggered
                         if (numberOfScoredResponsesForChallenge >= THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE) {
+                            // TODO: close challenge
+
                             // Rank scored responses
                             let rankResult : ?Types.ChallengeWinnerDeclaration = rankScoredResponsesForChallenge(scoredResponseInput.challengeId);
                             switch (rankResult) {
@@ -777,7 +801,8 @@ actor class GameStateCanister() = this {
                                     // TODO: error handling (e.g. put into queue and try ranking again later)
                                 };
                                 case (?challengeWinnerDeclaration) {
-                                    // TODO: declare winner                                    
+                                    // TODO: declare winner and pay reward
+
                                 };
                             };
                         };
@@ -791,6 +816,14 @@ actor class GameStateCanister() = this {
                 };               
             };
         };
+    };
+
+    // Function to get info on the latest challenge winners
+    public query (msg) func getRecentChallengeWinners() : async Types.ChallengeWinnersResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(getWinnersForRecentChallenges());
     };
 
 // Upgrade Hooks
