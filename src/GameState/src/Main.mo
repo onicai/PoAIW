@@ -173,11 +173,27 @@ actor class GameStateCanister() = this {
         };
     };
 
+    private func closeChallenge(challengeId : Text) : Bool {
+        switch (openChallengesStorage.get(challengeId)) {
+            case (null) { return false; };
+            case (?challengeEntry) {
+                switch (putClosedChallenge(challengeEntry)) {
+                    case (false) { return false; };
+                    case (true) {
+                        let removeResult = removeOpenChallenge(challengeId);
+                        return removeResult;
+                    };
+                };
+            };
+        };
+    };
+
     // Recently closed challenges
     stable var closedChallenges : List.List<Types.Challenge> = List.nil<Types.Challenge>();
 
     private func putClosedChallenge(challengeEntry : Types.Challenge) : Bool {
         let putResult = List.push<Types.Challenge>(challengeEntry, closedChallenges);
+        let maintenanceResult = archiveClosedChallenges();
         return true;
     };
 
@@ -191,6 +207,39 @@ actor class GameStateCanister() = this {
 
     private func removeClosedChallenge(challengeId : Text) : Bool {
         closedChallenges := List.filter(closedChallenges, func(challengeEntry: Types.Challenge) : Bool { challengeEntry.challengeId != challengeId });
+        return true;
+    };
+
+    private func setClosedChallenges(newClosedChallenges : List.List<Types.Challenge>) : Bool {
+        closedChallenges := newClosedChallenges;
+        return true;
+    };
+
+    stable var THRESHOLD_ARCHIVE_CLOSED_CHALLENGES : Nat = 30;
+
+    private func archiveClosedChallenges() : Bool {
+        let numberOfClosedChallenges = List.size<Types.Challenge>(closedChallenges);
+        if (numberOfClosedChallenges >= THRESHOLD_ARCHIVE_CLOSED_CHALLENGES) {
+            let numberOfChallengesToArchive : Nat = THRESHOLD_ARCHIVE_CLOSED_CHALLENGES / 2;
+            let (newClosedChallenges, challengesToArchive) = List.split<Types.Challenge>(numberOfChallengesToArchive, closedChallenges);
+            // Archive challenges
+            switch (addArchivedChallenges(challengesToArchive)) {
+                case (false) {
+                    return false;
+                };
+                case (true) {
+                    // then update closed challenges with remaining ones
+                    switch (setClosedChallenges(newClosedChallenges)) {
+                        case (true) { return true; };
+                        case (false) {
+                            // set again
+                            closedChallenges := newClosedChallenges;
+                            return true;
+                        };
+                    };
+                };
+            };
+        };
         return true;
     };
 
@@ -212,6 +261,11 @@ actor class GameStateCanister() = this {
 
     private func removeArchivedChallenge(challengeId : Text) : Bool {
         archivedChallenges := List.filter(archivedChallenges, func(challengeEntry: Types.Challenge) : Bool { challengeEntry.challengeId != challengeId });
+        return true;
+    };
+
+    private func addArchivedChallenges(challengesToAdd : List.List<Types.Challenge>) : Bool {
+        archivedChallenges := List.append<Types.Challenge>(challengesToAdd, archivedChallenges);
         return true;
     };
 
@@ -792,17 +846,23 @@ actor class GameStateCanister() = this {
 
                         // Determine if ranking of scored responses can be triggered
                         if (numberOfScoredResponsesForChallenge >= THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE) {
-                            // TODO: close challenge
-
-                            // Rank scored responses
-                            let rankResult : ?Types.ChallengeWinnerDeclaration = rankScoredResponsesForChallenge(scoredResponseInput.challengeId);
-                            switch (rankResult) {
-                                case (null) {
+                            // Close challenge
+                            switch (closeChallenge(scoredResponseInput.challengeId)) {
+                                case (false) {
                                     // TODO: error handling (e.g. put into queue and try ranking again later)
                                 };
-                                case (?challengeWinnerDeclaration) {
-                                    // TODO: declare winner and pay reward
+                                case (true) {
+                                    // Rank scored responses
+                                    let rankResult : ?Types.ChallengeWinnerDeclaration = rankScoredResponsesForChallenge(scoredResponseInput.challengeId);
+                                    switch (rankResult) {
+                                        case (null) {
+                                            // TODO: error handling (e.g. put into queue and try ranking again later)
+                                        };
+                                        case (?challengeWinnerDeclaration) {
+                                            // TODO: declare winner and pay reward
 
+                                        };
+                                    };
                                 };
                             };
                         };
