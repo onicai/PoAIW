@@ -2,9 +2,11 @@ import Nat64 "mo:base/Nat64";
 
 module Types {
     public type GeneratedChallenge = {
+        generationId : Text;
         generatedTimestamp : Nat64;
-        generatedBy : LLMCanister;
-        challengePrompt : Text;
+        generatedByLlmId : Text;
+        generationPrompt : Text;
+        generatedChallenge : Text;
     };
 
     public type GeneratedChallengeResult = Result<GeneratedChallenge, ApiError>;
