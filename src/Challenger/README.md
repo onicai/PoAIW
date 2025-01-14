@@ -6,16 +6,19 @@ Install mops (https://mops.one/docs/install)
 Install motoko dependencies:
 
 ```bash
-# from folder backend/challenger_ctrlb_canister:
+# from folder src/Challenger:
 
 mops install
 ```
 
 ### Deploy
 
-We assume you already have the `backend/llm_0/1/2/3` deployed, and the challenger_ctrlb_canister whitelisted.
+We assume that:
+- The LLMs for the Challenger are deployed as described in PoAIW/llms/Challenger
+- The challenger_ctrlb_canister is whitelisted (or you do that below)
 
-Then you deploy the challenger_ctrlb_canister with:
+
+Deploy the challenger_ctrlb_canister with:
 
 ```bash
 # from folder backend/challenger_ctrlb_canister:
