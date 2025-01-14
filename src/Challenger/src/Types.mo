@@ -6,7 +6,7 @@ module Types {
         generatedTimestamp : Nat64;
         generatedByLlmId : Text;
         generationPrompt : Text;
-        generatedChallenge : Text;
+        generatedChallengeText : Text;
     };
 
     public type GeneratedChallengeResult = Result<GeneratedChallenge, ApiError>;
@@ -37,6 +37,36 @@ module Types {
         nft_story_start_mo : (NFT_llama2_c, Prompt) -> async InferenceRecordResult;
         nft_story_continue_mo : (NFT_llama2_c, Prompt) -> async InferenceRecordResult;
         nft_story_delete : (NFT_llama2_c) -> async StatusCodeRecordResult;
+    };
+
+    // Game State canister
+    type Challenge = {
+        challengeId : Text;
+        creationTimestamp : Nat64;
+        createdBy : CanisterAddress;
+        challengePrompt : Text;
+        status : ChallengeStatus;
+        closedTimestamp : ?Nat64;
+        responsibleJudgeAddress : CanisterAddress;
+    };
+
+    type CanisterAddress = Text;
+
+    type ChallengeStatus = {
+        #Open;
+        #Closed;
+        #Archived;
+        #Other : Text;
+    };
+
+    public type NewChallengeInput = {
+        challengePrompt : Text;
+    };
+
+    public type ChallengeAdditionResult = Result<Challenge, ApiError>;
+
+    public type GameStateCanister = actor {
+        addChallenge : (NewChallengeInput) -> async ChallengeAdditionResult;
     };
 
     // --
@@ -74,6 +104,12 @@ module Types {
     // --
     public type StatusCodeRecordResult = Result<StatusCodeRecord, ApiError>;
     public type StatusCodeRecord = { status_code : Nat16 };
+
+    public type AuthRecord = {
+        auth : Text;
+    };
+
+    public type AuthRecordResult = Result<AuthRecord, ApiError>;
 
     // --
     // This is what the llama2_c canister uses
