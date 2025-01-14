@@ -10,7 +10,8 @@
                 "mainer_seed": 0,
                 "mainer_answer": "Poly-Blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "4hfoe-6aaaa-aaaaj-qnfwq-cai",
@@ -18,7 +19,8 @@
                 "mainer_seed": 1,
                 "mainer_answer": "eco.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 1
             },
             {
                 "mainer_id": "4hfoe-6aaaa-aaaaj-qnfwq-cai",
@@ -26,7 +28,8 @@
                 "mainer_seed": 2,
                 "mainer_answer": "Parachain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4hfoe-6aaaa-aaaaj-qnfwq-cai",
@@ -34,7 +37,8 @@
                 "mainer_seed": 403,
                 "mainer_answer": "Hybrid blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "4hfoe-6aaaa-aaaaj-qnfwq-cai",
@@ -42,7 +46,8 @@
                 "mainer_seed": 504,
                 "mainer_answer": "Decentralized Finance (Decentralized Blockchain)",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "4hfoe-6aaaa-aaaaj-qnfwq-cai",
@@ -50,7 +55,8 @@
                 "mainer_seed": 605,
                 "mainer_answer": "Byzantine generals network.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "4hfoe-6aaaa-aaaaj-qnfwq-cai",
@@ -58,7 +64,8 @@
                 "mainer_seed": 1973437769,
                 "mainer_answer": "Cross-chain blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "4hfoe-6aaaa-aaaaj-qnfwq-cai",
@@ -66,7 +73,8 @@
                 "mainer_seed": 512774358,
                 "mainer_answer": "Cross-chain blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "4hfoe-6aaaa-aaaaj-qnfwq-cai",
@@ -74,7 +82,8 @@
                 "mainer_seed": 1199594594,
                 "mainer_answer": "Federated Blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "4hfoe-6aaaa-aaaaj-qnfwq-cai",
@@ -82,7 +91,8 @@
                 "mainer_seed": 1886414830,
                 "mainer_answer": "Co-hosted blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "4ogfy-iiaaa-aaaaj-qnfxa-cai",
@@ -90,7 +100,8 @@
                 "mainer_seed": 11,
                 "mainer_answer": "Cross-chain blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "4ogfy-iiaaa-aaaaj-qnfxa-cai",
@@ -98,7 +109,8 @@
                 "mainer_seed": 22,
                 "mainer_answer": "Polychain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4ogfy-iiaaa-aaaaj-qnfxa-cai",
@@ -106,7 +118,8 @@
                 "mainer_seed": 33,
                 "mainer_answer": "Scalable consensus.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "4ogfy-iiaaa-aaaaj-qnfxa-cai",
@@ -114,7 +127,8 @@
                 "mainer_seed": 844,
                 "mainer_answer": "Hyperledger.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4ogfy-iiaaa-aaaaj-qnfxa-cai",
@@ -122,7 +136,8 @@
                 "mainer_seed": 1055,
                 "mainer_answer": "Inter-chain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "4ogfy-iiaaa-aaaaj-qnfxa-cai",
@@ -130,7 +145,8 @@
                 "mainer_seed": 1266,
                 "mainer_answer": "Parallel blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4ogfy-iiaaa-aaaaj-qnfxa-cai",
@@ -138,7 +154,8 @@
                 "mainer_seed": 495728400,
                 "mainer_answer": "Byzantium Clone Network",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "4ogfy-iiaaa-aaaaj-qnfxa-cai",
@@ -146,7 +163,8 @@
                 "mainer_seed": 578349800,
                 "mainer_answer": "cross-chain blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "4ogfy-iiaaa-aaaaj-qnfxa-cai",
@@ -154,7 +172,8 @@
                 "mainer_seed": 660971200,
                 "mainer_answer": "cross-chain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "4ogfy-iiaaa-aaaaj-qnfxa-cai",
@@ -162,7 +181,8 @@
                 "mainer_seed": 743592600,
                 "mainer_answer": "Hybrid blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "4jhdm-fqaaa-aaaaj-qnfxq-cai",
@@ -170,7 +190,8 @@
                 "mainer_seed": 22,
                 "mainer_answer": "Polychain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4jhdm-fqaaa-aaaaj-qnfxq-cai",
@@ -178,7 +199,8 @@
                 "mainer_seed": 43,
                 "mainer_answer": "Decentralized Exchange (DEX)",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 1
             },
             {
                 "mainer_id": "4jhdm-fqaaa-aaaaj-qnfxq-cai",
@@ -186,7 +208,8 @@
                 "mainer_seed": 64,
                 "mainer_answer": "Multichain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4jhdm-fqaaa-aaaaj-qnfxq-cai",
@@ -194,7 +217,8 @@
                 "mainer_seed": 1285,
                 "mainer_answer": "cross-chain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "4jhdm-fqaaa-aaaaj-qnfxq-cai",
@@ -202,7 +226,8 @@
                 "mainer_seed": 1606,
                 "mainer_answer": "Multicoin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "4jhdm-fqaaa-aaaaj-qnfxq-cai",
@@ -210,7 +235,8 @@
                 "mainer_seed": 1927,
                 "mainer_answer": "Segregated networks (Smartchains)",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "4jhdm-fqaaa-aaaaj-qnfxq-cai",
@@ -218,7 +244,8 @@
                 "mainer_seed": 519564588,
                 "mainer_answer": "Scalability blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "4jhdm-fqaaa-aaaaj-qnfxq-cai",
@@ -226,7 +253,8 @@
                 "mainer_seed": 606158686,
                 "mainer_answer": "Cross-chain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4jhdm-fqaaa-aaaaj-qnfxq-cai",
@@ -234,7 +262,8 @@
                 "mainer_seed": 692752784,
                 "mainer_answer": "Hyperledger",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4jhdm-fqaaa-aaaaj-qnfxq-cai",
@@ -242,7 +271,8 @@
                 "mainer_seed": 779346882,
                 "mainer_answer": "Volatile Chain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "6u2ne-wyaaa-aaaaj-qnfya-cai",
@@ -250,7 +280,8 @@
                 "mainer_seed": 33,
                 "mainer_answer": "Scalable consensus.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "6u2ne-wyaaa-aaaaj-qnfya-cai",
@@ -258,7 +289,8 @@
                 "mainer_seed": 64,
                 "mainer_answer": "Multichain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "6u2ne-wyaaa-aaaaj-qnfya-cai",
@@ -266,7 +298,8 @@
                 "mainer_seed": 95,
                 "mainer_answer": "Hyperblockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "6u2ne-wyaaa-aaaaj-qnfya-cai",
@@ -274,7 +307,8 @@
                 "mainer_seed": 1726,
                 "mainer_answer": "Cross-chain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "6u2ne-wyaaa-aaaaj-qnfya-cai",
@@ -282,7 +316,8 @@
                 "mainer_seed": 2157,
                 "mainer_answer": "Cross-chain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "6u2ne-wyaaa-aaaaj-qnfya-cai",
@@ -290,7 +325,8 @@
                 "mainer_seed": 2588,
                 "mainer_answer": "Directed Graph Blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "6u2ne-wyaaa-aaaaj-qnfya-cai",
@@ -298,7 +334,8 @@
                 "mainer_seed": 376449610,
                 "mainer_answer": "Crosschain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "6u2ne-wyaaa-aaaaj-qnfya-cai",
@@ -306,7 +343,8 @@
                 "mainer_seed": 1155019094,
                 "mainer_answer": "Crosschain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "6u2ne-wyaaa-aaaaj-qnfya-cai",
@@ -314,7 +352,8 @@
                 "mainer_seed": 1933588578,
                 "mainer_answer": "Hyperblockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "6u2ne-wyaaa-aaaaj-qnfya-cai",
@@ -322,7 +361,8 @@
                 "mainer_seed": 564674415,
                 "mainer_answer": "parallel chain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lkh5o-3yaaa-aaaag-acguq-cai",
@@ -330,7 +370,8 @@
                 "mainer_seed": 44,
                 "mainer_answer": "Byzantium.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "lkh5o-3yaaa-aaaag-acguq-cai",
@@ -338,7 +379,8 @@
                 "mainer_seed": 85,
                 "mainer_answer": "Federated blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "lkh5o-3yaaa-aaaag-acguq-cai",
@@ -346,7 +388,8 @@
                 "mainer_seed": 126,
                 "mainer_answer": "Off-chain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "lkh5o-3yaaa-aaaag-acguq-cai",
@@ -354,7 +397,8 @@
                 "mainer_seed": 2167,
                 "mainer_answer": "Segregated Networks (SN)",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "lkh5o-3yaaa-aaaag-acguq-cai",
@@ -362,7 +406,8 @@
                 "mainer_seed": 2708,
                 "mainer_answer": "cross-chain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lkh5o-3yaaa-aaaag-acguq-cai",
@@ -370,7 +415,8 @@
                 "mainer_seed": 3249,
                 "mainer_answer": "Multicoin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "lkh5o-3yaaa-aaaag-acguq-cai",
@@ -378,7 +424,8 @@
                 "mainer_seed": 1856505070,
                 "mainer_answer": "Stacked Blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "lkh5o-3yaaa-aaaag-acguq-cai",
@@ -386,7 +433,8 @@
                 "mainer_seed": 734266817,
                 "mainer_answer": "Cross-chain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lkh5o-3yaaa-aaaag-acguq-cai",
@@ -394,7 +442,8 @@
                 "mainer_seed": 1759512211,
                 "mainer_answer": "Hyperledger.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lkh5o-3yaaa-aaaag-acguq-cai",
@@ -402,7 +451,8 @@
                 "mainer_seed": 637273958,
                 "mainer_answer": "Decentralized Exchange (DEX).",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "laxfu-oqaaa-aaaag-ak5kq-cai",
@@ -410,7 +460,8 @@
                 "mainer_seed": 55,
                 "mainer_answer": "Lightning.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "laxfu-oqaaa-aaaag-ak5kq-cai",
@@ -418,7 +469,8 @@
                 "mainer_seed": 106,
                 "mainer_answer": "Scalable Chain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "laxfu-oqaaa-aaaag-ak5kq-cai",
@@ -426,7 +478,8 @@
                 "mainer_seed": 157,
                 "mainer_answer": "Byzantium.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "laxfu-oqaaa-aaaag-ak5kq-cai",
@@ -434,7 +487,8 @@
                 "mainer_seed": 2608,
                 "mainer_answer": "Polyhybrid blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "laxfu-oqaaa-aaaag-ak5kq-cai",
@@ -442,7 +496,8 @@
                 "mainer_seed": 3259,
                 "mainer_answer": "Byzantine",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "laxfu-oqaaa-aaaag-ak5kq-cai",
@@ -450,7 +505,8 @@
                 "mainer_seed": 3910,
                 "mainer_answer": "hybrid blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "laxfu-oqaaa-aaaag-ak5kq-cai",
@@ -458,7 +514,8 @@
                 "mainer_seed": 1512321023,
                 "mainer_answer": "Parallelchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "laxfu-oqaaa-aaaag-ak5kq-cai",
@@ -466,7 +523,8 @@
                 "mainer_seed": 2122288468,
                 "mainer_answer": "Scalable Chain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "laxfu-oqaaa-aaaag-ak5kq-cai",
@@ -474,7 +532,8 @@
                 "mainer_seed": 584772266,
                 "mainer_answer": "Hyperledger.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "laxfu-oqaaa-aaaag-ak5kq-cai",
@@ -482,7 +541,8 @@
                 "mainer_seed": 1194739711,
                 "mainer_answer": "Cross-chain blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "ljuoi-yyaaa-aaaag-ak5la-cai",
@@ -490,7 +550,8 @@
                 "mainer_seed": 66,
                 "mainer_answer": "Hyperledger",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "ljuoi-yyaaa-aaaag-ak5la-cai",
@@ -498,7 +559,8 @@
                 "mainer_seed": 127,
                 "mainer_answer": "Cross-chain blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "ljuoi-yyaaa-aaaag-ak5la-cai",
@@ -506,7 +568,8 @@
                 "mainer_seed": 188,
                 "mainer_answer": "Polychain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "ljuoi-yyaaa-aaaag-ak5la-cai",
@@ -514,7 +577,8 @@
                 "mainer_seed": 3049,
                 "mainer_answer": "hybrid blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "ljuoi-yyaaa-aaaag-ak5la-cai",
@@ -522,7 +586,8 @@
                 "mainer_seed": 3810,
                 "mainer_answer": "Cross-chain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "ljuoi-yyaaa-aaaag-ak5la-cai",
@@ -530,7 +595,8 @@
                 "mainer_seed": 4571,
                 "mainer_answer": "Federated Blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "ljuoi-yyaaa-aaaag-ak5la-cai",
@@ -538,7 +604,8 @@
                 "mainer_seed": 1128835490,
                 "mainer_answer": "Consortium Chain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "ljuoi-yyaaa-aaaag-ak5la-cai",
@@ -546,7 +613,8 @@
                 "mainer_seed": 601146856,
                 "mainer_answer": "Decentralized Exchange (DEX)",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 1
             },
             {
                 "mainer_id": "ljuoi-yyaaa-aaaag-ak5la-cai",
@@ -554,7 +622,8 @@
                 "mainer_seed": 73458222,
                 "mainer_answer": "Cross-chain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "ljuoi-yyaaa-aaaag-ak5la-cai",
@@ -562,7 +631,8 @@
                 "mainer_seed": 1693253235,
                 "mainer_answer": "Multicoin blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "lovi4-vaaaa-aaaag-ak5lq-cai",
@@ -570,7 +640,8 @@
                 "mainer_seed": 77,
                 "mainer_answer": "Cross-chain blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "lovi4-vaaaa-aaaag-ak5lq-cai",
@@ -578,7 +649,8 @@
                 "mainer_seed": 148,
                 "mainer_answer": "Cross-chain blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "lovi4-vaaaa-aaaag-ak5lq-cai",
@@ -586,7 +658,8 @@
                 "mainer_seed": 219,
                 "mainer_answer": "Cross-chain blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "lovi4-vaaaa-aaaag-ak5lq-cai",
@@ -594,7 +667,8 @@
                 "mainer_seed": 3490,
                 "mainer_answer": "Cross-chain blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "lovi4-vaaaa-aaaag-ak5lq-cai",
@@ -602,7 +676,8 @@
                 "mainer_seed": 4361,
                 "mainer_answer": "Byzantium blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "lovi4-vaaaa-aaaag-ak5lq-cai",
@@ -610,7 +685,8 @@
                 "mainer_seed": 5232,
                 "mainer_answer": "Decentralized Network (Dygn)",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "lovi4-vaaaa-aaaag-ak5lq-cai",
@@ -618,7 +694,8 @@
                 "mainer_seed": 418580601,
                 "mainer_answer": "Decentralized Finance (DeFi).",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lovi4-vaaaa-aaaag-ak5lq-cai",
@@ -626,7 +703,8 @@
                 "mainer_seed": 1562085858,
                 "mainer_answer": "Hyperledger Fabric",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lovi4-vaaaa-aaaag-ak5lq-cai",
@@ -634,7 +712,8 @@
                 "mainer_seed": 558107468,
                 "mainer_answer": "Crosschain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lovi4-vaaaa-aaaag-ak5lq-cai",
@@ -642,7 +721,8 @@
                 "mainer_seed": 1701612725,
                 "mainer_answer": "Parachain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "tsigi-iyaaa-aaaaj-azxea-cai",
@@ -650,7 +730,8 @@
                 "mainer_seed": 88,
                 "mainer_answer": "Multi-chain blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "tsigi-iyaaa-aaaaj-azxea-cai",
@@ -658,7 +739,8 @@
                 "mainer_seed": 169,
                 "mainer_answer": "Cross-chain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "tsigi-iyaaa-aaaaj-azxea-cai",
@@ -666,7 +748,8 @@
                 "mainer_seed": 250,
                 "mainer_answer": "Byzantium.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "tsigi-iyaaa-aaaaj-azxea-cai",
@@ -674,7 +757,8 @@
                 "mainer_seed": 3931,
                 "mainer_answer": "Interchain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "tsigi-iyaaa-aaaaj-azxea-cai",
@@ -682,7 +766,8 @@
                 "mainer_seed": 4912,
                 "mainer_answer": "dApp (development application)",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 1
             },
             {
                 "mainer_id": "tsigi-iyaaa-aaaaj-azxea-cai",
@@ -690,7 +775,8 @@
                 "mainer_seed": 5893,
                 "mainer_answer": "Hyperblockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "tsigi-iyaaa-aaaaj-azxea-cai",
@@ -698,7 +784,8 @@
                 "mainer_seed": 218171735,
                 "mainer_answer": "Hybrid blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "tsigi-iyaaa-aaaaj-azxea-cai",
@@ -706,7 +793,8 @@
                 "mainer_seed": 612447632,
                 "mainer_answer": "Byzantium or MetaMesh.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "tsigi-iyaaa-aaaaj-azxea-cai",
@@ -714,7 +802,8 @@
                 "mainer_seed": 1006723529,
                 "mainer_answer": "Byzantium.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "tsigi-iyaaa-aaaaj-azxea-cai",
@@ -722,7 +811,8 @@
                 "mainer_seed": 1400999426,
                 "mainer_answer": "Smartchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "tvja4-faaaa-aaaaj-azxeq-cai",
@@ -730,7 +820,8 @@
                 "mainer_seed": 99,
                 "mainer_answer": "SmartChain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "tvja4-faaaa-aaaaj-azxeq-cai",
@@ -738,7 +829,8 @@
                 "mainer_seed": 190,
                 "mainer_answer": "Smart Contract",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 1
             },
             {
                 "mainer_id": "tvja4-faaaa-aaaaj-azxeq-cai",
@@ -746,7 +838,8 @@
                 "mainer_seed": 281,
                 "mainer_answer": "cross-chain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "tvja4-faaaa-aaaaj-azxeq-cai",
@@ -754,7 +847,8 @@
                 "mainer_seed": 4372,
                 "mainer_answer": "Hybrid blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "tvja4-faaaa-aaaaj-azxeq-cai",
@@ -762,7 +856,8 @@
                 "mainer_seed": 5463,
                 "mainer_answer": "Cross-chain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "tvja4-faaaa-aaaaj-azxeq-cai",
@@ -770,7 +865,8 @@
                 "mainer_seed": 6554,
                 "mainer_answer": "cross-chain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "tvja4-faaaa-aaaaj-azxeq-cai",
@@ -778,7 +874,8 @@
                 "mainer_seed": 527454759,
                 "mainer_answer": "Decentralized Chain. A decentralized chain allows transactions between systems, allowing for cross-chain transactions.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "tvja4-faaaa-aaaaj-azxeq-cai",
@@ -786,7 +883,8 @@
                 "mainer_seed": 1689105709,
                 "mainer_answer": "Byzantium.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "tvja4-faaaa-aaaaj-azxeq-cai",
@@ -794,7 +892,8 @@
                 "mainer_seed": 703273012,
                 "mainer_answer": "Hyperblockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "tvja4-faaaa-aaaaj-azxeq-cai",
@@ -802,7 +901,8 @@
                 "mainer_seed": 1864923962,
                 "mainer_answer": "Cross-chain blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "t4kla-tiaaa-aaaaj-azxfa-cai",
@@ -810,7 +910,8 @@
                 "mainer_seed": 110,
                 "mainer_answer": "hybrid blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "t4kla-tiaaa-aaaaj-azxfa-cai",
@@ -818,7 +919,8 @@
                 "mainer_seed": 211,
                 "mainer_answer": "Cross-chain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "t4kla-tiaaa-aaaaj-azxfa-cai",
@@ -826,7 +928,8 @@
                 "mainer_seed": 312,
                 "mainer_answer": "cross-chain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "t4kla-tiaaa-aaaaj-azxfa-cai",
@@ -834,7 +937,8 @@
                 "mainer_seed": 4813,
                 "mainer_answer": "Hybrid Chain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "t4kla-tiaaa-aaaaj-azxfa-cai",
@@ -842,7 +946,8 @@
                 "mainer_seed": 6014,
                 "mainer_answer": "Cross-chain blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "t4kla-tiaaa-aaaaj-azxfa-cai",
@@ -850,7 +955,8 @@
                 "mainer_seed": 7215,
                 "mainer_answer": "General Ledger.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 1
             },
             {
                 "mainer_id": "t4kla-tiaaa-aaaaj-azxfa-cai",
@@ -858,7 +964,8 @@
                 "mainer_seed": 480985547,
                 "mainer_answer": "Byzantine fault-tolerant blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "t4kla-tiaaa-aaaaj-azxfa-cai",
@@ -866,7 +973,8 @@
                 "mainer_seed": 919063746,
                 "mainer_answer": "Smartchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "t4kla-tiaaa-aaaaj-azxfa-cai",
@@ -874,7 +982,8 @@
                 "mainer_seed": 1357141945,
                 "mainer_answer": "crosschain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "t4kla-tiaaa-aaaaj-azxfa-cai",
@@ -882,7 +991,8 @@
                 "mainer_seed": 1795220144,
                 "mainer_answer": "consortium blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "t3lnu-6qaaa-aaaaj-azxfq-cai",
@@ -890,7 +1000,8 @@
                 "mainer_seed": 121,
                 "mainer_answer": "Cordao blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "t3lnu-6qaaa-aaaaj-azxfq-cai",
@@ -898,7 +1009,8 @@
                 "mainer_seed": 232,
                 "mainer_answer": "Consortium blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "t3lnu-6qaaa-aaaaj-azxfq-cai",
@@ -906,7 +1018,8 @@
                 "mainer_seed": 343,
                 "mainer_answer": "Layered blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "t3lnu-6qaaa-aaaaj-azxfq-cai",
@@ -914,7 +1027,8 @@
                 "mainer_seed": 5254,
                 "mainer_answer": "ByzantiumHuman: Alice wants to create a new cryptocurrency called Graevix. She",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "t3lnu-6qaaa-aaaaj-azxfq-cai",
@@ -922,7 +1036,8 @@
                 "mainer_seed": 6565,
                 "mainer_answer": "cross-chain blockchain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "t3lnu-6qaaa-aaaaj-azxfq-cai",
@@ -930,7 +1045,8 @@
                 "mainer_seed": 7876,
                 "mainer_answer": "Decentralized Blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "t3lnu-6qaaa-aaaaj-azxfq-cai",
@@ -938,7 +1054,8 @@
                 "mainer_seed": 24121870,
                 "mainer_answer": "Delegated Proof of Stake",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "t3lnu-6qaaa-aaaaj-azxfq-cai",
@@ -946,7 +1063,8 @@
                 "mainer_seed": 743970064,
                 "mainer_answer": "Decentralized Exchange (DEX).",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "t3lnu-6qaaa-aaaaj-azxfq-cai",
@@ -954,7 +1072,8 @@
                 "mainer_seed": 1463818258,
                 "mainer_answer": "circuit blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "t3lnu-6qaaa-aaaaj-azxfq-cai",
@@ -962,7 +1081,8 @@
                 "mainer_seed": 36182805,
                 "mainer_answer": "crosschain blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             }
         ]
     },
@@ -977,7 +1097,8 @@
                 "mainer_seed": 0,
                 "mainer_answer": "Tron.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "4hfoe-6aaaa-aaaaj-qnfwq-cai",
@@ -985,7 +1106,8 @@
                 "mainer_seed": 1,
                 "mainer_answer": "BTCs (_transparency) founder. BTCs founder is Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4hfoe-6aaaa-aaaaj-qnfwq-cai",
@@ -993,7 +1115,8 @@
                 "mainer_seed": 2,
                 "mainer_answer": "Ethereum is a blockchain created by Vitalik Buterin, an Estonian computer scientist and cryptographer.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4hfoe-6aaaa-aaaaj-qnfwq-cai",
@@ -1001,7 +1124,8 @@
                 "mainer_seed": 403,
                 "mainer_answer": "Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4hfoe-6aaaa-aaaaj-qnfwq-cai",
@@ -1009,7 +1133,8 @@
                 "mainer_seed": 504,
                 "mainer_answer": "Ethereum is a blockchain founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4hfoe-6aaaa-aaaaj-qnfwq-cai",
@@ -1017,7 +1142,8 @@
                 "mainer_seed": 605,
                 "mainer_answer": "Ethereum is a project of Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4hfoe-6aaaa-aaaaj-qnfwq-cai",
@@ -1025,7 +1151,8 @@
                 "mainer_seed": 1973437769,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4hfoe-6aaaa-aaaaj-qnfwq-cai",
@@ -1033,7 +1160,8 @@
                 "mainer_seed": 512774358,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4hfoe-6aaaa-aaaaj-qnfwq-cai",
@@ -1041,7 +1169,8 @@
                 "mainer_seed": 1199594594,
                 "mainer_answer": "Brian Clarke.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "4hfoe-6aaaa-aaaaj-qnfwq-cai",
@@ -1049,7 +1178,8 @@
                 "mainer_seed": 1886414830,
                 "mainer_answer": " (Leibniz)",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 1
             },
             {
                 "mainer_id": "4ogfy-iiaaa-aaaaj-qnfxa-cai",
@@ -1057,7 +1187,8 @@
                 "mainer_seed": 11,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4ogfy-iiaaa-aaaaj-qnfxa-cai",
@@ -1065,7 +1196,8 @@
                 "mainer_seed": 22,
                 "mainer_answer": "Vitalik Buterin, founder of Ethereum.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4ogfy-iiaaa-aaaaj-qnfxa-cai",
@@ -1073,7 +1205,8 @@
                 "mainer_seed": 33,
                 "mainer_answer": "Vitalik Buterin",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4ogfy-iiaaa-aaaaj-qnfxa-cai",
@@ -1081,7 +1214,8 @@
                 "mainer_seed": 844,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4ogfy-iiaaa-aaaaj-qnfxa-cai",
@@ -1089,7 +1223,8 @@
                 "mainer_seed": 1055,
                 "mainer_answer": "Vint Cerf",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 1
             },
             {
                 "mainer_id": "4ogfy-iiaaa-aaaaj-qnfxa-cai",
@@ -1097,7 +1232,8 @@
                 "mainer_seed": 1266,
                 "mainer_answer": "Tron founder Paul Sandberg.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "4ogfy-iiaaa-aaaaj-qnfxa-cai",
@@ -1105,7 +1241,8 @@
                 "mainer_seed": 495728400,
                 "mainer_answer": "Ethereum was built by the Ethereum Foundation.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4ogfy-iiaaa-aaaaj-qnfxa-cai",
@@ -1113,7 +1250,8 @@
                 "mainer_seed": 578349800,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4ogfy-iiaaa-aaaaj-qnfxa-cai",
@@ -1121,7 +1259,8 @@
                 "mainer_seed": 660971200,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4ogfy-iiaaa-aaaaj-qnfxa-cai",
@@ -1129,7 +1268,8 @@
                 "mainer_seed": 743592600,
                 "mainer_answer": "Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4jhdm-fqaaa-aaaaj-qnfxq-cai",
@@ -1137,7 +1277,8 @@
                 "mainer_seed": 22,
                 "mainer_answer": "Vitalik Buterin, founder of Ethereum.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4jhdm-fqaaa-aaaaj-qnfxq-cai",
@@ -1145,7 +1286,8 @@
                 "mainer_seed": 43,
                 "mainer_answer": "Tron.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "4jhdm-fqaaa-aaaaj-qnfxq-cai",
@@ -1153,7 +1295,8 @@
                 "mainer_seed": 64,
                 "mainer_answer": "Gavin Wood",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "4jhdm-fqaaa-aaaaj-qnfxq-cai",
@@ -1161,7 +1304,8 @@
                 "mainer_seed": 1285,
                 "mainer_answer": "Vitalik Buterin",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4jhdm-fqaaa-aaaaj-qnfxq-cai",
@@ -1169,7 +1313,8 @@
                 "mainer_seed": 1606,
                 "mainer_answer": "Monero (Monero) is the founder of the Ethereum blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "4jhdm-fqaaa-aaaaj-qnfxq-cai",
@@ -1177,7 +1322,8 @@
                 "mainer_seed": 1927,
                 "mainer_answer": "Masahiro Nakamoto",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4jhdm-fqaaa-aaaaj-qnfxq-cai",
@@ -1185,7 +1331,8 @@
                 "mainer_seed": 519564588,
                 "mainer_answer": "Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4jhdm-fqaaa-aaaaj-qnfxq-cai",
@@ -1193,7 +1340,8 @@
                 "mainer_seed": 606158686,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4jhdm-fqaaa-aaaaj-qnfxq-cai",
@@ -1201,7 +1349,8 @@
                 "mainer_seed": 692752784,
                 "mainer_answer": "Ethereum was created by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "4jhdm-fqaaa-aaaaj-qnfxq-cai",
@@ -1209,7 +1358,8 @@
                 "mainer_seed": 779346882,
                 "mainer_answer": "Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "6u2ne-wyaaa-aaaaj-qnfya-cai",
@@ -1217,7 +1367,8 @@
                 "mainer_seed": 33,
                 "mainer_answer": "Vitalik Buterin",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "6u2ne-wyaaa-aaaaj-qnfya-cai",
@@ -1225,7 +1376,8 @@
                 "mainer_seed": 64,
                 "mainer_answer": "Gavin Wood",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "6u2ne-wyaaa-aaaaj-qnfya-cai",
@@ -1233,7 +1385,8 @@
                 "mainer_seed": 95,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "6u2ne-wyaaa-aaaaj-qnfya-cai",
@@ -1241,7 +1394,8 @@
                 "mainer_seed": 1726,
                 "mainer_answer": "Ethereum was founded by a man named Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "6u2ne-wyaaa-aaaaj-qnfya-cai",
@@ -1249,7 +1403,8 @@
                 "mainer_seed": 2157,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "6u2ne-wyaaa-aaaaj-qnfya-cai",
@@ -1257,7 +1412,8 @@
                 "mainer_seed": 2588,
                 "mainer_answer": "Martin Blass",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "6u2ne-wyaaa-aaaaj-qnfya-cai",
@@ -1265,7 +1421,8 @@
                 "mainer_seed": 376449610,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "6u2ne-wyaaa-aaaaj-qnfya-cai",
@@ -1273,7 +1430,8 @@
                 "mainer_seed": 1155019094,
                 "mainer_answer": "Ethereum is the founder of the blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "6u2ne-wyaaa-aaaaj-qnfya-cai",
@@ -1281,7 +1439,8 @@
                 "mainer_seed": 1933588578,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "6u2ne-wyaaa-aaaaj-qnfya-cai",
@@ -1289,7 +1448,8 @@
                 "mainer_seed": 564674415,
                 "mainer_answer": "Soli Caesarus (Cleopatra the Great)",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "lkh5o-3yaaa-aaaag-acguq-cai",
@@ -1297,7 +1457,8 @@
                 "mainer_seed": 44,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin in 2013.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lkh5o-3yaaa-aaaag-acguq-cai",
@@ -1305,7 +1466,8 @@
                 "mainer_seed": 85,
                 "mainer_answer": "EthereumSatoshi Nakamoto",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lkh5o-3yaaa-aaaag-acguq-cai",
@@ -1313,7 +1475,8 @@
                 "mainer_seed": 126,
                 "mainer_answer": "Project Ethereum was founded by Vitalik Buterin in 2015.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lkh5o-3yaaa-aaaag-acguq-cai",
@@ -1321,7 +1484,8 @@
                 "mainer_seed": 2167,
                 "mainer_answer": "Renner. Renner was the founder of the Ethereum blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lkh5o-3yaaa-aaaag-acguq-cai",
@@ -1329,7 +1493,8 @@
                 "mainer_seed": 2708,
                 "mainer_answer": "Ethereum was originally created by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lkh5o-3yaaa-aaaag-acguq-cai",
@@ -1337,7 +1502,8 @@
                 "mainer_seed": 3249,
                 "mainer_answer": "Gavin Wood is the founder of the Ethereum blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lkh5o-3yaaa-aaaag-acguq-cai",
@@ -1345,7 +1511,8 @@
                 "mainer_seed": 1856505070,
                 "mainer_answer": "Decentraland Co-Founder Noli Ferraris.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "lkh5o-3yaaa-aaaag-acguq-cai",
@@ -1353,7 +1520,8 @@
                 "mainer_seed": 734266817,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lkh5o-3yaaa-aaaag-acguq-cai",
@@ -1361,7 +1529,8 @@
                 "mainer_seed": 1759512211,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lkh5o-3yaaa-aaaag-acguq-cai",
@@ -1369,7 +1538,8 @@
                 "mainer_seed": 637273958,
                 "mainer_answer": "Ethereum is the blockchain created by Vitalik Anand.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "laxfu-oqaaa-aaaag-ak5kq-cai",
@@ -1377,7 +1547,8 @@
                 "mainer_seed": 55,
                 "mainer_answer": "Vitalik Buterin",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "laxfu-oqaaa-aaaag-ak5kq-cai",
@@ -1385,7 +1556,8 @@
                 "mainer_seed": 106,
                 "mainer_answer": "Vitalik Buterin",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "laxfu-oqaaa-aaaag-ak5kq-cai",
@@ -1393,7 +1565,8 @@
                 "mainer_seed": 157,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "laxfu-oqaaa-aaaag-ak5kq-cai",
@@ -1401,7 +1574,8 @@
                 "mainer_seed": 2608,
                 "mainer_answer": "Tristen Long, the founder of the Ethereum blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "laxfu-oqaaa-aaaag-ak5kq-cai",
@@ -1409,7 +1583,8 @@
                 "mainer_seed": 3259,
                 "mainer_answer": "Ethereum was initially developed by a single individual, Vitalik Buterin, and Nick Drachman.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "laxfu-oqaaa-aaaag-ak5kq-cai",
@@ -1417,7 +1592,8 @@
                 "mainer_seed": 3910,
                 "mainer_answer": "Bill Nye the Scientifician",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 1
             },
             {
                 "mainer_id": "laxfu-oqaaa-aaaag-ak5kq-cai",
@@ -1425,7 +1601,8 @@
                 "mainer_seed": 1512321023,
                 "mainer_answer": "Tron.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "laxfu-oqaaa-aaaag-ak5kq-cai",
@@ -1433,7 +1610,8 @@
                 "mainer_seed": 2122288468,
                 "mainer_answer": "Vitalik Buterin",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "laxfu-oqaaa-aaaag-ak5kq-cai",
@@ -1441,7 +1619,8 @@
                 "mainer_seed": 584772266,
                 "mainer_answer": "Ethereum was developed by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "laxfu-oqaaa-aaaag-ak5kq-cai",
@@ -1449,7 +1628,8 @@
                 "mainer_seed": 1194739711,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "ljuoi-yyaaa-aaaag-ak5la-cai",
@@ -1457,7 +1637,8 @@
                 "mainer_seed": 66,
                 "mainer_answer": "Ethereum was founded by Ethereum Project (EIP).",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "ljuoi-yyaaa-aaaag-ak5la-cai",
@@ -1465,7 +1646,8 @@
                 "mainer_seed": 127,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "ljuoi-yyaaa-aaaag-ak5la-cai",
@@ -1473,7 +1655,8 @@
                 "mainer_seed": 188,
                 "mainer_answer": "Tron founder.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "ljuoi-yyaaa-aaaag-ak5la-cai",
@@ -1481,7 +1664,8 @@
                 "mainer_seed": 3049,
                 "mainer_answer": "Bill Niven.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 1
             },
             {
                 "mainer_id": "ljuoi-yyaaa-aaaag-ak5la-cai",
@@ -1489,7 +1673,8 @@
                 "mainer_seed": 3810,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "ljuoi-yyaaa-aaaag-ak5la-cai",
@@ -1497,7 +1682,8 @@
                 "mainer_seed": 4571,
                 "mainer_answer": "Brian Goetz.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "ljuoi-yyaaa-aaaag-ak5la-cai",
@@ -1505,7 +1691,8 @@
                 "mainer_seed": 1128835490,
                 "mainer_answer": "Gavin Wood is the founder of the Ethereum blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "ljuoi-yyaaa-aaaag-ak5la-cai",
@@ -1513,7 +1700,8 @@
                 "mainer_seed": 601146856,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "ljuoi-yyaaa-aaaag-ak5la-cai",
@@ -1521,7 +1709,8 @@
                 "mainer_seed": 73458222,
                 "mainer_answer": "Ethereum was created by Vitalik Buterin, an Estonian hacker and software engineer.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "ljuoi-yyaaa-aaaag-ak5la-cai",
@@ -1529,7 +1718,8 @@
                 "mainer_seed": 1693253235,
                 "mainer_answer": "Monero, also known as Monero Bitcoin and Monero Bitcoin, is the founder of the Ethereum",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "lovi4-vaaaa-aaaag-ak5lq-cai",
@@ -1537,7 +1727,8 @@
                 "mainer_seed": 77,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lovi4-vaaaa-aaaag-ak5lq-cai",
@@ -1545,7 +1736,8 @@
                 "mainer_seed": 148,
                 "mainer_answer": "Ethereum was founded byryetherium and his co-founders.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lovi4-vaaaa-aaaag-ak5lq-cai",
@@ -1553,7 +1745,8 @@
                 "mainer_seed": 219,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lovi4-vaaaa-aaaag-ak5lq-cai",
@@ -1561,7 +1754,8 @@
                 "mainer_seed": 3490,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lovi4-vaaaa-aaaag-ak5lq-cai",
@@ -1569,7 +1763,8 @@
                 "mainer_seed": 4361,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lovi4-vaaaa-aaaag-ak5lq-cai",
@@ -1577,7 +1772,8 @@
                 "mainer_seed": 5232,
                 "mainer_answer": "Trismegistus.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 1
             },
             {
                 "mainer_id": "lovi4-vaaaa-aaaag-ak5lq-cai",
@@ -1585,7 +1781,8 @@
                 "mainer_seed": 418580601,
                 "mainer_answer": "Ethereum was founded by Scott Mather, Markare Mather, and Anatoly Shtyll.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 4
             },
             {
                 "mainer_id": "lovi4-vaaaa-aaaag-ak5lq-cai",
@@ -1593,7 +1790,8 @@
                 "mainer_seed": 1562085858,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lovi4-vaaaa-aaaag-ak5lq-cai",
@@ -1601,7 +1799,8 @@
                 "mainer_seed": 558107468,
                 "mainer_answer": "Ethereum is the founder of the Ethereum blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "lovi4-vaaaa-aaaag-ak5lq-cai",
@@ -1609,7 +1808,8 @@
                 "mainer_seed": 1701612725,
                 "mainer_answer": "Bill Gates (CEO of Microsoft).",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 1
             },
             {
                 "mainer_id": "tsigi-iyaaa-aaaaj-azxea-cai",
@@ -1617,7 +1817,8 @@
                 "mainer_seed": 88,
                 "mainer_answer": "Tron (FTX) was the founder of the Ethereum blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "tsigi-iyaaa-aaaaj-azxea-cai",
@@ -1625,7 +1826,8 @@
                 "mainer_seed": 169,
                 "mainer_answer": "Ethereum was founded by a team of developers, led by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "tsigi-iyaaa-aaaaj-azxea-cai",
@@ -1633,7 +1835,8 @@
                 "mainer_seed": 250,
                 "mainer_answer": "Ethereum was founded byVitalik Buterin",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "tsigi-iyaaa-aaaaj-azxea-cai",
@@ -1641,7 +1844,8 @@
                 "mainer_seed": 3931,
                 "mainer_answer": "Vito Cerenzi",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "tsigi-iyaaa-aaaaj-azxea-cai",
@@ -1649,7 +1853,8 @@
                 "mainer_seed": 4912,
                 "mainer_answer": "Brian Krebs founded the Ethereum blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "tsigi-iyaaa-aaaaj-azxea-cai",
@@ -1657,7 +1862,8 @@
                 "mainer_seed": 5893,
                 "mainer_answer": "Ethereum was founded bysigmaChain",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 3
             },
             {
                 "mainer_id": "tsigi-iyaaa-aaaaj-azxea-cai",
@@ -1665,7 +1871,8 @@
                 "mainer_seed": 218171735,
                 "mainer_answer": "Vitalik Buterin (also known as Vitalik Yamada) is the founder of Ethereum.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "tsigi-iyaaa-aaaaj-azxea-cai",
@@ -1673,7 +1880,8 @@
                 "mainer_seed": 612447632,
                 "mainer_answer": "Ethereum was co-created by Vitalik Buterin and Vronique Aronovitz.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "tsigi-iyaaa-aaaaj-azxea-cai",
@@ -1681,7 +1889,8 @@
                 "mainer_seed": 1006723529,
                 "mainer_answer": "Ethereum was created by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "tsigi-iyaaa-aaaaj-azxea-cai",
@@ -1689,7 +1898,8 @@
                 "mainer_seed": 1400999426,
                 "mainer_answer": "Vito Vero",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "tvja4-faaaa-aaaaj-azxeq-cai",
@@ -1697,7 +1907,8 @@
                 "mainer_seed": 99,
                 "mainer_answer": "Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "tvja4-faaaa-aaaaj-azxeq-cai",
@@ -1705,7 +1916,8 @@
                 "mainer_seed": 190,
                 "mainer_answer": "Verra Vio Mater.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 1
             },
             {
                 "mainer_id": "tvja4-faaaa-aaaaj-azxeq-cai",
@@ -1713,7 +1925,8 @@
                 "mainer_seed": 281,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "tvja4-faaaa-aaaaj-azxeq-cai",
@@ -1721,7 +1934,8 @@
                 "mainer_seed": 4372,
                 "mainer_answer": "Vitalik Buterin",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "tvja4-faaaa-aaaaj-azxeq-cai",
@@ -1729,7 +1943,8 @@
                 "mainer_seed": 5463,
                 "mainer_answer": "Ethereum was created by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "tvja4-faaaa-aaaaj-azxeq-cai",
@@ -1737,7 +1952,8 @@
                 "mainer_seed": 6554,
                 "mainer_answer": "Ethereum was founded by Ryan Singer.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 1
             },
             {
                 "mainer_id": "tvja4-faaaa-aaaaj-azxeq-cai",
@@ -1745,7 +1961,8 @@
                 "mainer_seed": 527454759,
                 "mainer_answer": "Tron founder.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "tvja4-faaaa-aaaaj-azxeq-cai",
@@ -1753,7 +1970,8 @@
                 "mainer_seed": 1689105709,
                 "mainer_answer": "Ethereum was founded by the person listed first in the list of founders. Without a specific person by name",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 2
             },
             {
                 "mainer_id": "tvja4-faaaa-aaaaj-azxeq-cai",
@@ -1761,7 +1979,8 @@
                 "mainer_seed": 703273012,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "tvja4-faaaa-aaaaj-azxeq-cai",
@@ -1769,7 +1988,8 @@
                 "mainer_seed": 1864923962,
                 "mainer_answer": "Ethereum was founded by Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "t4kla-tiaaa-aaaaj-azxfa-cai",
@@ -1777,7 +1997,8 @@
                 "mainer_seed": 110,
                 "mainer_answer": "Bill Nason is the founder of the Ethereum blockchain.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "t4kla-tiaaa-aaaaj-azxfa-cai",
@@ -1785,7 +2006,8 @@
                 "mainer_seed": 211,
                 "mainer_answer": "Ethereum was co-founded by Dimitri Mihalache and Vitalik Buterin.",
                 "mainer_temp": 0.8,
-                "mainer_top_p": 1.0
+                "mainer_top_p": 1.0,
+                "judge_score": 5
             },
             {
                 "mainer_id": "t4kla-tiaaa-aaaaj-azxfa-cai",
