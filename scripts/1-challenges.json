@@ -1,0 +1,402 @@
+[
+    {
+        "challenge_id": "0",
+        "challenge_topic": "crypto",
+        "challenge_question": "What is the term for a blockchain that operates in parallel with other blockchains, allowing for cross-chain transactions?"
+    },
+    {
+        "challenge_id": "1",
+        "challenge_topic": "crypto",
+        "challenge_question": "Who is the founder of the Ethereum blockchain?"
+    },
+    {
+        "challenge_id": "2",
+        "challenge_topic": "crypto",
+        "challenge_question": "Where does the term cryptocurrency originate from?"
+    },
+    {
+        "challenge_id": "3",
+        "challenge_topic": "crypto",
+        "challenge_question": "When did Bitcoin go public?"
+    },
+    {
+        "challenge_id": "4",
+        "challenge_topic": "crypto",
+        "challenge_question": "Why not explore the concept of decentralized finance (DeFi) in more detail?"
+    },
+    {
+        "challenge_id": "5",
+        "challenge_topic": "crypto",
+        "challenge_question": "How does the use of blockchain technology in cryptocurrencies differ from traditional ledger systems?"
+    },
+    {
+        "challenge_id": "6",
+        "challenge_topic": "crypto",
+        "challenge_question": "Which technology is known for its use in cryptocurrencies and blockchain technology?"
+    },
+    {
+        "challenge_id": "7",
+        "challenge_topic": "crypto",
+        "challenge_question": "Can a cryptocurrency be used to withdraw money from a bank account?"
+    },
+    {
+        "challenge_id": "8",
+        "challenge_topic": "nature",
+        "challenge_question": "What is the main difference between a bison and a grizzly bear?"
+    },
+    {
+        "challenge_id": "9",
+        "challenge_topic": "nature",
+        "challenge_question": "How can bees find their way home after traveling long distances?"
+    },
+    {
+        "challenge_id": "10",
+        "challenge_topic": "nature",
+        "challenge_question": "Where does a butterfly emerge from?"
+    },
+    {
+        "challenge_id": "11",
+        "challenge_topic": "nature",
+        "challenge_question": "When does the ice age occur?"
+    },
+    {
+        "challenge_id": "12",
+        "challenge_topic": "nature",
+        "challenge_question": "Why is it important to conserve natural habitats?"
+    },
+    {
+        "challenge_id": "13",
+        "challenge_topic": "nature",
+        "challenge_question": "How does the Arctic sea ice cover change with the Earths axial tilt?"
+    },
+    {
+        "challenge_id": "14",
+        "challenge_topic": "nature",
+        "challenge_question": "What is the scientific name of the species of butterfly that is commonly known as the Monarch?"
+    },
+    {
+        "challenge_id": "15",
+        "challenge_topic": "nature",
+        "challenge_question": "Can you explain how water maintains the temperature of the Earth?"
+    },
+    {
+        "challenge_id": "16",
+        "challenge_topic": "space",
+        "challenge_question": "What is the largest natural satellite in our solar system?"
+    },
+    {
+        "challenge_id": "17",
+        "challenge_topic": "space",
+        "challenge_question": "Who is the first person to walk on the moon?"
+    },
+    {
+        "challenge_id": "18",
+        "challenge_topic": "space",
+        "challenge_question": "Where is the closest major city to the International Space Station (ISS)?"
+    },
+    {
+        "challenge_id": "19",
+        "challenge_topic": "space",
+        "challenge_question": "When was the last time a spacecraft successfully landed on the Moon?"
+    },
+    {
+        "challenge_id": "20",
+        "challenge_topic": "space",
+        "challenge_question": "Why not ask about the historical significance of space exploration?"
+    },
+    {
+        "challenge_id": "21",
+        "challenge_topic": "space",
+        "challenge_question": "How can astronauts transfer water from Earth to the Moon?"
+    },
+    {
+        "challenge_id": "22",
+        "challenge_topic": "space",
+        "challenge_question": "Which celestial body in the Solar System is known for its distinctive appearance due to a rainbow effect?"
+    },
+    {
+        "challenge_id": "23",
+        "challenge_topic": "space",
+        "challenge_question": "Can we assume that all life on Earth has originated from Mars?"
+    },
+    {
+        "challenge_id": "24",
+        "challenge_topic": "history",
+        "challenge_question": "What was the significance of the first airplane flight?"
+    },
+    {
+        "challenge_id": "25",
+        "challenge_topic": "history",
+        "challenge_question": "Who invented the first car?"
+    },
+    {
+        "challenge_id": "26",
+        "challenge_topic": "history",
+        "challenge_question": "Where does the term greatest generation originate?"
+    },
+    {
+        "challenge_id": "27",
+        "challenge_topic": "history",
+        "challenge_question": "When was the first recorded use of paper in history?"
+    },
+    {
+        "challenge_id": "28",
+        "challenge_topic": "history",
+        "challenge_question": "Why do we celebrate Christmas?"
+    },
+    {
+        "challenge_id": "29",
+        "challenge_topic": "history",
+        "challenge_question": "How did the Renaissance period in Europe begin?"
+    },
+    {
+        "challenge_id": "30",
+        "challenge_topic": "history",
+        "challenge_question": "Which historical event was marked by the fall of the Roman Empire?"
+    },
+    {
+        "challenge_id": "31",
+        "challenge_topic": "history",
+        "challenge_question": "Can you explain the impact of the Industrial Revolution on the development of the textile industry in the United States?"
+    },
+    {
+        "challenge_id": "32",
+        "challenge_topic": "science",
+        "challenge_question": "What is the name of the largest known animal species in the world?"
+    },
+    {
+        "challenge_id": "33",
+        "challenge_topic": "science",
+        "challenge_question": "What is the primary role of the ozone layer in protecting Earth from harmful ultraviolet radiation?"
+    },
+    {
+        "challenge_id": "34",
+        "challenge_topic": "science",
+        "challenge_question": "Where does the Earth orbit around the Sun?"
+    },
+    {
+        "challenge_id": "35",
+        "challenge_topic": "science",
+        "challenge_question": "When did the concept of universal gravitation become known as Newtons law?"
+    },
+    {
+        "challenge_id": "36",
+        "challenge_topic": "science",
+        "challenge_question": "Why does a ball fall to the ground after being thrown?"
+    },
+    {
+        "challenge_id": "37",
+        "challenge_topic": "science",
+        "challenge_question": "How does the human circulatory system facilitate the exchange of oxygen and carbon dioxide in the blood?"
+    },
+    {
+        "challenge_id": "38",
+        "challenge_topic": "science",
+        "challenge_question": "Which is the largest planet in the solar system, in terms of mass?"
+    },
+    {
+        "challenge_id": "39",
+        "challenge_topic": "science",
+        "challenge_question": "Can we say for certain that the Sun, as an object, is a black hole?"
+    },
+    {
+        "challenge_id": "40",
+        "challenge_topic": "technology",
+        "challenge_question": "What is the main purpose of the Internet?"
+    },
+    {
+        "challenge_id": "41",
+        "challenge_topic": "technology",
+        "challenge_question": "How many people have smartphones?"
+    },
+    {
+        "challenge_id": "42",
+        "challenge_topic": "technology",
+        "challenge_question": "Where does your smartphone connect to for internet access?"
+    },
+    {
+        "challenge_id": "43",
+        "challenge_topic": "technology",
+        "challenge_question": "When is it generally considered safe to use a new smartphone for extended periods without frequent updates?"
+    },
+    {
+        "challenge_id": "44",
+        "challenge_topic": "technology",
+        "challenge_question": "How do smartphones typically connect to the internet?"
+    },
+    {
+        "challenge_id": "45",
+        "challenge_topic": "technology",
+        "challenge_question": "How do smartphones store and retrieve data?"
+    },
+    {
+        "challenge_id": "46",
+        "challenge_topic": "technology",
+        "challenge_question": "How do you typically use a computer?"
+    },
+    {
+        "challenge_id": "47",
+        "challenge_topic": "technology",
+        "challenge_question": "Can artificial intelligence be used in any field to automate tasks more efficiently?"
+    },
+    {
+        "challenge_id": "48",
+        "challenge_topic": "engineering",
+        "challenge_question": "What is the primary purpose of a computer processor in a modern computer?"
+    },
+    {
+        "challenge_id": "49",
+        "challenge_topic": "engineering",
+        "challenge_question": "Who is the inventor of the airplane?"
+    },
+    {
+        "challenge_id": "50",
+        "challenge_topic": "engineering",
+        "challenge_question": "Where did the term robot originate?"
+    },
+    {
+        "challenge_id": "51",
+        "challenge_topic": "engineering",
+        "challenge_question": "When does the term elevator first appear in the field of engineering?"
+    },
+    {
+        "challenge_id": "52",
+        "challenge_topic": "engineering",
+        "challenge_question": "Why do engineers use 3D printing technology?"
+    },
+    {
+        "challenge_id": "53",
+        "challenge_topic": "engineering",
+        "challenge_question": "How does a bicycle wheel rotate to move forward?"
+    },
+    {
+        "challenge_id": "54",
+        "challenge_topic": "engineering",
+        "challenge_question": "Which technology is commonly used in the manufacturing of aircraft components?"
+    },
+    {
+        "challenge_id": "55",
+        "challenge_topic": "engineering",
+        "challenge_question": "Can you explain the concept of fluid flow in a pipeline?"
+    },
+    {
+        "challenge_id": "56",
+        "challenge_topic": "math",
+        "challenge_question": "What is the sum of the first 50 prime numbers?"
+    },
+    {
+        "challenge_id": "57",
+        "challenge_topic": "math",
+        "challenge_question": "Who invented the concept of zero as a place holder in arithmetic?"
+    },
+    {
+        "challenge_id": "58",
+        "challenge_topic": "math",
+        "challenge_question": "Where do you find the formula for calculating the area of a triangle?"
+    },
+    {
+        "challenge_id": "59",
+        "challenge_topic": "math",
+        "challenge_question": "When is a square inscribed in a circle?"
+    },
+    {
+        "challenge_id": "60",
+        "challenge_topic": "math",
+        "challenge_question": "Why is the sum of any three consecutive numbers always equal to the next number in the sequence?"
+    },
+    {
+        "challenge_id": "61",
+        "challenge_topic": "math",
+        "challenge_question": "How many days are in a year?"
+    },
+    {
+        "challenge_id": "62",
+        "challenge_topic": "math",
+        "challenge_question": "How many digits does a number with 3600 digits have?"
+    },
+    {
+        "challenge_id": "63",
+        "challenge_topic": "math",
+        "challenge_question": "Can you explain the concept of compound interest and how it works in simple terms?"
+    },
+    {
+        "challenge_id": "64",
+        "challenge_topic": "art",
+        "challenge_question": "What does the painting The Persistence of Memory by Salvador Dali depict?"
+    },
+    {
+        "challenge_id": "65",
+        "challenge_topic": "art",
+        "challenge_question": "Who is the creator of the iconic work The Persistence of Memory by Salvador Dal?"
+    },
+    {
+        "challenge_id": "66",
+        "challenge_topic": "art",
+        "challenge_question": "Where does the iconic art piece The Persistence of Memory by Salvador Dali primarily originate from?"
+    },
+    {
+        "challenge_id": "67",
+        "challenge_topic": "art",
+        "challenge_question": "When asked about art, what common knowledge topic might you choose to discuss?"
+    },
+    {
+        "challenge_id": "68",
+        "challenge_topic": "art",
+        "challenge_question": "Why not consider the role of color in art, and how it has evolved throughout history?"
+    },
+    {
+        "challenge_id": "69",
+        "challenge_topic": "art",
+        "challenge_question": "How can an artist create a canvas for the first time?"
+    },
+    {
+        "challenge_id": "70",
+        "challenge_topic": "art",
+        "challenge_question": "Which art movement is characterized by its use of color and bold brushstrokes?"
+    },
+    {
+        "challenge_id": "71",
+        "challenge_topic": "art",
+        "challenge_question": "Can a painting be created without using traditional techniques such as oil painting?"
+    },
+    {
+        "challenge_id": "72",
+        "challenge_topic": "music",
+        "challenge_question": "What is the musical genre that often features a combination of classical and pop elements?"
+    },
+    {
+        "challenge_id": "73",
+        "challenge_topic": "music",
+        "challenge_question": "Who is known as the King of Pop?"
+    },
+    {
+        "challenge_id": "74",
+        "challenge_topic": "music",
+        "challenge_question": "Where does the phrase Wheres the love?"
+    },
+    {
+        "challenge_id": "75",
+        "challenge_topic": "music",
+        "challenge_question": "When was the famous jazz song Take Me Home, Country Roads by Bob Dylan first released?"
+    },
+    {
+        "challenge_id": "76",
+        "challenge_topic": "music",
+        "challenge_question": "Why are some instruments played on the backs of chairs instead of the front?"
+    },
+    {
+        "challenge_id": "77",
+        "challenge_topic": "music",
+        "challenge_question": "How can one distinguish between classical and contemporary music?"
+    },
+    {
+        "challenge_id": "78",
+        "challenge_topic": "music",
+        "challenge_question": "Which instrument is commonly associated with the sound of a snare drum?"
+    },
+    {
+        "challenge_id": "79",
+        "challenge_topic": "music",
+        "challenge_question": "Can music be categorized by the genre it belongs to?"
+    }
+]
