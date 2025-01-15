@@ -61,6 +61,27 @@ module Types {
     public type CanisterRetrieveInput = {
         address : CanisterAddress;
     };
+    
+    //-------------------------------------------------------------------------
+    public type SelectableMainerLLM = {
+        #Qwen2_5_0_5_B;
+    };
+
+    public type MainerConfigurationInput = {
+        aiModel : ?SelectableMainerLLM;
+    };
+
+    public type CanisterCreationConfiguration = {
+        canisterType : ProtocolCanisterType;
+        owner: Principal;
+    };
+
+    public type CanisterCreationRecord = {
+        creationResult : Text;
+        newCanisterId : Text;
+    };
+
+    public type CanisterCreationResult = Result<CanisterCreationRecord, ApiError>;
 
     //-------------------------------------------------------------------------
     public type Challenge = {
@@ -212,9 +233,14 @@ module Types {
 
     public type CanisterIDRecord = { canister_id : Text };
 
-    // Canister Actors
+    //-------------------------------------------------------------------------
+// Canister Actors
     public type Judge_Actor = actor {
         addSubmissionToJudge: shared (Types.ChallengeResponseSubmission) -> async Bool
+    };
+
+    public type MainerCreator_Actor = actor {
+        createCanister: shared CanisterCreationConfiguration -> async CanisterCreationResult;
     };
 
     // IC Management Canister types

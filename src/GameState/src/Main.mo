@@ -106,7 +106,11 @@ actor class GameStateCanister() = this {
         };
     };
 
-    // Official mAIner agent canisters (owned by users)
+    private func getNextMainerCreatorCanisterEntry() : ?Types.OfficialProtocolCanister {
+        return mainerCreatorCanistersStorage.vals().next();
+    };
+
+    // mAIner Registry: Official mAIner agent canisters (owned by users)
     stable var mainerAgentCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
     var mainerAgentCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
     stable var userToMainerAgentsStorageStable : [(Principal, List.List<Types.OfficialProtocolCanister>)] = [];
@@ -669,6 +673,58 @@ actor class GameStateCanister() = this {
                         return #Ok(challengeAdded);                        
                     };
                 };               
+            };
+        };
+    };
+
+    // Function for user to create a new mAIner agent canister
+    public shared (msg) func createUserMainerAgentCanister(mainerConfig : Types.MainerConfigurationInput) : async Types.MainerAgentCanisterResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // TODO: verify user's payment for this agent
+
+        // Sanity checks on configuration of mAIner agent canister
+        switch (mainerConfig.aiModel) {
+            case (null) {
+                // use default model
+            };
+            case (?#Qwen2_5_0_5_B) {
+                // continue
+            };
+            case (_) { return #Err(#Other("Unsupported")); }
+        };
+
+        // Forward creation request to mAIner Creator canister
+        switch (getNextMainerCreatorCanisterEntry()) {
+            case (null) {
+                // This should never happen as it indicates there isn't any mAIner Creator canister registered here
+                return #Err(#Unauthorized);
+            };
+            case (?mainerCreatorEntry) {
+                let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
+                let canisterCreationInput : Types.CanisterCreationConfiguration = {
+                    canisterType : Types.ProtocolCanisterType = #MainerAgent;
+                    owner: Principal = msg.caller; // User
+                };
+                let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
+                switch (result) {
+                    case (#Ok(canisterCreationRecord)) {
+                        let canisterEntry : Types.OfficialProtocolCanister = {
+                            address : Text = canisterCreationRecord.newCanisterId; // New canister's id
+                            canisterType: Types.ProtocolCanisterType = #MainerAgent;
+                            creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            createdBy : Principal = msg.caller; // mAIner Creator
+                            ownedBy : Principal = msg.caller; // User
+                        };
+                        let putResponse = putMainerAgentCanister(canisterCreationRecord.newCanisterId, canisterEntry);
+                        if (not putResponse) {
+                            return #Err(#Other("An error creating the canister occurred"));
+                        };
+                        return #Ok(canisterEntry);                         
+                    };
+                    case (_) { return #Err(#FailedOperation); };
+                };            
             };
         };
     };
