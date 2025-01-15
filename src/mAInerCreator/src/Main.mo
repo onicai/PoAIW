@@ -119,7 +119,7 @@ actor class CanisterCreationCanister() = this {
             return #Err(#Unauthorized);
         };
         let config = {
-            canisterType : Types.CanisterType = #Mainer;
+            canisterType : Types.ProtocolCanisterType = #MainerAgent;
             owner : Principal = msg.caller;
         };
         let result = await createCanister(config);
