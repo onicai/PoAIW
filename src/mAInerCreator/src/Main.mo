@@ -67,8 +67,6 @@ actor class CanisterCreationCanister() = this {
             return #Err(#Unauthorized);
         };
 
-        // TODO: verify that cycles were paid for by user
-
         switch (configurationInput.canisterType) {
             case (#Mainer) {
                 // Create canister
@@ -90,6 +88,7 @@ actor class CanisterCreationCanister() = this {
                     canister_id = createdCanister.canister_id;
                 });
 
+                // TODO: verify new canister is working?
                 /* let readyResult = await knowledgebaseCanister.ready();
                 switch (readyResult) {
                     case (#Err(error)) {
