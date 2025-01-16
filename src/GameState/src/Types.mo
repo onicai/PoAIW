@@ -126,11 +126,8 @@ module Types {
         #Other : Text;
     };
 
-    public type ChallengeResponseSubmission = {
+    public type ChallengeResponseSubmission = ChallengeResponseSubmissionInput and {
         submissionId : Text;
-        challengeId : Text;
-        submittedBy : Principal;
-        response : Text;
         submittedTimestamp : Nat64;
         status: ChallengeResponseSubmissionStatus;
     };
@@ -144,26 +141,12 @@ module Types {
 
     public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmissionReturn, ApiError>;
 
-    public type ScoredResponseInput = {
-        submissionId : Text;
-        challengeId : Text;
-        submittedBy : Principal;
-        response : Text;
-        submittedTimestamp : Nat64;
-        status: ChallengeResponseSubmissionStatus;
+    public type ScoredResponseInput = ChallengeResponseSubmission and {
         judgedBy: Principal;
         score: Nat;
     };
 
-    public type ScoredResponse = {
-        submissionId : Text;
-        challengeId : Text;
-        submittedBy : Principal;
-        response : Text;
-        submittedTimestamp : Nat64;
-        status: ChallengeResponseSubmissionStatus;
-        judgedBy: Principal;
-        score: Nat;
+    public type ScoredResponse = ScoredResponseInput and {
         judgedTimestamp : Nat64;
     };
 
@@ -236,7 +219,7 @@ module Types {
     //-------------------------------------------------------------------------
 // Canister Actors
     public type Judge_Actor = actor {
-        addSubmissionToJudge: shared (Types.ChallengeResponseSubmission) -> async Bool
+        addSubmissionToJudge: shared (Types.ChallengeResponseSubmission) -> async ChallengeResponseSubmissionResult
     };
 
     public type MainerCreator_Actor = actor {

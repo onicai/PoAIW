@@ -1,6 +1,53 @@
 import Nat64 "mo:base/Nat64";
 
 module Types {
+    public type ChallengeResponseSubmissionStatus = {
+        #FailedSubmission;
+        #Received;
+        #Submitted;
+        #Judged;
+        #Processed;
+        #Other : Text;
+    };
+
+    public type ChallengeResponseSubmission = {
+        submissionId : Text;
+        challengeId : Text;
+        submittedBy : Principal;
+        response : Text;
+        submittedTimestamp : Nat64;
+        status: ChallengeResponseSubmissionStatus;
+    };
+
+    public type ChallengeResponseSubmissionReturn = {
+        success : Bool;
+        submissionId : Text;
+        submittedTimestamp : Nat64;
+        status: ChallengeResponseSubmissionStatus;
+    };
+
+    public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmissionReturn, ApiError>;
+
+    public type ScoredResponse = ChallengeResponseSubmission and {
+        judgedBy: Principal;
+        score: Nat;
+        judgedTimestamp : Nat64;
+    };
+
+    public type JudgeScore = {
+        generationId : Text;
+        generatedTimestamp : Nat64;
+        generatedByLlmId : Text;
+        generationPrompt : Text;
+        generatedChallengeText : Text;
+    };
+
+    public type ScoredResponseByJudge = ScoredResponse and {
+        judgeScoreRecord : JudgeScore;
+    };
+
+    public type JudgeChallengeResponseResult = Result<JudgeScore, ApiError>;
+
     public type GeneratedChallenge = {
         generationId : Text;
         generatedTimestamp : Nat64;
