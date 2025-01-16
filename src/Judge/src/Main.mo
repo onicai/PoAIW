@@ -19,7 +19,7 @@ actor class JudgeCtrlbCanister() = this {
 
     stable var GAME_STATE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // local dev: "bkyz2-fmaaa-aaaaa-qaaaq-cai";
 
-    stable let gameStateCanisterActor = actor(GAME_STATE_CANISTER_ID): Types.GameStateCanister;
+    stable let gameStateCanisterActor = actor(GAME_STATE_CANISTER_ID): Types.GameStateCanister_Actor;
     
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -253,14 +253,33 @@ actor class JudgeCtrlbCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
-    // Endpoint to be called by bioniq's NFT collection canister to update a story
-    // https://docs.google.com/presentation/d/1HCDdmEik3-NH6peSxlbiE0VKjTBIo3KzNlXqqs3coZM/edit#slide=id.p
+    private func sendScoredResponseToGameStateCanister(scoredResponse : Types.ScoredResponse) : async Types.ScoredResponseResult {
+        let scoredResponseInput : Types.ScoredResponseInput = {
+            submissionId : Text = scoredResponse.submissionId;
+            challengeId : Text = scoredResponse.challengeId;
+            submittedBy : Principal = scoredResponse.submittedBy;
+            response : Text = scoredResponse.response;
+            submittedTimestamp : Nat64 = scoredResponse.submittedTimestamp;
+            status: Types.ChallengeResponseSubmissionStatus = scoredResponse.status;
+            judgedBy: Principal = scoredResponse.judgedBy;
+            score: Nat = scoredResponse.score;
+        };
+        let result : Types.ScoredResponseResult = await gameStateCanisterActor.addScoredResponse(scoredResponseInput);
+        return result;
+    };
+
+    // Endpoint to be called by Game State canister to score a mAIner's response to a challenge
     public shared (msg) func addSubmissionToJudge(submissionEntry : Types.ChallengeResponseSubmission) : async Types.ChallengeResponseSubmissionResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#StatusCode(401));
         };
-        if (not isWhitelisted(msg.caller)) {
+        if (not (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(GAME_STATE_CANISTER_ID)) or isWhitelisted(msg.caller) or Principal.equal(msg.caller, Principal.fromActor(this)))) {
             return #Err(#StatusCode(401));
+        };
+
+        // Sanity checks on submitted response
+        if (submissionEntry.status != #Submitted or submissionEntry.response == "" or submissionEntry.submissionId == "" or submissionEntry.challengeId == "") {
+            return #Err(#Other("invalid submission value"));
         };
 
         let scoringPrompt : Text = ""; // TODO: put standard prompt

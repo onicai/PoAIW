@@ -28,11 +28,20 @@ module Types {
 
     public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmissionReturn, ApiError>;
 
-    public type ScoredResponse = ChallengeResponseSubmission and {
+    public type ScoredResponseInput = ChallengeResponseSubmission and {
         judgedBy: Principal;
         score: Nat;
+    };
+
+    public type ScoredResponse = ScoredResponseInput and {
         judgedTimestamp : Nat64;
     };
+
+    public type ScoredResponseReturn = {
+        success : Bool;
+    };
+
+    public type ScoredResponseResult = Result<ScoredResponseReturn, ApiError>;
 
     public type JudgeScore = {
         generationId : Text;
@@ -112,8 +121,9 @@ module Types {
 
     public type ChallengeAdditionResult = Result<Challenge, ApiError>;
 
-    public type GameStateCanister = actor {
+    public type GameStateCanister_Actor = actor {
         addChallenge : (NewChallengeInput) -> async ChallengeAdditionResult;
+        addScoredResponse : (ScoredResponseInput) -> async ScoredResponseResult;
     };
 
     // --
