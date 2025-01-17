@@ -268,20 +268,7 @@ actor class JudgeCtrlbCanister() = this {
         return result;
     };
 
-    // Endpoint to be called by Game State canister to score a mAIner's response to a challenge
-    public shared (msg) func addSubmissionToJudge(submissionEntry : Types.ChallengeResponseSubmission) : async Types.ChallengeResponseSubmissionResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-        if (not (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(GAME_STATE_CANISTER_ID)) or isWhitelisted(msg.caller) or Principal.equal(msg.caller, Principal.fromActor(this)))) {
-            return #Err(#StatusCode(401));
-        };
-
-        // Sanity checks on submitted response
-        if (submissionEntry.status != #Submitted or submissionEntry.response == "" or submissionEntry.submissionId == "" or submissionEntry.challengeId == "") {
-            return #Err(#Other("invalid submission value"));
-        };
-
+    private func processSubmission(submissionEntry : Types.ChallengeResponseSubmission) : async () {
         let scoringPrompt : Text = ""; // TODO: put standard prompt
 
         let rng_seed = getNextRngSeed();
@@ -298,7 +285,7 @@ actor class JudgeCtrlbCanister() = this {
         let judgingResult : Types.JudgeChallengeResponseResult = await judgeChallengeResponseDoIt_(llmCanister, startPrompt);
         switch (judgingResult) {
             case (#Err(error)) {
-                return #Err(error);
+                // TODO: error handling
             };
             case (#Ok(scoringOutput)) {
                 var assignedScore : Nat = 0;
@@ -306,17 +293,6 @@ actor class JudgeCtrlbCanister() = this {
                     // TODO: translate LLM output to score
                     case ("good") { assignedScore := 4; };
                     case (_) { assignedScore := 0; };
-                };
-                let scoredResponse : Types.ScoredResponse = {
-                    submissionId : Text = submissionEntry.submissionId;
-                    challengeId : Text = submissionEntry.challengeId;
-                    submittedBy : Principal = submissionEntry.submittedBy;
-                    response : Text = submissionEntry.response;
-                    submittedTimestamp : Nat64 = submissionEntry.submittedTimestamp;
-                    status: Types.ChallengeResponseSubmissionStatus = #Judged;
-                    judgedBy: Principal = Principal.fromActor(this);
-                    score: Nat = assignedScore;
-                    judgedTimestamp : Nat64 = scoringOutput.generatedTimestamp;
                 };
                 
                 // Store record of scoring the response
@@ -334,10 +310,63 @@ actor class JudgeCtrlbCanister() = this {
                 };
                 let pushResult = putScoredResponse(scoredResponseEntry);
 
-                // TODO: rethink flow with Game State canister
-                return #Ok(scoredResponse);                
+                switch (pushResult) {
+                    case (false) {
+                        // TODO: error handling
+                    };
+                    case (true) {
+                        // Send scored response to Game State canister
+                        let scoredResponse : Types.ScoredResponse = {
+                            submissionId : Text = submissionEntry.submissionId;
+                            challengeId : Text = submissionEntry.challengeId;
+                            submittedBy : Principal = submissionEntry.submittedBy;
+                            response : Text = submissionEntry.response;
+                            submittedTimestamp : Nat64 = submissionEntry.submittedTimestamp;
+                            status: Types.ChallengeResponseSubmissionStatus = #Judged;
+                            judgedBy: Principal = Principal.fromActor(this);
+                            score: Nat = assignedScore;
+                            judgedTimestamp : Nat64 = scoringOutput.generatedTimestamp;
+                        };
+                        let sendResult : Types.ScoredResponseResult = await sendScoredResponseToGameStateCanister(scoredResponse);
+                        switch (sendResult) {
+                            // TODO: translate LLM output to score
+                            case (#Err(error)) {
+                                // TODO: error handling
+                            };
+                            case (_) {
+                                // Successfully processed and sent to Game State
+                            };
+                        }; 
+                    };
+                };               
             };
         };
+    };
+
+    // Endpoint to be called by Game State canister to score a mAIner's response to a challenge
+    public shared (msg) func addSubmissionToJudge(submissionEntry : Types.ChallengeResponseSubmission) : async Types.ChallengeResponseSubmissionResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        if (not (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(GAME_STATE_CANISTER_ID)) or isWhitelisted(msg.caller) or Principal.equal(msg.caller, Principal.fromActor(this)))) {
+            return #Err(#StatusCode(401));
+        };
+
+        // Sanity checks on submitted response
+        if (submissionEntry.status != #Submitted or submissionEntry.response == "" or submissionEntry.submissionId == "" or submissionEntry.challengeId == "") {
+            return #Err(#Other("invalid submission value"));
+        };
+
+        // Trigger processing submission but don't wait on result
+        ignore processSubmission(submissionEntry);
+
+        // Return receipt of submission
+        return #Ok({
+            success : Bool = true;
+            submissionId : Text = submissionEntry.submissionId;
+            submittedTimestamp : Nat64 = submissionEntry.submittedTimestamp;
+            status: Types.ChallengeResponseSubmissionStatus = #Submitted;
+        });
     };
 
     /* public shared query (msg) func StoryGet(storyInputRecord: Types.StoryInputRecord) : async Types.StoryOutputRecordResult {
