@@ -1,17 +1,13 @@
 #!/bin/sh
 
 #######################################################################
-# For Linux & Mac
-#######################################################################
-export PYTHONPATH="${PYTHONPATH}:$(realpath ../../../icpp_llm/llama2_c)"
-
-
-#######################################################################
-# --network [local|ic]
+# run from parent folder as:
+# scripts/ready.sh --network [local|ic]
 #######################################################################
 
 # Default network type is local
 NETWORK_TYPE="local"
+NUM_LLMS_DEPLOYED=2
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -38,7 +34,7 @@ echo "Using network type: $NETWORK_TYPE"
 
 #######################################################################
 llm_id_start=0
-llm_id_end=11
+llm_id_end=$((NUM_LLMS_DEPLOYED - 1))
 
 # verify readiness of all llms in sequential mode
 echo " "

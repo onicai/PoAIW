@@ -1,13 +1,8 @@
 #!/bin/sh
 
 #######################################################################
-# For Linux & Mac
-#######################################################################
-export PYTHONPATH="${PYTHONPATH}:$(realpath ../../../icpp_llm/llama2_c)"
-
-
-#######################################################################
-# --network [local|ic]
+# run from parent folder as:
+# scripts/whitelist-check.sh --network [local|ic]
 #######################################################################
 
 # Default network type is local
@@ -41,7 +36,7 @@ echo "Using network type: $NETWORK_TYPE"
 echo " "
 echo "--------------------------------------------------"
 echo "Checking if challenger_ctrlb_canister is whitelisted with the LLM canisters"
-output=$(dfx canister call challenger_ctrlb_canister isWhitelistLogicOk --network $NETWORK_TYPE)
+output=$(dfx canister call challenger_ctrlb_canister checkAccessToLLMs --network $NETWORK_TYPE)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
     echo "ERROR: challenger_ctrlb_canister is not whitelisted. Make sure to update the LLMs."

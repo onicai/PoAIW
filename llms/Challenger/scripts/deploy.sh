@@ -3,10 +3,12 @@
 #######################################################################
 # For Linux & Mac
 #######################################################################
-export PYTHONPATH="${PYTHONPATH}:$(realpath ../../../../llama_cpp_canister)"
+LLAMA_CPP_CANISTER_PATH="../../../../llama_cpp_canister"
+export PYTHONPATH="${PYTHONPATH}:$(realpath $LLAMA_CPP_CANISTER_PATH)"
 
 #######################################################################
-# --network [local|ic]
+# run from parent folder as:
+# scripts/deploy.sh --network [local|ic]
 #######################################################################
 
 # Default network type is local
@@ -58,7 +60,8 @@ echo "Using network type: $NETWORK_TYPE"
 echo " "
 echo "--------------------------------------------------"
 echo "Building the wasm for the llms"
-cd ../../../../../llama_cpp_canister
+pwd
+cd $LLAMA_CPP_CANISTER_PATH
 icpp build-wasm
 cd ../DecentralizedAIonIC/PoAIW/llms/Challenger
 

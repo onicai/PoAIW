@@ -33,7 +33,8 @@ module Types {
     public type LLMCanister = actor {
         health : () -> async StatusCodeRecordResult;
         ready : () -> async StatusCodeRecordResult;
-        nft_ami_whitelisted : () -> async StatusCodeRecordResult;
+        check_access : () -> async StatusCodeRecordResult;
+        // TODO: replace with llama_cpp_canister equivalents
         nft_story_start_mo : (NFT_llama2_c, Prompt) -> async InferenceRecordResult;
         nft_story_continue_mo : (NFT_llama2_c, Prompt) -> async InferenceRecordResult;
         nft_story_delete : (NFT_llama2_c) -> async StatusCodeRecordResult;

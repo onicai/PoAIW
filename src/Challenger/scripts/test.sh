@@ -1,7 +1,8 @@
 #!/bin/sh
 
 #######################################################################
-# --network [local|ic]
+# run from parent folder as:
+# scripts/test.sh --network [local|ic]
 #######################################################################
 
 # Default network type is local

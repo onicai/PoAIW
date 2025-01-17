@@ -11,25 +11,22 @@ Install motoko dependencies:
 mops install
 ```
 
-### Deploy
-
-We assume that:
-- The LLMs for the Challenger are deployed as described in PoAIW/llms/Challenger
-- The challenger_ctrlb_canister is whitelisted (or you do that below)
-
+## Deploy
 
 Deploy the challenger_ctrlb_canister with:
 
 ```bash
-# from folder backend/challenger_ctrlb_canister:
-
-# Activate the same python environment as you defined for deploying the LLMs
-# (This might not be needed, but I did it this way...)
-conda activate icpp_llm
-
-# Deploy, initialize and test it
-# WARNING: This will re-deploy the challenger_ctrlb_canister with loss of all existing data!
+# from folder src/Challenger:
 scripts/deploy.sh --network [local/ic]
+```
+
+## Register LLMs
+
+The LLMs must be registered with:
+
+```bash
+# from folder src/Challenger:
+scripts/register-llms.sh
 ```
 
 ### Test with dfx
@@ -41,8 +38,8 @@ dfx canister call challenger_ctrlb_canister whoami
 $ dfx canister call challenger_ctrlb_canister amiController
 (variant { Ok = record { status_code = 200 : nat16 } })
 
-# This call checks if the challenger_ctrlb_canister is whitelisted in the llm_0
-$ dfx canister call challenger_ctrlb_canister isWhitelistLogicOk
+# This call checks if the challenger_ctrlb_canister is whitelisted in it's LLMs
+$ dfx canister call challenger_ctrlb_canister checkAccessToLLMs
 (variant { Ok = record { status_code = 200 : nat16 } })
 
 # Call the Inference endpoint

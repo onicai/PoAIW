@@ -1,18 +1,15 @@
 #!/bin/sh
 
 #######################################################################
-# For Linux & Mac
-#######################################################################
-export PYTHONPATH="${PYTHONPATH}:$(realpath ../../../icpp_llm/llama2_c)"
-
-
-#######################################################################
-# --network [local|ic]
+# run from parent folder as:
+# scripts/balance.sh --network [local|ic]
 #######################################################################
 
 # Default network type is local
 NETWORK_TYPE="local"
-CTRLB_PRINCIPAL="---"
+NUM_LLMS_DEPLOYED=2
+# local...
+CTRLB_PRINCIPAL="bw4dl-smaaa-aaaaa-qaacq-cai"
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -21,7 +18,7 @@ while [ $# -gt 0 ]; do
             shift
             if [ "$1" = "local" ] || [ "$1" = "ic" ]; then
                 NETWORK_TYPE=$1
-                CTRLB_PRINCIPAL="b77ix-eeaaa-aaaaa-qaada-cai"
+                CTRLB_PRINCIPAL="---TODO"
             else
                 echo "Invalid network type: $1. Use 'local' or 'ic'."
                 exit 1
@@ -40,14 +37,14 @@ echo "Using network type: $NETWORK_TYPE"
 
 #######################################################################
 llm_id_start=0
-llm_id_end=11
+llm_id_end=$((NUM_LLMS_DEPLOYED - 1))
 
-echo -n "- dfx identity             : "; dfx identity whoami
-echo -n "- Wallet balance           : "; dfx wallet --network $NETWORK_TYPE balance
+echo "- dfx identity             : "; dfx identity whoami; echo " "
+echo "- Wallet balance           : "; dfx wallet --network $NETWORK_TYPE balance; echo " "
 
 for i in $(seq $llm_id_start $llm_id_end)
 do
-	echo -n "- llm_$i "; dfx canister status llm_$i --network $NETWORK_TYPE 2>&1 | grep "Balance:"
+	echo "- llm_$i "; dfx canister status llm_$i --network $NETWORK_TYPE 2>&1 | grep "Balance:"; echo " "
 done
 
-echo -n "- $CTRLB_PRINCIPAL "; dfx canister status $CTRLB_PRINCIPAL --network $NETWORK_TYPE 2>&1 | grep "Balance:"
+echo "- $CTRLB_PRINCIPAL "; dfx canister status $CTRLB_PRINCIPAL --network $NETWORK_TYPE 2>&1 | grep "Balance:"; echo " "
