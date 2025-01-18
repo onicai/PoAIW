@@ -32,6 +32,27 @@ actor class MainerAgentCtrlbCanister() = this {
 
     // Orthogonal Persisted Data storage
 
+    // Record of generated responses
+    stable var generatedResponses : List.List<Types.ChallengeResponse> = List.nil<Types.ChallengeResponse>();
+    
+    private func putGeneratedResponse(responseEntry : Types.ChallengeResponse) : Bool {
+        let putResult = List.push<Types.ChallengeResponse>(responseEntry, generatedResponses);
+        return true;
+    };
+
+    private func getGeneratedResponse(challengeId : Text) : ?Types.ChallengeResponse {
+        return List.find<Types.ChallengeResponse>(generatedResponses, func(responseEntry: Types.ChallengeResponse) : Bool { responseEntry.challengeId == challengeId } ); 
+    };
+
+    private func getGeneratedResponses() : [Types.ChallengeResponse] {
+        return List.toArray<Types.ChallengeResponse>(generatedResponses);
+    };
+
+    private func removeGeneratedResponse(challengeId : Text) : Bool {
+        generatedResponses := List.filter(generatedResponses, func(responseEntry: Types.ChallengeResponse) : Bool { responseEntry.challengeId != challengeId });
+        return true;
+    };
+
     // Record of submitted responses
     stable var submittedResponses : List.List<Types.ChallengeResponseSubmission> = List.nil<Types.ChallengeResponseSubmission>();
     
@@ -253,11 +274,11 @@ actor class MainerAgentCtrlbCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
-    private func submitResponseToGameStateCanister(response : Types.ChallengeResponseSubmission) : async Types.ChallengeResponseSubmissionResult {
+    private func submitResponseToGameStateCanister(response : Types.ChallengeResponse, submittedBy : Principal) : async Types.ChallengeResponseSubmissionResult {
         let responseInput : Types.ChallengeResponseSubmissionInput = {
             challengeId : Text = response.challengeId;
-            submittedBy : Principal = response.submittedBy;
-            response : Text = response.response;
+            submittedBy : Principal = submittedBy;
+            response : Text = response.generatedResponseText;
         };
         let result : Types.ChallengeResponseSubmissionResult = await gameStateCanisterActor.submitChallengeResponse(responseInput);
         return result;
@@ -277,59 +298,44 @@ actor class MainerAgentCtrlbCanister() = this {
 
         let llmCanister = _getRoundRobinCanister();
 
-        let respondingResult : Types.ChallengeResponseResult = await respondToChallengeDoIt_(llmCanister, startPrompt);
+        let respondingResult : Types.ChallengeResponseResult = await respondToChallengeDoIt_(llmCanister, startPrompt, challenge.challengeId);
         switch (respondingResult) {
             case (#Err(error)) {
                 // TODO: error handling
             };
-            case (#Ok(respondingOutput)) {
-                var assignedScore : Nat = 0;
-                switch (scoringOutput.generatedChallengeText) {
-                    // TODO: translate LLM output to score
-                    case ("good") { assignedScore := 4; };
-                    case (_) { assignedScore := 0; };
-                };
-                
-                // Store record of scoring the response
-                let scoredResponseEntry : Types.ScoredResponseByJudge = {
-                    submissionId : Text = submissionEntry.submissionId;
-                    challengeId : Text = submissionEntry.challengeId;
-                    submittedBy : Principal = submissionEntry.submittedBy;
-                    response : Text = submissionEntry.response;
-                    submittedTimestamp : Nat64 = submissionEntry.submittedTimestamp;
-                    status: Types.ChallengeResponseSubmissionStatus = #Judged;
-                    judgedBy: Principal = Principal.fromActor(this);
-                    score: Nat = assignedScore;
-                    judgedTimestamp : Nat64 = scoringOutput.generatedTimestamp;
-                    judgeScoreRecord : Types.JudgeScore = scoringOutput;                    
-                };
-                let pushResult = putScoredResponse(scoredResponseEntry);
+            case (#Ok(respondingOutput : Types.ChallengeResponse)) {                
+                // Store response
+                let storeResult : Bool = putGeneratedResponse(respondingOutput);
 
-                switch (pushResult) {
+                switch (storeResult) {
                     case (false) {
                         // TODO: error handling
                     };
                     case (true) {
-                        // Send scored response to Game State canister
-                        let scoredResponse : Types.ScoredResponse = {
-                            submissionId : Text = submissionEntry.submissionId;
-                            challengeId : Text = submissionEntry.challengeId;
-                            submittedBy : Principal = submissionEntry.submittedBy;
-                            response : Text = submissionEntry.response;
-                            submittedTimestamp : Nat64 = submissionEntry.submittedTimestamp;
-                            status: Types.ChallengeResponseSubmissionStatus = #Judged;
-                            judgedBy: Principal = Principal.fromActor(this);
-                            score: Nat = assignedScore;
-                            judgedTimestamp : Nat64 = scoringOutput.generatedTimestamp;
-                        };
-                        let sendResult : Types.ScoredResponseResult = await sendScoredResponseToGameStateCanister(scoredResponse);
-                        switch (sendResult) {
-                            // TODO: translate LLM output to score
+                        // Submit response to Game State canister
+                        let submittedBy : Principal = Principal.fromActor(this);
+                        let submitResult : Types.ChallengeResponseSubmissionResult = await submitResponseToGameStateCanister(respondingOutput, submittedBy);
+                        switch (submitResult) {
                             case (#Err(error)) {
                                 // TODO: error handling
                             };
-                            case (_) {
-                                // Successfully processed and sent to Game State
+                            case (#Ok(submissionReturnValue : Types.ChallengeResponseSubmissionReturn)) {
+                                // Successfully submitted to Game State
+                                let submittedResponseEntry : Types.ChallengeResponseSubmission = {
+                                    challengeId : Text = challenge.challengeId;
+                                    submittedBy : Principal = submittedBy;
+                                    response : Text = respondingOutput.generatedResponseText;
+                                    submissionId : Text = submissionReturnValue.submissionId;
+                                    submittedTimestamp : Nat64 = submissionReturnValue.submittedTimestamp;
+                                    status: Types.ChallengeResponseSubmissionStatus = submissionReturnValue.status;
+                                };
+                                let putResult = putSubmittedResponse(submittedResponseEntry);
+                                switch (putResult) {
+                                    case (false) {
+                                        // TODO: error handling
+                                    };
+                                    case (true) {};
+                                };
                             };
                         }; 
                     };
@@ -339,7 +345,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Endpoint to be called by Game State canister to score a mAIner's response to a challenge
-    public shared (msg) func addSubmissionToJudge(submissionEntry : Types.ChallengeResponseSubmission) : async Types.ChallengeResponseSubmissionResult {
+    /* public shared (msg) func addSubmissionToJudge(submissionEntry : Types.ChallengeResponseSubmission) : async Types.ChallengeResponseSubmissionResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -362,7 +368,7 @@ actor class MainerAgentCtrlbCanister() = this {
             submittedTimestamp : Nat64 = submissionEntry.submittedTimestamp;
             status: Types.ChallengeResponseSubmissionStatus = #Submitted;
         });
-    };
+    }; */
 
     /* public shared query (msg) func StoryGet(storyInputRecord: Types.StoryInputRecord) : async Types.StoryOutputRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -426,13 +432,12 @@ actor class MainerAgentCtrlbCanister() = this {
         return canister;
     };
 
-    private func judgeChallengeResponseDoIt_(llmCanister: Types.LLMCanister, startPrompt : Types.Prompt) : async Types.JudgeChallengeResponseResult {
-        D.print("Inside function challengeGenerationDoIt_. llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
+    private func respondToChallengeDoIt_(llmCanister: Types.LLMCanister, startPrompt : Types.Prompt, challengeId : Text) : async Types.ChallengeResponseResult {
+        D.print("Inside function respondToChallengeDoIt_. llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
 
-        // The llama2_c canisters refers to each scoring process with a token_id
-        let thisScoringId : Text = await Utils.newRandomUniqueId();
+        // The llama2_c canisters refers to each process with a token_id
         let llmInput: Types.NFT_llama2_c = {
-            token_id = thisScoringId;
+            token_id = challengeId;
         };
 
         // Start a new generation for this challenge
@@ -487,7 +492,7 @@ actor class MainerAgentCtrlbCanister() = this {
             rng_seed : Nat64 = startPrompt.rng_seed;
         };
         var continueLoopCount : Nat = 0;
-        label continueLoop while (continueLoopCount < 2) { // TODO: determine number of allowed loops
+        label continueLoop while (continueLoopCount < 5) { // TODO: determine number of allowed loops
             try {
                 D.print("---ctrlb_canister---");
                 D.print("calling nft_story_continue_mo with : ");
@@ -535,7 +540,7 @@ actor class MainerAgentCtrlbCanister() = this {
             continueLoopCount += 1;
         };
 
-        // Delete the scoring process in the LLM
+        // Delete the process in the LLM
         try {
             D.print("---ctrlb_canister---");
             D.print("calling nft_story_delete with : "); // TODO: different call
@@ -558,14 +563,14 @@ actor class MainerAgentCtrlbCanister() = this {
             );
         };
 
-        // Return the scored response
-        let scoringOutput : Types.JudgeScore = {
-            generationId : Text = thisScoringId;
+        // Return the generated response
+        let responseOutput : Types.ChallengeResponse = {
+            challengeId : Text = challengeId;
+            generationPrompt : Text = startPrompt.prompt;     
             generatedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
             generatedByLlmId : Text = Principal.toText(Principal.fromActor(llmCanister));
-            generationPrompt : Text = startPrompt.prompt;
-            generatedChallengeText : Text = generatedText;
+            generatedResponseText : Text = generatedText;
         };
-        return #Ok(scoringOutput);
+        return #Ok(responseOutput);
     };
 };

@@ -10,11 +10,14 @@ module Types {
         #Other : Text;
     };
 
-    public type ChallengeResponseSubmission = {
-        submissionId : Text;
+    public type ChallengeResponseSubmissionInput = {
         challengeId : Text;
         submittedBy : Principal;
         response : Text;
+    };
+
+    public type ChallengeResponseSubmission = ChallengeResponseSubmissionInput and {
+        submissionId : Text;
         submittedTimestamp : Nat64;
         status: ChallengeResponseSubmissionStatus;
     };
@@ -56,6 +59,16 @@ module Types {
     };
 
     public type JudgeChallengeResponseResult = Result<JudgeScore, ApiError>;
+
+    public type ChallengeResponse = {
+        challengeId : Text;
+        generationPrompt : Text;       
+        generatedTimestamp : Nat64;
+        generatedByLlmId : Text;
+        generatedResponseText : Text;
+    };
+
+    public type ChallengeResponseResult = Result<ChallengeResponse, ApiError>;
 
     public type GeneratedChallenge = {
         generationId : Text;
@@ -120,12 +133,6 @@ module Types {
     };
 
     public type ChallengeAdditionResult = Result<Challenge, ApiError>;
-
-    public type ChallengeResponseSubmissionInput = {
-        challengeId : Text;
-        submittedBy : Principal;
-        response : Text;
-    };
 
     public type ChallengeResult = Result<Challenge, ApiError>;
 
