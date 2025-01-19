@@ -274,6 +274,11 @@ actor class MainerAgentCtrlbCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
+    private func getChallengeFromGameStateCanister() : async Types.ChallengeResult {
+        let result : Types.ChallengeResult = await gameStateCanisterActor.getRandomOpenChallenge();
+        return result;
+    };
+
     private func submitResponseToGameStateCanister(response : Types.ChallengeResponse, submittedBy : Principal) : async Types.ChallengeResponseSubmissionResult {
         let responseInput : Types.ChallengeResponseSubmissionInput = {
             challengeId : Text = response.challengeId;
@@ -344,31 +349,38 @@ actor class MainerAgentCtrlbCanister() = this {
         };
     };
 
-    // Endpoint to be called by Game State canister to score a mAIner's response to a challenge
-    /* public shared (msg) func addSubmissionToJudge(submissionEntry : Types.ChallengeResponseSubmission) : async Types.ChallengeResponseSubmissionResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-        if (not (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(GAME_STATE_CANISTER_ID)) or isWhitelisted(msg.caller) or Principal.equal(msg.caller, Principal.fromActor(this)))) {
-            return #Err(#StatusCode(401));
-        };
+    private func respondToNextChallenge() : async () {
+        // Get the next challenge to respond to
+        let challengeResult : Types.ChallengeResult = await getChallengeFromGameStateCanister();
+        switch (challengeResult) {
+            case (#Err(error)) {
+                // TODO: error handling
+            };
+            case (#Ok(nextChallenge : Types.Challenge)) {
+                // Process the challenge
+                // Sanity checks
+                if (nextChallenge.challengeId == "" or nextChallenge.challengePrompt == "") {
+                    return;
+                };
+                switch (nextChallenge.status) {
+                    case (#Open) {
+                        // continue
+                    };
+                    case (_) { return; }
+                };
+                switch (nextChallenge.closedTimestamp) {
+                    case (null) {
+                        // continue
+                    };
+                    case (_) { return; }
+                };
 
-        // Sanity checks on submitted response
-        if (submissionEntry.status != #Submitted or submissionEntry.response == "" or submissionEntry.submissionId == "" or submissionEntry.challengeId == "") {
-            return #Err(#Other("invalid submission value"));
+                // Get response generated for challenge and submit it
+                ignore processRespondingToChallenge(nextChallenge);
+                return;
+            };
         };
-
-        // Trigger processing submission but don't wait on result
-        ignore processSubmission(submissionEntry);
-
-        // Return receipt of submission
-        return #Ok({
-            success : Bool = true;
-            submissionId : Text = submissionEntry.submissionId;
-            submittedTimestamp : Nat64 = submissionEntry.submittedTimestamp;
-            status: Types.ChallengeResponseSubmissionStatus = #Submitted;
-        });
-    }; */
+    };
 
     /* public shared query (msg) func StoryGet(storyInputRecord: Types.StoryInputRecord) : async Types.StoryOutputRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
