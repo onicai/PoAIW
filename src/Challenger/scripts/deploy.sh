@@ -10,10 +10,8 @@ NETWORK_TYPE="local"
 
 # When deploying to IC, we deploy to a specific subnet
 # none will not use subnet parameter in deploy to ic
-# SUBNET="none"
-SUBNET="qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe"
-# SUBNET="jtdsg-3h6gi-hs7o5-z2soi-43w3z-soyl3-ajnp3-ekni5-sw553-5kw67-nqe"
-# SUBNET="lspz2-jx4pu-k3e7p-znm7j-q4yum-ork6e-6w4q6-pijwq-znehu-4jabe-kqe"
+SUBNET="none"
+# SUBNET="qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe"
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do

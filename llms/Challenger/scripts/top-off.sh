@@ -7,6 +7,7 @@
 
 # Default network type is local
 NETWORK_TYPE="local"
+NUM_LLMS_DEPLOYED=2
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -30,10 +31,12 @@ while [ $# -gt 0 ]; do
 done
 
 echo "Using network type: $NETWORK_TYPE"
+echo "NUM_LLMS_DEPLOYED : $NUM_LLMS_DEPLOYED"
+echo " "
 
 #######################################################################
 llm_id_start=0
-llm_id_end=11
+llm_id_end=$((NUM_LLMS_DEPLOYED - 1))
 
 # Define the threshold balance in TCycles (When to top off)
 TOPPED_OFF_BALANCE_TRESHOLD_TC=18
@@ -48,8 +51,13 @@ TOPPED_OFF_BALANCE_TARGET=$(printf "%.0f" $TOPPED_OFF_BALANCE_TARGET)
 
 echo " "
 echo "--------------------------------------------------"
-echo -n "- dfx identity             : "; dfx identity whoami
-echo -n "- Wallet balance           : "; dfx wallet --network $NETWORK_TYPE balance
+echo " "
+echo "- dfx identity"
+dfx identity whoami
+
+echo " "
+echo "- Wallet balance"
+dfx wallet --network $NETWORK_TYPE balance
 
 # top off cycles for all llms in sequential mode
 echo " "
@@ -72,5 +80,10 @@ done
 
 echo " "
 echo "--------------------------------------------------"
-echo -n "- dfx identity             : "; dfx identity whoami
-echo -n "- Wallet balance after     : "; dfx wallet --network $NETWORK_TYPE balance
+echo " "
+echo "- dfx identity"
+dfx identity whoami
+
+echo " "
+echo "- Wallet balance"
+dfx wallet --network $NETWORK_TYPE balance

@@ -11,9 +11,7 @@ Install motoko dependencies:
 mops install
 ```
 
-## Deploy
-
-Deploy the challenger_ctrlb_canister with:
+## Deploy challenger_ctrlb_canister
 
 ```bash
 # from folder src/Challenger:
@@ -22,28 +20,28 @@ scripts/deploy.sh --network [local/ic]
 
 ## Register LLMs
 
-The LLMs must be registered with:
-
 ```bash
 # from folder src/Challenger:
-scripts/register-llms.sh
+scripts/register-llms.sh --network [local/ic]
 ```
 
 ### Test with dfx
 
 ```bash
-dfx canister call challenger_ctrlb_canister whoami
+dfx canister call challenger_ctrlb_canister whoami --ic
 
 # Run with same identity used to deploy (as a controller)
-$ dfx canister call challenger_ctrlb_canister amiController
+$ dfx canister call challenger_ctrlb_canister amiController --ic
 (variant { Ok = record { status_code = 200 : nat16 } })
 
 # This call checks if the challenger_ctrlb_canister is whitelisted in it's LLMs
-$ dfx canister call challenger_ctrlb_canister checkAccessToLLMs
+$ dfx canister call challenger_ctrlb_canister checkAccessToLLMs --ic
 (variant { Ok = record { status_code = 200 : nat16 } })
 
+
+# TODO - below is old...
 # Call the Inference endpoint
-$ dfx canister call challenger_ctrlb_canister Inference '(record {prompt="Joe went swimming in the pool"; steps=30; temperature=0.1; topp=0.9; rng_seed=0})'
+$ dfx canister call challenger_ctrlb_canister Inference '(record {prompt="Joe went swimming in the pool"; steps=30; temperature=0.1; topp=0.9; rng_seed=0})' --ic
 (
   variant {
     Ok = record {
@@ -64,5 +62,5 @@ $ dfx canister call challenger_ctrlb_canister Inference '(record {prompt="Joe we
 # Below is for NFT collection
 
 # Update a story for an NFT
-$ dfx canister call challenger_ctrlb_canister NFTUpdate '(record {token_id="placeholder-0"})'
+$ dfx canister call challenger_ctrlb_canister NFTUpdate '(record {token_id="placeholder-0"})' --ic
 ```

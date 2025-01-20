@@ -7,6 +7,7 @@
 
 # Default network type is local
 NETWORK_TYPE="local"
+NUM_LLMS_DEPLOYED=2
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -30,17 +31,24 @@ while [ $# -gt 0 ]; do
 done
 
 echo "Using network type: $NETWORK_TYPE"
+echo "NUM_LLMS_DEPLOYED : $NUM_LLMS_DEPLOYED"
+echo " "
 
 #######################################################################
 llm_id_start=0
-llm_id_end=11
+llm_id_end=$((NUM_LLMS_DEPLOYED - 1))
 
-echo -n "- dfx identity             : "; dfx identity whoami
-echo -n "- Wallet balance           : "; dfx wallet --network $NETWORK_TYPE balance
+echo " "
+echo "- dfx identity"
+dfx identity whoami
+
+echo " "
+echo "- Wallet balance"
+dfx wallet --network $NETWORK_TYPE balance
 
 for i in $(seq $llm_id_start $llm_id_end)
 do
-    echo "---"
+    echo " "
 	echo "- llm_$i "
     dfx canister status llm_$i --network $NETWORK_TYPE
 done

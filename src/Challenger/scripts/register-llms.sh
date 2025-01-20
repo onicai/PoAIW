@@ -9,18 +9,11 @@
 NETWORK_TYPE="local"
 NUM_LLMS_DEPLOYED=2
 NUM_LLMS_ROUND_ROBIN=2 # how many LLMs we actually use
-
-# Copy this from .env in llms folder after local deployment of the llms
-CANISTER_ID_LLM_1='br5f7-7uaaa-aaaaa-qaaca-cai'
-CANISTER_ID_LLM_0='bd3sg-teaaa-aaaaa-qaaba-cai'
-
-# When deploying to IC, we deploy to a specific subnet
+# When deploying local, use canister IDs from .env
+source ../../llms/Challenger/.env
 
 # none will not use subnet parameter in deploy to ic
-# SUBNET="none"
-SUBNET="qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe"
-# SUBNET="jtdsg-3h6gi-hs7o5-z2soi-43w3z-soyl3-ajnp3-ekni5-sw553-5kw67-nqe"
-# SUBNET="lspz2-jx4pu-k3e7p-znm7j-q4yum-ork6e-6w4q6-pijwq-znehu-4jabe-kqe"
+SUBNET="none"
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -30,9 +23,8 @@ while [ $# -gt 0 ]; do
             if [ "$1" = "local" ] || [ "$1" = "ic" ]; then
                 NETWORK_TYPE=$1
                 if [ "$NETWORK_TYPE" = "ic" ]; then
-                    # deployed on subnet: "xxxxx"
-                    CANISTER_ID_LLM_0='xxxx'
-                    CANISTER_ID_LLM_1='xxxx'
+                    CANISTER_ID_LLM_0='todo'
+                    CANISTER_ID_LLM_1='todo'  
                 fi
             else
                 echo "Invalid network type: $1. Use 'local' or 'ic'."
@@ -82,6 +74,20 @@ CANISTER_ID_LLMS=(
 )
 llm_id_start=0
 llm_id_end=$((NUM_LLMS_DEPLOYED - 1))
+
+for i in $(seq $llm_id_start $llm_id_end)
+do
+    CANISTER_ID_LLM=${CANISTER_ID_LLMS[$i]}
+    echo "CANISTER_ID_LLM_$i: $CANISTER_ID_LLM"
+done
+
+# Ask user if this is correct, and continue when answer is yes
+read -p "Proceed? (yes/no): " confirm
+if [[ $confirm != "yes" ]]; then
+    echo "Aborting script."
+    exit 1
+fi
+
 for i in $(seq $llm_id_start $llm_id_end)
 do
     CANISTER_ID_LLM=${CANISTER_ID_LLMS[$i]}

@@ -21,14 +21,10 @@ NUM_LLMS_DEPLOYED=2
 
 # Smaller test models, with same prompt template as Qwen2.5
 # https://huggingface.co/tensorblock/SmolLM2-135M-Instruct-GGUF
-# MODEL="models/tensorblock/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q8_0.gguf"
-# MAX_TOKENS=50 # To be tested still...
-
 MODEL="models/tensorblock/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M.gguf"
-MAX_TOKENS=50 # To be tested still...
+MAX_TOKENS=50 # To be tested still for SmolLM2 
 
 # When deploying to IC, we deploy to a specific subnet
-
 # none will not use subnet parameter in deploy to ic
 SUBNET="none"
 # SUBNET="qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe"
