@@ -1,4 +1,5 @@
 {
+    "version": 1,
     "canisters": {
         "llm_0": {
             "type": "custom",
@@ -11,6 +12,5 @@
             "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
         }
     },
-    "output_env_file": ".env",
-    "version": 1
+    "output_env_file": ".env"
 }
