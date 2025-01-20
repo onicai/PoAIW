@@ -35,9 +35,9 @@ module Types {
         ready : () -> async StatusCodeRecordResult;
         check_access : () -> async StatusCodeRecordResult;
         // TODO: replace with llama_cpp_canister equivalents
-        nft_story_start_mo : (NFT_llama2_c, Prompt) -> async InferenceRecordResult;
-        nft_story_continue_mo : (NFT_llama2_c, Prompt) -> async InferenceRecordResult;
-        nft_story_delete : (NFT_llama2_c) -> async StatusCodeRecordResult;
+        // nft_story_start_mo : (NFT_llama2_c, Prompt) -> async InferenceRecordResult;
+        // nft_story_continue_mo : (NFT_llama2_c, Prompt) -> async InferenceRecordResult;
+        // nft_story_delete : (NFT_llama2_c) -> async StatusCodeRecordResult;
     };
 
     // --
@@ -75,13 +75,6 @@ module Types {
     // --
     public type StatusCodeRecordResult = Result<StatusCodeRecord, ApiError>;
     public type StatusCodeRecord = { status_code : Nat16 };
-
-    // --
-    // This is what the llama2_c canister uses
-    // We set the token_id equal to the storyID
-    public type NFT_llama2_c = {
-        token_id : Text;
-    };
 
     // --
     // Returned by 'nft_story_start', 'nft_story_continue'

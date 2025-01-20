@@ -24,6 +24,9 @@ Note: The folder structure is important, because the scripts use relative paths.
 Create a conda environment with python dependencies of `llama_cpp_canister` repo
 
 ```bash
+# install Miniconda on your system
+
+# create a conda environment
 conda create --name llama_cpp_canister python=3.11
 conda activate llama_cpp_canister
 
@@ -102,9 +105,6 @@ scripts/ready-check.sh --network [local/ic]
 scripts/register-check.sh --network [local/ic]
 ```
 
-
-
-
 ## Test Challenger with dfx
 
 ```bash
@@ -119,6 +119,9 @@ $ dfx canister call challenger_ctrlb_canister amiController --ic
 $ dfx canister call challenger_ctrlb_canister checkAccessToLLMs --ic
 (variant { Ok = record { status_code = 200 : nat16 } })
 
+# Generate a new Challenge
+$ dfx canister call challenger_ctrlb_canister generateNewChallenge --ic
+...
 
 # TODO - below is old...
 # Call the Inference endpoint

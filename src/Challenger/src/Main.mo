@@ -63,9 +63,6 @@ actor class ChallengerCtrlbCanister() {
 
     // Resets llmCanisterIDs, and then adds the argument as the first llmCanisterId
     public shared (msg) func set_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -75,9 +72,6 @@ actor class ChallengerCtrlbCanister() {
 
     // Adds another llmCanisterIDs
     public shared (msg) func add_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -112,7 +106,7 @@ actor class ChallengerCtrlbCanister() {
 
     // Function to verify that canister is ready for inference
     public shared (msg) func ready() : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
+        if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
         for (llmCanister in llmCanisters.vals()) {
@@ -134,9 +128,6 @@ actor class ChallengerCtrlbCanister() {
 
     // Admin function to verify that caller is a controller of this canister
     public shared query (msg) func amiController() : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -145,9 +136,6 @@ actor class ChallengerCtrlbCanister() {
 
     // Admin function to verify that ctrlb_canister is a controller of all the llm canisters
     public shared (msg) func checkAccessToLLMs() : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -172,9 +160,6 @@ actor class ChallengerCtrlbCanister() {
 
     // Admin function to set roundRobinLLMs
     public shared (msg) func setRoundRobinLLMs(_roundRobinLLMs : Nat) : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -185,27 +170,13 @@ actor class ChallengerCtrlbCanister() {
         return #Ok({ status_code = 200 });
     };
 
-    // Endpoint to be called by bioniq's NFT collection canister to update a story
-    // https://docs.google.com/presentation/d/1HCDdmEik3-NH6peSxlbiE0VKjTBIo3KzNlXqqs3coZM/edit#slide=id.p
+    // Endpoint to generate a new challenge
     public shared (msg) func generateNewChallenge() : async Types.GeneratedChallengeResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
 
-        let challengeGenerationPrompt : Text = ""; // TODO: put standard prompt
-
-        let rng_seed = getNextRngSeed();
-        let startPrompt : Types.Prompt = {
-            prompt = challengeGenerationPrompt;
-            steps = 60;
-            temperature = 0.1;
-            topp = 0.9;
-            rng_seed = rng_seed;
-        };
-
-        let llmCanister = _getRoundRobinCanister();
-
-        let generatedChallengeOutput : Types.GeneratedChallengeResult = await challengeGenerationDoIt_(llmCanister, startPrompt);
+        let generatedChallengeOutput : Types.GeneratedChallengeResult = await challengeGenerationDoIt_();
         switch (generatedChallengeOutput) {
             case (#Err(error)) {
                 return #Err(error);
@@ -217,6 +188,179 @@ actor class ChallengerCtrlbCanister() {
         };
 
         return generatedChallengeOutput;
+    };
+
+    private func challengeGenerationDoIt_() : async Types.GeneratedChallengeResult {
+        // TODO: probably need to improve the seed generation variability
+        let num_tokens = 1024;
+        let seed = getNextRngSeed();
+        let temp = 0.7;
+
+        // TODO: introduce variability in prompt for Topic and PromptStartsWith
+        let challengeTopic : Text = "crypto";
+        let challengePromptStartsWith : Text = "What";
+        let prompt : Text = "<|im_start|>user\nAsk a question about " #
+        challengeTopic #
+        ", that can be answered with common knowledge. Do NOT give the answer. Start the question with " #
+        challengePromptStartsWith #
+        "\n<|im_end|>\n<|im_start|>assistant\n";
+
+        let llmCanister = _getRoundRobinCanister();
+
+        D.print("Inside function challengeGenerationDoIt_. llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
+
+        // Check health of llmCanister
+        D.print("---challenger_ctrlb_canister---");
+        D.print("calling health endpoint of LLM");
+        let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.health();
+        D.print("---challenger_ctrlb_canister---");
+        D.print("returned from health endpoint of LLM with : ");
+        D.print("statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
+        switch (statusCodeRecordResult) {
+            case (#Err(error)) {
+                return #Err(error);
+            };
+            case (#Ok(statusCodeRecord)) {
+                D.print("LLM is healthy");
+            };
+        };
+
+        let thisGenerationId : Text = await Utils.newRandomUniqueId();
+        let promptCache : Text = "promptCacheDir/" # thisGenerationId # ".cache";
+
+        // Start a new generation for this challenge
+        var generatedText : Text = "";
+        var generation_num_tokens : Nat64 = 0;
+        var num_update_calls : Nat64 = 0;
+        // try {
+        //     D.print("---challenger_ctrlb_canister---");
+        //     D.print("calling new_chat with : ");
+        //     D.print("llmInput       : " # debug_show (llmInput));
+        //     D.print("startPrompt : " # debug_show (startPrompt));
+        //     num_update_calls += 1;
+        //     let inferenceRecordResult : Types.InferenceRecordResult = await llmCanister.nft_story_start_mo(llmInput, startPrompt);
+        //     D.print("---ctrlb_canister---");
+        //     D.print("returned from nft_story_start_mo with : ");
+        //     D.print("inferenceRecordResult: " # debug_show (inferenceRecordResult));
+
+        //     switch (inferenceRecordResult) {
+        //         case (#Err(error)) {
+        //             return #Err(error);
+        //         };
+        //         case (#Ok(inferenceRecord)) {
+        //             // the generated tokens
+        //             let inference : Text = inferenceRecord.inference;
+        //             let inference_num_tokens : Nat64 = inferenceRecord.num_tokens;
+        //             generatedText := inference;
+        //             generation_num_tokens += inference_num_tokens;
+        //             D.print("generatedText" # debug_show (generatedText));
+        //             D.print("generation_num_tokens" # debug_show (generation_num_tokens));
+        //         };
+        //     };
+        // } catch (error : Error) {
+        //     // Handle errors, such as llm canister not responding
+        //     D.print("---ctrlb_canister---");
+        //     D.print("catch error when nft_story_start : ");
+        //     D.print("error: " # Error.message(error));
+        //     return #Err(
+        //         #Other(
+        //             "Failed call to nft_story_start_mo of " # Principal.toText(Principal.fromActor(llmCanister)) #
+        //             " with error: " # Error.message(error)
+        //         )
+        //     );
+        // };
+
+        // // Continue the generation for this challange, until it returns an empty string
+        // // Avoid endless loop by limiting the number of iterations
+        // let continuePrompt : Types.Prompt = {
+        //     prompt : Text = "";
+        //     steps : Nat64 = startPrompt.steps;
+        //     temperature : Float = startPrompt.temperature;
+        //     topp : Float = startPrompt.topp;
+        //     rng_seed : Nat64 = startPrompt.rng_seed;
+        // };
+        // var continueLoopCount : Nat = 0;
+        // label continueLoop while (continueLoopCount < 3) {
+        //     // TODO: determine number of allowed loops for challenge generation
+        //     try {
+        //         D.print("---ctrlb_canister---");
+        //         D.print("calling nft_story_continue_mo with : ");
+        //         D.print("llmInput         : " # debug_show (llmInput));
+        //         D.print("continuePrompt : " # debug_show (continuePrompt));
+        //         num_update_calls += 1;
+        //         let inferenceRecordResult : Types.InferenceRecordResult = await llmCanister.nft_story_continue_mo(llmInput, continuePrompt);
+        //         D.print("---ctrlb_canister---");
+        //         D.print("returned nft_story_continue_mo with : ");
+        //         D.print("inferenceRecordResult: " # debug_show (inferenceRecordResult));
+
+        //         switch (inferenceRecordResult) {
+        //             case (#Err(error)) {
+        //                 return #Err(error);
+        //             };
+        //             case (#Ok(inferenceRecord)) {
+        //                 // the generated tokens
+        //                 let inference : Text = inferenceRecord.inference;
+        //                 let inference_num_tokens : Nat64 = inferenceRecord.num_tokens;
+        //                 // D.print("inference :" # debug_show (inference));
+        //                 // D.print("inference_num_tokens :" # Nat64.toText(inference_num_tokens));
+
+        //                 generatedText := generatedText # inference;
+        //                 generation_num_tokens += inference_num_tokens;
+        //                 // D.print("generatedText" # debug_show (generatedText));
+        //                 // D.print("generation_num_tokens" # debug_show (generation_num_tokens));
+
+        //                 if (inference_num_tokens < continuePrompt.steps) {
+        //                     break continueLoop; // Exit the loop because the LLM is done. It will only predict "" from now on.
+        //                 };
+        //             };
+        //         };
+        //     } catch (error : Error) {
+        //         // Handle errors, such as llm_0 not responding
+        //         D.print("---ctrlb_canister---");
+        //         D.print("catch error when nft_story_start : ");
+        //         D.print("error: " # Error.message(error));
+        //         return #Err(
+        //             #Other(
+        //                 "Failed call to nft_story_start of " # Principal.toText(Principal.fromActor(llmCanister)) #
+        //                 " with error: " # Error.message(error)
+        //             )
+        //         );
+        //     };
+        //     continueLoopCount += 1;
+        // };
+
+        // // Delete the challenge in the LLM
+        // try {
+        //     D.print("---ctrlb_canister---");
+        //     D.print("calling nft_story_delete with : "); // TODO: different call
+        //     D.print("llmInput       : " # debug_show (llmInput));
+        //     let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.nft_story_delete(llmInput);
+        //     D.print("---ctrlb_canister---");
+        //     D.print("returned from nft_story_delete with : ");
+        //     D.print("statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
+
+        // } catch (error : Error) {
+        //     // Handle errors, such as llm canister not responding
+        //     D.print("---ctrlb_canister---");
+        //     D.print("catch error when nft_story_start : ");
+        //     D.print("error: " # Error.message(error));
+        //     return #Err(
+        //         #Other(
+        //             "Failed call to nft_story_start_mo of " # Principal.toText(Principal.fromActor(llmCanister)) #
+        //             " with error: " # Error.message(error)
+        //         )
+        //     );
+        // };
+
+        // Return the generated challenge
+        let challengeOutput : Types.GeneratedChallenge = {
+            generationId : Text = thisGenerationId;
+            generatedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+            generatedByLlmId : Text = Principal.toText(Principal.fromActor(llmCanister));
+            generationPrompt : Text = prompt;
+            generatedChallenge : Text = generatedText;
+        };
+        return #Ok(challengeOutput);
     };
 
     /* public shared query (msg) func StoryGet(storyInputRecord: Types.StoryInputRecord) : async Types.StoryOutputRecordResult {
@@ -252,7 +396,7 @@ actor class ChallengerCtrlbCanister() {
     }; */
 
     public shared query (msg) func getRoundRobinCanister() : async Types.CanisterIDRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
+        if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
         let canisterIDRecord : Types.CanisterIDRecord = {
@@ -276,149 +420,5 @@ actor class ChallengerCtrlbCanister() {
         };
 
         return canister;
-    };
-
-    private func challengeGenerationDoIt_(llmCanister : Types.LLMCanister, startPrompt : Types.Prompt) : async Types.GeneratedChallengeResult {
-        D.print("Inside function challengeGenerationDoIt_. llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
-
-        // The llama2_c canisters refers to each challenge generation with a token_id
-        let thisGenerationId : Text = await Utils.newRandomUniqueId();
-        let llmInput : Types.NFT_llama2_c = {
-            token_id = thisGenerationId;
-        };
-
-        // Start a new generation for this challenge
-        var generatedText : Text = "";
-        var generation_num_tokens : Nat64 = 0;
-        var num_update_calls : Nat64 = 0;
-        try {
-            D.print("---ctrlb_canister---");
-            D.print("calling nft_story_start_mo with : "); // TODO: different call than nft_story_start_mo
-            D.print("llmInput       : " # debug_show (llmInput));
-            D.print("startPrompt : " # debug_show (startPrompt));
-            num_update_calls += 1;
-            let inferenceRecordResult : Types.InferenceRecordResult = await llmCanister.nft_story_start_mo(llmInput, startPrompt);
-            D.print("---ctrlb_canister---");
-            D.print("returned from nft_story_start_mo with : ");
-            D.print("inferenceRecordResult: " # debug_show (inferenceRecordResult));
-
-            switch (inferenceRecordResult) {
-                case (#Err(error)) {
-                    return #Err(error);
-                };
-                case (#Ok(inferenceRecord)) {
-                    // the generated tokens
-                    let inference : Text = inferenceRecord.inference;
-                    let inference_num_tokens : Nat64 = inferenceRecord.num_tokens;
-                    generatedText := inference;
-                    generation_num_tokens += inference_num_tokens;
-                    D.print("generatedText" # debug_show (generatedText));
-                    D.print("generation_num_tokens" # debug_show (generation_num_tokens));
-                };
-            };
-        } catch (error : Error) {
-            // Handle errors, such as llm canister not responding
-            D.print("---ctrlb_canister---");
-            D.print("catch error when nft_story_start : ");
-            D.print("error: " # Error.message(error));
-            return #Err(
-                #Other(
-                    "Failed call to nft_story_start_mo of " # Principal.toText(Principal.fromActor(llmCanister)) #
-                    " with error: " # Error.message(error)
-                )
-            );
-        };
-
-        // Continue the generation for this challange, until it returns an empty string
-        // Avoid endless loop by limiting the number of iterations
-        let continuePrompt : Types.Prompt = {
-            prompt : Text = "";
-            steps : Nat64 = startPrompt.steps;
-            temperature : Float = startPrompt.temperature;
-            topp : Float = startPrompt.topp;
-            rng_seed : Nat64 = startPrompt.rng_seed;
-        };
-        var continueLoopCount : Nat = 0;
-        label continueLoop while (continueLoopCount < 3) {
-            // TODO: determine number of allowed loops for challenge generation
-            try {
-                D.print("---ctrlb_canister---");
-                D.print("calling nft_story_continue_mo with : ");
-                D.print("llmInput         : " # debug_show (llmInput));
-                D.print("continuePrompt : " # debug_show (continuePrompt));
-                num_update_calls += 1;
-                let inferenceRecordResult : Types.InferenceRecordResult = await llmCanister.nft_story_continue_mo(llmInput, continuePrompt);
-                D.print("---ctrlb_canister---");
-                D.print("returned nft_story_continue_mo with : ");
-                D.print("inferenceRecordResult: " # debug_show (inferenceRecordResult));
-
-                switch (inferenceRecordResult) {
-                    case (#Err(error)) {
-                        return #Err(error);
-                    };
-                    case (#Ok(inferenceRecord)) {
-                        // the generated tokens
-                        let inference : Text = inferenceRecord.inference;
-                        let inference_num_tokens : Nat64 = inferenceRecord.num_tokens;
-                        // D.print("inference :" # debug_show (inference));
-                        // D.print("inference_num_tokens :" # Nat64.toText(inference_num_tokens));
-
-                        generatedText := generatedText # inference;
-                        generation_num_tokens += inference_num_tokens;
-                        // D.print("generatedText" # debug_show (generatedText));
-                        // D.print("generation_num_tokens" # debug_show (generation_num_tokens));
-
-                        if (inference_num_tokens < continuePrompt.steps) {
-                            break continueLoop; // Exit the loop because the LLM is done. It will only predict "" from now on.
-                        };
-                    };
-                };
-            } catch (error : Error) {
-                // Handle errors, such as llm_0 not responding
-                D.print("---ctrlb_canister---");
-                D.print("catch error when nft_story_start : ");
-                D.print("error: " # Error.message(error));
-                return #Err(
-                    #Other(
-                        "Failed call to nft_story_start of " # Principal.toText(Principal.fromActor(llmCanister)) #
-                        " with error: " # Error.message(error)
-                    )
-                );
-            };
-            continueLoopCount += 1;
-        };
-
-        // Delete the challenge in the LLM
-        try {
-            D.print("---ctrlb_canister---");
-            D.print("calling nft_story_delete with : "); // TODO: different call
-            D.print("llmInput       : " # debug_show (llmInput));
-            let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.nft_story_delete(llmInput);
-            D.print("---ctrlb_canister---");
-            D.print("returned from nft_story_delete with : ");
-            D.print("statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
-
-        } catch (error : Error) {
-            // Handle errors, such as llm canister not responding
-            D.print("---ctrlb_canister---");
-            D.print("catch error when nft_story_start : ");
-            D.print("error: " # Error.message(error));
-            return #Err(
-                #Other(
-                    "Failed call to nft_story_start_mo of " # Principal.toText(Principal.fromActor(llmCanister)) #
-                    " with error: " # Error.message(error)
-                )
-            );
-        };
-
-        // Return the generated challenge
-        let challengeOutput : Types.GeneratedChallenge = {
-            generationId : Text = thisGenerationId;
-            generatedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-            generatedByLlmId : Text = Principal.toText(Principal.fromActor(llmCanister));
-            generationPrompt : Text = startPrompt.prompt;
-            generatedChallenge : Text = generatedText;
-        };
-        return #Ok(challengeOutput);
     };
 };
