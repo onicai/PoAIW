@@ -56,11 +56,6 @@ actor class ChallengerCtrlbCanister() {
     // The llmCanisterIDs this ctrlb_canister can call
     private var llmCanisterIDs : Buffer.Buffer<Text> = Buffer.fromArray<Text>([]);
 
-    // TODO: we are not going to use this. Instead rely on control-of-canister
-    //       REMOVE all code related to the whitelisedPrincipals
-    // whitelisted principals (admins)
-    private var whitelistedPrincipals : Buffer.Buffer<Principal> = Buffer.fromArray<Principal>([]);
-
     // -------------------------------------------------------------------------------
     // The C++ LLM canisters that can be called
 
@@ -106,14 +101,6 @@ actor class ChallengerCtrlbCanister() {
         return #Ok({ status_code = 200 });
     };
 
-    public shared query (msg) func WhitelistedPrincipals() : async [Principal] {
-        if (Principal.isAnonymous(msg.caller)) {
-            return [];
-        };
-        assert Principal.isController(msg.caller);
-        Buffer.toArray(whitelistedPrincipals);
-    };
-
     public shared query (msg) func whoami() : async Principal {
         return msg.caller;
     };
@@ -156,31 +143,7 @@ actor class ChallengerCtrlbCanister() {
         return #Ok({ status_code = 200 });
     };
 
-    // Admin function to whitelist a principal for updating the NFTs by their token_id
-    // (-) The bioniq launch canister must be whitelisted.
-    public shared (msg) func whitelistPrincipal(principal : Principal) : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-        whitelistedPrincipals.add(principal);
-        return #Ok({ status_code = 200 });
-    };
-
-    // Admin function to verify that caller is whitelisted in this canister
-    public shared query (msg) func amiWhitelisted() : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-        if (not isWhitelisted(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-        return #Ok({ status_code = 200 });
-    };
-
-    // Admin function to verify that ctrlb_canister is whitelisted in the llm canister
+    // Admin function to verify that ctrlb_canister is a controller of all the llm canisters
     public shared (msg) func checkAccessToLLMs() : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#StatusCode(401));
@@ -189,7 +152,7 @@ actor class ChallengerCtrlbCanister() {
             return #Err(#StatusCode(401));
         };
 
-        // Call all the llm canisters to verify that ctrlb_canister is whitelisted
+        // Call all the llm canisters to verify that ctrlb_canister is a controller
         for (llmCanister in llmCanisters.vals()) {
             try {
                 let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.check_access();
@@ -201,15 +164,10 @@ actor class ChallengerCtrlbCanister() {
                 };
             } catch (_) {
                 // Handle errors, such as llm canister not responding
-                return #Err(#Other("Failed to retrieve whitelist info for llm canister = " # Principal.toText(Principal.fromActor(llmCanister))));
+                return #Err(#Other("Call failed to llm canister = " # Principal.toText(Principal.fromActor(llmCanister))));
             };
         };
         return #Ok({ status_code = 200 });
-    };
-
-    // Helper function to check if a principal is whitelisted
-    private func isWhitelisted(principal : Principal) : Bool {
-        return Principal.isController(principal) or Buffer.contains<Principal>(whitelistedPrincipals, principal, Principal.equal);
     };
 
     // Admin function to set roundRobinLLMs
@@ -230,10 +188,7 @@ actor class ChallengerCtrlbCanister() {
     // Endpoint to be called by bioniq's NFT collection canister to update a story
     // https://docs.google.com/presentation/d/1HCDdmEik3-NH6peSxlbiE0VKjTBIo3KzNlXqqs3coZM/edit#slide=id.p
     public shared (msg) func generateNewChallenge() : async Types.GeneratedChallengeResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-        if (not isWhitelisted(msg.caller)) {
+        if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
 
@@ -265,10 +220,7 @@ actor class ChallengerCtrlbCanister() {
     };
 
     /* public shared query (msg) func StoryGet(storyInputRecord: Types.StoryInputRecord) : async Types.StoryOutputRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-        if (not isWhitelisted(msg.caller)) {
+        if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
 

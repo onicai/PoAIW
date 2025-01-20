@@ -2,7 +2,7 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/whitelist.sh --network [local|ic]
+# scripts/register-ctrlb-canister.sh --network [local|ic]
 #######################################################################
 
 # Default network type is local

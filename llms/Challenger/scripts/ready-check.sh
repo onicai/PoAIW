@@ -2,7 +2,7 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/ready.sh --network [local|ic]
+# scripts/ready-check.sh --network [local|ic]
 #######################################################################
 
 # Default network type is local

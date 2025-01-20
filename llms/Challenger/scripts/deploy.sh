@@ -154,7 +154,7 @@ do
         fi
 
         # All good if we come here
-        echo "llm_$i successfully deployed, now deploy ctrlb_canister, and then run whitelist of llms"
+        echo "llm_$i successfully deployed"
         rm $temp_file # Clean up the temporary file
 
     # ) & # Run the subshell in the background  (parallel processing)

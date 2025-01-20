@@ -112,21 +112,3 @@ if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; t
 else
     echo "setRoundRobinLLMs was successful."
 fi
-
-echo " "
-echo "--------------------------------------------------"
-echo "Generating bindings for a frontend"
-dfx generate
-
-echo " "
-echo "--------------------------------------------------"
-echo "Checking whitelist logic"
-output=$(dfx canister call challenger_ctrlb_canister checkAccessToLLMs --network $NETWORK_TYPE)
-
-if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-    echo "ERROR: challenger_ctrlb_canister call to LLMs check_access function failed. "
-    echo "       Add the challenger_ctrlb_canister as a controller to ALL it's LLMs."
-    exit 1
-else
-    echo "SUCCESS: challenger_ctrlb_canister has access to all it's LLMs."
-fi

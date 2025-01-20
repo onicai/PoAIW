@@ -2,7 +2,7 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/whitelist-check.sh --network [local|ic]
+# scripts/register-check.sh --network [local|ic]
 #######################################################################
 
 # Default network type is local
@@ -35,12 +35,12 @@ echo "Using network type: $NETWORK_TYPE"
 
 echo " "
 echo "--------------------------------------------------"
-echo "Checking if challenger_ctrlb_canister is whitelisted with the LLM canisters"
+echo "Checking if challenger_ctrlb_canister is a controller of the LLM canisters"
 output=$(dfx canister call challenger_ctrlb_canister checkAccessToLLMs --network $NETWORK_TYPE)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-    echo "ERROR: challenger_ctrlb_canister is not whitelisted. Make sure to update the LLMs."
+    echo "ERROR: challenger_ctrlb_canister is not a controller of all LLMs. Make sure to update the LLMs."
     exit 1
 else
-    echo "challenger_ctrlb_canister is whitelisted."
+    echo "challenger_ctrlb_canister is a controller of all LLMs."
 fi
