@@ -32,6 +32,18 @@ actor class MainerAgentCtrlbCanister() = this {
 
     // Orthogonal Persisted Data storage
 
+    // Record of settings
+    stable var agentSettings : List.List<Types.MainerAgentSettings> = List.nil<Types.MainerAgentSettings>();
+    
+    private func putAgentSettings(settingsEntry : Types.MainerAgentSettings) : Bool {
+        let putResult = List.push<Types.MainerAgentSettings>(settingsEntry, agentSettings);
+        return true;
+    };
+
+    private func getCurrentAgentSettings() : ?Types.MainerAgentSettings {
+        return List.get<Types.MainerAgentSettings>(agentSettings, 0);
+    };
+
     // Record of generated responses
     stable var generatedResponses : List.List<Types.ChallengeResponse> = List.nil<Types.ChallengeResponse>();
     
@@ -274,6 +286,29 @@ actor class MainerAgentCtrlbCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
+// Settings
+
+    public shared (msg) func updateAgentSettings(settingsInput : Types.MainerAgentSettingsInput) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        let settingsEntry : Types.MainerAgentSettings = {
+            cyclesBurnRate : Types.CyclesBurnRate = settingsInput.cyclesBurnRate;
+            creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+            createdBy : Principal = msg.caller;
+        };
+        let putResult = putAgentSettings(settingsEntry);
+        if (not putResult) {
+            return #Err(#StatusCode(500));
+        };
+        return #Ok({ status_code = 200 });
+    };
+
+// Respond to challenges
+
     private func getChallengeFromGameStateCanister() : async Types.ChallengeResult {
         let result : Types.ChallengeResult = await gameStateCanisterActor.getRandomOpenChallenge();
         return result;
@@ -350,6 +385,8 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     private func respondToNextChallenge() : async () {
+        // TODO: incorporate cycles burn rate setting
+        
         // Get the next challenge to respond to
         let challengeResult : Types.ChallengeResult = await getChallengeFromGameStateCanister();
         switch (challengeResult) {

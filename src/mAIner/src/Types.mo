@@ -143,6 +143,25 @@ module Types {
         getRandomOpenChallenge : () -> async ChallengeResult;
     };
 
+    // Agent Settings
+    public type TimeInterval = {
+        #Daily;       
+    };
+
+    public type CyclesBurnRate = {
+        cycles : Nat;
+        timeInterval : TimeInterval;
+    };
+
+     public type MainerAgentSettingsInput = {
+        cyclesBurnRate : CyclesBurnRate;
+    };
+
+    public type MainerAgentSettings = MainerAgentSettingsInput and {
+        creationTimestamp : Nat64;
+        createdBy : Principal;
+    };
+
     // --
     // Input to StoryUpdate endpoint called by bioniq's NFT collection canister
     public type StoryInputRecord = {
