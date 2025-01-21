@@ -198,9 +198,9 @@ actor class ChallengerCtrlbCanister() {
         let temp : Float = 0.7;
 
         // TODO: introduce variability in prompt for Topic and PromptStartsWith
-        let challengeTopic : Text = "crypto";
-        let challengePromptStartsWith : Text = "What";
-        let prompt : Text = "<|im_start|>user\nAsk a question about " #
+        var challengeTopic : Text = "crypto";
+        var challengePromptStartsWith : Text = "What";
+        var prompt : Text = "<|im_start|>user\nAsk a question about " #
         challengeTopic #
         ", that can be answered with common knowledge. Do NOT give the answer. Start the question with " #
         challengePromptStartsWith #
@@ -226,12 +226,14 @@ actor class ChallengerCtrlbCanister() {
             };
         };
 
-        let thisGenerationId : Text = await Utils.newRandomUniqueId();
-        let promptCache : Text = thisGenerationId # ".cache";
+        let generationId : Text = await Utils.newRandomUniqueId();
+        var generationOutput : Text = "";
+        let generationPrompt : Text = prompt;
+
+        // The prompt cache file
+        let promptCache : Text = generationId # ".cache";
 
         // Start the generation for this challenge
-        var generatedText : Text = "";
-        var generation_num_tokens : Nat64 = 0;
         var num_update_calls : Nat64 = 0;
 
         // data returned from new_chat
@@ -242,12 +244,14 @@ actor class ChallengerCtrlbCanister() {
         var prompt_remaining : Text = "";
         var generated_eog : Bool = false;
 
+        // ----------------------------------------------------------------------
+        // Step 1
         // Call new_chat - this resets the prompt-cache for this conversation
-        var args : [Text] = [
-            "--prompt-cache",
-            promptCache,
-        ];
         try {
+            let args : [Text] = [
+                "--prompt-cache",
+                promptCache,
+            ];
             let inputRecord : Types.InputRecord = { args = args };
             D.print("---challenger_ctrlb_canister---");
             D.print("calling new_chat with args: ");
@@ -291,74 +295,91 @@ actor class ChallengerCtrlbCanister() {
             );
         };
 
-        // // Continue the generation for this challange, until it returns an empty string
-        // // Avoid endless loop by limiting the number of iterations
-        // args = [
-        //     "--prompt-cache",
-        //     promptCache,
-        //     "--prompt-cache-all",
-        //     "--simple-io",
-        //     "--no-display-prompt", // only return the generated text
-        //     "-n",
-        //     Nat64.toText(num_tokens),
-        //     "--seed",
-        //     Nat64.toText(seed),
-        //     "--temp",
-        //     Float.toText(temp),
-        //     "-p",
-        //     prompt,
-        // ];
-        // var continueLoopCount : Nat = 0;
-        // label continueLoop while (continueLoopCount < 3) {
-        //     // TODO: determine number of allowed loops for challenge generation
-        //     try {
-        //         D.print("---challenger_ctrlb_canister---");
-        //         D.print("calling nft_story_continue_mo with : ");
-        //         D.print("llmInput         : " # debug_show (llmInput));
-        //         D.print("continuePrompt : " # debug_show (continuePrompt));
-        //         num_update_calls += 1;
-        //         let inferenceRecordResult : Types.InferenceRecordResult = await llmCanister.nft_story_continue_mo(llmInput, continuePrompt);
-        //         D.print("---challenger_ctrlb_canister---");
-        //         D.print("returned nft_story_continue_mo with : ");
-        //         D.print("inferenceRecordResult: " # debug_show (inferenceRecordResult));
+        // ----------------------------------------------------------------------
+        // Step 2
+        // (A) Ingest the prompt into the prompt-cache, using multiple update calls
+        //      (-) Repeat call with full prompt until `prompt_remaining` in the response is empty.
+        //      (-) The first part of the challenge will be generated too.
+        // (B) Generate rest of challenge, using multiple update calls
+        //      (-) Repeat call with empty prompt until `generated_eog` in the response is `true`.
+        //      (-) The rest of the challenge will be generated.
 
-        //         switch (inferenceRecordResult) {
-        //             case (#Err(error)) {
-        //                 return #Err(error);
-        //             };
-        //             case (#Ok(inferenceRecord)) {
-        //                 // the generated tokens
-        //                 let inference : Text = inferenceRecord.inference;
-        //                 let inference_num_tokens : Nat64 = inferenceRecord.num_tokens;
-        //                 // D.print("inference :" # debug_show (inference));
-        //                 // D.print("inference_num_tokens :" # Nat64.toText(inference_num_tokens));
+        // Avoid endless loop by limiting the number of iterations
+        var continueLoopCount : Nat = 0;
+        label continueLoop while (continueLoopCount < 30) {
+            try {
+                let args = [
+                    "--prompt-cache",
+                    promptCache,
+                    "--prompt-cache-all",
+                    "--simple-io",
+                    "--no-display-prompt", // only return generated text
+                    "-n",
+                    Nat64.toText(num_tokens),
+                    "--seed",
+                    Nat64.toText(seed),
+                    "--temp",
+                    Float.toText(temp),
+                    "-p",
+                    prompt,
+                ];
+                let inputRecord : Types.InputRecord = { args = args };
+                D.print("---challenger_ctrlb_canister---");
+                D.print("INGESTING PROMPT: calling run_update with args: ");
+                D.print(debug_show (args));
+                num_update_calls += 1;
+                let outputRecordResult : Types.OutputRecordResult = await llmCanister.run_update(inputRecord);
+                D.print("---challenger_ctrlb_canister---");
+                D.print("INGESTING PROMPT:returned from run_update with outputRecordResult: ");
+                D.print(debug_show (outputRecordResult));
 
-        //                 generatedText := generatedText # inference;
-        //                 generation_num_tokens += inference_num_tokens;
-        //                 // D.print("generatedText" # debug_show (generatedText));
-        //                 // D.print("generation_num_tokens" # debug_show (generation_num_tokens));
+                switch (outputRecordResult) {
+                    case (#Err(error)) {
+                        return #Err(error);
+                    };
+                    case (#Ok(outputRecord)) {
+                        // the generated tokens
+                        status_code := outputRecord.status_code;
+                        output := outputRecord.output;
+                        conversation := outputRecord.conversation;
+                        error := outputRecord.error;
+                        prompt_remaining := outputRecord.prompt_remaining;
+                        generated_eog := outputRecord.generated_eog;
+                        D.print("status_code      : " # debug_show (status_code));
+                        D.print("output           : " # debug_show (output));
+                        D.print("conversation     : " # debug_show (conversation));
+                        D.print("error            : " # debug_show (error));
+                        D.print("prompt_remaining : " # debug_show (prompt_remaining));
+                        D.print("generated_eog    : " # debug_show (generated_eog));
 
-        //                 if (inference_num_tokens < continuePrompt.steps) {
-        //                     break continueLoop; // Exit the loop because the LLM is done. It will only predict "" from now on.
-        //                 };
-        //             };
-        //         };
-        //     } catch (error : Error) {
-        //         // Handle errors, such as llm_0 not responding
-        //         D.print("---challenger_ctrlb_canister---");
-        //         D.print("catch error when nft_story_start : ");
-        //         D.print("error: " # Error.message(error));
-        //         return #Err(
-        //             #Other(
-        //                 "Failed call to nft_story_start of " # Principal.toText(Principal.fromActor(llmCanister)) #
-        //                 " with error: " # Error.message(error)
-        //             )
-        //         );
-        //     };
-        //     continueLoopCount += 1;
-        // };
+                        generationOutput := generationOutput # output;
+                        D.print("generationOutput : " # debug_show (generationOutput));
 
-        // // Delete the challenge in the LLM
+                        if (prompt_remaining == "") {
+                            prompt := ""; // Send empty prompt - the prompt ingestion is done.
+                        };
+                        if (generated_eog) {
+                            break continueLoop; // Exit the loop - the challenge is generated.
+                        };
+                    };
+                };
+            } catch (error : Error) {
+                // Handle errors, such as llm canister not responding
+                D.print("---challenger_ctrlb_canister---");
+                D.print("catch error when calling new_chat : ");
+                D.print("error: " # Error.message(error));
+                return #Err(
+                    #Other(
+                        "Failed call to run_update of " # Principal.toText(Principal.fromActor(llmCanister)) #
+                        " with error: " # Error.message(error)
+                    )
+                );
+            };
+            continueLoopCount += 1;
+        };
+
+        // TODO - Delete the prompt cache in the LLM
+        // This requires an update to llama_cpp_canister to support this feature
         // try {
         //     D.print("---challenger_ctrlb_canister---");
         //     D.print("calling nft_story_delete with : "); // TODO: different call
@@ -383,15 +404,16 @@ actor class ChallengerCtrlbCanister() {
 
         // Return the generated challenge
         let challengeOutput : Types.GeneratedChallenge = {
-            generationId : Text = thisGenerationId;
+            generationId : Text = generationId;
             generatedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
             generatedByLlmId : Text = Principal.toText(Principal.fromActor(llmCanister));
-            generationPrompt : Text = prompt;
-            generatedChallenge : Text = generatedText;
+            generationPrompt : Text = generationPrompt;
+            generatedChallenge : Text = generationOutput;
         };
         return #Ok(challengeOutput);
     };
 
+    // TODO: remove or implement something like this to handle timeouts if needed...
     /* public shared query (msg) func StoryGet(storyInputRecord: Types.StoryInputRecord) : async Types.StoryOutputRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));

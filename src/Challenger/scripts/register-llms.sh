@@ -81,12 +81,12 @@ do
     echo "CANISTER_ID_LLM_$i: $CANISTER_ID_LLM"
 done
 
-# Ask user if this is correct, and continue when answer is yes
-read -p "Proceed? (yes/no): " confirm
-if [[ $confirm != "yes" ]]; then
-    echo "Aborting script."
-    exit 1
-fi
+# # Ask user if this is correct, and continue when answer is yes
+# read -p "Proceed? (yes/no): " confirm
+# if [[ $confirm != "yes" ]]; then
+#     echo "Aborting script."
+#     exit 1
+# fi
 
 for i in $(seq $llm_id_start $llm_id_end)
 do

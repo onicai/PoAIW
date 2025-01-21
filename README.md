@@ -71,7 +71,10 @@ dfx start --clean
 ```bash
 # from folder `DecentralizedAIonIC/PoAIW/llms/Challenger`:
 
-# WARNING: This will re-deploy all the llm canisters with loss of all existing data!
+# This will:
+# (-) build the llama_cpp_canister wasm, using icpp-pro
+# (-) re-deploy the wasm to all the llm canisters, with loss of all existing data!
+# (-) upload the model (gguf) selected inside the script
 scripts/deploy.sh --network [local/ic]
 ```
 
@@ -122,25 +125,6 @@ $ dfx canister call challenger_ctrlb_canister checkAccessToLLMs --ic
 # Generate a new Challenge
 $ dfx canister call challenger_ctrlb_canister generateNewChallenge --ic
 ...
-
-# TODO - below is old...
-# Call the Inference endpoint
-$ dfx canister call challenger_ctrlb_canister Inference '(record {prompt="Joe went swimming in the pool"; steps=30; temperature=0.1; topp=0.9; rng_seed=0})' --ic
-(
-  variant {
-    Ok = record {
-      token_id = "pklc3-dnt23-rylls-wtd3z-a4nod-5b6iu-gha67-4dj4k-uqzci-srgi5-6ae";
-      story = "Joe went swimming in the pool. He saw a big, shiny rock. He wanted to swim in the sky. He wanted to swim in the sky. He wanted to swim in the sky.\nJohn wanted to swim in the sky. He wanted to swing on the rock. He put the rock in the rock and put it in his rock. He put it in his rock. He put it in his rock. He pulled the rock and pulled it.\nJohn was sad. He wanted to help the rock. He did not know what to do. He did not know what to do. He did not know what to do. He did not know what to do. He did not know what to do.\nJohn said, \"I want to play with you. You can\'t find it. You can\'t find it. You can\'t find it. You can\'t find it. You can\'t find it. You can\'t find it. You can\'t find it. You can\'t find it. You can\'t find it. You can\'t find it. You can\'t find it. You can\'t find it. You can\'t find it. You can\'t find it. You can\'t find it. You can\'t find it. You can\'t find it. You can\'t find it.\"\nThey run to the house and find a new friend. They are happy. They played with their";
-      prompt = record {
-        temperature = 0.1 : float64;
-        topp = 0.9 : float64;
-        steps = 60 : nat64;
-        rng_seed = 0 : nat64;
-        prompt = "Joe went swimming in the pool";
-      };
-    }
-  },
-)
 
 ## Manage deployed canisters
 

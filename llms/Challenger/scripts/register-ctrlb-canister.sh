@@ -40,11 +40,11 @@ echo "NUM_LLMS_DEPLOYED : $NUM_LLMS_DEPLOYED"
 echo " "
 echo "CANISTER_ID_CHALLENGER_CTRLB_CANISTER: $CANISTER_ID_CHALLENGER_CTRLB_CANISTER"
 echo "Making $CANISTER_ID_CHALLENGER_CTRLB_CANISTER a controller of LLMs"
-read -p "Proceed? (yes/no): " confirm
-if [[ $confirm != "yes" ]]; then
-    echo "Aborting script."
-    exit 1
-fi
+# read -p "Proceed? (yes/no): " confirm
+# if [[ $confirm != "yes" ]]; then
+#     echo "Aborting script."
+#     exit 1
+# fi
 
 #######################################################################
 llm_id_start=0
