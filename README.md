@@ -66,14 +66,14 @@ conda activate llama_cpp_canister
 dfx start --clean
 
 ```
-## Build wasm for llama_cpp_canister
+## Build or Download wasm for llama_cpp_canister
 
 ### For mac
 
 ```bash
 # from folder `DecentralizedAIonIC/PoAIW/llms/Challenger`:
 
-scripts/deploy.sh --network [local/ic]
+scripts/build.sh --network [local/ic]
 ```
 
 ### For Linux or WSL Ubuntu
@@ -104,13 +104,28 @@ ls ../../../../llama_cpp_canister/src/llama_cpp.did
 ls ../../../../llama_cpp_canister/build/llama_cpp.wasm
 ```
 
+## Download LLM model (gguf)
+
+Download the model `qwen2.5-0.5b-instruct-q8_0.gguf` from huggingface: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF
+
+Store it in the llama_cpp_canister repository at: 
+
+`llama_cpp_canister/models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q8_0.gguf`
+
+To verify the file is in the correct relative location:
+
+```bash
+# from folder `DecentralizedAIonIC/PoAIW/llms/Challenger`:
+
+ls ../../../../llama_cpp_canister/models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q8_0.gguf
+```
+
 ## Deploy Challenger LLMs
 
 ```bash
 # from folder `DecentralizedAIonIC/PoAIW/llms/Challenger`:
 
 # This will:
-# (-) build the llama_cpp_canister wasm, using icpp-pro
 # (-) re-deploy the wasm to all the llm canisters, with loss of all existing data!
 # (-) upload the model (gguf) selected inside the script
 scripts/deploy.sh --network [local/ic]
@@ -162,7 +177,17 @@ $ dfx canister call challenger_ctrlb_canister checkAccessToLLMs --ic
 
 # Generate a new Challenge
 $ dfx canister call challenger_ctrlb_canister generateNewChallenge --ic
-...
+(
+  variant {
+    Ok = record {
+      generatedByLlmId = "bkyz2-fmaaa-aaaaa-qaaaq-cai";
+      generatedChallenge = "What is the process for creating a digital asset that can be stored on a blockchain?";
+      generationPrompt = "<|im_start|>user\nAsk a question about crypto, that can be answered with common knowledge. Do NOT give the answer. Start the question with What\n<|im_end|>\n<|im_start|>assistant\n";
+      generationId = "746afa0f-7de3-4c5d-92be-b31537a5a365";
+      generatedTimestamp = 1_737_487_434_489_711_432 : nat64;
+    }
+  },
+)
 
 ## Manage deployed canisters
 
