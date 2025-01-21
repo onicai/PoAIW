@@ -30,14 +30,27 @@ module Types {
         canister_id : Text;
     };
 
+    public type InputRecord = {
+        args : [Text]; // the CLI args of llama.cpp/examples/main, as a list of strings
+    };
+
+    public type OutputRecordResult = Result<OutputRecord, ApiError>;
+    public type OutputRecord = {
+        status_code : Nat16;
+        output : Text;
+        conversation : Text;
+        error : Text;
+        prompt_remaining : Text;
+        generated_eog : Bool;
+    };
+
     public type LLMCanister = actor {
         health : () -> async StatusCodeRecordResult;
         ready : () -> async StatusCodeRecordResult;
         check_access : () -> async StatusCodeRecordResult;
-        // TODO: replace with llama_cpp_canister equivalents
-        // nft_story_start_mo : (NFT_llama2_c, Prompt) -> async InferenceRecordResult;
-        // nft_story_continue_mo : (NFT_llama2_c, Prompt) -> async InferenceRecordResult;
-        // nft_story_delete : (NFT_llama2_c) -> async StatusCodeRecordResult;
+        // Inference endpoints
+        new_chat : (InputRecord) -> async OutputRecordResult;
+        run_update : (InputRecord) -> async OutputRecordResult;
     };
 
     // --
