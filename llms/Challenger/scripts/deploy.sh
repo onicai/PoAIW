@@ -53,13 +53,13 @@ done
 echo "Using network type: $NETWORK_TYPE"
 
 #######################################################################
-echo " "
-echo "--------------------------------------------------"
-echo "Building the wasm for the llms"
-pwd
-cd $LLAMA_CPP_CANISTER_PATH
-icpp build-wasm
-cd ../DecentralizedAIonIC/PoAIW/llms/Challenger
+# echo " "
+# echo "--------------------------------------------------"
+# echo "Building the wasm for the llms"
+# pwd
+# cd $LLAMA_CPP_CANISTER_PATH
+# icpp build-wasm
+# cd ../DecentralizedAIonIC/PoAIW/llms/Challenger
 
 echo " "
 echo "==================================================="

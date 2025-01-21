@@ -10,10 +10,10 @@ Clone the following repos to your local disk using this folder structure:
 
 ```
 |-DecentralizedAIonIC       (https://github.com/patnorris/DecentralizedAIonIC)
-|-PoAIW                   (https://github.com/onicai/PoAIW)
+  |-PoAIW                   (https://github.com/onicai/PoAIW)
 
 |-llama_cpp_canister        (https://github.com/onicai/llama_cpp_canister)
-|-src
+  |-src
     |-llama_cpp_onicai_fork (https://github.com/onicai/llama_cpp_onicai_fork)
 ```
 
@@ -64,6 +64,44 @@ conda activate llama_cpp_canister
 ```bash
 # when running local, start dfx (if not yet done)
 dfx start --clean
+
+```
+## Build wasm for llama_cpp_canister
+
+### For mac
+
+```bash
+# from folder `DecentralizedAIonIC/PoAIW/llms/Challenger`:
+
+scripts/deploy.sh --network [local/ic]
+```
+
+### For Linux or WSL Ubuntu
+
+The build command only works on Mac.
+
+If you use Linux or WSL Ubuntu, do the following.
+
+Manually download the .did & .wasm files from:
+https://drive.google.com/drive/folders/1HAjHWSgANf8XDR6AzurZ-8JPpHDcLXae?usp=sharing
+
+And store them in this location:
+
+```bash
+|-llama_cpp_canister   (Note: sibling of DecentralizedAIonIC)
+  |-src
+    |-llama_cpp.did
+  |-build
+    |-llama_cpp.wasm
+```
+
+To verify the files are in correct relative location:
+
+```bash
+# from folder `DecentralizedAIonIC/PoAIW/llms/Challenger`:
+
+ls ../../../../llama_cpp_canister/src/llama_cpp.did
+ls ../../../../llama_cpp_canister/build/llama_cpp.wasm
 ```
 
 ## Deploy Challenger LLMs
