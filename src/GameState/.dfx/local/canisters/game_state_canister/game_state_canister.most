@@ -1,0 +1,109 @@
+// Version: 1.0.0
+type CanisterAddress = Text;
+type Challenge =
+  {
+    challengeId : Text;
+    challengePrompt : Text;
+    closedTimestamp : ?Nat64;
+    createdBy : CanisterAddress;
+    creationTimestamp : Nat64;
+    responsibleJudgeAddress : CanisterAddress;
+    status : ChallengeStatus
+  };
+type ChallengeParticipantEntry =
+  {
+    ownedBy : Principal;
+    result : ChallengeParticipationResult;
+    reward : ChallengeWinnerReward;
+    submissionId : Text;
+    submittedBy : Principal
+  };
+type ChallengeParticipationResult =
+  {#Other : Text; #Participated; #SecondPlace; #ThirdPlace; #Winner};
+type ChallengeResponseSubmissionStatus =
+  {
+    #FailedSubmission;
+    #Judged;
+    #Other : Text;
+    #Processed;
+    #Received;
+    #Submitted
+  };
+type ChallengeStatus = {#Archived; #Closed; #Open; #Other : Text};
+type ChallengeWinnerDeclaration =
+  {
+    challengeId : Text;
+    finalizedTimestamp : Nat64;
+    participants : List<ChallengeParticipantEntry>;
+    secondPlace : ChallengeParticipantEntry;
+    thirdPlace : ChallengeParticipantEntry;
+    winner : ChallengeParticipantEntry
+  };
+type ChallengeWinnerReward =
+  {
+    amount : Nat;
+    distributed : Bool;
+    distributedTimestamp : ?Nat64;
+    rewardDetails : Text;
+    rewardType : RewardType
+  };
+type List<T> = ?(T, List<T>);
+type OfficialProtocolCanister =
+  {
+    address : CanisterAddress;
+    canisterType : ProtocolCanisterType;
+    createdBy : Principal;
+    creationTimestamp : Nat64;
+    ownedBy : Principal
+  };
+type ProtocolCanisterType =
+  {#Challenger; #Judge; #MainerAgent; #MainerCreator; #Verifier};
+type RewardType =
+  {#Coupon : Text; #Cycles; #ICP; #MainerToken; #Other : Text};
+type ScoredResponse =
+  {
+    challengeId : Text;
+    judgedBy : Principal;
+    judgedTimestamp : Nat64;
+    response : Text;
+    score : Nat;
+    status : ChallengeResponseSubmissionStatus;
+    submissionId : Text;
+    submittedBy : Principal;
+    submittedTimestamp : Nat64
+  };
+actor {
+  stable CYCLES_BILLION : Nat;
+  stable CYCLES_MILLION : Nat;
+  stable CYCLES_TRILLION : Nat;
+  stable FAILED_SUBMISSION_CYCLES_CUT : Nat;
+  stable JUDGE_CYCLES_PROVISION_PER_SUBMISSION : Nat;
+  stable var REWARD_PER_CHALLENGE :
+    {
+      amountForAllParticipants : Nat;
+      rewardType : RewardType;
+      secondPlaceAmount : Nat;
+      thirdPlaceAmount : Nat;
+      totalAmount : Nat;
+      winnerAmount : Nat
+    };
+  stable SUBMISSION_CYCLES_REQUIRED : Nat;
+  stable var THRESHOLD_ARCHIVE_CLOSED_CHALLENGES : Nat;
+  stable THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE : Nat;
+  stable var archivedChallenges : ?(Challenge, List<Challenge>);
+  stable var challengerCanistersStorageStable :
+    [(Text, OfficialProtocolCanister)];
+  stable var closedChallenges : ?(Challenge, List<Challenge>);
+  stable var judgeCanistersStorageStable : [(Text, OfficialProtocolCanister)];
+  stable var mainerAgentCanistersStorageStable :
+    [(Text, OfficialProtocolCanister)];
+  stable var mainerCreatorCanistersStorageStable :
+    [(Text, OfficialProtocolCanister)];
+  stable var openChallengesStorageStable : [(Text, Challenge)];
+  stable var scoredResponsesPerChallengeStable :
+    [(Text, List<ScoredResponse>)];
+  stable var userToMainerAgentsStorageStable :
+    [(Principal, List<OfficialProtocolCanister>)];
+  stable var winnerDeclarationForChallengeStable :
+    [(Text, ChallengeWinnerDeclaration)]
+};

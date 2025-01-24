@@ -1,0 +1,61 @@
+type ApiError = variant {
+  InvalidId;
+  ZeroAddress;
+  Unauthorized;
+  StatusCode : StatusCode;
+  Other : text;
+};
+type AuthRecord = record { auth : text };
+type AuthRecordResult = variant { Ok : AuthRecord; Err : ApiError };
+type CanisterAddress = text;
+type CanisterInput = record {
+  canisterType : ProtocolCanisterType;
+  address : CanisterAddress;
+};
+type CanisterRetrieveInput = record { address : CanisterAddress };
+type Challenge = record {
+  challengePrompt : text;
+  creationTimestamp : nat64;
+  createdBy : CanisterAddress;
+  challengeId : text;
+  closedTimestamp : opt nat64;
+};
+type ChallengeAdditionResult = variant { Ok : Challenge; Err : ApiError };
+type ChallengesResult = variant { Ok : vec Challenge; Err : ApiError };
+type GameStateCanister = service {
+  addNewChallenge : (NewChallengeInput) -> (ChallengeAdditionResult);
+  addNewMainerAgentCanister : (MainerAgentCanisterInput) -> (
+      MainerAgentCanisterResult,
+    );
+  addOfficialCanister : (CanisterInput) -> (AuthRecordResult);
+  getCurrentChallenges : () -> (ChallengesResult) query;
+  getMainerAgentCanisterInfo : (CanisterRetrieveInput) -> (
+      MainerAgentCanisterResult,
+    ) query;
+};
+type MainerAgentCanisterInput = record {
+  canisterType : ProtocolCanisterType;
+  ownedBy : principal;
+  address : CanisterAddress;
+};
+type MainerAgentCanisterResult = variant {
+  Ok : OfficialProtocolCanister;
+  Err : ApiError;
+};
+type NewChallengeInput = record { challengePrompt : text };
+type OfficialProtocolCanister = record {
+  canisterType : ProtocolCanisterType;
+  ownedBy : principal;
+  creationTimestamp : nat64;
+  createdBy : principal;
+  address : CanisterAddress;
+};
+type ProtocolCanisterType = variant {
+  MainerAgent;
+  Challenger;
+  Judge;
+  Verifier;
+  MainerCreator;
+};
+type StatusCode = nat16;
+service : GameStateCanister
