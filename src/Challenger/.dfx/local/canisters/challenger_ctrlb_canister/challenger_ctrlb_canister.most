@@ -1,0 +1,37 @@
+// Version: 1.0.0
+type ApiError =
+  {#InvalidId; #Other : Text; #StatusCode : Nat16; #ZeroAddress};
+type CanisterAddress = Text;
+type Challenge =
+  {
+    challengeId : Text;
+    challengePrompt : Text;
+    closedTimestamp : ?Nat64;
+    createdBy : CanisterAddress;
+    creationTimestamp : Nat64;
+    responsibleJudgeAddress : CanisterAddress;
+    status : ChallengeStatus
+  };
+type ChallengeAdditionResult = Result__1<Challenge, ApiError>;
+type ChallengeStatus = {#Archived; #Closed; #Open; #Other : Text};
+type GeneratedChallenge =
+  {
+    generatedByLlmId : Text;
+    generatedChallengeText : Text;
+    generatedTimestamp : Nat64;
+    generationId : Text;
+    generationPrompt : Text
+  };
+type List<T> = ?(T, List<T>);
+type NewChallengeInput = {challengePrompt : Text};
+type Result__1<S, E> = {#Err : E; #Ok : S};
+actor {
+  stable var GAME_STATE_CANISTER_ID : Text;
+  stable gameStateCanisterActor :
+    actor {
+      addChallenge :
+        shared NewChallengeInput -> async ChallengeAdditionResult
+    };
+  stable var generatedChallenges :
+    ?(GeneratedChallenge, List<GeneratedChallenge>)
+};
