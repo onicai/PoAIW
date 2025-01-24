@@ -869,7 +869,7 @@ actor class GameStateCanister() = this {
                         let result = await judgeCanisterActor.addSubmissionToJudge(submissionToForward);
 
                         switch (result) {
-                            case (true) {
+                            case (#Ok(judgeConfirmation)) {
                                 let submissionEntry : Types.ChallengeResponseSubmissionReturn = {
                                     success : Bool = true;
                                     submissionId : Text = submissionToForward.submissionId;
