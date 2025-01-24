@@ -454,7 +454,7 @@ actor class ChallengerCtrlbCanister() {
             generatedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
             generatedByLlmId : Text = Principal.toText(Principal.fromActor(llmCanister));
             generationPrompt : Text = generationPrompt;
-            generatedChallenge : Text = generationOutput;
+            generatedChallengeText : Text = generationOutput;
         };
         return #Ok(challengeOutput);
     };
