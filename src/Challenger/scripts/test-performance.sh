@@ -1,13 +1,8 @@
 #!/bin/bash
 
 #######################################################################
-# For Linux & Mac
-#######################################################################
-export PYTHONPATH="${PYTHONPATH}:$(realpath ../../../icpp_llm/llama2_c)"
-
-
-#######################################################################
-# --network [local|ic]
+# run from parent folder as:
+# scripts/test-performance.sh --network [local|ic]
 #######################################################################
 
 # Default network type is local

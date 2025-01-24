@@ -7,9 +7,10 @@ import Text "mo:base/Text";
 import Nat "mo:base/Nat";
 import Nat64 "mo:base/Nat64";
 import Bool "mo:base/Bool";
-import HashMap "mo:base/HashMap";
+// import HashMap "mo:base/HashMap";
 import List "mo:base/List";
 import Int "mo:base/Int";
+import Float "mo:base/Float";
 import Time "mo:base/Time";
 
 import Types "Types";
@@ -66,26 +67,26 @@ actor class ChallengerCtrlbCanister() {
     private var roundRobinLLMs : Nat = 0; // Only used when roundRobinUseAll is false
 
     // Generate the array of values from 0 to 100000 in steps of 11
-    let seedValues: [Nat64] = Array.tabulate(100000, func(index: Nat) : Nat64 {
-        return Nat64.fromNat(index * 11);
-    });
+    let seedValues : [Nat64] = Array.tabulate(
+        100000,
+        func(index : Nat) : Nat64 {
+            return Nat64.fromNat(index * 11);
+        },
+    );
 
     // Variable to track the current index
-    var currentSeedIndex: Nat = 0;
+    var currentSeedIndex : Nat = 0;
 
     // Function to get the next rng_seed
-    private func getNextRngSeed(): Nat64 {
+    private func getNextRngSeed() : Nat64 {
         let seed = seedValues[currentSeedIndex];
         // Update the index to the next value, cycling back to 0
         currentSeedIndex := (currentSeedIndex + 1) % seedValues.size();
         return seed;
     };
 
-    // The llmCanisterIDs this ctrlb_canister can call
+    // The llmCanisterIDs this challenger_ctrlb_canister can call
     private var llmCanisterIDs : Buffer.Buffer<Text> = Buffer.fromArray<Text>([]);
-
-    // whitelisted principals (admins)
-    private var whitelistedPrincipals : Buffer.Buffer<Principal> = Buffer.fromArray<Principal>([]);
 
     // -------------------------------------------------------------------------------
     // The C++ LLM canisters that can be called
@@ -94,9 +95,6 @@ actor class ChallengerCtrlbCanister() {
 
     // Resets llmCanisterIDs, and then adds the argument as the first llmCanisterId
     public shared (msg) func set_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -106,9 +104,6 @@ actor class ChallengerCtrlbCanister() {
 
     // Adds another llmCanisterIDs
     public shared (msg) func add_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -132,14 +127,6 @@ actor class ChallengerCtrlbCanister() {
         return #Ok({ status_code = 200 });
     };
 
-    public shared query (msg) func WhitelistedPrincipals() : async [Principal] {
-        if (Principal.isAnonymous(msg.caller)) {
-            return [];
-        };
-        assert Principal.isController(msg.caller);
-        Buffer.toArray(whitelistedPrincipals);
-    };
-
     public shared query (msg) func whoami() : async Principal {
         return msg.caller;
     };
@@ -151,7 +138,7 @@ actor class ChallengerCtrlbCanister() {
 
     // Function to verify that canister is ready for inference
     public shared (msg) func ready() : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
+        if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
         for (llmCanister in llmCanisters.vals()) {
@@ -173,52 +160,22 @@ actor class ChallengerCtrlbCanister() {
 
     // Admin function to verify that caller is a controller of this canister
     public shared query (msg) func amiController() : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
         return #Ok({ status_code = 200 });
     };
 
-    // Admin function to whitelist a principal for updating the NFTs by their token_id
-    // (-) The bioniq launch canister must be whitelisted.
-    public shared (msg) func whitelistPrincipal(principal : Principal) : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-        whitelistedPrincipals.add(principal);
-        return #Ok({ status_code = 200 });
-    };
-
-    // Admin function to verify that caller is whitelisted in this canister
-    public shared query (msg) func amiWhitelisted() : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-        if (not isWhitelisted(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-        return #Ok({ status_code = 200 });
-    };
-
-    // Admin function to verify that ctrlb_canister is whitelisted in the llm canister
-    public shared (msg) func isWhitelistLogicOk() : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
+    // Admin function to verify that challenger_ctrlb_canister is a controller of all the llm canisters
+    public shared (msg) func checkAccessToLLMs() : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
 
-        // Call all the llm canisters to verify that ctrlb_canister is whitelisted
+        // Call all the llm canisters to verify that challenger_ctrlb_canister is a controller
         for (llmCanister in llmCanisters.vals()) {
             try {
-                let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.nft_ami_whitelisted();
+                let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.check_access();
                 switch (statusCodeRecordResult) {
                     case (#Err(_)) { return statusCodeRecordResult };
                     case (_) {
@@ -227,22 +184,14 @@ actor class ChallengerCtrlbCanister() {
                 };
             } catch (_) {
                 // Handle errors, such as llm canister not responding
-                return #Err(#Other("Failed to retrieve whitelist info for llm canister = " # Principal.toText(Principal.fromActor(llmCanister))));
+                return #Err(#Other("Call failed to llm canister = " # Principal.toText(Principal.fromActor(llmCanister))));
             };
         };
         return #Ok({ status_code = 200 });
     };
 
-    // Helper function to check if a principal is whitelisted
-    private func isWhitelisted(principal : Principal) : Bool {
-        return Principal.isController(principal) or Buffer.contains<Principal>(whitelistedPrincipals, principal, Principal.equal);
-    };
-
     // Admin function to set roundRobinLLMs
     public shared (msg) func setRoundRobinLLMs(_roundRobinLLMs : Nat) : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -253,30 +202,13 @@ actor class ChallengerCtrlbCanister() {
         return #Ok({ status_code = 200 });
     };
 
-    // Endpoint to be called by bioniq's NFT collection canister to update a story
-    // https://docs.google.com/presentation/d/1HCDdmEik3-NH6peSxlbiE0VKjTBIo3KzNlXqqs3coZM/edit#slide=id.p
+    // Endpoint to generate a new challenge
     public shared (msg) func generateNewChallenge() : async Types.GeneratedChallengeResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-        if (not isWhitelisted(msg.caller)) {
+        if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
 
-        let challengeGenerationPrompt : Text = ""; // TODO: put standard prompt
-
-        let rng_seed = getNextRngSeed();
-        let startPrompt : Types.Prompt = {
-            prompt = challengeGenerationPrompt;
-            steps = 60;
-            temperature = 0.1;
-            topp = 0.9;
-            rng_seed = rng_seed;
-        };
-
-        let llmCanister = _getRoundRobinCanister();
-
-        let generatedChallengeOutput : Types.GeneratedChallengeResult = await challengeGenerationDoIt_(llmCanister, startPrompt);
+        let generatedChallengeOutput : Types.GeneratedChallengeResult = await challengeGenerationDoIt_();
         switch (generatedChallengeOutput) {
             case (#Err(error)) {
                 return #Err(error);
@@ -305,15 +237,235 @@ actor class ChallengerCtrlbCanister() {
         return generatedChallengeOutput;
     };
 
-    /* public shared query (msg) func StoryGet(storyInputRecord: Types.StoryInputRecord) : async Types.StoryOutputRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+    private func challengeGenerationDoIt_() : async Types.GeneratedChallengeResult {
+        // TODO: probably need to improve the seed generation variability
+        let num_tokens : Nat64 = 1024;
+        let seed : Nat64 = getNextRngSeed();
+        let temp : Float = 0.7;
+
+        // TODO: introduce variability in prompt for Topic and PromptStartsWith
+        var challengeTopic : Text = "crypto";
+        var challengePromptStartsWith : Text = "What";
+        var prompt : Text = "<|im_start|>user\nAsk a question about " #
+        challengeTopic #
+        ", that can be answered with common knowledge. Do NOT give the answer. Start the question with " #
+        challengePromptStartsWith #
+        "\n<|im_end|>\n<|im_start|>assistant\n";
+
+        let llmCanister = _getRoundRobinCanister();
+
+        D.print("Inside function challengeGenerationDoIt_. llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
+
+        // Check health of llmCanister
+        D.print("---challenger_ctrlb_canister---");
+        D.print("calling health endpoint of LLM");
+        let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.health();
+        D.print("---challenger_ctrlb_canister---");
+        D.print("returned from health endpoint of LLM with : ");
+        D.print("statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
+        switch (statusCodeRecordResult) {
+            case (#Err(error)) {
+                return #Err(error);
+            };
+            case (#Ok(_statusCodeRecord)) {
+                D.print("LLM is healthy");
+            };
         };
-        if (not isWhitelisted(msg.caller)) {
+
+        let generationId : Text = await Utils.newRandomUniqueId();
+        var generationOutput : Text = "";
+        let generationPrompt : Text = prompt;
+
+        // The prompt cache file
+        let promptCache : Text = generationId # ".cache";
+
+        // Start the generation for this challenge
+        var num_update_calls : Nat64 = 0;
+
+        // data returned from new_chat
+        var status_code : Nat16 = 0;
+        var output : Text = "";
+        var conversation : Text = "";
+        var error : Text = "";
+        var prompt_remaining : Text = "";
+        var generated_eog : Bool = false;
+
+        // ----------------------------------------------------------------------
+        // Step 1
+        // Call new_chat - this resets the prompt-cache for this conversation
+        try {
+            let args : [Text] = [
+                "--prompt-cache",
+                promptCache,
+            ];
+            let inputRecord : Types.InputRecord = { args = args };
+            D.print("---challenger_ctrlb_canister---");
+            D.print("calling new_chat with args: ");
+            D.print(debug_show (args));
+            num_update_calls += 1;
+            let outputRecordResult : Types.OutputRecordResult = await llmCanister.new_chat(inputRecord);
+            D.print("---challenger_ctrlb_canister---");
+            D.print("returned from new_chat with outputRecordResult: ");
+            D.print(debug_show (outputRecordResult));
+
+            switch (outputRecordResult) {
+                case (#Err(error)) {
+                    return #Err(error);
+                };
+                case (#Ok(outputRecord)) {
+                    // the generated tokens
+                    status_code := outputRecord.status_code;
+                    output := outputRecord.output;
+                    conversation := outputRecord.conversation;
+                    error := outputRecord.error;
+                    prompt_remaining := outputRecord.prompt_remaining;
+                    generated_eog := outputRecord.generated_eog;
+                    D.print("status_code      : " # debug_show (status_code));
+                    D.print("output           : " # debug_show (output));
+                    D.print("conversation     : " # debug_show (conversation));
+                    D.print("error            : " # debug_show (error));
+                    D.print("prompt_remaining : " # debug_show (prompt_remaining));
+                    D.print("generated_eog    : " # debug_show (generated_eog));
+                };
+            };
+        } catch (error : Error) {
+            // Handle errors, such as llm canister not responding
+            D.print("---challenger_ctrlb_canister---");
+            D.print("catch error when calling new_chat : ");
+            D.print("error: " # Error.message(error));
+            return #Err(
+                #Other(
+                    "Failed call to new_chat of " # Principal.toText(Principal.fromActor(llmCanister)) #
+                    " with error: " # Error.message(error)
+                )
+            );
+        };
+
+        // ----------------------------------------------------------------------
+        // Step 2
+        // (A) Ingest the prompt into the prompt-cache, using multiple update calls
+        //      (-) Repeat call with full prompt until `prompt_remaining` in the response is empty.
+        //      (-) The first part of the challenge will be generated too.
+        // (B) Generate rest of challenge, using multiple update calls
+        //      (-) Repeat call with empty prompt until `generated_eog` in the response is `true`.
+        //      (-) The rest of the challenge will be generated.
+
+        // Avoid endless loop by limiting the number of iterations
+        var continueLoopCount : Nat = 0;
+        label continueLoop while (continueLoopCount < 30) {
+            try {
+                let args = [
+                    "--prompt-cache",
+                    promptCache,
+                    "--prompt-cache-all",
+                    "--simple-io",
+                    "--no-display-prompt", // only return generated text
+                    "-n",
+                    Nat64.toText(num_tokens),
+                    "--seed",
+                    Nat64.toText(seed),
+                    "--temp",
+                    Float.toText(temp),
+                    "-p",
+                    prompt,
+                ];
+                let inputRecord : Types.InputRecord = { args = args };
+                D.print("---challenger_ctrlb_canister---");
+                D.print("INGESTING PROMPT: calling run_update with args: ");
+                D.print(debug_show (args));
+                num_update_calls += 1;
+                let outputRecordResult : Types.OutputRecordResult = await llmCanister.run_update(inputRecord);
+                D.print("---challenger_ctrlb_canister---");
+                D.print("INGESTING PROMPT:returned from run_update with outputRecordResult: ");
+                D.print(debug_show (outputRecordResult));
+
+                switch (outputRecordResult) {
+                    case (#Err(error)) {
+                        return #Err(error);
+                    };
+                    case (#Ok(outputRecord)) {
+                        // the generated tokens
+                        status_code := outputRecord.status_code;
+                        output := outputRecord.output;
+                        conversation := outputRecord.conversation;
+                        error := outputRecord.error;
+                        prompt_remaining := outputRecord.prompt_remaining;
+                        generated_eog := outputRecord.generated_eog;
+                        D.print("status_code      : " # debug_show (status_code));
+                        D.print("output           : " # debug_show (output));
+                        D.print("conversation     : " # debug_show (conversation));
+                        D.print("error            : " # debug_show (error));
+                        D.print("prompt_remaining : " # debug_show (prompt_remaining));
+                        D.print("generated_eog    : " # debug_show (generated_eog));
+
+                        generationOutput := generationOutput # output;
+                        D.print("generationOutput : " # debug_show (generationOutput));
+
+                        if (prompt_remaining == "") {
+                            prompt := ""; // Send empty prompt - the prompt ingestion is done.
+                        };
+                        if (generated_eog) {
+                            break continueLoop; // Exit the loop - the challenge is generated.
+                        };
+                    };
+                };
+            } catch (error : Error) {
+                // Handle errors, such as llm canister not responding
+                D.print("---challenger_ctrlb_canister---");
+                D.print("catch error when calling new_chat : ");
+                D.print("error: " # Error.message(error));
+                return #Err(
+                    #Other(
+                        "Failed call to run_update of " # Principal.toText(Principal.fromActor(llmCanister)) #
+                        " with error: " # Error.message(error)
+                    )
+                );
+            };
+            continueLoopCount += 1;
+        };
+
+        // TODO - Delete the prompt cache in the LLM
+        // This requires an update to llama_cpp_canister to support this feature
+        // try {
+        //     D.print("---challenger_ctrlb_canister---");
+        //     D.print("calling nft_story_delete with : "); // TODO: different call
+        //     D.print("llmInput       : " # debug_show (llmInput));
+        //     let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.nft_story_delete(llmInput);
+        //     D.print("---challenger_ctrlb_canister---");
+        //     D.print("returned from nft_story_delete with : ");
+        //     D.print("statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
+
+        // } catch (error : Error) {
+        //     // Handle errors, such as llm canister not responding
+        //     D.print("---challenger_ctrlb_canister---");
+        //     D.print("catch error when nft_story_start : ");
+        //     D.print("error: " # Error.message(error));
+        //     return #Err(
+        //         #Other(
+        //             "Failed call to nft_story_start_mo of " # Principal.toText(Principal.fromActor(llmCanister)) #
+        //             " with error: " # Error.message(error)
+        //         )
+        //     );
+        // };
+
+        // Return the generated challenge
+        let challengeOutput : Types.GeneratedChallenge = {
+            generationId : Text = generationId;
+            generatedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+            generatedByLlmId : Text = Principal.toText(Principal.fromActor(llmCanister));
+            generationPrompt : Text = generationPrompt;
+            generatedChallenge : Text = generationOutput;
+        };
+        return #Ok(challengeOutput);
+    };
+
+    // TODO: remove or implement something like this to handle timeouts if needed...
+    /* public shared query (msg) func StoryGet(storyInputRecord: Types.StoryInputRecord) : async Types.StoryOutputRecordResult {
+        if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
 
-        let storyID : Types.StoryID = storyInputRecord.storyID; 
+        let storyID : Types.StoryID = storyInputRecord.storyID;
         let storyPrompt : Text = storyInputRecord.storyPrompt;
 
         var storyOutputRecordResult : Types.StoryOutputRecordResult = #Ok({
@@ -341,7 +493,7 @@ actor class ChallengerCtrlbCanister() {
     }; */
 
     public shared query (msg) func getRoundRobinCanister() : async Types.CanisterIDRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
+        if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
         let canisterIDRecord : Types.CanisterIDRecord = {
@@ -365,148 +517,5 @@ actor class ChallengerCtrlbCanister() {
         };
 
         return canister;
-    };
-
-    private func challengeGenerationDoIt_(llmCanister: Types.LLMCanister, startPrompt : Types.Prompt) : async Types.GeneratedChallengeResult {
-        D.print("Inside function challengeGenerationDoIt_. llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
-
-        // The llama2_c canisters refers to each challenge generation with a token_id
-        let thisGenerationId : Text = await Utils.newRandomUniqueId();
-        let llmInput: Types.NFT_llama2_c = {
-            token_id = thisGenerationId;
-        };
-
-        // Start a new generation for this challenge
-        var generatedText : Text = "";
-        var generation_num_tokens : Nat64 = 0;
-        var num_update_calls : Nat64 = 0;
-        try {
-            D.print("---ctrlb_canister---");
-            D.print("calling nft_story_start_mo with : "); // TODO: different call than nft_story_start_mo
-            D.print("llmInput       : " # debug_show (llmInput));
-            D.print("startPrompt : " # debug_show (startPrompt));
-            num_update_calls += 1;
-            let inferenceRecordResult : Types.InferenceRecordResult = await llmCanister.nft_story_start_mo(llmInput, startPrompt);
-            D.print("---ctrlb_canister---");
-            D.print("returned from nft_story_start_mo with : ");
-            D.print("inferenceRecordResult: " # debug_show (inferenceRecordResult));
-
-            switch (inferenceRecordResult) {
-                case (#Err(error)) {
-                    return #Err(error);
-                };
-                case (#Ok(inferenceRecord)) {
-                    // the generated tokens
-                    let inference : Text = inferenceRecord.inference;
-                    let inference_num_tokens : Nat64 = inferenceRecord.num_tokens;
-                    generatedText := inference;
-                    generation_num_tokens += inference_num_tokens;
-                    D.print("generatedText" # debug_show (generatedText));
-                    D.print("generation_num_tokens" # debug_show (generation_num_tokens));
-                };
-            };
-        } catch (error : Error) {
-            // Handle errors, such as llm canister not responding
-            D.print("---ctrlb_canister---");
-            D.print("catch error when nft_story_start : ");
-            D.print("error: " # Error.message(error));
-            return #Err(
-                #Other(
-                    "Failed call to nft_story_start_mo of " # Principal.toText(Principal.fromActor(llmCanister)) #
-                    " with error: " # Error.message(error)
-                )
-            );
-        };
-
-        // Continue the generation for this challange, until it returns an empty string
-        // Avoid endless loop by limiting the number of iterations
-        let continuePrompt : Types.Prompt = {
-            prompt : Text = "";
-            steps : Nat64 = startPrompt.steps;
-            temperature : Float = startPrompt.temperature;
-            topp : Float = startPrompt.topp;
-            rng_seed : Nat64 = startPrompt.rng_seed;
-        };
-        var continueLoopCount : Nat = 0;
-        label continueLoop while (continueLoopCount < 3) { // TODO: determine number of allowed loops for challenge generation
-            try {
-                D.print("---ctrlb_canister---");
-                D.print("calling nft_story_continue_mo with : ");
-                D.print("llmInput         : " # debug_show (llmInput));
-                D.print("continuePrompt : " # debug_show (continuePrompt));
-                num_update_calls += 1;
-                let inferenceRecordResult : Types.InferenceRecordResult = await llmCanister.nft_story_continue_mo(llmInput, continuePrompt);
-                D.print("---ctrlb_canister---");
-                D.print("returned nft_story_continue_mo with : ");
-                D.print("inferenceRecordResult: " # debug_show (inferenceRecordResult));
-
-                switch (inferenceRecordResult) {
-                    case (#Err(error)) {
-                        return #Err(error);
-                    };
-                    case (#Ok(inferenceRecord)) {
-                        // the generated tokens
-                        let inference : Text = inferenceRecord.inference;
-                        let inference_num_tokens : Nat64 = inferenceRecord.num_tokens;
-                        // D.print("inference :" # debug_show (inference));
-                        // D.print("inference_num_tokens :" # Nat64.toText(inference_num_tokens));
-
-                        generatedText := generatedText # inference;
-                        generation_num_tokens += inference_num_tokens;
-                        // D.print("generatedText" # debug_show (generatedText));
-                        // D.print("generation_num_tokens" # debug_show (generation_num_tokens));
-
-                        if (inference_num_tokens < continuePrompt.steps) {
-                            break continueLoop; // Exit the loop because the LLM is done. It will only predict "" from now on.
-                        };
-                    };
-                };
-            } catch (error : Error) {
-                // Handle errors, such as llm_0 not responding
-                D.print("---ctrlb_canister---");
-                D.print("catch error when nft_story_start : ");
-                D.print("error: " # Error.message(error));
-                return #Err(
-                    #Other(
-                        "Failed call to nft_story_start of " # Principal.toText(Principal.fromActor(llmCanister)) #
-                        " with error: " # Error.message(error)
-                    )
-                );
-            };
-            continueLoopCount += 1;
-        };
-
-        // Delete the challenge in the LLM
-        try {
-            D.print("---ctrlb_canister---");
-            D.print("calling nft_story_delete with : "); // TODO: different call
-            D.print("llmInput       : " # debug_show (llmInput));
-            let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.nft_story_delete(llmInput);
-            D.print("---ctrlb_canister---");
-            D.print("returned from nft_story_delete with : ");
-            D.print("statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
-
-        } catch (error : Error) {
-            // Handle errors, such as llm canister not responding
-            D.print("---ctrlb_canister---");
-            D.print("catch error when nft_story_start : ");
-            D.print("error: " # Error.message(error));
-            return #Err(
-                #Other(
-                    "Failed call to nft_story_start_mo of " # Principal.toText(Principal.fromActor(llmCanister)) #
-                    " with error: " # Error.message(error)
-                )
-            );
-        };
-
-        // Return the generated challenge
-        let challengeOutput : Types.GeneratedChallenge = {
-            generationId : Text = thisGenerationId;
-            generatedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-            generatedByLlmId : Text = Principal.toText(Principal.fromActor(llmCanister));
-            generationPrompt : Text = startPrompt.prompt;
-            generatedChallengeText : Text = generatedText;
-        };
-        return #Ok(challengeOutput);
     };
 };

@@ -30,13 +30,27 @@ module Types {
         canister_id : Text;
     };
 
+    public type InputRecord = {
+        args : [Text]; // the CLI args of llama.cpp/examples/main, as a list of strings
+    };
+
+    public type OutputRecordResult = Result<OutputRecord, ApiError>;
+    public type OutputRecord = {
+        status_code : Nat16;
+        output : Text;
+        conversation : Text;
+        error : Text;
+        prompt_remaining : Text;
+        generated_eog : Bool;
+    };
+
     public type LLMCanister = actor {
         health : () -> async StatusCodeRecordResult;
         ready : () -> async StatusCodeRecordResult;
-        nft_ami_whitelisted : () -> async StatusCodeRecordResult;
-        nft_story_start_mo : (NFT_llama2_c, Prompt) -> async InferenceRecordResult;
-        nft_story_continue_mo : (NFT_llama2_c, Prompt) -> async InferenceRecordResult;
-        nft_story_delete : (NFT_llama2_c) -> async StatusCodeRecordResult;
+        check_access : () -> async StatusCodeRecordResult;
+        // Inference endpoints
+        new_chat : (InputRecord) -> async OutputRecordResult;
+        run_update : (InputRecord) -> async OutputRecordResult;
     };
 
     // Game State canister
@@ -110,13 +124,6 @@ module Types {
     };
 
     public type AuthRecordResult = Result<AuthRecord, ApiError>;
-
-    // --
-    // This is what the llama2_c canister uses
-    // We set the token_id equal to the storyID
-    public type NFT_llama2_c = {
-        token_id : Text;
-    };
 
     // --
     // Returned by 'nft_story_start', 'nft_story_continue'

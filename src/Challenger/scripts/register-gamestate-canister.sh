@@ -1,13 +1,8 @@
-#!/bin/sh
+#!/bin/bash
 
 #######################################################################
-# For Linux & Mac
-#######################################################################
-export PYTHONPATH="${PYTHONPATH}:$(realpath ../../../icpp_llm/llama2_c)"
-
-
-#######################################################################
-# --network [local|ic]
+# run from parent folder as:
+# scripts/register-gamestate-canister.sh --network [local|ic]
 #######################################################################
 
 # Default network type is local
@@ -59,16 +54,4 @@ if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; t
     exit 1
 else
     echo "challenger_ctrlb_canister health check succeeded."
-fi
-
-echo "==================================================="
-echo "Whitelisting bioniq principal $BIONIQ_PRINCIPAL with challenger_ctrlb_canister"
-
-output=$(dfx canister call challenger_ctrlb_canister whitelistPrincipal "(principal \"$BIONIQ_PRINCIPAL\")" --network $NETWORK_TYPE )
-
-if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-    echo "ERROR: Whitelisting bioniq principal $BIONIQ_PRINCIPAL with challenger_ctrlb_canister failed. Exiting."
-    exit 1
-else
-    echo "Whitelisting bioniq principal $BIONIQ_PRINCIPAL with challenger_ctrlb_canister succeeded."
 fi

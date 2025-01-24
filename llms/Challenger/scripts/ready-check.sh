@@ -7,6 +7,7 @@
 
 # Default network type is local
 NETWORK_TYPE="local"
+NUM_LLMS_DEPLOYED=2
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -31,16 +32,23 @@ done
 
 echo "Using network type: $NETWORK_TYPE"
 
-############################################################################
+#######################################################################
+llm_id_start=0
+llm_id_end=$((NUM_LLMS_DEPLOYED - 1))
 
+# verify readiness of all llms in sequential mode
 echo " "
 echo "--------------------------------------------------"
-echo "Checking readiness endpoint"
-output=$(dfx canister call challenger_ctrlb_canister ready --network $NETWORK_TYPE)
+echo "Checking readiness endpoint for all llms"
+for i in $(seq $llm_id_start $llm_id_end)
+do
+    output=$(dfx canister call llm_$i ready --network $NETWORK_TYPE )
 
-if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-    echo "challenger_ctrlb_canister is not ready. Exiting."
-    exit 1
-else
-    echo "challenger_ctrlb_canister is ready for inference."
-fi
+    if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+        echo "llm_$i is not ready. Exiting."
+        echo $output
+        exit 1
+    else
+        echo "llm_$i is ready."
+    fi
+done
