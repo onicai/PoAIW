@@ -61,6 +61,27 @@ module Types {
     public type CanisterRetrieveInput = {
         address : CanisterAddress;
     };
+    
+    //-------------------------------------------------------------------------
+    public type SelectableMainerLLM = {
+        #Qwen2_5_0_5_B;
+    };
+
+    public type MainerConfigurationInput = {
+        aiModel : ?SelectableMainerLLM;
+    };
+
+    public type CanisterCreationConfiguration = {
+        canisterType : ProtocolCanisterType;
+        owner: Principal;
+    };
+
+    public type CanisterCreationRecord = {
+        creationResult : Text;
+        newCanisterId : Text;
+    };
+
+    public type CanisterCreationResult = Result<CanisterCreationRecord, ApiError>;
 
     //-------------------------------------------------------------------------
     public type Challenge = {
@@ -105,11 +126,8 @@ module Types {
         #Other : Text;
     };
 
-    public type ChallengeResponseSubmission = {
+    public type ChallengeResponseSubmission = ChallengeResponseSubmissionInput and {
         submissionId : Text;
-        challengeId : Text;
-        submittedBy : Principal;
-        response : Text;
         submittedTimestamp : Nat64;
         status: ChallengeResponseSubmissionStatus;
     };
@@ -123,26 +141,12 @@ module Types {
 
     public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmissionReturn, ApiError>;
 
-    public type ScoredResponseInput = {
-        submissionId : Text;
-        challengeId : Text;
-        submittedBy : Principal;
-        response : Text;
-        submittedTimestamp : Nat64;
-        status: ChallengeResponseSubmissionStatus;
+    public type ScoredResponseInput = ChallengeResponseSubmission and {
         judgedBy: Principal;
         score: Nat;
     };
 
-    public type ScoredResponse = {
-        submissionId : Text;
-        challengeId : Text;
-        submittedBy : Principal;
-        response : Text;
-        submittedTimestamp : Nat64;
-        status: ChallengeResponseSubmissionStatus;
-        judgedBy: Principal;
-        score: Nat;
+    public type ScoredResponse = ScoredResponseInput and {
         judgedTimestamp : Nat64;
     };
 
@@ -212,9 +216,14 @@ module Types {
 
     public type CanisterIDRecord = { canister_id : Text };
 
-    // Canister Actors
+    //-------------------------------------------------------------------------
+// Canister Actors
     public type Judge_Actor = actor {
-        addSubmissionToJudge: shared (Types.ChallengeResponseSubmission) -> async Bool
+        addSubmissionToJudge: shared (Types.ChallengeResponseSubmission) -> async ChallengeResponseSubmissionResult
+    };
+
+    public type MainerCreator_Actor = actor {
+        createCanister: shared CanisterCreationConfiguration -> async CanisterCreationResult;
     };
 
     // IC Management Canister types

@@ -1,0 +1,18 @@
+{
+  "canisters": {
+    "icrc1_ledger_canister": {
+      "type": "custom",
+      "candid": "https://github.com/dfinity/ic/releases/download/ledger-suite-icrc-2025-01-07/ledger.did",
+      "wasm": "https://github.com/dfinity/ic/releases/download/ledger-suite-icrc-2025-01-07/ic-icrc1-ledger.wasm.gz",
+      "init_arg": "(variant { Init = record { decimals = opt 8; token_symbol = \"FUNNAI\"; token_name = \"FUNNAI\"; transfer_fee = 1000000; metadata = vec {}; feature_flags = opt record{icrc2 = true}; minting_account = record { owner = principal \"bkyz2-fmaaa-aaaaa-qaaaq-cai\"; }; initial_balances = vec { record { record { owner = principal \"bkyz2-fmaaa-aaaaa-qaaaq-cai\"; }; 0; }; };  archive_options = record { num_blocks_to_archive = 1000000; trigger_threshold = 1000000; controller_id = principal \"bkyz2-fmaaa-aaaaa-qaaaq-cai\"; cycles_for_archive_creation = opt  10000000000000; }; } })"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}

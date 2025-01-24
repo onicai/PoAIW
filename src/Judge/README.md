@@ -1,4 +1,4 @@
-# mainer_ctrlb_canister (Control & Load Balancer)
+# judge_ctrlb_canister (Control & Load Balancer)
 
 ### Setup
 
@@ -6,44 +6,44 @@ Install mops (https://mops.one/docs/install)
 Install motoko dependencies:
 
 ```bash
-# from folder backend/mainer_ctrlb_canister:
+# from folder backend/judge_ctrlb_canister:
 
 mops install
 ```
 
 ### Deploy
 
-We assume you already have the `backend/llm_0/1/2/3` deployed, and the mainer_ctrlb_canister whitelisted.
+We assume you already have the `backend/llm_0/1/2/3` deployed, and the judge_ctrlb_canister whitelisted.
 
-Then you deploy the mainer_ctrlb_canister with:
+Then you deploy the judge_ctrlb_canister with:
 
 ```bash
-# from folder backend/mainer_ctrlb_canister:
+# from folder backend/judge_ctrlb_canister:
 
 # Activate the same python environment as you defined for deploying the LLMs
 # (This might not be needed, but I did it this way...)
 conda activate icpp_llm
 
 # Deploy, initialize and test it
-# WARNING: This will re-deploy the mainer_ctrlb_canister with loss of all existing data!
+# WARNING: This will re-deploy the judge_ctrlb_canister with loss of all existing data!
 scripts/deploy.sh --network [local/ic]
 ```
 
 ### Test with dfx
 
 ```bash
-dfx canister call mainer_ctrlb_canister whoami
+dfx canister call judge_ctrlb_canister whoami
 
 # Run with same identity used to deploy (as a controller)
-$ dfx canister call mainer_ctrlb_canister amiController
+$ dfx canister call judge_ctrlb_canister amiController
 (variant { Ok = record { status_code = 200 : nat16 } })
 
-# This call checks if the mainer_ctrlb_canister is whitelisted in the llm_0
-$ dfx canister call mainer_ctrlb_canister isWhitelistLogicOk
+# This call checks if the judge_ctrlb_canister is whitelisted in the llm_0
+$ dfx canister call judge_ctrlb_canister isWhitelistLogicOk
 (variant { Ok = record { status_code = 200 : nat16 } })
 
 # Call the Inference endpoint
-$ dfx canister call mainer_ctrlb_canister Inference '(record {prompt="Joe went swimming in the pool"; steps=30; temperature=0.1; topp=0.9; rng_seed=0})'
+$ dfx canister call judge_ctrlb_canister Inference '(record {prompt="Joe went swimming in the pool"; steps=30; temperature=0.1; topp=0.9; rng_seed=0})'
 (
   variant {
     Ok = record {
@@ -64,5 +64,5 @@ $ dfx canister call mainer_ctrlb_canister Inference '(record {prompt="Joe went s
 # Below is for NFT collection
 
 # Update a story for an NFT
-$ dfx canister call mainer_ctrlb_canister NFTUpdate '(record {token_id="placeholder-0"})'
+$ dfx canister call judge_ctrlb_canister NFTUpdate '(record {token_id="placeholder-0"})'
 ```

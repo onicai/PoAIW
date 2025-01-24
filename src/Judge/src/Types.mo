@@ -1,6 +1,62 @@
 import Nat64 "mo:base/Nat64";
 
 module Types {
+    public type ChallengeResponseSubmissionStatus = {
+        #FailedSubmission;
+        #Received;
+        #Submitted;
+        #Judged;
+        #Processed;
+        #Other : Text;
+    };
+
+    public type ChallengeResponseSubmission = {
+        submissionId : Text;
+        challengeId : Text;
+        submittedBy : Principal;
+        response : Text;
+        submittedTimestamp : Nat64;
+        status: ChallengeResponseSubmissionStatus;
+    };
+
+    public type ChallengeResponseSubmissionReturn = {
+        success : Bool;
+        submissionId : Text;
+        submittedTimestamp : Nat64;
+        status: ChallengeResponseSubmissionStatus;
+    };
+
+    public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmissionReturn, ApiError>;
+
+    public type ScoredResponseInput = ChallengeResponseSubmission and {
+        judgedBy: Principal;
+        score: Nat;
+    };
+
+    public type ScoredResponse = ScoredResponseInput and {
+        judgedTimestamp : Nat64;
+    };
+
+    public type ScoredResponseReturn = {
+        success : Bool;
+    };
+
+    public type ScoredResponseResult = Result<ScoredResponseReturn, ApiError>;
+
+    public type JudgeScore = {
+        generationId : Text;
+        generatedTimestamp : Nat64;
+        generatedByLlmId : Text;
+        generationPrompt : Text;
+        generatedChallengeText : Text;
+    };
+
+    public type ScoredResponseByJudge = ScoredResponse and {
+        judgeScoreRecord : JudgeScore;
+    };
+
+    public type JudgeChallengeResponseResult = Result<JudgeScore, ApiError>;
+
     public type GeneratedChallenge = {
         generationId : Text;
         generatedTimestamp : Nat64;
@@ -30,27 +86,13 @@ module Types {
         canister_id : Text;
     };
 
-    public type InputRecord = {
-        args : [Text]; // the CLI args of llama.cpp/examples/main, as a list of strings
-    };
-
-    public type OutputRecordResult = Result<OutputRecord, ApiError>;
-    public type OutputRecord = {
-        status_code : Nat16;
-        output : Text;
-        conversation : Text;
-        error : Text;
-        prompt_remaining : Text;
-        generated_eog : Bool;
-    };
-
     public type LLMCanister = actor {
         health : () -> async StatusCodeRecordResult;
         ready : () -> async StatusCodeRecordResult;
-        check_access : () -> async StatusCodeRecordResult;
-        // Inference endpoints
-        new_chat : (InputRecord) -> async OutputRecordResult;
-        run_update : (InputRecord) -> async OutputRecordResult;
+        nft_ami_whitelisted : () -> async StatusCodeRecordResult;
+        nft_story_start_mo : (NFT_llama2_c, Prompt) -> async InferenceRecordResult;
+        nft_story_continue_mo : (NFT_llama2_c, Prompt) -> async InferenceRecordResult;
+        nft_story_delete : (NFT_llama2_c) -> async StatusCodeRecordResult;
     };
 
     // Game State canister
@@ -79,8 +121,9 @@ module Types {
 
     public type ChallengeAdditionResult = Result<Challenge, ApiError>;
 
-    public type GameStateCanister = actor {
+    public type GameStateCanister_Actor = actor {
         addChallenge : (NewChallengeInput) -> async ChallengeAdditionResult;
+        addScoredResponse : (ScoredResponseInput) -> async ScoredResponseResult;
     };
 
     // --
@@ -124,6 +167,13 @@ module Types {
     };
 
     public type AuthRecordResult = Result<AuthRecord, ApiError>;
+
+    // --
+    // This is what the llama2_c canister uses
+    // We set the token_id equal to the storyID
+    public type NFT_llama2_c = {
+        token_id : Text;
+    };
 
     // --
     // Returned by 'nft_story_start', 'nft_story_continue'
