@@ -13,17 +13,15 @@ export interface CanisterIDRecord { 'canister_id' : string }
 export type CanisterIDRecordResult = { 'Ok' : CanisterIDRecord } |
   { 'Err' : ApiError };
 export interface ChallengerCtrlbCanister {
-  'WhitelistedPrincipals' : ActorMethod<[], Array<Principal>>,
   'add_llm_canister_id' : ActorMethod<
     [CanisterIDRecord],
     StatusCodeRecordResult
   >,
   'amiController' : ActorMethod<[], StatusCodeRecordResult>,
-  'amiWhitelisted' : ActorMethod<[], StatusCodeRecordResult>,
+  'checkAccessToLLMs' : ActorMethod<[], StatusCodeRecordResult>,
   'generateNewChallenge' : ActorMethod<[], GeneratedChallengeResult>,
   'getRoundRobinCanister' : ActorMethod<[], CanisterIDRecordResult>,
   'health' : ActorMethod<[], StatusCodeRecordResult>,
-  'isWhitelistLogicOk' : ActorMethod<[], StatusCodeRecordResult>,
   'ready' : ActorMethod<[], StatusCodeRecordResult>,
   'setGameStateCanisterId' : ActorMethod<[string], AuthRecordResult>,
   'setRoundRobinLLMs' : ActorMethod<[bigint], StatusCodeRecordResult>,
@@ -31,7 +29,6 @@ export interface ChallengerCtrlbCanister {
     [CanisterIDRecord],
     StatusCodeRecordResult
   >,
-  'whitelistPrincipal' : ActorMethod<[Principal], StatusCodeRecordResult>,
   'whoami' : ActorMethod<[], Principal>,
 }
 export interface GeneratedChallenge {

@@ -19,7 +19,7 @@ while [ $# -gt 0 ]; do
             if [ "$1" = "local" ] || [ "$1" = "ic" ]; then
                 NETWORK_TYPE=$1
                 if [ "$NETWORK_TYPE" = "ic" ]; then
-                    CANISTER_ID_CHALLENGER_CTRLB_CANISTER="....TODO...."
+                    CANISTER_ID_CHALLENGER_CTRLB_CANISTER="lxb3x-jyaaa-aaaaj-azzta-cai"
                 fi
             else
                 echo "Invalid network type: $1. Use 'local' or 'ic'."
@@ -54,5 +54,5 @@ for i in $(seq $llm_id_start $llm_id_end)
 do
     echo "==================================================="
     echo "Making $CANISTER_ID_CHALLENGER_CTRLB_CANISTER a controller of llm_$i"
-    dfx canister update-settings llm_$i --add-controller $CANISTER_ID_CHALLENGER_CTRLB_CANISTER
+    dfx canister update-settings llm_$i --add-controller $CANISTER_ID_CHALLENGER_CTRLB_CANISTER  --network $NETWORK_TYPE
 done

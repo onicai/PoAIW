@@ -73,7 +73,7 @@ dfx start --clean
 ```bash
 # from folder `DecentralizedAIonIC/PoAIW/llms/Challenger`:
 
-scripts/build.sh --network [local/ic]
+scripts/build.sh
 ```
 
 ### For Linux or WSL Ubuntu
@@ -125,10 +125,14 @@ ls ../../../../llama_cpp_canister/models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5
 ```bash
 # from folder `DecentralizedAIonIC/PoAIW/llms/Challenger`:
 
-# This will:
-# (-) re-deploy the wasm to all the llm canisters, with loss of all existing data!
-# (-) upload the model (gguf) selected inside the script
-scripts/deploy.sh --network [local/ic]
+# This will do a fresh install and wipe out the LLM model
+scripts/deploy-reinstall.sh --network [local/ic]
+scripts/upload-model.sh --network [local/ic]
+
+# This will only update the code while keeping the LLM model in stable memory (file)
+# upload of model is not needed. Just needs to be loaded into memory from file.
+scripts/deploy-upgrade.sh --network [local/ic]
+scripts/load-model.sh --network [local/ic]
 ```
 
 ## Deploy Challenger ctrlb canister
