@@ -12,6 +12,8 @@ import List "mo:base/List";
 import Int "mo:base/Int";
 import Float "mo:base/Float";
 import Time "mo:base/Time";
+import { print } = "mo:base/Debug";
+import { setTimer; recurringTimer } = "mo:base/Timer";
 
 import Types "Types";
 import Utils "Utils";
@@ -208,6 +210,11 @@ actor class ChallengerCtrlbCanister() {
             return #Err(#StatusCode(401));
         };
 
+        let generatedChallengeOutput : Types.GeneratedChallengeResult = await generateChallenge();
+        return generatedChallengeOutput;
+    };
+
+    private func generateChallenge() : async Types.GeneratedChallengeResult {
         let generatedChallengeOutput : Types.GeneratedChallengeResult = await challengeGenerationDoIt_();
         switch (generatedChallengeOutput) {
             case (#Err(error)) {
@@ -518,4 +525,20 @@ actor class ChallengerCtrlbCanister() {
 
         return canister;
     };
+
+    // Timer
+    transient let actionRegularityInSeconds = 300;
+
+    private func triggerRecurringAction() : async () {
+        print("Recurring action was triggered");
+        //ignore generateChallenge(); TODO
+        let result = await generateChallenge();
+        print(debug_show(result));
+    };
+
+    ignore setTimer<system>(#seconds actionRegularityInSeconds,
+        func () : async () {
+            ignore recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction);
+            await triggerRecurringAction();
+    });
 };
