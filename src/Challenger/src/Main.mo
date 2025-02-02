@@ -20,10 +20,8 @@ import Utils "Utils";
 
 actor class ChallengerCtrlbCanister() {
 
-    stable var GAME_STATE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // local dev: "bkyz2-fmaaa-aaaaa-qaaaq-cai";
+    stable var GAME_STATE_CANISTER_ID : Text = "b77ix-eeaaa-aaaaa-qaada-cai"; // local dev: "b77ix-eeaaa-aaaaa-qaada-cai";
 
-    stable let gameStateCanisterActor = actor(GAME_STATE_CANISTER_ID): Types.GameStateCanister;
-    
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
@@ -31,6 +29,14 @@ actor class ChallengerCtrlbCanister() {
         GAME_STATE_CANISTER_ID := _game_state_canister_id;
         let authRecord = { auth = "You set the id for this canister." };
         return #Ok(authRecord);
+    };
+
+    public query (msg) func getGameStateCanisterId() : async Text {
+        if (not Principal.isController(msg.caller)) {
+            return "#Err(#StatusCode(401))";
+        };
+
+        return GAME_STATE_CANISTER_ID;
     };
 
     // Orthogonal Persisted Data storage
@@ -228,6 +234,8 @@ actor class ChallengerCtrlbCanister() {
                 let newChallenge : Types.NewChallengeInput = {
                     challengePrompt : Text = generatedChallenge.generatedChallengeText;
                 };
+
+                let gameStateCanisterActor = actor(GAME_STATE_CANISTER_ID): Types.GameStateCanister;
 
                 let additionResult : Types.ChallengeAdditionResult = await gameStateCanisterActor.addChallenge(newChallenge);
                 switch (additionResult) {
@@ -527,7 +535,7 @@ actor class ChallengerCtrlbCanister() {
     };
 
     // Timer
-    transient let actionRegularityInSeconds = 300;
+    let actionRegularityInSeconds = 300;
 
     private func triggerRecurringAction() : async () {
         print("Recurring action was triggered");
