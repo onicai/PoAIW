@@ -29,28 +29,21 @@ export const idlFactory = ({ IDL }) => {
   const AuthRecord = IDL.Record({ 'auth' : IDL.Text });
   const AuthRecordResult = IDL.Variant({ 'Ok' : AuthRecord, 'Err' : ApiError });
   const ChallengerCtrlbCanister = IDL.Service({
-    'WhitelistedPrincipals' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
     'add_llm_canister_id' : IDL.Func(
         [CanisterIDRecord],
         [StatusCodeRecordResult],
         [],
       ),
     'amiController' : IDL.Func([], [StatusCodeRecordResult], ['query']),
-    'amiWhitelisted' : IDL.Func([], [StatusCodeRecordResult], ['query']),
+    'checkAccessToLLMs' : IDL.Func([], [StatusCodeRecordResult], []),
     'generateNewChallenge' : IDL.Func([], [GeneratedChallengeResult], []),
     'getRoundRobinCanister' : IDL.Func([], [CanisterIDRecordResult], ['query']),
     'health' : IDL.Func([], [StatusCodeRecordResult], ['query']),
-    'isWhitelistLogicOk' : IDL.Func([], [StatusCodeRecordResult], []),
     'ready' : IDL.Func([], [StatusCodeRecordResult], []),
     'setGameStateCanisterId' : IDL.Func([IDL.Text], [AuthRecordResult], []),
     'setRoundRobinLLMs' : IDL.Func([IDL.Nat], [StatusCodeRecordResult], []),
     'set_llm_canister_id' : IDL.Func(
         [CanisterIDRecord],
-        [StatusCodeRecordResult],
-        [],
-      ),
-    'whitelistPrincipal' : IDL.Func(
-        [IDL.Principal],
         [StatusCodeRecordResult],
         [],
       ),
