@@ -103,11 +103,15 @@ module Types {
 
     //--
     public type ApiError = {
+        #Unauthorized;
         #InvalidId;
-        #StatusCode : Nat16;
-        #Other : Text;
         #ZeroAddress;
+        #FailedOperation;
+        #Other : Text;
+        #StatusCode : StatusCode;
     };
+
+    public type StatusCode = Nat16;
 
     //--
     public type Result<S, E> = {
