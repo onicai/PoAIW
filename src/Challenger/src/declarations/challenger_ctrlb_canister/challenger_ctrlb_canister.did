@@ -4,6 +4,7 @@ type StatusCodeRecordResult =
    Ok: StatusCodeRecord;
  };
 type StatusCodeRecord = record {status_code: nat16;};
+type StatusCode = nat16;
 type GeneratedChallengeResult = 
  variant {
    Err: ApiError;
@@ -23,6 +24,8 @@ type ChallengerCtrlbCanister =
    amiController: () -> (StatusCodeRecordResult) query;
    checkAccessToLLMs: () -> (StatusCodeRecordResult);
    generateNewChallenge: () -> (GeneratedChallengeResult);
+   getChallengesAdmin: () -> (vec GeneratedChallenge) query;
+   getGameStateCanisterId: () -> (text) query;
    getRoundRobinCanister: () -> (CanisterIDRecordResult) query;
    health: () -> (StatusCodeRecordResult) query;
    ready: () -> (StatusCodeRecordResult);
@@ -45,9 +48,11 @@ type AuthRecordResult =
 type AuthRecord = record {auth: text;};
 type ApiError = 
  variant {
+   FailedOperation;
    InvalidId;
    Other: text;
-   StatusCode: nat16;
+   StatusCode: StatusCode;
+   Unauthorized;
    ZeroAddress;
  };
 service : () -> ChallengerCtrlbCanister
