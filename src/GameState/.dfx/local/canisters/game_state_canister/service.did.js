@@ -82,6 +82,10 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : ScoredResponseReturn,
     'Err' : ApiError,
   });
+  const SelectableMainerLLM = IDL.Variant({ 'Qwen2_5_0_5_B' : IDL.Null });
+  const MainerConfigurationInput = IDL.Record({
+    'aiModel' : IDL.Opt(SelectableMainerLLM),
+  });
   const ChallengesResult = IDL.Variant({
     'Ok' : IDL.Vec(Challenge),
     'Err' : ApiError,
@@ -161,12 +165,19 @@ export const idlFactory = ({ IDL }) => {
         [ScoredResponseResult],
         [],
       ),
+    'createUserMainerAgentCanister' : IDL.Func(
+        [MainerConfigurationInput],
+        [MainerAgentCanisterResult],
+        [],
+      ),
     'getCurrentChallenges' : IDL.Func([], [ChallengesResult], ['query']),
+    'getCurrentChallengesAdmin' : IDL.Func([], [ChallengesResult], ['query']),
     'getMainerAgentCanisterInfo' : IDL.Func(
         [CanisterRetrieveInput],
         [MainerAgentCanisterResult],
         ['query'],
       ),
+    'getOfficialChallengerCanisters' : IDL.Func([], [AuthRecordResult], []),
     'getRandomOpenChallenge' : IDL.Func([], [ChallengeResult], []),
     'getRecentChallengeWinners' : IDL.Func(
         [],

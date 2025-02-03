@@ -99,11 +99,17 @@ export interface GameStateCanister {
     [ScoredResponseInput],
     ScoredResponseResult
   >,
+  'createUserMainerAgentCanister' : ActorMethod<
+    [MainerConfigurationInput],
+    MainerAgentCanisterResult
+  >,
   'getCurrentChallenges' : ActorMethod<[], ChallengesResult>,
+  'getCurrentChallengesAdmin' : ActorMethod<[], ChallengesResult>,
   'getMainerAgentCanisterInfo' : ActorMethod<
     [CanisterRetrieveInput],
     MainerAgentCanisterResult
   >,
+  'getOfficialChallengerCanisters' : ActorMethod<[], AuthRecordResult>,
   'getRandomOpenChallenge' : ActorMethod<[], ChallengeResult>,
   'getRecentChallengeWinners' : ActorMethod<[], ChallengeWinnersResult>,
   'submitChallengeResponse' : ActorMethod<
@@ -119,6 +125,9 @@ export interface MainerAgentCanisterInput {
 }
 export type MainerAgentCanisterResult = { 'Ok' : OfficialProtocolCanister } |
   { 'Err' : ApiError };
+export interface MainerConfigurationInput {
+  'aiModel' : [] | [SelectableMainerLLM],
+}
 export interface NewChallengeInput { 'challengePrompt' : string }
 export interface OfficialProtocolCanister {
   'canisterType' : ProtocolCanisterType,
@@ -150,6 +159,7 @@ export interface ScoredResponseInput {
 export type ScoredResponseResult = { 'Ok' : ScoredResponseReturn } |
   { 'Err' : ApiError };
 export interface ScoredResponseReturn { 'success' : boolean }
+export type SelectableMainerLLM = { 'Qwen2_5_0_5_B' : null };
 export type StatusCode = number;
 export interface _SERVICE extends GameStateCanister {}
 export declare const idlFactory: IDL.InterfaceFactory;
