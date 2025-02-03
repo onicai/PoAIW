@@ -8,7 +8,7 @@ export PYTHONPATH="${PYTHONPATH}:$(realpath $LLAMA_CPP_CANISTER_PATH)"
 
 #######################################################################
 # run from parent folder as:
-# scripts/load-model.sh --network [local|ic]
+# scripts/upload-model.sh --network [local|ic]
 #######################################################################
 
 # Default network type is local

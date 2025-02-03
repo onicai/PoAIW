@@ -8,7 +8,7 @@ export PYTHONPATH="${PYTHONPATH}:$(realpath $LLAMA_CPP_CANISTER_PATH)"
 
 #######################################################################
 # run from parent folder as:
-# scripts/deploy.sh --network [local|ic]
+# scripts/deploy-reinstall.sh --network [local|ic]
 #######################################################################
 
 # Default network type is local
