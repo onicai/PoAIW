@@ -570,6 +570,21 @@ actor class GameStateCanister() = this {
         return #Ok(authRecord);
     }; */
 
+    // Admin function to get the official protocol canisters
+    public shared (msg) func getOfficialChallengerCanisters() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let challengerCanister : ?Types.OfficialProtocolCanister = getChallengerCanister("br5f7-7uaaa-aaaaa-qaaca-cai");
+        switch (challengerCanister) {
+            case (null) { return #Err(#InvalidId); };
+            case (?canisterEntry) { return #Ok({ auth = canisterEntry.address }); };
+        }; 
+    };
+
     // Admin function to add an official protocol canister
     public shared (msg) func addOfficialCanister(canisterEntryToAdd : Types.CanisterInput) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -637,6 +652,18 @@ actor class GameStateCanister() = this {
                 return #Ok(challenges);                
             };
         };
+    };
+
+    // Function for Admin to retrieve current challenges
+    public shared query (msg) func getCurrentChallengesAdmin() : async Types.ChallengesResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let challenges : [Types.Challenge] = getOpenChallenges();
+        return #Ok(challenges);
     };
 
     // Function for Challenger canister to add new challenge
