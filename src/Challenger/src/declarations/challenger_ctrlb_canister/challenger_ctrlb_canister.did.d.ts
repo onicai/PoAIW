@@ -2,9 +2,11 @@ import type { Principal } from '@dfinity/principal';
 import type { ActorMethod } from '@dfinity/agent';
 import type { IDL } from '@dfinity/candid';
 
-export type ApiError = { 'InvalidId' : null } |
+export type ApiError = { 'FailedOperation' : null } |
+  { 'InvalidId' : null } |
   { 'ZeroAddress' : null } |
-  { 'StatusCode' : number } |
+  { 'Unauthorized' : null } |
+  { 'StatusCode' : StatusCode } |
   { 'Other' : string };
 export interface AuthRecord { 'auth' : string }
 export type AuthRecordResult = { 'Ok' : AuthRecord } |
@@ -20,6 +22,8 @@ export interface ChallengerCtrlbCanister {
   'amiController' : ActorMethod<[], StatusCodeRecordResult>,
   'checkAccessToLLMs' : ActorMethod<[], StatusCodeRecordResult>,
   'generateNewChallenge' : ActorMethod<[], GeneratedChallengeResult>,
+  'getChallengesAdmin' : ActorMethod<[], Array<GeneratedChallenge>>,
+  'getGameStateCanisterId' : ActorMethod<[], string>,
   'getRoundRobinCanister' : ActorMethod<[], CanisterIDRecordResult>,
   'health' : ActorMethod<[], StatusCodeRecordResult>,
   'ready' : ActorMethod<[], StatusCodeRecordResult>,
@@ -40,6 +44,7 @@ export interface GeneratedChallenge {
 }
 export type GeneratedChallengeResult = { 'Ok' : GeneratedChallenge } |
   { 'Err' : ApiError };
+export type StatusCode = number;
 export interface StatusCodeRecord { 'status_code' : number }
 export type StatusCodeRecordResult = { 'Ok' : StatusCodeRecord } |
   { 'Err' : ApiError };

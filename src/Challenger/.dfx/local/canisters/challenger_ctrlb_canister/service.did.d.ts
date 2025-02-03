@@ -22,6 +22,8 @@ export interface ChallengerCtrlbCanister {
   'amiController' : ActorMethod<[], StatusCodeRecordResult>,
   'checkAccessToLLMs' : ActorMethod<[], StatusCodeRecordResult>,
   'generateNewChallenge' : ActorMethod<[], GeneratedChallengeResult>,
+  'getChallengesAdmin' : ActorMethod<[], Array<GeneratedChallenge>>,
+  'getChallengesListAdmin' : ActorMethod<[], List>,
   'getGameStateCanisterId' : ActorMethod<[], string>,
   'getRoundRobinCanister' : ActorMethod<[], CanisterIDRecordResult>,
   'health' : ActorMethod<[], StatusCodeRecordResult>,
@@ -43,6 +45,7 @@ export interface GeneratedChallenge {
 }
 export type GeneratedChallengeResult = { 'Ok' : GeneratedChallenge } |
   { 'Err' : ApiError };
+export type List = [] | [[GeneratedChallenge, List]];
 export type StatusCode = number;
 export interface StatusCodeRecord { 'status_code' : number }
 export type StatusCodeRecordResult = { 'Ok' : StatusCodeRecord } |

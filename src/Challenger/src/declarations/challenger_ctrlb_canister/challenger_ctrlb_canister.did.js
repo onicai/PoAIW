@@ -1,10 +1,13 @@
 export const idlFactory = ({ IDL }) => {
   const CanisterIDRecord = IDL.Record({ 'canister_id' : IDL.Text });
   const StatusCodeRecord = IDL.Record({ 'status_code' : IDL.Nat16 });
+  const StatusCode = IDL.Nat16;
   const ApiError = IDL.Variant({
+    'FailedOperation' : IDL.Null,
     'InvalidId' : IDL.Null,
     'ZeroAddress' : IDL.Null,
-    'StatusCode' : IDL.Nat16,
+    'Unauthorized' : IDL.Null,
+    'StatusCode' : StatusCode,
     'Other' : IDL.Text,
   });
   const StatusCodeRecordResult = IDL.Variant({
@@ -37,6 +40,12 @@ export const idlFactory = ({ IDL }) => {
     'amiController' : IDL.Func([], [StatusCodeRecordResult], ['query']),
     'checkAccessToLLMs' : IDL.Func([], [StatusCodeRecordResult], []),
     'generateNewChallenge' : IDL.Func([], [GeneratedChallengeResult], []),
+    'getChallengesAdmin' : IDL.Func(
+        [],
+        [IDL.Vec(GeneratedChallenge)],
+        ['query'],
+      ),
+    'getGameStateCanisterId' : IDL.Func([], [IDL.Text], ['query']),
     'getRoundRobinCanister' : IDL.Func([], [CanisterIDRecordResult], ['query']),
     'health' : IDL.Func([], [StatusCodeRecordResult], ['query']),
     'ready' : IDL.Func([], [StatusCodeRecordResult], []),

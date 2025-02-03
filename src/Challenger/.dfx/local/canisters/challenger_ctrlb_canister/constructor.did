@@ -15,6 +15,8 @@ type ChallengerCtrlbCanister = service {
   amiController : () -> (StatusCodeRecordResult) query;
   checkAccessToLLMs : () -> (StatusCodeRecordResult);
   generateNewChallenge : () -> (GeneratedChallengeResult);
+  getChallengesAdmin : () -> (vec GeneratedChallenge) query;
+  getChallengesListAdmin : () -> (List) query;
   getGameStateCanisterId : () -> (text) query;
   getRoundRobinCanister : () -> (CanisterIDRecordResult) query;
   health : () -> (StatusCodeRecordResult) query;
@@ -35,6 +37,7 @@ type GeneratedChallengeResult = variant {
   Ok : GeneratedChallenge;
   Err : ApiError;
 };
+type List = opt record { GeneratedChallenge; List };
 type StatusCode = nat16;
 type StatusCodeRecord = record { status_code : nat16 };
 type StatusCodeRecordResult = variant { Ok : StatusCodeRecord; Err : ApiError };
