@@ -1,14 +1,10 @@
 export const idlFactory = ({ IDL }) => {
-  const List = IDL.Rec();
   const CanisterIDRecord = IDL.Record({ 'canister_id' : IDL.Text });
   const StatusCodeRecord = IDL.Record({ 'status_code' : IDL.Nat16 });
-  const StatusCode = IDL.Nat16;
   const ApiError = IDL.Variant({
-    'FailedOperation' : IDL.Null,
     'InvalidId' : IDL.Null,
     'ZeroAddress' : IDL.Null,
-    'Unauthorized' : IDL.Null,
-    'StatusCode' : StatusCode,
+    'StatusCode' : IDL.Nat16,
     'Other' : IDL.Text,
   });
   const StatusCodeRecordResult = IDL.Variant({
@@ -26,7 +22,6 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : GeneratedChallenge,
     'Err' : ApiError,
   });
-  List.fill(IDL.Opt(IDL.Tuple(GeneratedChallenge, List)));
   const CanisterIDRecordResult = IDL.Variant({
     'Ok' : CanisterIDRecord,
     'Err' : ApiError,
@@ -34,28 +29,28 @@ export const idlFactory = ({ IDL }) => {
   const AuthRecord = IDL.Record({ 'auth' : IDL.Text });
   const AuthRecordResult = IDL.Variant({ 'Ok' : AuthRecord, 'Err' : ApiError });
   const ChallengerCtrlbCanister = IDL.Service({
+    'WhitelistedPrincipals' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
     'add_llm_canister_id' : IDL.Func(
         [CanisterIDRecord],
         [StatusCodeRecordResult],
         [],
       ),
     'amiController' : IDL.Func([], [StatusCodeRecordResult], ['query']),
-    'checkAccessToLLMs' : IDL.Func([], [StatusCodeRecordResult], []),
+    'amiWhitelisted' : IDL.Func([], [StatusCodeRecordResult], ['query']),
     'generateNewChallenge' : IDL.Func([], [GeneratedChallengeResult], []),
-    'getChallengesAdmin' : IDL.Func(
-        [],
-        [IDL.Vec(GeneratedChallenge)],
-        ['query'],
-      ),
-    'getChallengesListAdmin' : IDL.Func([], [List], ['query']),
-    'getGameStateCanisterId' : IDL.Func([], [IDL.Text], ['query']),
     'getRoundRobinCanister' : IDL.Func([], [CanisterIDRecordResult], ['query']),
     'health' : IDL.Func([], [StatusCodeRecordResult], ['query']),
+    'isWhitelistLogicOk' : IDL.Func([], [StatusCodeRecordResult], []),
     'ready' : IDL.Func([], [StatusCodeRecordResult], []),
     'setGameStateCanisterId' : IDL.Func([IDL.Text], [AuthRecordResult], []),
     'setRoundRobinLLMs' : IDL.Func([IDL.Nat], [StatusCodeRecordResult], []),
     'set_llm_canister_id' : IDL.Func(
         [CanisterIDRecord],
+        [StatusCodeRecordResult],
+        [],
+      ),
+    'whitelistPrincipal' : IDL.Func(
+        [IDL.Principal],
         [StatusCodeRecordResult],
         [],
       ),

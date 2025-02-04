@@ -90,15 +90,10 @@ type GameStateCanister = service {
     );
   addOfficialCanister : (CanisterInput) -> (AuthRecordResult);
   addScoredResponse : (ScoredResponseInput) -> (ScoredResponseResult);
-  createUserMainerAgentCanister : (MainerConfigurationInput) -> (
-      MainerAgentCanisterResult,
-    );
   getCurrentChallenges : () -> (ChallengesResult) query;
-  getCurrentChallengesAdmin : () -> (ChallengesResult) query;
   getMainerAgentCanisterInfo : (CanisterRetrieveInput) -> (
       MainerAgentCanisterResult,
     ) query;
-  getOfficialChallengerCanisters : () -> (AuthRecordResult);
   getRandomOpenChallenge : () -> (ChallengeResult);
   getRecentChallengeWinners : () -> (ChallengeWinnersResult) query;
   submitChallengeResponse : (ChallengeResponseSubmissionInput) -> (
@@ -115,7 +110,6 @@ type MainerAgentCanisterResult = variant {
   Ok : OfficialProtocolCanister;
   Err : ApiError;
 };
-type MainerConfigurationInput = record { aiModel : opt SelectableMainerLLM };
 type NewChallengeInput = record { challengePrompt : text };
 type OfficialProtocolCanister = record {
   canisterType : ProtocolCanisterType;
@@ -153,6 +147,5 @@ type ScoredResponseResult = variant {
   Err : ApiError;
 };
 type ScoredResponseReturn = record { success : bool };
-type SelectableMainerLLM = variant { Qwen2_5_0_5_B };
 type StatusCode = nat16;
 service : () -> GameStateCanister

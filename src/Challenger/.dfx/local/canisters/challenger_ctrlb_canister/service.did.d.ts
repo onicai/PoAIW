@@ -2,11 +2,9 @@ import type { Principal } from '@dfinity/principal';
 import type { ActorMethod } from '@dfinity/agent';
 import type { IDL } from '@dfinity/candid';
 
-export type ApiError = { 'FailedOperation' : null } |
-  { 'InvalidId' : null } |
+export type ApiError = { 'InvalidId' : null } |
   { 'ZeroAddress' : null } |
-  { 'Unauthorized' : null } |
-  { 'StatusCode' : StatusCode } |
+  { 'StatusCode' : number } |
   { 'Other' : string };
 export interface AuthRecord { 'auth' : string }
 export type AuthRecordResult = { 'Ok' : AuthRecord } |
@@ -15,18 +13,17 @@ export interface CanisterIDRecord { 'canister_id' : string }
 export type CanisterIDRecordResult = { 'Ok' : CanisterIDRecord } |
   { 'Err' : ApiError };
 export interface ChallengerCtrlbCanister {
+  'WhitelistedPrincipals' : ActorMethod<[], Array<Principal>>,
   'add_llm_canister_id' : ActorMethod<
     [CanisterIDRecord],
     StatusCodeRecordResult
   >,
   'amiController' : ActorMethod<[], StatusCodeRecordResult>,
-  'checkAccessToLLMs' : ActorMethod<[], StatusCodeRecordResult>,
+  'amiWhitelisted' : ActorMethod<[], StatusCodeRecordResult>,
   'generateNewChallenge' : ActorMethod<[], GeneratedChallengeResult>,
-  'getChallengesAdmin' : ActorMethod<[], Array<GeneratedChallenge>>,
-  'getChallengesListAdmin' : ActorMethod<[], List>,
-  'getGameStateCanisterId' : ActorMethod<[], string>,
   'getRoundRobinCanister' : ActorMethod<[], CanisterIDRecordResult>,
   'health' : ActorMethod<[], StatusCodeRecordResult>,
+  'isWhitelistLogicOk' : ActorMethod<[], StatusCodeRecordResult>,
   'ready' : ActorMethod<[], StatusCodeRecordResult>,
   'setGameStateCanisterId' : ActorMethod<[string], AuthRecordResult>,
   'setRoundRobinLLMs' : ActorMethod<[bigint], StatusCodeRecordResult>,
@@ -34,6 +31,7 @@ export interface ChallengerCtrlbCanister {
     [CanisterIDRecord],
     StatusCodeRecordResult
   >,
+  'whitelistPrincipal' : ActorMethod<[Principal], StatusCodeRecordResult>,
   'whoami' : ActorMethod<[], Principal>,
 }
 export interface GeneratedChallenge {
@@ -45,8 +43,6 @@ export interface GeneratedChallenge {
 }
 export type GeneratedChallengeResult = { 'Ok' : GeneratedChallenge } |
   { 'Err' : ApiError };
-export type List = [] | [[GeneratedChallenge, List]];
-export type StatusCode = number;
 export interface StatusCodeRecord { 'status_code' : number }
 export type StatusCodeRecordResult = { 'Ok' : StatusCodeRecord } |
   { 'Err' : ApiError };
