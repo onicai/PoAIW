@@ -36,7 +36,7 @@ actor class MainerAgentCtrlbCanister() = this {
     stable var agentSettings : List.List<Types.MainerAgentSettings> = List.nil<Types.MainerAgentSettings>();
     
     private func putAgentSettings(settingsEntry : Types.MainerAgentSettings) : Bool {
-        let putResult = List.push<Types.MainerAgentSettings>(settingsEntry, agentSettings);
+        agentSettings := List.push<Types.MainerAgentSettings>(settingsEntry, agentSettings);
         return true;
     };
 
@@ -48,7 +48,7 @@ actor class MainerAgentCtrlbCanister() = this {
     stable var generatedResponses : List.List<Types.ChallengeResponse> = List.nil<Types.ChallengeResponse>();
     
     private func putGeneratedResponse(responseEntry : Types.ChallengeResponse) : Bool {
-        let putResult = List.push<Types.ChallengeResponse>(responseEntry, generatedResponses);
+        generatedResponses := List.push<Types.ChallengeResponse>(responseEntry, generatedResponses);
         return true;
     };
 
@@ -69,7 +69,7 @@ actor class MainerAgentCtrlbCanister() = this {
     stable var submittedResponses : List.List<Types.ChallengeResponseSubmission> = List.nil<Types.ChallengeResponseSubmission>();
     
     private func putSubmittedResponse(responseEntry : Types.ChallengeResponseSubmission) : Bool {
-        let putResult = List.push<Types.ChallengeResponseSubmission>(responseEntry, submittedResponses);
+        submittedResponses := List.push<Types.ChallengeResponseSubmission>(responseEntry, submittedResponses);
         return true;
     };
 
