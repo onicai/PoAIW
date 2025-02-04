@@ -39,7 +39,10 @@ pip install -r requirements.txt
 Install mops (https://mops.one/docs/install), and then:
 
 ```bash
-# from folder: `PoAIW/src/Challenger`
+# Do this in all these folders:
+# - from folder: `PoAIW/src/Challenger`
+# - from folder: `PoAIW/src/Judge`
+mops init
 mops install
 ```
 
@@ -49,9 +52,10 @@ mops install
 sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
 ```
 
-# Deploy Challenger canisters (ctrlb + LLMs):
+# Deploy ALL canisters:
 
 ```bash
 # from folder: PoAIW
 scripts/deploy-challenger.sh --mode [install/reinstall/upgrade] --network [local/ic]
+scripts/deploy-judge.sh      --mode [install/reinstall/upgrade] --network [local/ic]
 ```
