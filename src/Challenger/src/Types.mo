@@ -11,20 +11,6 @@ module Types {
 
     public type GeneratedChallengeResult = Result<GeneratedChallenge, ApiError>;
 
-    public type StoryID = Text; // Must be unique for each story to be created
-
-    public type Prompt = {
-        prompt : Text;
-        //  Max number of steps to run for
-        steps : Nat64;
-        //  Temperature [0:1] (0.0 = stories are deterministic)
-        temperature : Float; // Candid float64
-        //  p value in top-p (nucleus) sampling. [0:1] (1.0=off)
-        topp : Float; // Candid float64
-        //  Seed  (0=use random seed based on time)
-        rng_seed : Nat64;
-    };
-
     public type CanisterIDRecordResult = Result<CanisterIDRecord, ApiError>;
     public type CanisterIDRecord = {
         canister_id : Text;
@@ -48,9 +34,9 @@ module Types {
         health : () -> async StatusCodeRecordResult;
         ready : () -> async StatusCodeRecordResult;
         check_access : () -> async StatusCodeRecordResult;
-        // Inference endpoints
         new_chat : (InputRecord) -> async OutputRecordResult;
         run_update : (InputRecord) -> async OutputRecordResult;
+        remove_prompt_cache : (InputRecord) -> async OutputRecordResult;
     };
 
     // Game State canister
@@ -58,7 +44,7 @@ module Types {
         challengeId : Text;
         creationTimestamp : Nat64;
         createdBy : CanisterAddress;
-        challengePrompt : Text;
+        challengeQuestion : Text;
         status : ChallengeStatus;
         closedTimestamp : ?Nat64;
         responsibleJudgeAddress : CanisterAddress;
@@ -74,31 +60,13 @@ module Types {
     };
 
     public type NewChallengeInput = {
-        challengePrompt : Text;
+        challengeQuestion : Text;
     };
 
     public type ChallengeAdditionResult = Result<Challenge, ApiError>;
 
     public type GameStateCanister = actor {
         addChallenge : (NewChallengeInput) -> async ChallengeAdditionResult;
-    };
-
-    // --
-    // Input to StoryUpdate endpoint called by bioniq's NFT collection canister
-    public type StoryInputRecord = {
-        storyID : Text;
-        storyPrompt : Text;
-    };
-
-    // --
-    // Output from StoryUpdate endpoint called by bioniq's NFT collection canister
-    public type StoryOutputRecordResult = Result<StoryOutputRecord, ApiError>;
-    public type StoryOutputRecord = {
-        storyID : Text;
-        storyPrompt : Text;
-        story : Text;
-        status : Text;
-        llmCanisterID : Text;
     };
 
     //--
