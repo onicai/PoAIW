@@ -196,7 +196,7 @@ actor class GameStateCanister() = this {
     stable var closedChallenges : List.List<Types.Challenge> = List.nil<Types.Challenge>();
 
     private func putClosedChallenge(challengeEntry : Types.Challenge) : Bool {
-        let putResult = List.push<Types.Challenge>(challengeEntry, closedChallenges);
+        closedChallenges := List.push<Types.Challenge>(challengeEntry, closedChallenges);
         let maintenanceResult = archiveClosedChallenges();
         return true;
     };
@@ -251,7 +251,7 @@ actor class GameStateCanister() = this {
     stable var archivedChallenges : List.List<Types.Challenge> = List.nil<Types.Challenge>();
 
     private func putArchivedChallenge(challengeEntry : Types.Challenge) : Bool {
-        let putResult = List.push<Types.Challenge>(challengeEntry, archivedChallenges);
+        archivedChallenges := List.push<Types.Challenge>(challengeEntry, archivedChallenges);
         return true;
     };
 
@@ -365,11 +365,11 @@ actor class GameStateCanister() = this {
     private func getWinnersForRecentChallenges() : [Types.ChallengeWinnerDeclaration] {
         let recentChallenges : [Types.Challenge] = getClosedChallenges();
         let recentChallengesIter : Iter.Iter<Types.Challenge> = Iter.fromArray(recentChallenges);
-        let returnList : List.List<Types.ChallengeWinnerDeclaration> = List.nil<Types.ChallengeWinnerDeclaration>();
+        var returnList : List.List<Types.ChallengeWinnerDeclaration> = List.nil<Types.ChallengeWinnerDeclaration>();
         for (challenge in recentChallengesIter) {
             switch (getWinnerDeclarationForChallenge(challenge.challengeId)) {
                 case (null) { };
-                case (?challengeEntry) { let putResult = List.push<Types.ChallengeWinnerDeclaration>(challengeEntry, returnList); };
+                case (?challengeEntry) { returnList := List.push<Types.ChallengeWinnerDeclaration>(challengeEntry, returnList); };
             };
         };
         return List.toArray<Types.ChallengeWinnerDeclaration>(returnList);
@@ -483,7 +483,7 @@ actor class GameStateCanister() = this {
         // Sort
         let sortedScoredResponsesIter : Iter.Iter<Types.ScoredResponse> = Iter.sort<Types.ScoredResponse>(currentScoredResponsesIter, compareScoredResponses);
 
-        let participantsList : List.List<Types.ChallengeParticipantEntry> = List.nil<Types.ChallengeParticipantEntry>();
+        var participantsList : List.List<Types.ChallengeParticipantEntry> = List.nil<Types.ChallengeParticipantEntry>();
 
         // 1st Place (winner)
         let winnerScoredResponseEntry : ?Types.ScoredResponse = sortedScoredResponsesIter.next();
@@ -494,7 +494,7 @@ actor class GameStateCanister() = this {
                 switch (winnerParticipantEntry) {
                     case (null) { return null };
                     case (?winnerParticipant) {
-                        var pushParticipantResult = List.push<Types.ChallengeParticipantEntry>(winnerParticipant, participantsList);
+                        participantsList := List.push<Types.ChallengeParticipantEntry>(winnerParticipant, participantsList);
                         // 2nd Place
                         let secondPlaceScoredResponseEntry : ?Types.ScoredResponse = sortedScoredResponsesIter.next();
                         switch (secondPlaceScoredResponseEntry) {
@@ -504,7 +504,7 @@ actor class GameStateCanister() = this {
                                 switch (secondPlaceParticipantEntry) {
                                     case (null) { return null };
                                     case (?secondPlaceParticipant) {
-                                        var pushParticipantResult = List.push<Types.ChallengeParticipantEntry>(secondPlaceParticipant, participantsList);
+                                        participantsList := List.push<Types.ChallengeParticipantEntry>(secondPlaceParticipant, participantsList);
                                         // 3rd Place
                                         let thirdPlaceScoredResponseEntry : ?Types.ScoredResponse = sortedScoredResponsesIter.next();
                                         switch (thirdPlaceScoredResponseEntry) {
@@ -514,13 +514,13 @@ actor class GameStateCanister() = this {
                                                 switch (thirdPlaceParticipantEntry) {
                                                     case (null) { return null };
                                                     case (?thirdPlaceParticipant) {
-                                                        var pushParticipantResult = List.push<Types.ChallengeParticipantEntry>(thirdPlaceParticipant, participantsList);
+                                                        participantsList := List.push<Types.ChallengeParticipantEntry>(thirdPlaceParticipant, participantsList);
                                                         // Remaining participants
                                                         for (nextScoredResponse in sortedScoredResponsesIter) {
                                                             var nextParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(nextScoredResponse, #Participated, numberOfParticipants);
                                                             switch (nextParticipantEntry) {
                                                                 case (null) { };
-                                                                case (?nextParticipant) { var pushParticipantResult = List.push<Types.ChallengeParticipantEntry>(nextParticipant, participantsList); };
+                                                                case (?nextParticipant) { participantsList := List.push<Types.ChallengeParticipantEntry>(nextParticipant, participantsList); };
                                                             };
                                                         };
 

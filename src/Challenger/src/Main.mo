@@ -526,7 +526,7 @@ actor class ChallengerCtrlbCanister() {
     };
 
     // Timer
-    let actionRegularityInSeconds = 120;
+    let actionRegularityInSeconds = 300;
 
     private func triggerRecurringAction() : async () {
         print("############################Recurring action was triggered############################");
@@ -541,13 +541,18 @@ actor class ChallengerCtrlbCanister() {
         D.print("############################Recurring action result############################");
     };
 
-    ignore setTimer<system>(
-        #seconds 15,
-        func() : async () {
-            print("############################setTimer############################");
-            D.print("############################setTimer############################");
-            ignore recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction);
-            await triggerRecurringAction();
-        },
-    );
+    public shared (msg) func startTimerExecutionAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        ignore setTimer<system>(#seconds 5,
+            func () : async () {
+                print("############################setTimer############################");
+                D.print("############################setTimer############################");
+                ignore recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction);
+                await triggerRecurringAction();
+        });
+        let authRecord = { auth = "You started the timer." };
+        return #Ok(authRecord);
+    };
 };

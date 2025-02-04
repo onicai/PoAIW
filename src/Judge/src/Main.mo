@@ -37,7 +37,7 @@ actor class JudgeCtrlbCanister() = this {
     stable var scoredResponses : List.List<Types.ScoredResponseByJudge> = List.nil<Types.ScoredResponseByJudge>();
 
     private func putScoredResponse(scoredResponseEntry : Types.ScoredResponseByJudge) : Bool {
-        let putResult = List.push<Types.ScoredResponseByJudge>(scoredResponseEntry, scoredResponses);
+        scoredResponses := List.push<Types.ScoredResponseByJudge>(scoredResponseEntry, scoredResponses);
         return true;
     };
 

@@ -59,3 +59,65 @@ sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
 scripts/deploy-challenger.sh --mode [install/reinstall/upgrade] --network [local/ic]
 scripts/deploy-judge.sh      --mode [install/reinstall/upgrade] --network [local/ic]
 ```
+
+Note: on WSL, you might first have to run 
+```bash
+sudo sysctl -w vm.max_map_count=2097152
+```
+to successfully load the models in the LLM canisters.
+
+Once completed, challenger_ctrlb_canister should have the canister id br5f7-7uaaa-aaaaa-qaaca-cai
+
+# Deploy Game State canister:
+```bash
+# from folder: PoAIW/src/GameState
+dfx deploy game_state_canister
+```
+game_state_canister should now have the canister id b77ix-eeaaa-aaaaa-qaada-cai
+
+Once deployed, connect the Game State and Challenger canisters:
+```bash
+# from folder: PoAIW/src/GameState
+dfx canister call game_state_canister addOfficialCanister '(record { address = "br5f7-7uaaa-aaaaa-qaaca-cai"; canisterType = variant {Challenger} })'
+# verify with
+dfx canister call game_state_canister getOfficialChallengerCanisters
+```
+```bash
+# from folder: PoAIW/src/Challenger
+dfx canister call challenger_ctrlb_canister setGameStateCanisterId "b77ix-eeaaa-aaaaa-qaada-cai"
+```
+
+# Deploy Judge canister:
+```bash
+# from folder: PoAIW/src/Judge
+dfx deploy judge_ctrlb_canister
+```
+judge_ctrlb_canister should now have the canister id avqkn-guaaa-aaaaa-qaaea-cai
+
+Once deployed, connect the Game State and Judge canisters:
+```bash
+# from folder: PoAIW/src/GameState
+dfx canister call game_state_canister addOfficialCanister '(record { address = "avqkn-guaaa-aaaaa-qaaea-cai"; canisterType = variant {Judge} })'
+```
+```bash
+# from folder: PoAIW/src/Jugde
+dfx canister call judge_ctrlb_canister setGameStateCanisterId "b77ix-eeaaa-aaaaa-qaada-cai"
+```
+
+# Create challenges:
+```bash
+# from folder: PoAIW/src/Challenger
+# start the timer that generates challenges recurringly
+dfx canister call challenger_ctrlb_canister startTimerExecutionAdmin
+# you can also trigger a single challenge generation manually
+dfx canister call challenger_ctrlb_canister generateNewChallenge
+```
+
+The challenge generation takes a moment. To ensure it worked, call
+```bash
+# from folder: PoAIW/src/Challenger
+dfx canister call challenger_ctrlb_canister getChallengesAdmin
+
+# from folder: PoAIW/src/GameState
+dfx canister call game_state_canister getCurrentChallengesAdmin
+```
