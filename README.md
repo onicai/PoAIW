@@ -51,160 +51,69 @@ sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
 
 # Deploy Challenger canisters (ctrlb + LLMs):
 
-When deploying locally do it in exactly this order, because dfx updates the `.env` files with the canister ids, and the scripts depend on it.
-
-## Activate conda environment
-
 ```bash
-conda activate llama_cpp_canister
+# from folder: PoAIW
+scripts/deploy-challenger.sh --mode [install/reinstall/upgrade] --network [local/ic]
 ```
 
-## start dfx
-
+Note: on WSL, you might first have to run 
 ```bash
-# when running local, start dfx (if not yet done)
-dfx start --clean
-
+sudo sysctl -w vm.max_map_count=2097152
 ```
-## Build or Download wasm for llama_cpp_canister
+to successfully load the models in the LLM canisters.
 
-### For mac
+Once completed, challenger_ctrlb_canister should have the canister id br5f7-7uaaa-aaaaa-qaaca-cai
 
+# Deploy Game State canister:
 ```bash
-# from folder `DecentralizedAIonIC/PoAIW/llms/Challenger`:
-
-scripts/1-build.sh
+# from folder: PoAIW/src/GameState
+dfx deploy game_state_canister
 ```
+game_state_canister should now have the canister id b77ix-eeaaa-aaaaa-qaada-cai
 
-### For Linux or WSL Ubuntu
-
-The build command only works on Mac.
-
-If you use Linux or WSL Ubuntu, do the following.
-
-Manually download the .did & .wasm files from:
-https://drive.google.com/drive/folders/1HAjHWSgANf8XDR6AzurZ-8JPpHDcLXae?usp=sharing
-
-And store them in this location:
-
+Once deployed, connect the Game State and Challenger canisters:
 ```bash
-|-llama_cpp_canister   (Note: sibling of DecentralizedAIonIC)
-  |-src
-    |-llama_cpp.did
-  |-build
-    |-llama_cpp.wasm
+# from folder: PoAIW/src/GameState
+dfx canister call game_state_canister addOfficialCanister '(record { address = "br5f7-7uaaa-aaaaa-qaaca-cai"; canisterType = variant {Challenger} })'
+# verify with
+dfx canister call game_state_canister getOfficialChallengerCanisters
+```
+```bash
+# from folder: PoAIW/src/Challenger
+dfx canister call challenger_ctrlb_canister setGameStateCanisterId "b77ix-eeaaa-aaaaa-qaada-cai"
 ```
 
-To verify the files are in correct relative location:
-
+# Deploy Judge canister:
 ```bash
-# from folder `DecentralizedAIonIC/PoAIW/llms/Challenger`:
+# from folder: PoAIW/src/Judge
+dfx deploy judge_ctrlb_canister
+```
+judge_ctrlb_canister should now have the canister id avqkn-guaaa-aaaaa-qaaea-cai
 
-ls ../../../../llama_cpp_canister/src/llama_cpp.did
-ls ../../../../llama_cpp_canister/build/llama_cpp.wasm
+Once deployed, connect the Game State and Judge canisters:
+```bash
+# from folder: PoAIW/src/GameState
+dfx canister call game_state_canister addOfficialCanister '(record { address = "avqkn-guaaa-aaaaa-qaaea-cai"; canisterType = variant {Judge} })'
+```
+```bash
+# from folder: PoAIW/src/Jugde
+dfx canister call judge_ctrlb_canister setGameStateCanisterId "b77ix-eeaaa-aaaaa-qaada-cai"
 ```
 
-## Download LLM model (gguf)
-
-Download the model `qwen2.5-0.5b-instruct-q8_0.gguf` from huggingface: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF
-
-Store it in the llama_cpp_canister repository at: 
-
-`llama_cpp_canister/models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q8_0.gguf`
-
-To verify the file is in the correct relative location:
-
+# Create challenges:
 ```bash
-# from folder `DecentralizedAIonIC/PoAIW/llms/Challenger`:
-
-ls ../../../../llama_cpp_canister/models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q8_0.gguf
+# from folder: PoAIW/src/Challenger
+# start the timer that generates challenges recurringly
+dfx canister call challenger_ctrlb_canister startTimerExecutionAdmin
+# you can also trigger a single challenge generation manually
+dfx canister call challenger_ctrlb_canister generateNewChallenge
 ```
 
-## Deploy Challenger LLMs
-
+The challenge generation takes a moment. To ensure it worked, call
 ```bash
-# from folder `DecentralizedAIonIC/PoAIW/llms/Challenger`:
+# from folder: PoAIW/src/Challenger
+dfx canister call challenger_ctrlb_canister getChallengesAdmin
 
-# Option 1: Fresh install of code & upload of model
-scripts/2-deploy-reinstall.sh --network [local/ic]
-scripts/3-upload-model.sh --network [local/ic]
-
-# Option 2: update the code
-#           re-upload of model is not needed
-scripts/2-deploy-upgrade.sh --network [local/ic]
-
-# Load the model into OP memory
-scripts/4-load-model.sh --network [local/ic]
-
-# Set max tokens  (Update MAX_TOKENS in the script!)
-scripts/5-set-max-tokens.sh --network [local/ic]
-```
-
-## Deploy Challenger ctrlb canister
-
-```bash
-# from folder: `PoAIW/src/Challenger`
-scripts/deploy.sh --network [local/ic]
-scripts/register-llms.sh  --network [local/ic]
-```
-
-## Register Challenger ctrlb canister as controller of LLMs
-
-```bash
-# from folder `DecentralizedAIonIC/PoAIW/llms/Challenger`:
-scripts/6-register-ctrlb-canister.sh --network [local/ic]
-```
-
-## Verify LLMs
-
-```bash
-# from folder `DecentralizedAIonIC/PoAIW/llms/Challenger`:
-scripts/ready-check.sh --network [local/ic]
-```
-
-## Verify Challenger ctrlb canister
-
-```bash
-# from folder: `PoAIW/src/Challenger`
-scripts/ready-check.sh --network [local/ic]
-scripts/register-check.sh --network [local/ic]
-```
-
-## Test Challenger with dfx
-
-```bash
-# from folder: `PoAIW/src/Challenger`
-dfx canister call challenger_ctrlb_canister whoami --ic
-
-# Run with same identity used to deploy (as a controller)
-$ dfx canister call challenger_ctrlb_canister amiController --ic
-(variant { Ok = record { status_code = 200 : nat16 } })
-
-# This call checks if the challenger_ctrlb_canister is a controller of the LLMs
-$ dfx canister call challenger_ctrlb_canister checkAccessToLLMs --ic
-(variant { Ok = record { status_code = 200 : nat16 } })
-
-# Generate a new Challenge
-$ dfx canister call challenger_ctrlb_canister generateNewChallenge --ic
-(
-  variant {
-    Ok = record {
-      generatedByLlmId = "bkyz2-fmaaa-aaaaa-qaaaq-cai";
-      generatedChallenge = "What is the process for creating a digital asset that can be stored on a blockchain?";
-      generationPrompt = "<|im_start|>user\nAsk a question about crypto, that can be answered with common knowledge. Do NOT give the answer. Start the question with What\n<|im_end|>\n<|im_start|>assistant\n";
-      generationId = "746afa0f-7de3-4c5d-92be-b31537a5a365";
-      generatedTimestamp = 1_737_487_434_489_711_432 : nat64;
-    }
-  },
-)
-
-## Manage deployed canisters
-
-```bash
-# from folder `DecentralizedAIonIC/PoAIW/llms/Challenger`:
-scripts/balance.sh --network [local/ic]
-scripts/memory.sh --network [local/ic]
-scripts/status.sh --network [local/ic]
-
-scripts/top-off.sh --network [local/ic]
+# from folder: PoAIW/src/GameState
+dfx canister call game_state_canister getCurrentChallengesAdmin
 ```

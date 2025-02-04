@@ -5,6 +5,11 @@ type StatusCodeRecordResult =
  };
 type StatusCodeRecord = record {status_code: nat16;};
 type StatusCode = nat16;
+type List = 
+ opt record {
+       GeneratedChallenge;
+       List;
+     };
 type GeneratedChallengeResult = 
  variant {
    Err: ApiError;
@@ -25,6 +30,7 @@ type ChallengerCtrlbCanister =
    checkAccessToLLMs: () -> (StatusCodeRecordResult);
    generateNewChallenge: () -> (GeneratedChallengeResult);
    getChallengesAdmin: () -> (vec GeneratedChallenge) query;
+   getChallengesListAdmin: () -> (List) query;
    getGameStateCanisterId: () -> (text) query;
    getRoundRobinCanister: () -> (CanisterIDRecordResult) query;
    health: () -> (StatusCodeRecordResult) query;
