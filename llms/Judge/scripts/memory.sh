@@ -8,8 +8,8 @@
 # Default network type is local
 NETWORK_TYPE="local"
 NUM_LLMS_DEPLOYED=2
-# When deploying local, use CANISTER_ID_CHALLENGER_CTRLB_CANISTER ID from .env
-source ../../src/Challenger/.env
+# When deploying local, use CANISTER_ID_JUDGE_CTRLB_CANISTER ID from .env
+source ../../src/Judge/.env
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -18,7 +18,7 @@ while [ $# -gt 0 ]; do
             shift
             if [ "$1" = "local" ] || [ "$1" = "ic" ]; then
                 NETWORK_TYPE=$1
-                CANISTER_ID_CHALLENGER_CTRLB_CANISTER="b77ix-eeaaa-aaaaa-qaada-cai"
+                CANISTER_ID_JUDGE_CTRLB_CANISTER="b77ix-eeaaa-aaaaa-qaada-cai"
             else
                 echo "Invalid network type: $1. Use 'local' or 'ic'."
                 exit 1
@@ -53,7 +53,7 @@ do
 done
 
 echo " "
-echo "- CANISTER_ID_CHALLENGER_CTRLB_CANISTER: $CANISTER_ID_CHALLENGER_CTRLB_CANISTER"
-dfx canister status $CANISTER_ID_CHALLENGER_CTRLB_CANISTER --network $NETWORK_TYPE 2>&1 | grep "Memory Size: "
+echo "- CANISTER_ID_JUDGE_CTRLB_CANISTER: $CANISTER_ID_JUDGE_CTRLB_CANISTER"
+dfx canister status $CANISTER_ID_JUDGE_CTRLB_CANISTER --network $NETWORK_TYPE 2>&1 | grep "Memory Size: "
 
 echo " "

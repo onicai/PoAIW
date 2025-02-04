@@ -2,7 +2,7 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/deploy-challenger.sh
+# scripts/deploy-judge.sh
 #######################################################################
 
 # Default network type is local

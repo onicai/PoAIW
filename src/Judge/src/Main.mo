@@ -278,25 +278,25 @@ actor class JudgeCtrlbCanister() = this {
 
         let challengeQuestion : Text = submissionEntry.challengeQuestion;
         var challengeAnswer : Text = submissionEntry.challengeAnswer;
-        var prompt : Text = "<|im_start|>system" #
-        "You grade answers based on its correctness to the question: " #
-        " " #
-        "- " # challengeQuestion #
-        " " #
-        "Grade the answer between 1 and 5." #
-        "1 = completely wrong" #
-        "2 = mostly wrong" #
-        "3 = partially correct" #
-        "4 = mostly correct" #
-        "5 = completely correct" #
-        " " #
-        "<|im_end|> " #
-        "<|im_start|>user" #
-        "Grade this answer based on its correctness: " #
-        " " #
-        "- " # challengeAnswer #
-        " " #
-        "Respond with the grade only, nothing else." #
+        var prompt : Text = "<|im_start|>system\n" #
+        "You grade answers based on its correctness to the question: \n" #
+        " \n" #
+        "- " # challengeQuestion # "\n" #
+        " \n" #
+        "Grade the answer between 1 and 5\n" #
+        "1 = completely wrong\n" #
+        "2 = mostly wrong\n" #
+        "3 = partially correct\n" #
+        "4 = mostly correct\n" #
+        "5 = completely correct\n" #
+        " \n" #
+        "<|im_end|> \n" #
+        "<|im_start|>user\n" #
+        "Grade this answer based on its correctness: \n" #
+        " \n" #
+        "- " # challengeAnswer # "\n" #
+        " \n" #
+        "Respond with the grade only, nothing else.\n" #
         "\n<|im_end|>\n<|im_start|>assistant\n";
 
         let llmCanister = _getRoundRobinCanister();

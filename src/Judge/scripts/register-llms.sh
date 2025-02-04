@@ -10,7 +10,7 @@ NETWORK_TYPE="local"
 NUM_LLMS_DEPLOYED=2
 NUM_LLMS_ROUND_ROBIN=2 # how many LLMs we actually use
 # When deploying local, use canister IDs from .env
-source ../../llms/Challenger/.env
+source ../../llms/Judge/.env
 
 # none will not use subnet parameter in deploy to ic
 SUBNET="none"
@@ -23,8 +23,8 @@ while [ $# -gt 0 ]; do
             if [ "$1" = "local" ] || [ "$1" = "ic" ]; then
                 NETWORK_TYPE=$1
                 if [ "$NETWORK_TYPE" = "ic" ]; then
-                    CANISTER_ID_LLM_0='lmehs-taaaa-aaaaj-azzrq-cai'
-                    CANISTER_ID_LLM_1='l6cql-7qaaa-aaaaj-azzsq-cai'  
+                    CANISTER_ID_LLM_0='--todo--'
+                    CANISTER_ID_LLM_1='--todo--'  
                 fi
             else
                 echo "Invalid network type: $1. Use 'local' or 'ic'."

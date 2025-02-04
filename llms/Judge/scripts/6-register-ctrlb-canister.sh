@@ -8,8 +8,8 @@
 # Default network type is local
 NETWORK_TYPE="local"
 NUM_LLMS_DEPLOYED=2
-# When deploying local, use CANISTER_ID_CHALLENGER_CTRLB_CANISTER ID from .env
-source ../../src/Challenger/.env
+# When deploying local, use CANISTER_ID_JUDGE_CTRLB_CANISTER ID from .env
+source ../../src/Judge/.env
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -19,7 +19,7 @@ while [ $# -gt 0 ]; do
             if [ "$1" = "local" ] || [ "$1" = "ic" ]; then
                 NETWORK_TYPE=$1
                 if [ "$NETWORK_TYPE" = "ic" ]; then
-                    CANISTER_ID_CHALLENGER_CTRLB_CANISTER="lxb3x-jyaaa-aaaaj-azzta-cai"
+                    CANISTER_ID_JUDGE_CTRLB_CANISTER="--todo--"
                 fi
             else
                 echo "Invalid network type: $1. Use 'local' or 'ic'."
@@ -38,8 +38,8 @@ done
 echo "Using network type: $NETWORK_TYPE"
 echo "NUM_LLMS_DEPLOYED : $NUM_LLMS_DEPLOYED"
 echo " "
-echo "CANISTER_ID_CHALLENGER_CTRLB_CANISTER: $CANISTER_ID_CHALLENGER_CTRLB_CANISTER"
-echo "Making $CANISTER_ID_CHALLENGER_CTRLB_CANISTER a controller of LLMs"
+echo "CANISTER_ID_JUDGE_CTRLB_CANISTER: $CANISTER_ID_JUDGE_CTRLB_CANISTER"
+echo "Making $CANISTER_ID_JUDGE_CTRLB_CANISTER a controller of LLMs"
 # read -p "Proceed? (yes/no): " confirm
 # if [[ $confirm != "yes" ]]; then
 #     echo "Aborting script."
@@ -53,6 +53,6 @@ llm_id_end=$((NUM_LLMS_DEPLOYED - 1))
 for i in $(seq $llm_id_start $llm_id_end)
 do
     echo "==================================================="
-    echo "Making $CANISTER_ID_CHALLENGER_CTRLB_CANISTER a controller of llm_$i"
-    dfx canister update-settings llm_$i --add-controller $CANISTER_ID_CHALLENGER_CTRLB_CANISTER  --network $NETWORK_TYPE
+    echo "Making $CANISTER_ID_JUDGE_CTRLB_CANISTER a controller of llm_$i"
+    dfx canister update-settings llm_$i --add-controller $CANISTER_ID_JUDGE_CTRLB_CANISTER  --network $NETWORK_TYPE
 done

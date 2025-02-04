@@ -66,42 +66,38 @@ sudo sysctl -w vm.max_map_count=2097152
 ```
 to successfully load the models in the LLM canisters.
 
-Once completed, challenger_ctrlb_canister should have the canister id br5f7-7uaaa-aaaaa-qaaca-cai
+Once completed:
+- challenger_ctrlb_canister should have the canister id <TBD-1>
+- challenger_ctrlb_canister should have the canister id <TBD-2>
 
 # Deploy Game State canister:
 ```bash
 # from folder: PoAIW/src/GameState
 dfx deploy game_state_canister
 ```
-game_state_canister should now have the canister id b77ix-eeaaa-aaaaa-qaada-cai
+game_state_canister should now have the canister id <TBD-0>
 
-Once deployed, connect the Game State and Challenger canisters:
+Once deployed, connect the Game State with the Challenger & Judge canisters:
 ```bash
+# -----------------------------------
+# Connect Challenger
+#
 # from folder: PoAIW/src/GameState
-dfx canister call game_state_canister addOfficialCanister '(record { address = "br5f7-7uaaa-aaaaa-qaaca-cai"; canisterType = variant {Challenger} })'
+dfx canister call game_state_canister addOfficialCanister '(record { address = "TBD-1"; canisterType = variant {Challenger} })'
 # verify with
 dfx canister call game_state_canister getOfficialChallengerCanisters
-```
-```bash
+
 # from folder: PoAIW/src/Challenger
-dfx canister call challenger_ctrlb_canister setGameStateCanisterId "b77ix-eeaaa-aaaaa-qaada-cai"
-```
+dfx canister call challenger_ctrlb_canister setGameStateCanisterId "TBD-0"
 
-# Deploy Judge canister:
-```bash
-# from folder: PoAIW/src/Judge
-dfx deploy judge_ctrlb_canister
-```
-judge_ctrlb_canister should now have the canister id avqkn-guaaa-aaaaa-qaaea-cai
-
-Once deployed, connect the Game State and Judge canisters:
-```bash
+# -----------------------------------
+# Connect Judge
+#
 # from folder: PoAIW/src/GameState
-dfx canister call game_state_canister addOfficialCanister '(record { address = "avqkn-guaaa-aaaaa-qaaea-cai"; canisterType = variant {Judge} })'
-```
-```bash
+dfx canister call game_state_canister addOfficialCanister '(record { address = "TBD-2"; canisterType = variant {Judge} })'
+
 # from folder: PoAIW/src/Jugde
-dfx canister call judge_ctrlb_canister setGameStateCanisterId "b77ix-eeaaa-aaaaa-qaada-cai"
+dfx canister call judge_ctrlb_canister setGameStateCanisterId "TBD-0"
 ```
 
 # Create challenges:
@@ -121,3 +117,22 @@ dfx canister call challenger_ctrlb_canister getChallengesAdmin
 # from folder: PoAIW/src/GameState
 dfx canister call game_state_canister getCurrentChallengesAdmin
 ```
+
+# Test Judge
+To manually add a Submission to Judge, call
+```bash
+# from folder: PoAIW/src/Judge
+dfx canister call judge_ctrlb_canister addSubmissionToJudge \
+  '(record { 
+      submissionId = "s-01"; 
+      challengeId = "c-01"; 
+      challengeQuestion = "What is a blockchain?"; 
+      challengeAnswer = "A distributed ledger"; 
+      submittedBy = principal "aaaaa-aa"; 
+      submittedTimestamp = 1707072000000000000 : nat64; 
+      status = variant { Submitted }
+  })'
+```
+
+Check the logs, and you will see that the challenge is correctly scored.
+TODO: Test sendScoredResponseToGameStateCanister
