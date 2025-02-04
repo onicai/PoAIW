@@ -22,13 +22,12 @@ actor class JudgeCtrlbCanister() = this {
 
     stable let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
 
-    public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.AuthRecordResult {
+    public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
         GAME_STATE_CANISTER_ID := _game_state_canister_id;
-        let authRecord = { auth = "You set the id for this canister." };
-        return #Ok(authRecord);
+        return #Ok({ status_code = 200 });
     };
 
     // Orthogonal Persisted Data storage

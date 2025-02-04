@@ -2,12 +2,17 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/deploy-judge.sh
+# scripts/deploy.sh --network [local|ic]
 #######################################################################
 
 # Default network type is local
 NETWORK_TYPE="local"
 DEPLOY_MODE="install"
+
+# When deploying to IC, we deploy to a specific subnet
+# none will not use subnet parameter in deploy to ic
+# SUBNET="none"
+SUBNET="qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe"
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -43,31 +48,34 @@ done
 echo "Using network type: $NETWORK_TYPE"
 
 #######################################################################
+
 echo " "
-echo "******************"
-echo "* deploy: Judge *"
-echo "*****************"
+echo "--------------------------------------------------"
+echo "Deploying the game_state_canister"
 
-cd llms/Judge
-echo "-llms/Judge: 2-deploy.sh:"
-scripts/2-deploy.sh --network $NETWORK_TYPE --mode $DEPLOY_MODE
-if [ "$DEPLOY_MODE" != "upgrade" ]; then
-    echo "-llms/Judge: 3-upload-model.sh"
-    scripts/3-upload-model.sh --network $NETWORK_TYPE
+if [ "$NETWORK_TYPE" = "ic" ]; then
+    if [ "$SUBNET" = "none" ]; then
+        dfx deploy game_state_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
+    else
+        dfx deploy game_state_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE --subnet $SUBNET
+    fi
+else
+    dfx deploy game_state_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
 fi
-echo "-llms/Judge: 4-load-model.sh"
-scripts/4-load-model.sh --network $NETWORK_TYPE
-echo "-llms/Judge: 5-set-max-tokens.sh"
-scripts/5-set-max-tokens.sh --network $NETWORK_TYPE
 
-cd ../../src/Judge
-echo "-src/Judge: deploy.sh"
-scripts/deploy.sh --network $NETWORK_TYPE --mode $DEPLOY_MODE
-echo "-src/Judge: register-llms.sh"
-scripts/register-llms.sh --network $NETWORK_TYPE
+echo " "
+echo "--------------------------------------------------"
+echo "Checking health endpoint"
+output=$(dfx canister call game_state_canister health --network $NETWORK_TYPE)
 
-cd ../../llms/Judge
-echo "-llms/Judge: 6-register-ctrlb-canister.sh"
-scripts/6-register-ctrlb-canister.sh --network $NETWORK_TYPE
+if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+    echo "game_state_canister is not healthy. Exiting."
+    exit 1
+else
+    echo "game_state_canister is healthy."
+fi
 
-#######################################################################
+echo " "
+echo "--------------------------------------------------"
+echo "Generating bindings for a frontend"
+dfx generate

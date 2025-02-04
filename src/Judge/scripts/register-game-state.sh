@@ -2,17 +2,17 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/deploy.sh --network [local|ic]
+# scripts/register-game-state.sh --network [local|ic]
 #######################################################################
 
 # Default network type is local
 NETWORK_TYPE="local"
-DEPLOY_MODE="install"
 
-# When deploying to IC, we deploy to a specific subnet
+# When deploying local, use canister IDs from .env
+source ../GameState/.env
+
 # none will not use subnet parameter in deploy to ic
-# SUBNET="none"
-SUBNET="qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe"
+SUBNET="none"
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -21,18 +21,11 @@ while [ $# -gt 0 ]; do
             shift
             if [ "$1" = "local" ] || [ "$1" = "ic" ]; then
                 NETWORK_TYPE=$1
+                if [ "$NETWORK_TYPE" = "ic" ]; then
+                    CANISTER_ID_GAME_STATE_CANISTER='--todo--' 
+                fi
             else
                 echo "Invalid network type: $1. Use 'local' or 'ic'."
-                exit 1
-            fi
-            shift
-            ;;
-        --mode)
-            shift
-            if [ "$1" = "install" ] || [ "$1" = "reinstall" ] || [ "$1" = "upgrade" ]; then
-                DEPLOY_MODE=$1
-            else
-                echo "Invalid mode: $1. Use 'install', 'reinstall' or 'upgrade'."
                 exit 1
             fi
             shift
@@ -48,21 +41,6 @@ done
 echo "Using network type: $NETWORK_TYPE"
 
 #######################################################################
-
-echo " "
-echo "--------------------------------------------------"
-echo "Deploying the judge_ctrlb_canister"
-
-if [ "$NETWORK_TYPE" = "ic" ]; then
-    if [ "$SUBNET" = "none" ]; then
-        dfx deploy judge_ctrlb_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
-    else
-        dfx deploy judge_ctrlb_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE --subnet $SUBNET
-    fi
-else
-    dfx deploy judge_ctrlb_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
-fi
-
 echo " "
 echo "--------------------------------------------------"
 echo "Checking health endpoint"
@@ -77,5 +55,12 @@ fi
 
 echo " "
 echo "--------------------------------------------------"
-echo "Generating bindings for a frontend"
-dfx generate
+echo "Registering GameState with the judge_ctrlb_canister"
+output=$(dfx canister call judge_ctrlb_canister setGameStateCanisterId "(\"$CANISTER_ID_GAME_STATE_CANISTER\")" --network $NETWORK_TYPE)
+
+if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+    echo "Error calling setGameStateCanisterId for GameState $CANISTER_ID_GAME_STATE_CANISTER."
+    exit 1
+else
+    echo "Successfully called setGameStateCanisterId for GameState $CANISTER_ID_GAME_STATE_CANISTER."
+fi

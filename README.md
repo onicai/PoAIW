@@ -56,8 +56,12 @@ sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
 
 ```bash
 # from folder: PoAIW
+scripts/build_llama_cpp_canister.sh  # Note: Optional - works on Mac only
+
 scripts/deploy-challenger.sh --mode [install/reinstall/upgrade] --network [local/ic]
 scripts/deploy-judge.sh      --mode [install/reinstall/upgrade] --network [local/ic]
+
+scripts/deploy-gamestate.sh  --mode [install/reinstall/upgrade] --network [local/ic]
 ```
 
 Note: on WSL, you might first have to run 
@@ -66,6 +70,46 @@ sudo sysctl -w vm.max_map_count=2097152
 ```
 to successfully load the models in the LLM canisters.
 
+# Test Judge
+To manually add a Submission to Judge, call
+```bash
+# from folder: PoAIW/src/Judge
+dfx canister call judge_ctrlb_canister addSubmissionToJudge \
+  '(record { 
+      submissionId = "s-01"; 
+      challengeId = "c-01"; 
+      challengeQuestion = "What is a blockchain?"; 
+      challengeAnswer = "A distributed ledger"; 
+      submittedBy = principal "aaaaa-aa"; 
+      submittedTimestamp = 1707072000000000000 : nat64; 
+      status = variant { Submitted }
+  })'
+```
+
+Check the logs, and you will see that the challenge is correctly scored.
+TODO: Test sendScoredResponseToGameStateCanister
+
+# Create challenges:
+```bash
+# from folder: PoAIW/src/Challenger
+# start the timer that generates challenges recurringly
+dfx canister call challenger_ctrlb_canister startTimerExecutionAdmin
+# you can also trigger a single challenge generation manually
+dfx canister call challenger_ctrlb_canister generateNewChallenge
+```
+
+The challenge generation takes a moment. To ensure it worked, call
+```bash
+# from folder: PoAIW/src/Challenger
+dfx canister call challenger_ctrlb_canister getChallengesAdmin
+
+# from folder: PoAIW/src/GameState
+dfx canister call game_state_canister getCurrentChallengesAdmin
+```
+
+----------
+
+# THIS IS ALREADY DONE BY THE SCRIPTS...
 Once completed:
 - challenger_ctrlb_canister should have the canister id <TBD-1>
 - challenger_ctrlb_canister should have the canister id <TBD-2>
@@ -99,40 +143,3 @@ dfx canister call game_state_canister addOfficialCanister '(record { address = "
 # from folder: PoAIW/src/Jugde
 dfx canister call judge_ctrlb_canister setGameStateCanisterId "TBD-0"
 ```
-
-# Create challenges:
-```bash
-# from folder: PoAIW/src/Challenger
-# start the timer that generates challenges recurringly
-dfx canister call challenger_ctrlb_canister startTimerExecutionAdmin
-# you can also trigger a single challenge generation manually
-dfx canister call challenger_ctrlb_canister generateNewChallenge
-```
-
-The challenge generation takes a moment. To ensure it worked, call
-```bash
-# from folder: PoAIW/src/Challenger
-dfx canister call challenger_ctrlb_canister getChallengesAdmin
-
-# from folder: PoAIW/src/GameState
-dfx canister call game_state_canister getCurrentChallengesAdmin
-```
-
-# Test Judge
-To manually add a Submission to Judge, call
-```bash
-# from folder: PoAIW/src/Judge
-dfx canister call judge_ctrlb_canister addSubmissionToJudge \
-  '(record { 
-      submissionId = "s-01"; 
-      challengeId = "c-01"; 
-      challengeQuestion = "What is a blockchain?"; 
-      challengeAnswer = "A distributed ledger"; 
-      submittedBy = principal "aaaaa-aa"; 
-      submittedTimestamp = 1707072000000000000 : nat64; 
-      status = variant { Submitted }
-  })'
-```
-
-Check the logs, and you will see that the challenge is correctly scored.
-TODO: Test sendScoredResponseToGameStateCanister

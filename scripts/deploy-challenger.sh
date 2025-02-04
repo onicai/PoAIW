@@ -45,12 +45,10 @@ echo "Using network type: $NETWORK_TYPE"
 #######################################################################
 echo " "
 echo "**************************"
-echo "* deploy-all: Challenger *"
+echo "* deploy: Challenger *"
 echo "**************************"
 
 cd llms/Challenger
-echo "-llms/Challenger: 1-build.sh"
-scripts/1-build.sh
 echo "-llms/Challenger: 2-deploy.sh:"
 scripts/2-deploy.sh --network $NETWORK_TYPE --mode $DEPLOY_MODE
 if [ "$DEPLOY_MODE" != "upgrade" ]; then

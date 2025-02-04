@@ -22,13 +22,12 @@ actor class ChallengerCtrlbCanister() {
 
     stable var GAME_STATE_CANISTER_ID : Text = "b77ix-eeaaa-aaaaa-qaada-cai"; // local dev: "b77ix-eeaaa-aaaaa-qaada-cai";
 
-    public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.AuthRecordResult {
+    public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
         GAME_STATE_CANISTER_ID := _game_state_canister_id;
-        let authRecord = { auth = "You set the id for this canister." };
-        return #Ok(authRecord);
+        return #Ok({ status_code = 200 });
     };
 
     public query (msg) func getGameStateCanisterId() : async Text {
