@@ -576,7 +576,7 @@ actor class ChallengerCtrlbCanister() {
         D.print("############################Recurring action result############################");
     };
 
-    public shared (msg) func startTimerExecutionAdmin(_game_state_canister_id : Text) : async Types.AuthRecordResult {
+    public shared (msg) func startTimerExecutionAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
