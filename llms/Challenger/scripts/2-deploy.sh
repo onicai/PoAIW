@@ -2,12 +2,13 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/2-deploy-upgrade.sh --network [local|ic]
+# scripts/2-deploy-reinstall.sh --network [local|ic]
 #######################################################################
 
 # Default network type is local
 NETWORK_TYPE="local"
 NUM_LLMS_DEPLOYED=2
+DEPLOY_MODE="install"
 
 # When deploying to IC, we deploy to a specific subnet
 # none will not use subnet parameter in deploy to ic
@@ -23,6 +24,16 @@ while [ $# -gt 0 ]; do
                 NETWORK_TYPE=$1
             else
                 echo "Invalid network type: $1. Use 'local' or 'ic'."
+                exit 1
+            fi
+            shift
+            ;;
+        --mode)
+            shift
+            if [ "$1" = "install" ] || [ "$1" = "reinstall" ] || [ "$1" = "upgrade" ]; then
+                DEPLOY_MODE=$1
+            else
+                echo "Invalid mode: $1. Use 'install', 'reinstall' or 'upgrade'."
                 exit 1
             fi
             shift
@@ -50,12 +61,12 @@ do
     echo "Deploying the wasm to llm_$i"
     if [ "$NETWORK_TYPE" = "ic" ]; then
         if [ "$SUBNET" = "none" ]; then
-            yes | dfx deploy llm_$i --yes --network $NETWORK_TYPE
+            yes | dfx deploy llm_$i --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
         else
-            yes | dfx deploy llm_$i --yes --network $NETWORK_TYPE --subnet $SUBNET
+            yes | dfx deploy llm_$i --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE --subnet $SUBNET
         fi
     else
-        yes | dfx deploy llm_$i --yes --network $NETWORK_TYPE
+        yes | dfx deploy llm_$i --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
     fi 
     
     echo " "
@@ -65,10 +76,11 @@ do
 
     if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
         echo "llm_$i health check failed."
-        echo $output
+        echo $output        
         exit 1
     else
         echo "llm_$i health check succeeded."
         echo 🎉
     fi
+
 done

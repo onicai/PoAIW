@@ -1,7 +1,9 @@
 type ApiError = variant {
+  FailedOperation;
   InvalidId;
   ZeroAddress;
-  StatusCode : nat16;
+  Unauthorized;
+  StatusCode : StatusCode;
   Other : text;
 };
 type AuthRecord = record { auth : text };
@@ -9,19 +11,19 @@ type AuthRecordResult = variant { Ok : AuthRecord; Err : ApiError };
 type CanisterIDRecord = record { canister_id : text };
 type CanisterIDRecordResult = variant { Ok : CanisterIDRecord; Err : ApiError };
 type ChallengerCtrlbCanister = service {
-  WhitelistedPrincipals : () -> (vec principal) query;
   add_llm_canister_id : (CanisterIDRecord) -> (StatusCodeRecordResult);
   amiController : () -> (StatusCodeRecordResult) query;
-  amiWhitelisted : () -> (StatusCodeRecordResult) query;
+  checkAccessToLLMs : () -> (StatusCodeRecordResult);
   generateNewChallenge : () -> (GeneratedChallengeResult);
+  getChallengesAdmin : () -> (vec GeneratedChallenge) query;
+  getChallengesListAdmin : () -> (List) query;
+  getGameStateCanisterId : () -> (text) query;
   getRoundRobinCanister : () -> (CanisterIDRecordResult) query;
   health : () -> (StatusCodeRecordResult) query;
-  isWhitelistLogicOk : () -> (StatusCodeRecordResult);
   ready : () -> (StatusCodeRecordResult);
   setGameStateCanisterId : (text) -> (AuthRecordResult);
   setRoundRobinLLMs : (nat) -> (StatusCodeRecordResult);
   set_llm_canister_id : (CanisterIDRecord) -> (StatusCodeRecordResult);
-  whitelistPrincipal : (principal) -> (StatusCodeRecordResult);
   whoami : () -> (principal) query;
 };
 type GeneratedChallenge = record {
@@ -35,6 +37,8 @@ type GeneratedChallengeResult = variant {
   Ok : GeneratedChallenge;
   Err : ApiError;
 };
+type List = opt record { GeneratedChallenge; List };
+type StatusCode = nat16;
 type StatusCodeRecord = record { status_code : nat16 };
 type StatusCodeRecordResult = variant { Ok : StatusCodeRecord; Err : ApiError };
 service : ChallengerCtrlbCanister
