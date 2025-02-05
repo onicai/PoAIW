@@ -2,7 +2,7 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/deploy-all.sh
+# scripts/deploy-all.sh --mode [install/reinstall/upgrade] --network [local/ic]
 #######################################################################
 
 # Default network type is local
