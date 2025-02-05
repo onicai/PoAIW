@@ -14,6 +14,8 @@ import Time "mo:base/Time";
 import Iter "mo:base/Iter";
 import Char "mo:base/Char";
 import Float "mo:base/Float";
+import { print } = "mo:base/Debug";
+import { setTimer; recurringTimer } = "mo:base/Timer";
 
 import Types "Types";
 import Utils "Utils";
@@ -632,5 +634,36 @@ actor class MainerAgentCtrlbCanister() = this {
         });
 
         return Text.fromIter(filteredChars);
+    };
+
+// Timer
+    stable var actionRegularityInSeconds = 300; // TODO: set based on user setting for cycles burn rate
+
+    private func triggerRecurringAction() : async () {
+        print("############################Recurring action was triggered############################");
+        D.print("############################Recurring action was triggered############################");
+        //ignore respondToNextChallenge(); TODO
+        let result = await respondToNextChallenge();
+        print("############################Recurring action result############################");
+        D.print("############################Recurring action result############################");
+        print(debug_show (result));
+        D.print(debug_show (result));
+        print("############################Recurring action result############################");
+        D.print("############################Recurring action result############################");
+    };
+
+    public shared (msg) func startTimerExecutionAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        ignore setTimer<system>(#seconds 5,
+            func () : async () {
+                print("############################setTimer############################");
+                D.print("############################setTimer############################");
+                ignore recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction);
+                await triggerRecurringAction();
+        });
+        let authRecord = { auth = "You started the timer." };
+        return #Ok(authRecord);
     };
 };
