@@ -114,7 +114,7 @@ module Types {
     public type ChallengeResponseSubmissionInput = {
         challengeId : Text;
         submittedBy : Principal;
-        response : Text;
+        challengeQuestion : Text;
     };
 
     public type ChallengeResponseSubmissionStatus = {
@@ -130,6 +130,7 @@ module Types {
         submissionId : Text;
         submittedTimestamp : Nat64;
         status: ChallengeResponseSubmissionStatus;
+        challengeAnswer : Text;
     };
 
     public type ChallengeResponseSubmissionReturn = {

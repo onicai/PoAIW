@@ -1,13 +1,8 @@
-#!/bin/sh
+#!/bin/bash
 
 #######################################################################
-# For Linux & Mac
-#######################################################################
-export PYTHONPATH="${PYTHONPATH}:$(realpath ../../../icpp_llm/llama2_c)"
-
-
-#######################################################################
-# --network [local|ic]
+# run from parent folder as:
+# scripts/register-check.sh --network [local|ic]
 #######################################################################
 
 # Default network type is local
@@ -40,12 +35,12 @@ echo "Using network type: $NETWORK_TYPE"
 
 echo " "
 echo "--------------------------------------------------"
-echo "Checking readiness endpoint"
-output=$(dfx canister call challenger_ctrlb_canister ready --network $NETWORK_TYPE)
+echo "Checking if mainer_ctrlb_canister is a controller of the LLM canisters"
+output=$(dfx canister call mainer_ctrlb_canister checkAccessToLLMs --network $NETWORK_TYPE)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-    echo "challenger_ctrlb_canister is not ready. Exiting."
+    echo "ERROR: mainer_ctrlb_canister is not a controller of all LLMs. Make sure to update the LLMs."
     exit 1
 else
-    echo "challenger_ctrlb_canister is ready for inference."
+    echo "mainer_ctrlb_canister is a controller of all LLMs."
 fi

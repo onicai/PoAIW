@@ -42,6 +42,7 @@ Install mops (https://mops.one/docs/install), and then:
 # Do this in all these folders:
 # - from folder: `PoAIW/src/Challenger`
 # - from folder: `PoAIW/src/Judge`
+# - from folder: `PoAIW/src/mAIner`
 mops init
 mops install
 ```
@@ -60,6 +61,7 @@ scripts/build_llama_cpp_canister.sh  # Note: Optional - works on Mac only
 
 scripts/deploy-challenger.sh --mode [install/reinstall/upgrade] --network [local/ic]
 scripts/deploy-judge.sh      --mode [install/reinstall/upgrade] --network [local/ic]
+scripts/deploy-mainer.sh     --mode [install/reinstall/upgrade] --network [local/ic]
 
 scripts/deploy-gamestate.sh  --mode [install/reinstall/upgrade] --network [local/ic]
 ```

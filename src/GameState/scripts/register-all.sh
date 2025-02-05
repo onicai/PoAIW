@@ -11,6 +11,7 @@ NETWORK_TYPE="local"
 # When deploying local, use canister IDs from .env
 source ../Challenger/.env
 source ../Judge/.env
+source ../mAIner/.env
 
 # none will not use subnet parameter in deploy to ic
 SUBNET="none"
@@ -24,7 +25,8 @@ while [ $# -gt 0 ]; do
                 NETWORK_TYPE=$1
                 if [ "$NETWORK_TYPE" = "ic" ]; then
                     CANISTER_ID_CHALLENGER_CTRLB_CANISTER='--todo--'
-                    CANISTER_ID_JUDGE_CTRLB_CANISTER='--todo--'  
+                    CANISTER_ID_JUDGE_CTRLB_CANISTER='--todo--' 
+                    CANISTER_ID_MAINER_CTRLB_CANISTER='--todo--' 
                 fi
             else
                 echo "Invalid network type: $1. Use 'local' or 'ic'."
@@ -77,4 +79,16 @@ if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; t
     exit 1
 else
     echo "Successfully called addOfficialCanister for Judge $CANISTER_ID_JUDGE_CTRLB_CANISTER."
+fi 
+
+echo " "
+echo "--------------------------------------------------"
+echo "Registering mAIner with the game_state_canister"
+output=$(dfx canister call game_state_canister addOfficialCanister "(record { address = \"$CANISTER_ID_MAINER_CTRLB_CANISTER\"; canisterType = variant {mAIner} })" --network $NETWORK_TYPE)
+
+if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+    echo "Error calling addOfficialCanister for mAIner $CANISTER_ID_MAINER_CTRLB_CANISTER."
+    exit 1
+else
+    echo "Successfully called addOfficialCanister for mAIner $CANISTER_ID_MAINER_CTRLB_CANISTER."
 fi 
