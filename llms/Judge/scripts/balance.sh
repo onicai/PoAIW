@@ -1,0 +1,63 @@
+#!/bin/bash
+
+#######################################################################
+# run from parent folder as:
+# scripts/balance.sh --network [local|ic]
+#######################################################################
+
+# Default network type is local
+NETWORK_TYPE="local"
+NUM_LLMS_DEPLOYED=2
+# When deploying local, use CANISTER_ID_JUDGE_CTRLB_CANISTER ID from .env
+source ../../src/Judge/.env
+
+# Parse command line arguments for network type
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --network)
+            shift
+            if [ "$1" = "local" ] || [ "$1" = "ic" ]; then
+                NETWORK_TYPE=$1
+                CANISTER_ID_JUDGE_CTRLB_CANISTER="---TODO"
+            else
+                echo "Invalid network type: $1. Use 'local' or 'ic'."
+                exit 1
+            fi
+            shift
+            ;;
+        *)
+            echo "Unknown argument: $1"
+            echo "Usage: $0 --network [local|ic]"
+            exit 1
+            ;;
+    esac
+done
+
+echo "Using network type: $NETWORK_TYPE"
+echo "NUM_LLMS_DEPLOYED : $NUM_LLMS_DEPLOYED"
+echo " "
+
+#######################################################################
+llm_id_start=0
+llm_id_end=$((NUM_LLMS_DEPLOYED - 1))
+
+echo " "
+echo "- dfx identity"
+dfx identity whoami; echo " "
+
+echo " "
+echo "- Wallet balance"
+dfx wallet --network $NETWORK_TYPE balance; echo " "
+
+for i in $(seq $llm_id_start $llm_id_end)
+do
+	echo " "
+    echo "- llm_$i "
+    dfx canister status llm_$i --network $NETWORK_TYPE 2>&1 | grep "Balance:"; echo " "
+done
+
+echo " "
+echo "CANISTER_ID_JUDGE_CTRLB_CANISTER: $CANISTER_ID_JUDGE_CTRLB_CANISTER"
+dfx canister status $CANISTER_ID_JUDGE_CTRLB_CANISTER --network $NETWORK_TYPE 2>&1 | grep "Balance:"; echo " "
+
+echo " "

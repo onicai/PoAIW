@@ -19,21 +19,21 @@ module Types {
     public type ChallengeResponseSubmission = ChallengeResponseSubmissionInput and {
         submissionId : Text;
         submittedTimestamp : Nat64;
-        status: ChallengeResponseSubmissionStatus;
+        status : ChallengeResponseSubmissionStatus;
     };
 
     public type ChallengeResponseSubmissionReturn = {
         success : Bool;
         submissionId : Text;
         submittedTimestamp : Nat64;
-        status: ChallengeResponseSubmissionStatus;
+        status : ChallengeResponseSubmissionStatus;
     };
 
     public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmissionReturn, ApiError>;
 
     public type ScoredResponseInput = ChallengeResponseSubmission and {
-        judgedBy: Principal;
-        score: Nat;
+        judgedBy : Principal;
+        score : Nat;
     };
 
     public type ScoredResponse = ScoredResponseInput and {
@@ -62,7 +62,7 @@ module Types {
 
     public type ChallengeResponse = {
         challengeId : Text;
-        generationPrompt : Text;       
+        generationPrompt : Text;
         generatedTimestamp : Nat64;
         generatedByLlmId : Text;
         generatedResponseText : Text;
@@ -113,7 +113,7 @@ module Types {
         challengeId : Text;
         creationTimestamp : Nat64;
         createdBy : CanisterAddress;
-        challengePrompt : Text;
+        challengeQuestion : Text;
         status : ChallengeStatus;
         closedTimestamp : ?Nat64;
         responsibleJudgeAddress : CanisterAddress;
@@ -129,7 +129,7 @@ module Types {
     };
 
     public type NewChallengeInput = {
-        challengePrompt : Text;
+        challengeQuestion : Text;
     };
 
     public type ChallengeAdditionResult = Result<Challenge, ApiError>;
@@ -145,7 +145,7 @@ module Types {
 
     // Agent Settings
     public type TimeInterval = {
-        #Daily;       
+        #Daily;
     };
 
     public type CyclesBurnRate = {
@@ -153,7 +153,7 @@ module Types {
         timeInterval : TimeInterval;
     };
 
-     public type MainerAgentSettingsInput = {
+    public type MainerAgentSettingsInput = {
         cyclesBurnRate : CyclesBurnRate;
     };
 

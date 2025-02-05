@@ -1,7 +1,8 @@
-#!/bin/sh
+#!/bin/bash
 
 #######################################################################
-# --network [local|ic]
+# run from parent folder as:
+# scripts/register-check.sh --network [local|ic]
 #######################################################################
 
 # Default network type is local
@@ -30,10 +31,16 @@ done
 
 echo "Using network type: $NETWORK_TYPE"
 
-#######################################################################
-
+############################################################################
 
 echo " "
 echo "--------------------------------------------------"
-echo "Test the StoryUpdate endpoint"
-dfx canister call challenger_ctrlb_canister StoryUpdate '(record {storyID="0-1"; storyPrompt="Charles loves ice cream."})' --network $NETWORK_TYPE
+echo "Checking if judge_ctrlb_canister is a controller of the LLM canisters"
+output=$(dfx canister call judge_ctrlb_canister checkAccessToLLMs --network $NETWORK_TYPE)
+
+if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+    echo "ERROR: judge_ctrlb_canister is not a controller of all LLMs. Make sure to update the LLMs."
+    exit 1
+else
+    echo "judge_ctrlb_canister is a controller of all LLMs."
+fi

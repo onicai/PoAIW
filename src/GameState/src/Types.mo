@@ -88,7 +88,7 @@ module Types {
         challengeId : Text;
         creationTimestamp : Nat64;
         createdBy : CanisterAddress;
-        challengePrompt : Text;
+        challengeQuestion : Text;
         status : ChallengeStatus;
         closedTimestamp : ?Nat64;
         responsibleJudgeAddress : CanisterAddress;
@@ -102,7 +102,7 @@ module Types {
     };
 
     public type NewChallengeInput = {
-        challengePrompt : Text;
+        challengeQuestion : Text;
     };
 
     public type ChallengeAdditionResult = Result<Challenge, ApiError>;

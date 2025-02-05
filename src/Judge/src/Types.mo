@@ -13,24 +13,25 @@ module Types {
     public type ChallengeResponseSubmission = {
         submissionId : Text;
         challengeId : Text;
+        challengeQuestion : Text;
+        challengeAnswer : Text;
         submittedBy : Principal;
-        response : Text;
         submittedTimestamp : Nat64;
-        status: ChallengeResponseSubmissionStatus;
+        status : ChallengeResponseSubmissionStatus;
     };
 
     public type ChallengeResponseSubmissionReturn = {
         success : Bool;
         submissionId : Text;
         submittedTimestamp : Nat64;
-        status: ChallengeResponseSubmissionStatus;
+        status : ChallengeResponseSubmissionStatus;
     };
 
     public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmissionReturn, ApiError>;
 
     public type ScoredResponseInput = ChallengeResponseSubmission and {
-        judgedBy: Principal;
-        score: Nat;
+        judgedBy : Principal;
+        score : Nat;
     };
 
     public type ScoredResponse = ScoredResponseInput and {
@@ -48,7 +49,8 @@ module Types {
         generatedTimestamp : Nat64;
         generatedByLlmId : Text;
         generationPrompt : Text;
-        generatedChallengeText : Text;
+        generatedScoreText : Text;
+        generatedScore : Nat;
     };
 
     public type ScoredResponseByJudge = ScoredResponse and {
@@ -67,32 +69,32 @@ module Types {
 
     public type GeneratedChallengeResult = Result<GeneratedChallenge, ApiError>;
 
-    public type StoryID = Text; // Must be unique for each story to be created
-
-    public type Prompt = {
-        prompt : Text;
-        //  Max number of steps to run for
-        steps : Nat64;
-        //  Temperature [0:1] (0.0 = stories are deterministic)
-        temperature : Float; // Candid float64
-        //  p value in top-p (nucleus) sampling. [0:1] (1.0=off)
-        topp : Float; // Candid float64
-        //  Seed  (0=use random seed based on time)
-        rng_seed : Nat64;
-    };
-
     public type CanisterIDRecordResult = Result<CanisterIDRecord, ApiError>;
     public type CanisterIDRecord = {
         canister_id : Text;
     };
 
+    public type InputRecord = {
+        args : [Text]; // the CLI args of llama.cpp/examples/main, as a list of strings
+    };
+
+    public type OutputRecordResult = Result<OutputRecord, ApiError>;
+    public type OutputRecord = {
+        status_code : Nat16;
+        output : Text;
+        conversation : Text;
+        error : Text;
+        prompt_remaining : Text;
+        generated_eog : Bool;
+    };
+
     public type LLMCanister = actor {
         health : () -> async StatusCodeRecordResult;
         ready : () -> async StatusCodeRecordResult;
-        nft_ami_whitelisted : () -> async StatusCodeRecordResult;
-        nft_story_start_mo : (NFT_llama2_c, Prompt) -> async InferenceRecordResult;
-        nft_story_continue_mo : (NFT_llama2_c, Prompt) -> async InferenceRecordResult;
-        nft_story_delete : (NFT_llama2_c) -> async StatusCodeRecordResult;
+        check_access : () -> async StatusCodeRecordResult;
+        new_chat : (InputRecord) -> async OutputRecordResult;
+        run_update : (InputRecord) -> async OutputRecordResult;
+        remove_prompt_cache : (InputRecord) -> async OutputRecordResult;
     };
 
     // Game State canister
@@ -100,7 +102,7 @@ module Types {
         challengeId : Text;
         creationTimestamp : Nat64;
         createdBy : CanisterAddress;
-        challengePrompt : Text;
+        challengeQuestion : Text;
         status : ChallengeStatus;
         closedTimestamp : ?Nat64;
         responsibleJudgeAddress : CanisterAddress;
@@ -116,7 +118,7 @@ module Types {
     };
 
     public type NewChallengeInput = {
-        challengePrompt : Text;
+        challengeQuestion : Text;
     };
 
     public type ChallengeAdditionResult = Result<Challenge, ApiError>;
@@ -124,24 +126,6 @@ module Types {
     public type GameStateCanister_Actor = actor {
         addChallenge : (NewChallengeInput) -> async ChallengeAdditionResult;
         addScoredResponse : (ScoredResponseInput) -> async ScoredResponseResult;
-    };
-
-    // --
-    // Input to StoryUpdate endpoint called by bioniq's NFT collection canister
-    public type StoryInputRecord = {
-        storyID : Text;
-        storyPrompt : Text;
-    };
-
-    // --
-    // Output from StoryUpdate endpoint called by bioniq's NFT collection canister
-    public type StoryOutputRecordResult = Result<StoryOutputRecord, ApiError>;
-    public type StoryOutputRecord = {
-        storyID : Text;
-        storyPrompt : Text;
-        story : Text;
-        status : Text;
-        llmCanisterID : Text;
     };
 
     //--

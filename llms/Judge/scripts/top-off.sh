@@ -1,17 +1,13 @@
-#!/bin/sh
+#!/bin/bash
 
 #######################################################################
-# For Linux & Mac
-#######################################################################
-export PYTHONPATH="${PYTHONPATH}:$(realpath ../../../icpp_llm/llama2_c)"
-
-
-#######################################################################
-# --network [local|ic]
+# run from parent folder as:
+# scripts/top-off.sh --network [local|ic]
 #######################################################################
 
 # Default network type is local
 NETWORK_TYPE="local"
+NUM_LLMS_DEPLOYED=2
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -35,41 +31,59 @@ while [ $# -gt 0 ]; do
 done
 
 echo "Using network type: $NETWORK_TYPE"
+echo "NUM_LLMS_DEPLOYED : $NUM_LLMS_DEPLOYED"
+echo " "
 
 #######################################################################
+llm_id_start=0
+llm_id_end=$((NUM_LLMS_DEPLOYED - 1))
 
 # Define the threshold balance in TCycles (When to top off)
-TOPPED_OFF_BALANCE_TRESHOLD_TC=5 
+TOPPED_OFF_BALANCE_TRESHOLD_TC=18
 TOPPED_OFF_BALANCE_TRESHOLD=$(echo "$TOPPED_OFF_BALANCE_TRESHOLD_TC * 1000000000000" | bc)
 TOPPED_OFF_BALANCE_TRESHOLD=$(printf "%.0f" $TOPPED_OFF_BALANCE_TRESHOLD)
 
 # Define the target balance in TCycles (To top off too)
-TOPPED_OFF_BALANCE_TARGET_TC=8
+TOPPED_OFF_BALANCE_TARGET_TC=20
 TOPPED_OFF_BALANCE_TARGET=$(echo "$TOPPED_OFF_BALANCE_TARGET_TC * 1000000000000" | bc)
 TOPPED_OFF_BALANCE_TARGET=$(printf "%.0f" $TOPPED_OFF_BALANCE_TARGET)
 
 
 echo " "
 echo "--------------------------------------------------"
-echo -n "- dfx identity             : "; dfx identity whoami
-echo -n "- Wallet balance           : "; dfx wallet --network $NETWORK_TYPE balance
+echo " "
+echo "- dfx identity"
+dfx identity whoami
+
+echo " "
+echo "- Wallet balance"
+dfx wallet --network $NETWORK_TYPE balance
+
+# top off cycles for all llms in sequential mode
+echo " "
+echo "--------------------------------------------------"
+for i in $(seq $llm_id_start $llm_id_end)
+do
+    CURRENT_BALANCE=$(dfx canister --network $NETWORK_TYPE status llm_$i 2>&1 | grep "Balance:" | awk '{gsub("_", ""); print $2}')
+    NEED_CYCLES_THRESHOLD=$(echo "$TOPPED_OFF_BALANCE_TRESHOLD - $CURRENT_BALANCE" | bc)
+    NEED_CYCLES_TARGET=$(echo "$TOPPED_OFF_BALANCE_TARGET - $CURRENT_BALANCE" | bc)
+    if [ $(echo "$NEED_CYCLES_THRESHOLD > 0" | bc) -eq 1 ]; then
+        CANISTER_ID=$(dfx canister --network $NETWORK_TYPE id llm_$i)
+        echo "Sending $NEED_CYCLES_TARGET cycles to llm_$i"
+        dfx wallet send $CANISTER_ID $NEED_CYCLES_TARGET --network $NETWORK_TYPE
+    else
+        # echo "No need to send cycles to llm_$i. Balance = $CURRENT_BALANCE"
+        echo "No need to send cycles to llm_$i. Balance = $(echo "scale=2; $CURRENT_BALANCE / 1000000000000" | bc) TCycles"
+
+    fi
+done
 
 echo " "
 echo "--------------------------------------------------"
-CURRENT_BALANCE=$(dfx canister --network $NETWORK_TYPE status challenger_ctrlb_canister 2>&1 | grep "Balance:" | awk '{gsub("_", ""); print $2}')
-NEED_CYCLES_THRESHOLD=$(echo "$TOPPED_OFF_BALANCE_TRESHOLD - $CURRENT_BALANCE" | bc)
-NEED_CYCLES_TARGET=$(echo "$TOPPED_OFF_BALANCE_TARGET - $CURRENT_BALANCE" | bc)
-if [ $(echo "$NEED_CYCLES_THRESHOLD > 0" | bc) -eq 1 ]; then
-    CANISTER_ID=$(dfx canister --network $NETWORK_TYPE id challenger_ctrlb_canister)
-    echo "Sending $NEED_CYCLES_TARGET cycles to challenger_ctrlb_canister"
-    dfx wallet send $CANISTER_ID $NEED_CYCLES_TARGET --network $NETWORK_TYPE
-else
-    # echo "No need to send cycles to challenger_ctrlb_canister. Balance = $CURRENT_BALANCE"
-    echo "No need to send cycles to challenger_ctrlb_canister. Balance = $(echo "scale=2; $CURRENT_BALANCE / 1000000000000" | bc) TCycles"
-
-fi
+echo " "
+echo "- dfx identity"
+dfx identity whoami
 
 echo " "
-echo "--------------------------------------------------"
-echo -n "- dfx identity             : "; dfx identity whoami
-echo -n "- Wallet balance after     : "; dfx wallet --network $NETWORK_TYPE balance
+echo "- Wallet balance"
+dfx wallet --network $NETWORK_TYPE balance

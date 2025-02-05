@@ -19,8 +19,8 @@ actor class MainerAgentCtrlbCanister() = this {
 
     stable var GAME_STATE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // local dev: "bkyz2-fmaaa-aaaaa-qaaaq-cai";
 
-    stable let gameStateCanisterActor = actor(GAME_STATE_CANISTER_ID): Types.GameStateCanister_Actor;
-    
+    stable let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
+
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
@@ -34,7 +34,7 @@ actor class MainerAgentCtrlbCanister() = this {
 
     // Record of settings
     stable var agentSettings : List.List<Types.MainerAgentSettings> = List.nil<Types.MainerAgentSettings>();
-    
+
     private func putAgentSettings(settingsEntry : Types.MainerAgentSettings) : Bool {
         agentSettings := List.push<Types.MainerAgentSettings>(settingsEntry, agentSettings);
         return true;
@@ -46,14 +46,14 @@ actor class MainerAgentCtrlbCanister() = this {
 
     // Record of generated responses
     stable var generatedResponses : List.List<Types.ChallengeResponse> = List.nil<Types.ChallengeResponse>();
-    
+
     private func putGeneratedResponse(responseEntry : Types.ChallengeResponse) : Bool {
         generatedResponses := List.push<Types.ChallengeResponse>(responseEntry, generatedResponses);
         return true;
     };
 
     private func getGeneratedResponse(challengeId : Text) : ?Types.ChallengeResponse {
-        return List.find<Types.ChallengeResponse>(generatedResponses, func(responseEntry: Types.ChallengeResponse) : Bool { responseEntry.challengeId == challengeId } ); 
+        return List.find<Types.ChallengeResponse>(generatedResponses, func(responseEntry : Types.ChallengeResponse) : Bool { responseEntry.challengeId == challengeId });
     };
 
     private func getGeneratedResponses() : [Types.ChallengeResponse] {
@@ -61,20 +61,20 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     private func removeGeneratedResponse(challengeId : Text) : Bool {
-        generatedResponses := List.filter(generatedResponses, func(responseEntry: Types.ChallengeResponse) : Bool { responseEntry.challengeId != challengeId });
+        generatedResponses := List.filter(generatedResponses, func(responseEntry : Types.ChallengeResponse) : Bool { responseEntry.challengeId != challengeId });
         return true;
     };
 
     // Record of submitted responses
     stable var submittedResponses : List.List<Types.ChallengeResponseSubmission> = List.nil<Types.ChallengeResponseSubmission>();
-    
+
     private func putSubmittedResponse(responseEntry : Types.ChallengeResponseSubmission) : Bool {
         submittedResponses := List.push<Types.ChallengeResponseSubmission>(responseEntry, submittedResponses);
         return true;
     };
 
     private func getSubmittedResponse(submissionId : Text) : ?Types.ChallengeResponseSubmission {
-        return List.find<Types.ChallengeResponseSubmission>(submittedResponses, func(responseEntry: Types.ChallengeResponseSubmission) : Bool { responseEntry.submissionId == submissionId } ); 
+        return List.find<Types.ChallengeResponseSubmission>(submittedResponses, func(responseEntry : Types.ChallengeResponseSubmission) : Bool { responseEntry.submissionId == submissionId });
     };
 
     private func getSubmittedResponses() : [Types.ChallengeResponseSubmission] {
@@ -82,7 +82,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     private func removeSubmittedResponse(submissionId : Text) : Bool {
-        submittedResponses := List.filter(submittedResponses, func(responseEntry: Types.ChallengeResponseSubmission) : Bool { responseEntry.submissionId != submissionId });
+        submittedResponses := List.filter(submittedResponses, func(responseEntry : Types.ChallengeResponseSubmission) : Bool { responseEntry.submissionId != submissionId });
         return true;
     };
 
@@ -99,15 +99,18 @@ actor class MainerAgentCtrlbCanister() = this {
     private var roundRobinLLMs : Nat = 0; // Only used when roundRobinUseAll is false
 
     // Generate the array of values from 0 to 100000 in steps of 11
-    let seedValues: [Nat64] = Array.tabulate(100000, func(index: Nat) : Nat64 {
-        return Nat64.fromNat(index * 11);
-    });
+    let seedValues : [Nat64] = Array.tabulate(
+        100000,
+        func(index : Nat) : Nat64 {
+            return Nat64.fromNat(index * 11);
+        },
+    );
 
     // Variable to track the current index
-    var currentSeedIndex: Nat = 0;
+    var currentSeedIndex : Nat = 0;
 
     // Function to get the next rng_seed
-    private func getNextRngSeed(): Nat64 {
+    private func getNextRngSeed() : Nat64 {
         let seed = seedValues[currentSeedIndex];
         // Update the index to the next value, cycling back to 0
         currentSeedIndex := (currentSeedIndex + 1) % seedValues.size();
@@ -286,7 +289,7 @@ actor class MainerAgentCtrlbCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
-// Settings
+    // Settings
 
     public shared (msg) func updateAgentSettings(settingsInput : Types.MainerAgentSettingsInput) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -307,7 +310,7 @@ actor class MainerAgentCtrlbCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
-// Respond to challenges
+    // Respond to challenges
 
     private func getChallengeFromGameStateCanister() : async Types.ChallengeResult {
         let result : Types.ChallengeResult = await gameStateCanisterActor.getRandomOpenChallenge();
@@ -343,7 +346,7 @@ actor class MainerAgentCtrlbCanister() = this {
             case (#Err(error)) {
                 // TODO: error handling
             };
-            case (#Ok(respondingOutput : Types.ChallengeResponse)) {                
+            case (#Ok(respondingOutput : Types.ChallengeResponse)) {
                 // Store response
                 let storeResult : Bool = putGeneratedResponse(respondingOutput);
 
@@ -367,7 +370,7 @@ actor class MainerAgentCtrlbCanister() = this {
                                     response : Text = respondingOutput.generatedResponseText;
                                     submissionId : Text = submissionReturnValue.submissionId;
                                     submittedTimestamp : Nat64 = submissionReturnValue.submittedTimestamp;
-                                    status: Types.ChallengeResponseSubmissionStatus = submissionReturnValue.status;
+                                    status : Types.ChallengeResponseSubmissionStatus = submissionReturnValue.status;
                                 };
                                 let putResult = putSubmittedResponse(submittedResponseEntry);
                                 switch (putResult) {
@@ -377,16 +380,16 @@ actor class MainerAgentCtrlbCanister() = this {
                                     case (true) {};
                                 };
                             };
-                        }; 
+                        };
                     };
-                };               
+                };
             };
         };
     };
 
     private func respondToNextChallenge() : async () {
         // TODO: incorporate cycles burn rate setting
-        
+
         // Get the next challenge to respond to
         let challengeResult : Types.ChallengeResult = await getChallengeFromGameStateCanister();
         switch (challengeResult) {
@@ -396,20 +399,20 @@ actor class MainerAgentCtrlbCanister() = this {
             case (#Ok(nextChallenge : Types.Challenge)) {
                 // Process the challenge
                 // Sanity checks
-                if (nextChallenge.challengeId == "" or nextChallenge.challengePrompt == "") {
+                if (nextChallenge.challengeId == "" or nextChallenge.challengeQuestion == "") {
                     return;
                 };
                 switch (nextChallenge.status) {
                     case (#Open) {
                         // continue
                     };
-                    case (_) { return; }
+                    case (_) { return };
                 };
                 switch (nextChallenge.closedTimestamp) {
                     case (null) {
                         // continue
                     };
-                    case (_) { return; }
+                    case (_) { return };
                 };
 
                 // Get response generated for challenge and submit it
@@ -427,7 +430,7 @@ actor class MainerAgentCtrlbCanister() = this {
             return #Err(#StatusCode(401));
         };
 
-        let storyID : Types.StoryID = storyInputRecord.storyID; 
+        let storyID : Types.StoryID = storyInputRecord.storyID;
         let storyPrompt : Text = storyInputRecord.storyPrompt;
 
         var storyOutputRecordResult : Types.StoryOutputRecordResult = #Ok({
@@ -481,11 +484,11 @@ actor class MainerAgentCtrlbCanister() = this {
         return canister;
     };
 
-    private func respondToChallengeDoIt_(llmCanister: Types.LLMCanister, startPrompt : Types.Prompt, challengeId : Text) : async Types.ChallengeResponseResult {
+    private func respondToChallengeDoIt_(llmCanister : Types.LLMCanister, startPrompt : Types.Prompt, challengeId : Text) : async Types.ChallengeResponseResult {
         D.print("Inside function respondToChallengeDoIt_. llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
 
         // The llama2_c canisters refers to each process with a token_id
-        let llmInput: Types.NFT_llama2_c = {
+        let llmInput : Types.NFT_llama2_c = {
             token_id = challengeId;
         };
 
@@ -541,7 +544,8 @@ actor class MainerAgentCtrlbCanister() = this {
             rng_seed : Nat64 = startPrompt.rng_seed;
         };
         var continueLoopCount : Nat = 0;
-        label continueLoop while (continueLoopCount < 5) { // TODO: determine number of allowed loops
+        label continueLoop while (continueLoopCount < 5) {
+            // TODO: determine number of allowed loops
             try {
                 D.print("---ctrlb_canister---");
                 D.print("calling nft_story_continue_mo with : ");
@@ -615,7 +619,7 @@ actor class MainerAgentCtrlbCanister() = this {
         // Return the generated response
         let responseOutput : Types.ChallengeResponse = {
             challengeId : Text = challengeId;
-            generationPrompt : Text = startPrompt.prompt;     
+            generationPrompt : Text = startPrompt.prompt;
             generatedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
             generatedByLlmId : Text = Principal.toText(Principal.fromActor(llmCanister));
             generatedResponseText : Text = generatedText;

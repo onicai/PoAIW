@@ -19,6 +19,11 @@ import Utils "Utils";
 
 actor class GameStateCanister() = this {
 
+    // Function to verify that canister is up & running
+    public shared query func health() : async Types.StatusCodeRecordResult {
+        return #Ok({ status_code = 200 });
+    };
+
     // Official Challenger canisters
     stable var challengerCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
     var challengerCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -586,7 +591,7 @@ actor class GameStateCanister() = this {
     };
 
     // Admin function to add an official protocol canister
-    public shared (msg) func addOfficialCanister(canisterEntryToAdd : Types.CanisterInput) : async Types.AuthRecordResult {
+    public shared (msg) func addOfficialCanister(canisterEntryToAdd : Types.CanisterInput) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -635,8 +640,7 @@ actor class GameStateCanister() = this {
             };
             case (_) { return #Err(#Other("Unsupported")); }
         };
-        let authRecord = { auth = "You added the canister." };
-        return #Ok(authRecord);
+        return #Ok({ status_code = 200 });
     };
 
     // Function for Challenger canister to retrieve current challenges
@@ -688,9 +692,9 @@ actor class GameStateCanister() = this {
 
                         let challengeAdded : Types.Challenge = {
                             challengeId : Text = challengeId;
+                            challengeQuestion : Text = newChallenge.challengeQuestion;
                             creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                             createdBy : Types.CanisterAddress = challengerEntry.address;
-                            challengePrompt : Text = newChallenge.challengePrompt;
                             status : Types.ChallengeStatus = #Open;
                             closedTimestamp : ?Nat64 = null;
                             responsibleJudgeAddress : Types.CanisterAddress = judgeCanister.address;

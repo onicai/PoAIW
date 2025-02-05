@@ -51,28 +51,28 @@ echo "Using network type: $NETWORK_TYPE"
 
 echo " "
 echo "--------------------------------------------------"
-echo "Deploying the challenger_ctrlb_canister"
+echo "Deploying the game_state_canister"
 
 if [ "$NETWORK_TYPE" = "ic" ]; then
     if [ "$SUBNET" = "none" ]; then
-        dfx deploy challenger_ctrlb_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
+        dfx deploy game_state_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
     else
-        dfx deploy challenger_ctrlb_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE --subnet $SUBNET
+        dfx deploy game_state_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE --subnet $SUBNET
     fi
 else
-    dfx deploy challenger_ctrlb_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
+    dfx deploy game_state_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
 fi
 
 echo " "
 echo "--------------------------------------------------"
 echo "Checking health endpoint"
-output=$(dfx canister call challenger_ctrlb_canister health --network $NETWORK_TYPE)
+output=$(dfx canister call game_state_canister health --network $NETWORK_TYPE)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-    echo "challenger_ctrlb_canister is not healthy. Exiting."
+    echo "game_state_canister is not healthy. Exiting."
     exit 1
 else
-    echo "challenger_ctrlb_canister is healthy."
+    echo "game_state_canister is healthy."
 fi
 
 echo " "

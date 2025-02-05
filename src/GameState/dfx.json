@@ -5,6 +5,7 @@
       "main": "src/Main.mo"
     }
   },
+  "output_env_file": ".env",
   "defaults": {
     "build": {
       "packtool": "mops sources"

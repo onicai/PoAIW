@@ -2,7 +2,7 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/deploy-challenger.sh
+# scripts/deploy-judge.sh
 #######################################################################
 
 # Default network type is local
@@ -44,30 +44,30 @@ echo "Using network type: $NETWORK_TYPE"
 
 #######################################################################
 echo " "
-echo "**************************"
-echo "* deploy: Challenger *"
-echo "**************************"
+echo "******************"
+echo "* deploy: Judge *"
+echo "*****************"
 
-cd llms/Challenger
-echo "-llms/Challenger: 2-deploy.sh:"
+cd llms/Judge
+echo "-llms/Judge: 2-deploy.sh:"
 scripts/2-deploy.sh --network $NETWORK_TYPE --mode $DEPLOY_MODE
 if [ "$DEPLOY_MODE" != "upgrade" ]; then
-    echo "-llms/Challenger: 3-upload-model.sh"
+    echo "-llms/Judge: 3-upload-model.sh"
     scripts/3-upload-model.sh --network $NETWORK_TYPE
 fi
-echo "-llms/Challenger: 4-load-model.sh"
+echo "-llms/Judge: 4-load-model.sh"
 scripts/4-load-model.sh --network $NETWORK_TYPE
-echo "-llms/Challenger: 5-set-max-tokens.sh"
+echo "-llms/Judge: 5-set-max-tokens.sh"
 scripts/5-set-max-tokens.sh --network $NETWORK_TYPE
 
-cd ../../src/Challenger
-echo "-src/Challenger: deploy.sh"
-scripts/deploy.sh --network $NETWORK_TYPE
-echo "-src/Challenger: register-llms.sh"
+cd ../../src/Judge
+echo "-src/Judge: deploy.sh"
+scripts/deploy.sh --network $NETWORK_TYPE --mode $DEPLOY_MODE
+echo "-src/Judge: register-llms.sh"
 scripts/register-llms.sh --network $NETWORK_TYPE
 
-cd ../../llms/Challenger
-echo "-llms/Challenger: 6-register-ctrlb-canister.sh"
+cd ../../llms/Judge
+echo "-llms/Judge: 6-register-ctrlb-canister.sh"
 scripts/6-register-ctrlb-canister.sh --network $NETWORK_TYPE
 
 #######################################################################
