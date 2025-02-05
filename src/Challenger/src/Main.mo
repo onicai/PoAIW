@@ -61,12 +61,12 @@ actor class ChallengerCtrlbCanister() {
         return true;
     };
 
-    public query (msg) func getChallengesAdmin() : async [Types.GeneratedChallenge] {
+    public shared query (msg) func getChallengesAdmin() : async Types.GeneratedChallengesResult {
         if (not Principal.isController(msg.caller)) {
-            return [];
+            return #Err(#Unauthorized);
         };
-
-        return getGeneratedChallenges();
+        let challenges : [Types.GeneratedChallenge] = getGeneratedChallenges();
+        return #Ok(challenges);
     };
 
     public query (msg) func getChallengesListAdmin() : async List.List<Types.GeneratedChallenge> {

@@ -10,6 +10,7 @@ module Types {
     };
 
     public type GeneratedChallengeResult = Result<GeneratedChallenge, ApiError>;
+    public type GeneratedChallengesResult = Result<[GeneratedChallenge], ApiError>;
 
     public type CanisterIDRecordResult = Result<CanisterIDRecord, ApiError>;
     public type CanisterIDRecord = {

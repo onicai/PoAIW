@@ -23,6 +23,10 @@ module Types {
         challengeAnswer : Text;
     };
 
+    public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmission, ApiError>;
+    public type ChallengeResponseSubmissionsResult = Result<[ChallengeResponseSubmission], ApiError>;
+
+
     public type ChallengeResponseSubmissionReturn = {
         success : Bool;
         submissionId : Text;
@@ -30,7 +34,8 @@ module Types {
         status : ChallengeResponseSubmissionStatus;
     };
 
-    public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmissionReturn, ApiError>;
+    public type ChallengeResponseSubmissionReturnResult = Result<ChallengeResponseSubmissionReturn, ApiError>;
+    public type ChallengeResponseSubmissionsReturnResult = Result<[ChallengeResponseSubmissionReturn], ApiError>;
 
     public type ScoredResponseInput = ChallengeResponseSubmission and {
         judgedBy : Principal;
@@ -167,10 +172,12 @@ module Types {
 
     //--
     public type ApiError = {
+        #Unauthorized;
         #InvalidId;
-        #StatusCode : Nat16;
-        #Other : Text;
         #ZeroAddress;
+        #FailedOperation;
+        #Other : Text;
+        #StatusCode : StatusCode;
     };
 
     //--
@@ -180,8 +187,11 @@ module Types {
     };
 
     // --
+    public type StatusCode = Nat16;
+
+    public type StatusCodeRecord = { status_code : StatusCode };
+
     public type StatusCodeRecordResult = Result<StatusCodeRecord, ApiError>;
-    public type StatusCodeRecord = { status_code : Nat16 };
 
     public type AuthRecord = {
         auth : Text;

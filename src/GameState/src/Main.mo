@@ -660,9 +660,6 @@ actor class GameStateCanister() = this {
 
     // Function for Admin to retrieve current challenges
     public shared query (msg) func getCurrentChallengesAdmin() : async Types.ChallengesResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };

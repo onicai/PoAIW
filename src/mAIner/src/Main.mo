@@ -90,12 +90,12 @@ actor class MainerAgentCtrlbCanister() = this {
         return true;
     };
 
-    public query (msg) func getSubmittedResponsesAdmin() : async [Types.ChallengeResponseSubmission] {
-        // TODO: change return type to a Result, with access denied error
+    public shared query (msg) func getSubmittedResponsesAdmin() : async Types.ChallengeResponseSubmissionsResult {
         if (not Principal.isController(msg.caller)) {
-            return [];
+            return #Err(#Unauthorized);
         };
-        return getSubmittedResponses();
+        let submissions : [Types.ChallengeResponseSubmission] = getSubmittedResponses();
+        return #Ok(submissions);
     };
 
     // Round-robin load balancer for LLM canisters to call
