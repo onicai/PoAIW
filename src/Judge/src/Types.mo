@@ -1,6 +1,13 @@
 import Nat64 "mo:base/Nat64";
 
 module Types {
+
+    public type ChallengeResponseSubmissionInput = {
+        challengeId : Text;
+        submittedBy : Principal;
+        challengeQuestion : Text;
+    };
+
     public type ChallengeResponseSubmissionStatus = {
         #FailedSubmission;
         #Received;
@@ -10,14 +17,11 @@ module Types {
         #Other : Text;
     };
 
-    public type ChallengeResponseSubmission = {
+    public type ChallengeResponseSubmission = ChallengeResponseSubmissionInput and {
         submissionId : Text;
-        challengeId : Text;
-        challengeQuestion : Text;
-        challengeAnswer : Text;
-        submittedBy : Principal;
         submittedTimestamp : Nat64;
-        status : ChallengeResponseSubmissionStatus;
+        status: ChallengeResponseSubmissionStatus;
+        challengeAnswer : Text;
     };
 
     public type ChallengeResponseSubmissionReturn = {

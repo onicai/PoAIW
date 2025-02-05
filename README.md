@@ -59,10 +59,13 @@ sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
 # from folder: PoAIW
 scripts/build_llama_cpp_canister.sh  # Note: Optional - works on Mac only
 
+# All at once:
+scripts/deploy-all.sh --mode [install/reinstall/upgrade] --network [local/ic]
+
+# Step-by-step:
 scripts/deploy-challenger.sh --mode [install/reinstall/upgrade] --network [local/ic]
 scripts/deploy-judge.sh      --mode [install/reinstall/upgrade] --network [local/ic]
 scripts/deploy-mainer.sh     --mode [install/reinstall/upgrade] --network [local/ic]
-
 scripts/deploy-gamestate.sh  --mode [install/reinstall/upgrade] --network [local/ic]
 ```
 

@@ -886,12 +886,13 @@ actor class GameStateCanister() = this {
                         // Forward submission to responsible Judge
                         let submissionId : Text = await Utils.newRandomUniqueId();
                         let submissionToForward : Types.ChallengeResponseSubmission = {
-                            submissionId : Text = submissionId;
                             challengeId : Text = challengeResponseSubmitted.challengeId;
                             submittedBy : Principal = msg.caller;
-                            response : Text = challengeResponseSubmitted.response;
+                            challengeQuestion : Text = challengeResponseSubmitted.challengeQuestion;
+                            submissionId : Text = submissionId;
                             submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                             status: Types.ChallengeResponseSubmissionStatus = #Received;
+                            challengeAnswer : Text = challengeResponseSubmitted.challengeAnswer;
                         };
                         
                         let judgeAddress = judgeCanister.address;
@@ -952,7 +953,8 @@ actor class GameStateCanister() = this {
                             submissionId : Text = scoredResponseInput.submissionId;
                             challengeId : Text = scoredResponseInput.challengeId;
                             submittedBy : Principal = scoredResponseInput.submittedBy;
-                            response : Text = scoredResponseInput.response;
+                            challengeQuestion : Text = scoredResponseInput.challengeQuestion;
+                            challengeAnswer : Text = scoredResponseInput.challengeAnswer;
                             submittedTimestamp : Nat64 = scoredResponseInput.submittedTimestamp;
                             status: Types.ChallengeResponseSubmissionStatus = #Judged;
                             judgedBy: Principal = scoredResponseInput.judgedBy;

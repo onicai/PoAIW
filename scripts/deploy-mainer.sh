@@ -45,29 +45,29 @@ echo "Using network type: $NETWORK_TYPE"
 #######################################################################
 echo " "
 echo "**************************"
-echo "* deploy: Challenger *"
+echo "* deploy: mAIner *"
 echo "**************************"
 
-cd llms/Challenger
-echo "-llms/Challenger: 2-deploy.sh:"
+cd llms/mAIner
+echo "-llms/mAIner: 2-deploy.sh:"
 scripts/2-deploy.sh --network $NETWORK_TYPE --mode $DEPLOY_MODE
 if [ "$DEPLOY_MODE" != "upgrade" ]; then
-    echo "-llms/Challenger: 3-upload-model.sh"
+    echo "-llms/mAIner: 3-upload-model.sh"
     scripts/3-upload-model.sh --network $NETWORK_TYPE
 fi
-echo "-llms/Challenger: 4-load-model.sh"
+echo "-llms/mAIner: 4-load-model.sh"
 scripts/4-load-model.sh --network $NETWORK_TYPE
-echo "-llms/Challenger: 5-set-max-tokens.sh"
+echo "-llms/mAIner: 5-set-max-tokens.sh"
 scripts/5-set-max-tokens.sh --network $NETWORK_TYPE
 
-cd ../../src/Challenger
-echo "-src/Challenger: deploy.sh"
-scripts/deploy.sh --network $NETWORK_TYPE --mode $DEPLOY_MODE
-echo "-src/Challenger: register-llms.sh"
+cd ../../src/mAIner
+echo "-src/mAIner: deploy.sh"
+scripts/deploy.sh --network $NETWORK_TYPE
+echo "-src/mAIner: register-llms.sh"
 scripts/register-llms.sh --network $NETWORK_TYPE
 
-cd ../../llms/Challenger
-echo "-llms/Challenger: 6-register-ctrlb-canister.sh"
+cd ../../llms/mAIner
+echo "-llms/mAIner: 6-register-ctrlb-canister.sh"
 scripts/6-register-ctrlb-canister.sh --network $NETWORK_TYPE
 
 #######################################################################
