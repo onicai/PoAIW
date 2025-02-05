@@ -90,6 +90,14 @@ actor class MainerAgentCtrlbCanister() = this {
         return true;
     };
 
+    public query (msg) func getSubmittedResponsesAdmin() : async [Types.ChallengeResponseSubmission] {
+        // TODO: change return type to a Result, with access denied error
+        if (not Principal.isController(msg.caller)) {
+            return [];
+        };
+        return getSubmittedResponses();
+    };
+
     // Round-robin load balancer for LLM canisters to call
     private var roundRobinIndex : Nat = 0;
     private var roundRobinUseAll : Bool = true;
@@ -640,16 +648,13 @@ actor class MainerAgentCtrlbCanister() = this {
     stable var actionRegularityInSeconds = 300; // TODO: set based on user setting for cycles burn rate
 
     private func triggerRecurringAction() : async () {
-        print("############################Recurring action was triggered############################");
-        D.print("############################Recurring action was triggered############################");
+        D.print("############################mAIner: Recurring action was triggered############################");
         //ignore respondToNextChallenge(); TODO
         let result = await respondToNextChallenge();
-        print("############################Recurring action result############################");
-        D.print("############################Recurring action result############################");
+        D.print("############################mAIner: Recurring action result############################");
         print(debug_show (result));
         D.print(debug_show (result));
-        print("############################Recurring action result############################");
-        D.print("############################Recurring action result############################");
+        D.print("############################mAIner: Recurring action result############################");
     };
 
     public shared (msg) func startTimerExecutionAdmin() : async Types.AuthRecordResult {
@@ -658,8 +663,7 @@ actor class MainerAgentCtrlbCanister() = this {
         };
         ignore setTimer<system>(#seconds 5,
             func () : async () {
-                print("############################setTimer############################");
-                D.print("############################setTimer############################");
+                D.print("############################mAIner: setTimer############################");
                 ignore recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction);
                 await triggerRecurringAction();
         });

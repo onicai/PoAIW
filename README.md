@@ -96,6 +96,24 @@ dfx canister call challenger_ctrlb_canister getChallengesAdmin
 dfx canister call game_state_canister getCurrentChallengesAdmin
 ```
 
+# Test mAIner:
+```bash
+# from folder: PoAIW/src/mAIner
+# start the timer that generates challenge responses recurringly
+dfx canister call mainer_ctrlb_canister startTimerExecutionAdmin
+# you can also trigger a single challenge response generation manually
+dfx canister call mainer_ctrlb_canister respondToNextChallenge
+```
+
+The challenge response generation takes a moment. To ensure it worked, call
+```bash
+# from folder: PoAIW/src/mAIner
+dfx canister call mainer_ctrlb_canister getSubmittedResponsesAdmin
+
+# from folder: PoAIW/src/GameState
+dfx canister call game_state_canister getCurrentChallengesAdmin
+```
+
 # Test Judge
 To manually add a Submission to Judge, call
 ```bash
