@@ -29,7 +29,16 @@ actor class MainerAgentCtrlbCanister() = this {
             return #Err(#StatusCode(401));
         };
         GAME_STATE_CANISTER_ID := _game_state_canister_id;
+        gameStateCanisterActor := actor (GAME_STATE_CANISTER_ID);
         return #Ok({ status_code = 200 });
+    };
+
+    public query (msg) func getGameStateCanisterId() : async Text {
+        if (not Principal.isController(msg.caller)) {
+            return "#Err(#StatusCode(401))";
+        };
+
+        return GAME_STATE_CANISTER_ID;
     };
 
     // Orthogonal Persisted Data storage
@@ -259,12 +268,14 @@ actor class MainerAgentCtrlbCanister() = this {
 
     private func getChallengeFromGameStateCanister() : async Types.ChallengeResult {
         let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
+        D.print("mAiner: calling getRandomOpenChallenge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let result : Types.ChallengeResult = await gameStateCanisterActor.getRandomOpenChallenge();
         return result;
     };
 
     private func submitResponseToGameStateCanister(challengeResponseSubmission : Types.ChallengeResponseSubmission ) : async Types.ChallengeResponseSubmissionResult {
         let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
+        D.print("mAiner: calling submitChallengeResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let result : Types.ChallengeResponseSubmissionResult = await gameStateCanisterActor.submitChallengeResponse(challengeResponseSubmission);
         return result;
     };
@@ -560,13 +571,12 @@ actor class MainerAgentCtrlbCanister() = this {
         // TODO: incorporate cycles burn rate setting
 
         // Get the next challenge to respond to
+        D.print("mAIner: respondToNextChallenge - calling getChallengeFromGameStateCanister.");
         let challengeResult : Types.ChallengeResult = await getChallengeFromGameStateCanister();
-        D.print("############################mAIner: respondToNextChallenge challengeResult############################");
-        D.print(debug_show (challengeResult));
+        D.print("mAIner: respondToNextChallenge - received challengeResult from getChallengeFromGameStateCanister: " # debug_show (challengeResult));
         switch (challengeResult) {
             case (#Err(error)) {
-                D.print("############################mAIner: respondToNextChallenge challengeResult error############################");
-                D.print(debug_show (error));
+                D.print("mAIner: respondToNextChallenge - challengeResult error : " # debug_show (error));
                 // TODO: error handling
             };
             case (#Ok(nextChallenge : Types.Challenge)) {

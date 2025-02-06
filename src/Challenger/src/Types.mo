@@ -66,7 +66,7 @@ module Types {
 
     public type ChallengeAdditionResult = Result<Challenge, ApiError>;
 
-    public type GameStateCanister = actor {
+    public type GameStateCanister_Actor = actor {
         addChallenge : (NewChallengeInput) -> async ChallengeAdditionResult;
     };
 

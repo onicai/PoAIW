@@ -25,6 +25,7 @@ actor class JudgeCtrlbCanister() = this {
             return #Err(#StatusCode(401));
         };
         GAME_STATE_CANISTER_ID := _game_state_canister_id;
+        gameStateCanisterActor := actor (GAME_STATE_CANISTER_ID);
         return #Ok({ status_code = 200 });
     };
 
@@ -205,6 +206,7 @@ actor class JudgeCtrlbCanister() = this {
             score : Nat = scoredResponse.score;
         };
         let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
+        D.print("Judge: calling addScoredResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let result : Types.ScoredResponseResult = await gameStateCanisterActor.addScoredResponse(scoredResponseInput);
         return result;
     };
