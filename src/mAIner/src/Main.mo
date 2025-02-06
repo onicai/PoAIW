@@ -24,8 +24,6 @@ actor class MainerAgentCtrlbCanister() = this {
 
     stable var GAME_STATE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // local dev: "bkyz2-fmaaa-aaaaa-qaaaq-cai";
 
-    stable let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
-
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
@@ -260,11 +258,13 @@ actor class MainerAgentCtrlbCanister() = this {
     // Respond to challenges
 
     private func getChallengeFromGameStateCanister() : async Types.ChallengeResult {
+        let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
         let result : Types.ChallengeResult = await gameStateCanisterActor.getRandomOpenChallenge();
         return result;
     };
 
     private func submitResponseToGameStateCanister(challengeResponseSubmission : Types.ChallengeResponseSubmission ) : async Types.ChallengeResponseSubmissionResult {
+        let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
         let result : Types.ChallengeResponseSubmissionResult = await gameStateCanisterActor.submitChallengeResponse(challengeResponseSubmission);
         return result;
     };
@@ -675,6 +675,16 @@ actor class MainerAgentCtrlbCanister() = this {
                 await triggerRecurringAction();
         });
         let authRecord = { auth = "You started the timer." };
+        return #Ok(authRecord);
+    };
+
+    // TODO: remove; testing function for admin
+    public shared (msg) func triggerChallengeResponseAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        let result = await respondToNextChallenge();
+        let authRecord = { auth = "You triggered the response generation." };
         return #Ok(authRecord);
     };
 };
