@@ -102,7 +102,7 @@ dfx canister call game_state_canister getCurrentChallengesAdmin
 # start the timer that generates challenge responses recurringly
 dfx canister call mainer_ctrlb_canister startTimerExecutionAdmin
 # you can also trigger a single challenge response generation manually
-dfx canister call mainer_ctrlb_canister respondToNextChallenge
+dfx canister call mainer_ctrlb_canister respondToNextChallenge  # TODO.... (still private function..)
 ```
 
 The challenge response generation takes a moment. To ensure it worked, call
