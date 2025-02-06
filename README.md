@@ -98,6 +98,9 @@ dfx canister call game_state_canister getCurrentChallengesAdmin
 
 # Test mAIner:
 ```bash
+# from folder: PoAIW/src/GameState
+# register the mAIner agent with the Game State canister for testing as an admin
+dfx canister call game_state_canister addMainerAgentCanisterAdmin "(record { address = \"ahw5u-keaaa-aaaaa-qaaha-cai\"; canisterType = variant {MainerAgent}; ownedBy = principal\"$(dfx identity get-principal)\" })"
 # from folder: PoAIW/src/mAIner
 # start the timer that generates challenge responses recurringly
 dfx canister call mainer_ctrlb_canister startTimerExecutionAdmin
