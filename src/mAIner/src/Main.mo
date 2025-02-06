@@ -24,14 +24,23 @@ actor class MainerAgentCtrlbCanister() = this {
 
     stable var GAME_STATE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // local dev: "bkyz2-fmaaa-aaaaa-qaaaq-cai";
 
-    stable let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
+    stable var gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
 
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
         GAME_STATE_CANISTER_ID := _game_state_canister_id;
+        gameStateCanisterActor := actor (GAME_STATE_CANISTER_ID);
         return #Ok({ status_code = 200 });
+    };
+
+    public query (msg) func getGameStateCanisterId() : async Text {
+        if (not Principal.isController(msg.caller)) {
+            return "#Err(#StatusCode(401))";
+        };
+
+        return GAME_STATE_CANISTER_ID;
     };
 
     // Orthogonal Persisted Data storage
@@ -260,11 +269,13 @@ actor class MainerAgentCtrlbCanister() = this {
     // Respond to challenges
 
     private func getChallengeFromGameStateCanister() : async Types.ChallengeResult {
+        D.print("mAiner: calling getRandomOpenChallenge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let result : Types.ChallengeResult = await gameStateCanisterActor.getRandomOpenChallenge();
         return result;
     };
 
     private func submitResponseToGameStateCanister(challengeResponseSubmission : Types.ChallengeResponseSubmission ) : async Types.ChallengeResponseSubmissionResult {
+        D.print("mAiner: calling submitChallengeResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let result : Types.ChallengeResponseSubmissionResult = await gameStateCanisterActor.submitChallengeResponse(challengeResponseSubmission);
         return result;
     };
@@ -559,9 +570,12 @@ actor class MainerAgentCtrlbCanister() = this {
         // TODO: incorporate cycles burn rate setting
 
         // Get the next challenge to respond to
+        D.print("mAIner: respondToNextChallenge - calling getChallengeFromGameStateCanister.");
         let challengeResult : Types.ChallengeResult = await getChallengeFromGameStateCanister();
+        D.print("mAIner: respondToNextChallenge - received challengeResult from getChallengeFromGameStateCanister: " # debug_show (challengeResult));
         switch (challengeResult) {
             case (#Err(error)) {
+                D.print("mAIner: respondToNextChallenge - challengeResult error : " # debug_show (error));
                 // TODO: error handling
             };
             case (#Ok(nextChallenge : Types.Challenge)) {
@@ -668,6 +682,16 @@ actor class MainerAgentCtrlbCanister() = this {
                 await triggerRecurringAction();
         });
         let authRecord = { auth = "You started the timer." };
+        return #Ok(authRecord);
+    };
+
+    // Manually trigger the recurring action
+    public shared (msg) func triggerRecurringActionAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        await triggerRecurringAction();
+        let authRecord = { auth = "triggerRecurringAction finished." };
         return #Ok(authRecord);
     };
 };

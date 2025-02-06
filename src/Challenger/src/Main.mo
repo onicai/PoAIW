@@ -21,12 +21,15 @@ import Utils "Utils";
 actor class ChallengerCtrlbCanister() {
 
     stable var GAME_STATE_CANISTER_ID : Text = "b77ix-eeaaa-aaaaa-qaada-cai"; // local dev: "b77ix-eeaaa-aaaaa-qaada-cai";
+    
+    stable var gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
 
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
         GAME_STATE_CANISTER_ID := _game_state_canister_id;
+        gameStateCanisterActor := actor (GAME_STATE_CANISTER_ID);
         return #Ok({ status_code = 200 });
     };
 
@@ -252,8 +255,7 @@ actor class ChallengerCtrlbCanister() {
                     challengeQuestion : Text = generatedChallenge.generatedChallengeText;
                 };
 
-                let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister;
-
+                D.print("Challenger: calling addChallenge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
                 let additionResult : Types.ChallengeAdditionResult = await gameStateCanisterActor.addChallenge(newChallenge);
                 D.print("############################Challenger: generateChallenge generatedChallengeOutput Ok additionResult############################");
                 print(debug_show (additionResult));
