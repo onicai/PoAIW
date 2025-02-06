@@ -788,6 +788,34 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // TODO: remove; admin Function to add new mAIner agent for testing
+    public shared (msg) func addMainerAgentCanisterAdmin(canisterEntryToAdd : Types.MainerAgentCanisterInput) : async Types.MainerAgentCanisterResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        switch (canisterEntryToAdd.canisterType) {
+            case (#MainerAgent) {
+                // continue
+            };
+            case (_) { return #Err(#Other("Unsupported")); }
+        };
+        let canisterEntry : Types.OfficialProtocolCanister = {
+            address : Text = canisterEntryToAdd.address;
+            canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
+            creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+            createdBy : Principal = msg.caller;
+            ownedBy : Principal = canisterEntryToAdd.ownedBy;
+        };
+        let putResponse = putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry);
+        if (not putResponse) {
+            return #Err(#Other("An error adding the canister occurred"));
+        };
+        return #Ok(canisterEntry); 
+    };
+
     // Function to retrieve info on a mAIner agent canister
     public shared query (msg) func getMainerAgentCanisterInfo(canisterEntryToRetrieve : Types.CanisterRetrieveInput) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
