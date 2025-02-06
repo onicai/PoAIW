@@ -98,23 +98,33 @@ dfx canister call game_state_canister getCurrentChallengesAdmin
 
 # Test mAIner:
 ```bash
-# from folder: PoAIW/src/GameState
-# register the mAIner agent with the Game State canister for testing as an admin
-dfx canister call game_state_canister addMainerAgentCanisterAdmin "(record { address = \"ahw5u-keaaa-aaaaa-qaaha-cai\"; canisterType = variant {MainerAgent}; ownedBy = principal\"$(dfx identity get-principal)\" })"
 # from folder: PoAIW/src/mAIner
 # start the timer that generates challenge responses recurringly
 dfx canister call mainer_ctrlb_canister startTimerExecutionAdmin
+
+
+# TODO - remove once Create Mainer is functional
+# from folder: PoAIW/src/GameState
+# register the mAIner agent with the Game State canister for testing as an admin
+# NOTE: this is already done by register-all.sh
+# dfx canister call game_state_canister addMainerAgentCanisterAdmin "(record { address = \"ahw5u-keaaa-aaaaa-qaaha-cai\"; canisterType = variant {MainerAgent}; ownedBy = principal\"$(dfx identity get-principal)\" })"
 # you can also trigger a single challenge response generation manually
-dfx canister call mainer_ctrlb_canister triggerRecurringActionAdmin
+dfx canister call mainer_ctrlb_canister triggerChallengeResponseAdmin
 ```
 
-The challenge response generation takes a moment. To ensure it worked, call
+The challenge response generation takes a moment:
+(1) The mAIner uses an LLM to generate a response and submits it to the GameState
+(2) The GameState is not storing anything yet. It just forwards the submission to a Judge for scoring
+(3) The Judge uses an LLM to score the response and submits the scored submission to the GameState
+(4) The GameState now stores the scored submission
+
+To ensure it worked, call
 ```bash
 # from folder: PoAIW/src/mAIner
-dfx canister call mainer_ctrlb_canister getSubmittedResponsesAdmin
+dfx canister call mainer_ctrlb_canister getSubmittedResponsesAdmin  # TODO
 
 # from folder: PoAIW/src/GameState
-dfx canister call game_state_canister getCurrentChallengesAdmin
+dfx canister call game_state_canister get...Admin  # TODO ?
 ```
 
 # Test Judge
@@ -123,14 +133,18 @@ To manually add a Submission to Judge, call
 # from folder: PoAIW/src/Judge
 dfx canister call judge_ctrlb_canister addSubmissionToJudge \
   '(record { 
-      submissionId = "s-01"; 
       challengeId = "c-01"; 
+      submittedBy = principal "aaaaa-aa"; 
       challengeQuestion = "What is a blockchain?"; 
       challengeAnswer = "A distributed ledger"; 
-      submittedBy = principal "aaaaa-aa"; 
+      submissionId = "s-01"; 
       submittedTimestamp = 1707072000000000000 : nat64; 
-      status = variant { Submitted }
+      status = variant { Received }
   })'
 ```
 
-Check the logs, and you will see that the challenge is correctly scored.
+Check the logs, and you will see that the challenge is correctly scored,
+and after scoring, send to the GameState for storing.
+
+Because this is a fake challenge, the GameState canister will reject storing
+it with a #InvalidId error.

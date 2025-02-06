@@ -12,6 +12,7 @@ module Types {
         #FailedOperation;
         #Other : Text;
         #StatusCode : StatusCode;
+        #InsuffientCycles : Nat; // Returns the required cycles to perform the operation
     };
 
     public type Result<S, E> = {
@@ -111,12 +112,6 @@ module Types {
 
     public type ChallengesResult = Result<[Challenge], ApiError>;
 
-    public type ChallengeResponseSubmissionInput = {
-        challengeId : Text;
-        submittedBy : Principal;
-        challengeQuestion : Text;
-    };
-
     public type ChallengeResponseSubmissionStatus = {
         #FailedSubmission;
         #Received;
@@ -126,21 +121,23 @@ module Types {
         #Other : Text;
     };
 
-    public type ChallengeResponseSubmission = ChallengeResponseSubmissionInput and {
-        submissionId : Text;
-        submittedTimestamp : Nat64;
-        status: ChallengeResponseSubmissionStatus;
+    public type ChallengeResponseSubmissionInput = {
+        challengeId : Text;
+        submittedBy : Principal;
+        challengeQuestion : Text;
         challengeAnswer : Text;
     };
 
-    public type ChallengeResponseSubmissionReturn = {
-        success : Bool;
+    public type ChallengeResponseSubmissionMetadata = {
         submissionId : Text;
         submittedTimestamp : Nat64;
-        status: ChallengeResponseSubmissionStatus;
+        status : ChallengeResponseSubmissionStatus;
     };
 
-    public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmissionReturn, ApiError>;
+    public type ChallengeResponseSubmission = ChallengeResponseSubmissionInput and ChallengeResponseSubmissionMetadata;
+
+    public type ChallengeResponseSubmissionMetadataResult = Result<ChallengeResponseSubmissionMetadata, ApiError>;
+    public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmission, ApiError>;
 
     public type ScoredResponseInput = ChallengeResponseSubmission and {
         judgedBy: Principal;

@@ -514,22 +514,26 @@ actor class JudgeCtrlbCanister() = this {
     };
 
     // Endpoint to be called by Game State canister to score a mAIner's response to a challenge
-    public shared (msg) func addSubmissionToJudge(submissionEntry : Types.ChallengeResponseSubmission) : async Types.ChallengeResponseSubmissionResult {
+    public shared (msg) func addSubmissionToJudge(submissionEntry : Types.ChallengeResponseSubmission) : async Types.ChallengeResponseSubmissionMetadataResult {
+        D.print("Judge: addSubmissionToJudge - entered");
         if (not (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(GAME_STATE_CANISTER_ID)) or Principal.equal(msg.caller, Principal.fromActor(this)))) {
+            D.print("Judge: addSubmissionToJudge - 01");
             return #Err(#StatusCode(401));
         };
 
         // Sanity checks on submitted response
-        if (submissionEntry.status != #Submitted or submissionEntry.submissionId == "" or submissionEntry.challengeId == "" or submissionEntry.challengeQuestion == "" or submissionEntry.challengeAnswer == "") {
+        if (submissionEntry.status != #Received or submissionEntry.submissionId == "" or submissionEntry.challengeId == "" or submissionEntry.challengeQuestion == "" or submissionEntry.challengeAnswer == "") {
+            D.print("Judge: addSubmissionToJudge - 02");
             return #Err(#Other("invalid submission value"));
         };
 
         // Trigger processing submission but don't wait on result
+        D.print("Judge: addSubmissionToJudge - 03");
         ignore processSubmission(submissionEntry);
 
         // Return receipt of submission
+        D.print("Judge: addSubmissionToJudge - 04");
         return #Ok({
-            success : Bool = true;
             submissionId : Text = submissionEntry.submissionId;
             submittedTimestamp : Nat64 = submissionEntry.submittedTimestamp;
             status : Types.ChallengeResponseSubmissionStatus = #Submitted;

@@ -14,15 +14,18 @@ module Types {
         challengeId : Text;
         submittedBy : Principal;
         challengeQuestion : Text;
-    };
-
-    public type ChallengeResponseSubmission = ChallengeResponseSubmissionInput and {
-        submissionId : Text;
-        submittedTimestamp : Nat64;
-        status : ChallengeResponseSubmissionStatus;
         challengeAnswer : Text;
     };
 
+    public type ChallengeResponseSubmissionMetadata = {
+        submissionId : Text;
+        submittedTimestamp : Nat64;
+        status : ChallengeResponseSubmissionStatus;
+    };
+
+    public type ChallengeResponseSubmission = ChallengeResponseSubmissionInput and ChallengeResponseSubmissionMetadata;
+
+    public type ChallengeResponseSubmissionMetadataResult = Result<ChallengeResponseSubmissionMetadata, ApiError>;
     public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmission, ApiError>;
     public type ChallengeResponseSubmissionsResult = Result<[ChallengeResponseSubmission], ApiError>;
 
@@ -149,6 +152,7 @@ module Types {
         addScoredResponse : (ScoredResponseInput) -> async ScoredResponseResult;
         submitChallengeResponse : (ChallengeResponseSubmissionInput) -> async ChallengeResponseSubmissionResult;
         getRandomOpenChallenge : () -> async ChallengeResult;
+        getSubmissionCyclesRequired : () -> async Nat;
     };
 
     // Agent Settings
@@ -178,6 +182,7 @@ module Types {
         #FailedOperation;
         #Other : Text;
         #StatusCode : StatusCode;
+        #InsuffientCycles : Nat; // Returns the required cycles to perform the operation
     };
 
     //--

@@ -7,13 +7,14 @@ import Text "mo:base/Text";
 import Nat "mo:base/Nat";
 import Nat64 "mo:base/Nat64";
 import Bool "mo:base/Bool";
-import HashMap "mo:base/HashMap";
+// import HashMap "mo:base/HashMap";
 import List "mo:base/List";
 import Int "mo:base/Int";
 import Time "mo:base/Time";
 import Iter "mo:base/Iter";
 import Char "mo:base/Char";
 import Float "mo:base/Float";
+import Cycles "mo:base/ExperimentalCycles";
 import { print } = "mo:base/Debug";
 import { setTimer; recurringTimer } = "mo:base/Timer";
 
@@ -270,20 +271,15 @@ actor class MainerAgentCtrlbCanister() = this {
     private func getChallengeFromGameStateCanister() : async Types.ChallengeResult {
         D.print("mAiner: calling getRandomOpenChallenge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let result : Types.ChallengeResult = await gameStateCanisterActor.getRandomOpenChallenge();
-        return result;
-    };
-
-    private func submitResponseToGameStateCanister(challengeResponseSubmission : Types.ChallengeResponseSubmission ) : async Types.ChallengeResponseSubmissionResult {
-        D.print("mAiner: calling submitChallengeResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
-        let result : Types.ChallengeResponseSubmissionResult = await gameStateCanisterActor.submitChallengeResponse(challengeResponseSubmission);
+        D.print("mAiner: getRandomOpenChallenge returned.");
         return result;
     };
 
     private func processRespondingToChallenge(challenge : Types.Challenge) : async () {
-        D.print("############################Mainer: processRespondingToChallenge############################");
+        D.print("############################Mainer: processRespondingToChallenge - calling respondToChallengeDoIt_############################");
         let respondingResult : Types.ChallengeResponseResult = await respondToChallengeDoIt_(challenge);
-        D.print("############################Mainer: processRespondingToChallenge############################");
-        D.print(debug_show (respondingResult));
+        D.print("############################Mainer: processRespondingToChallenge - returned from respondToChallengeDoIt_############################");
+        D.print("respondingResult = " # debug_show (respondingResult));
 
         switch (respondingResult) {
             case (#Err(error)) {
@@ -292,8 +288,11 @@ actor class MainerAgentCtrlbCanister() = this {
                 // TODO: error handling
             };
             case (#Ok(respondingOutput : Types.ChallengeResponse)) {
+                D.print("Mainer: processRespondingToChallenge - calling putGeneratedResponse");
+                D.print("Mainer: respondingOutput = " # debug_show (respondingOutput));
                 // Store response
                 let storeResult : Bool = putGeneratedResponse(respondingOutput);
+                D.print("Mainer: processRespondingToChallenge - returned from putGeneratedResponse");
 
                 switch (storeResult) {
                     case (false) {
@@ -303,34 +302,41 @@ actor class MainerAgentCtrlbCanister() = this {
                     case (true) {
                         // Submit response to Game State canister
                         let submittedBy : Principal = Principal.fromActor(this);
-                        let challengeResponseSubmission : Types.ChallengeResponseSubmission = {
+                        let challengeResponseSubmissionInput : Types.ChallengeResponseSubmissionInput = {
                             challengeId : Text = challenge.challengeId;
                             submittedBy : Principal = submittedBy;
                             challengeQuestion : Text = challenge.challengeQuestion;
-                            submissionId : Text = respondingOutput.generationId;
-                            submittedTimestamp : Nat64 = respondingOutput.generatedTimestamp;
-                            status : Types.ChallengeResponseSubmissionStatus = #Submitted;
                             challengeAnswer : Text = respondingOutput.generatedResponseText;
                         };
-                        let submitResult : Types.ChallengeResponseSubmissionResult = await submitResponseToGameStateCanister(challengeResponseSubmission);
-                        switch (submitResult) {
+                        D.print("mAiner: processRespondingToChallenge- calling getSubmissionCyclesRequired of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
+                        // Add the desired amount of cycles
+                        let submissionCyclesRequired : Nat = await gameStateCanisterActor.getSubmissionCyclesRequired();
+                        D.print("mAiner: processRespondingToChallenge- submissionCyclesRequired = " # debug_show(submissionCyclesRequired));
+                        Cycles.add<system>(submissionCyclesRequired);
+
+                        D.print("mAiner: processRespondingToChallenge- calling submitChallengeResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
+                        let submitMetadaResult : Types.ChallengeResponseSubmissionMetadataResult = await gameStateCanisterActor.submitChallengeResponse(challengeResponseSubmissionInput);
+                        D.print("Mainer: processRespondingToChallenge - returned from gameStateCanisterActor.submitChallengeResponse");
+                        switch (submitMetadaResult) {
                             case (#Err(error)) {
-                                D.print("############################Mainer: submitResult error############################");
+                                D.print("############################Mainer: submitMetada error############################");
                                 D.print(debug_show (error));
                                 // TODO: error handling
                             };
-                            case (#Ok(submissionReturnValue : Types.ChallengeResponseSubmission)) {
+                            case (#Ok(submitMetada : Types.ChallengeResponseSubmissionMetadata)) {
                                 // Successfully submitted to Game State
                                 let challengeResponseSubmission : Types.ChallengeResponseSubmission = {
-                                    challengeId : Text = challenge.challengeId;
-                                    submittedBy : Principal = submittedBy;
-                                    challengeQuestion : Text = challenge.challengeQuestion;
-                                    submissionId : Text = respondingOutput.generationId;
-                                    submittedTimestamp : Nat64 = respondingOutput.generatedTimestamp;
-                                    status : Types.ChallengeResponseSubmissionStatus = submissionReturnValue.status;
-                                    challengeAnswer : Text = respondingOutput.generatedResponseText;
+                                    challengeId : Text = challengeResponseSubmissionInput.challengeId;
+                                    submittedBy : Principal = challengeResponseSubmissionInput.submittedBy;
+                                    challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
+                                    challengeAnswer : Text = challengeResponseSubmissionInput.challengeAnswer;
+                                    submissionId : Text = submitMetada.submissionId;
+                                    submittedTimestamp : Nat64 = submitMetada.submittedTimestamp;
+                                    status : Types.ChallengeResponseSubmissionStatus = submitMetada.status;
                                 };
+                                D.print("Mainer: processRespondingToChallenge - calling putSubmittedResponse");
                                 let putResult = putSubmittedResponse(challengeResponseSubmission);
+                                D.print("Mainer: processRespondingToChallenge - return from putSubmittedResponse");
                                 switch (putResult) {
                                     case (false) {
                                         D.print("############################Mainer: putResult error############################");
