@@ -62,7 +62,7 @@ scripts/5-set-max-tokens.sh --network $NETWORK_TYPE
 
 cd ../../src/mAIner
 echo "-src/mAIner: deploy.sh"
-scripts/deploy.sh --network $NETWORK_TYPE
+scripts/deploy.sh --network $NETWORK_TYPE --mode $DEPLOY_MODE
 echo "-src/mAIner: register-llms.sh"
 scripts/register-llms.sh --network $NETWORK_TYPE
 
