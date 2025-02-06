@@ -84,11 +84,16 @@ fi
 echo " "
 echo "--------------------------------------------------"
 echo "Registering mAIner with the game_state_canister"
-output=$(dfx canister call game_state_canister addOfficialCanister "(record { address = \"$CANISTER_ID_MAINER_CTRLB_CANISTER\"; canisterType = variant {MainerAgent} })" --network $NETWORK_TYPE)
+echo "TODO - WE TEMPORARILY ALLOW A CONTROLLER to add a mAIner Agent, owned by the controller..."
+echo "TODO - Once mAIner agent creator is working, we will remove this from the GameState canister"
+MYPRINCIPAL=$(dfx identity get-principal | tr -d '\n')
+output=$(dfx canister call game_state_canister addMainerAgentCanister "(record { address = \"$CANISTER_ID_MAINER_CTRLB_CANISTER\"; canisterType = variant {MainerAgent}; ownedBy = principal \"$MYPRINCIPAL\" })" --network $NETWORK_TYPE)
 
-if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-    echo "Error calling addOfficialCanister for mAIner $CANISTER_ID_MAINER_CTRLB_CANISTER."
+echo "output: $output"
+# if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+if [[ "$output" != *"Ok = record"* ]]; then
+    echo "Error calling addMainerAgentCanister for mAIner $CANISTER_ID_MAINER_CTRLB_CANISTER."
     exit 1
 else
-    echo "Successfully called addOfficialCanister for mAIner $CANISTER_ID_MAINER_CTRLB_CANISTER."
+    echo "Successfully called addMainerAgentCanister for mAIner $CANISTER_ID_MAINER_CTRLB_CANISTER."
 fi 

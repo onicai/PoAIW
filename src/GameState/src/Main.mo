@@ -768,6 +768,25 @@ actor class GameStateCanister() = this {
             };
             case (_) { return #Err(#Other("Unsupported")); }
         };
+
+        // TODO-START - REMOVE THIS ONCE mAIner Agent Creator canister is implemented
+        // Temporarily, also allow controller to add a mAIner agent canister
+        if (Principal.isController(msg.caller)) {
+            let canisterEntry : Types.OfficialProtocolCanister = {
+                address : Text = canisterEntryToAdd.address;
+                canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
+                creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                createdBy : Principal = msg.caller;
+                ownedBy : Principal = canisterEntryToAdd.ownedBy;
+            };
+            let putResponse = putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry);
+            if (not putResponse) {
+                return #Err(#Other("An error adding the canister occurred"));
+            };
+            return #Ok(canisterEntry);
+        };
+        // TODO-END   - REMOVE THIS ONCE mAIner Agent Creator canister is implemented
+
         // Only official mAIner Agent Creator canisters may call this
         switch (getMainerCreatorCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
