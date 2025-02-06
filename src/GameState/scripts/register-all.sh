@@ -84,7 +84,7 @@ fi
 echo " "
 echo "--------------------------------------------------"
 echo "Registering mAIner with the game_state_canister"
-output=$(dfx canister call game_state_canister addOfficialCanister "(record { address = \"$CANISTER_ID_MAINER_CTRLB_CANISTER\"; canisterType = variant {mAIner} })" --network $NETWORK_TYPE)
+output=$(dfx canister call game_state_canister addOfficialCanister "(record { address = \"$CANISTER_ID_MAINER_CTRLB_CANISTER\"; canisterType = variant {MainerAgent} })" --network $NETWORK_TYPE)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
     echo "Error calling addOfficialCanister for mAIner $CANISTER_ID_MAINER_CTRLB_CANISTER."
