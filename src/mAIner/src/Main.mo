@@ -309,7 +309,7 @@ actor class MainerAgentCtrlbCanister() = this {
                                 D.print(debug_show (error));
                                 // TODO: error handling
                             };
-                            case (#Ok(submissionReturnValue : Types.ChallengeResponseSubmissionReturn)) {
+                            case (#Ok(submissionReturnValue : Types.ChallengeResponseSubmission)) {
                                 // Successfully submitted to Game State
                                 let challengeResponseSubmission : Types.ChallengeResponseSubmission = {
                                     challengeId : Text = challenge.challengeId;
