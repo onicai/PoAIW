@@ -282,10 +282,10 @@ actor class GameStateCanister() = this {
     private func getRandomChallenge(status : Types.ChallengeStatus) : async ?Types.Challenge {
         switch (status) {
             case (#Open) {
-                let challengeIds : [Text] = Iter.toArray(challengerCanistersStorage.keys());
+                let challengeIds : [Text] = Iter.toArray(openChallengesStorage.keys());
                 let numberOfChallenges : Nat = challengeIds.size();
 
-                let randomInt : ?Int = await Utils.nextRandomInt(0, numberOfChallenges);
+                let randomInt : ?Int = await Utils.nextRandomInt(0, numberOfChallenges-1);
                 switch (randomInt) {
                     case (?intToUse) {
                         return getOpenChallenge(challengeIds[Int.abs(intToUse)]);
