@@ -556,15 +556,22 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     private func respondToNextChallenge() : async () {
+        D.print("############################mAIner: respondToNextChallenge############################");
         // TODO: incorporate cycles burn rate setting
 
         // Get the next challenge to respond to
         let challengeResult : Types.ChallengeResult = await getChallengeFromGameStateCanister();
+        D.print("############################mAIner: respondToNextChallenge challengeResult############################");
+        D.print(debug_show (challengeResult));
         switch (challengeResult) {
             case (#Err(error)) {
+                D.print("############################mAIner: respondToNextChallenge challengeResult error############################");
+                D.print(debug_show (error));
                 // TODO: error handling
             };
             case (#Ok(nextChallenge : Types.Challenge)) {
+                D.print("############################mAIner: respondToNextChallenge challengeResult nextChallenge############################");
+                D.print(debug_show (nextChallenge));
                 // Process the challenge
                 // Sanity checks
                 if (nextChallenge.challengeId == "" or nextChallenge.challengeQuestion == "") {
