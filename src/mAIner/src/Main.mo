@@ -23,9 +23,8 @@ import Utils "Utils";
 actor class MainerAgentCtrlbCanister() = this {
 
     stable var GAME_STATE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // local dev: "bkyz2-fmaaa-aaaaa-qaaaq-cai";
-
     stable var gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
-
+    
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
@@ -567,6 +566,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     private func respondToNextChallenge() : async () {
+        D.print("############################mAIner: respondToNextChallenge############################");
         // TODO: incorporate cycles burn rate setting
 
         // Get the next challenge to respond to
@@ -579,6 +579,8 @@ actor class MainerAgentCtrlbCanister() = this {
                 // TODO: error handling
             };
             case (#Ok(nextChallenge : Types.Challenge)) {
+                D.print("############################mAIner: respondToNextChallenge challengeResult nextChallenge############################");
+                D.print(debug_show (nextChallenge));
                 // Process the challenge
                 // Sanity checks
                 if (nextChallenge.challengeId == "" or nextChallenge.challengeQuestion == "") {
@@ -685,13 +687,13 @@ actor class MainerAgentCtrlbCanister() = this {
         return #Ok(authRecord);
     };
 
-    // Manually trigger the recurring action
-    public shared (msg) func triggerRecurringActionAdmin() : async Types.AuthRecordResult {
+    // TODO: remove; testing function for admin
+    public shared (msg) func triggerChallengeResponseAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
-        await triggerRecurringAction();
-        let authRecord = { auth = "triggerRecurringAction finished." };
+        let result = await respondToNextChallenge();
+        let authRecord = { auth = "You triggered the response generation." };
         return #Ok(authRecord);
     };
 };
