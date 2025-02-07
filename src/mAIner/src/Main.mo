@@ -159,15 +159,15 @@ actor class MainerAgentCtrlbCanister() = this {
     // Resets llmCanisterIDs, and then adds the argument as the first llmCanisterId
     private func _add_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : Types.StatusCodeRecordResult {
         let llmCanister = actor (llmCanisterIdRecord.canister_id) : Types.LLMCanister;
-        D.print("Inside function _add_llm_canister_id. Adding llm: " # Principal.toText(Principal.fromActor(llmCanister)));
+        D.print("mAIner: Inside function _add_llm_canister_id. Adding llm: " # Principal.toText(Principal.fromActor(llmCanister)));
         llmCanisters.add(llmCanister);
 
         // Print content of the llmCanisters Buffer:
-        D.print("Content of llmCanisters after addition: ");
+        D.print("mAIner: Content of llmCanisters after addition: ");
         Buffer.iterate(
             llmCanisters,
             func(canister : Types.LLMCanister) : () {
-                D.print("Canister ID: " # Principal.toText(Principal.fromActor(canister)));
+                D.print("mAIner: Canister ID: " # Principal.toText(Principal.fromActor(canister)));
             },
         );
         return #Ok({ status_code = 200 });
@@ -269,34 +269,34 @@ actor class MainerAgentCtrlbCanister() = this {
     // Respond to challenges
 
     private func getChallengeFromGameStateCanister() : async Types.ChallengeResult {
-        D.print("mAiner: calling getRandomOpenChallenge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
+        D.print("mAIner:  calling getRandomOpenChallenge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let result : Types.ChallengeResult = await gameStateCanisterActor.getRandomOpenChallenge();
-        D.print("mAiner: getRandomOpenChallenge returned.");
+        D.print("mAIner:  getRandomOpenChallenge returned.");
         return result;
     };
 
     private func processRespondingToChallenge(challenge : Types.Challenge) : async () {
-        D.print("############################Mainer: processRespondingToChallenge - calling respondToChallengeDoIt_############################");
+        D.print("mAIner:  processRespondingToChallenge - calling respondToChallengeDoIt_");
         let respondingResult : Types.ChallengeResponseResult = await respondToChallengeDoIt_(challenge);
-        D.print("############################Mainer: processRespondingToChallenge - returned from respondToChallengeDoIt_############################");
-        D.print("respondingResult = " # debug_show (respondingResult));
+        D.print("mAIner:  processRespondingToChallenge - returned from respondToChallengeDoIt_");
+        D.print("mAIner: respondingResult = " # debug_show (respondingResult));
 
         switch (respondingResult) {
             case (#Err(error)) {
-                D.print("############################Mainer: processRespondingToChallenge error############################");
+                D.print("mAIner:  processRespondingToChallenge error");
                 D.print(debug_show (error));
                 // TODO: error handling
             };
             case (#Ok(respondingOutput : Types.ChallengeResponse)) {
-                D.print("Mainer: processRespondingToChallenge - calling putGeneratedResponse");
-                D.print("Mainer: respondingOutput = " # debug_show (respondingOutput));
+                D.print("mAIner:  processRespondingToChallenge - calling putGeneratedResponse");
+                D.print("mAIner:  respondingOutput = " # debug_show (respondingOutput));
                 // Store response
                 let storeResult : Bool = putGeneratedResponse(respondingOutput);
-                D.print("Mainer: processRespondingToChallenge - returned from putGeneratedResponse");
+                D.print("mAIner:  processRespondingToChallenge - returned from putGeneratedResponse");
 
                 switch (storeResult) {
                     case (false) {
-                        D.print("############################Mainer: storeResult error############################");
+                        D.print("mAIner:  storeResult error");
                         // TODO: error handling
                     };
                     case (true) {
@@ -308,18 +308,18 @@ actor class MainerAgentCtrlbCanister() = this {
                             challengeQuestion : Text = challenge.challengeQuestion;
                             challengeAnswer : Text = respondingOutput.generatedResponseText;
                         };
-                        D.print("mAiner: processRespondingToChallenge- calling getSubmissionCyclesRequired of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
+                        D.print("mAIner:  processRespondingToChallenge- calling getSubmissionCyclesRequired of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
                         // Add the desired amount of cycles
                         let submissionCyclesRequired : Nat = await gameStateCanisterActor.getSubmissionCyclesRequired();
-                        D.print("mAiner: processRespondingToChallenge- submissionCyclesRequired = " # debug_show(submissionCyclesRequired));
+                        D.print("mAIner:  processRespondingToChallenge- submissionCyclesRequired = " # debug_show(submissionCyclesRequired));
                         Cycles.add<system>(submissionCyclesRequired);
 
-                        D.print("mAiner: processRespondingToChallenge- calling submitChallengeResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
+                        D.print("mAIner:  processRespondingToChallenge- calling submitChallengeResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
                         let submitMetadaResult : Types.ChallengeResponseSubmissionMetadataResult = await gameStateCanisterActor.submitChallengeResponse(challengeResponseSubmissionInput);
-                        D.print("Mainer: processRespondingToChallenge - returned from gameStateCanisterActor.submitChallengeResponse");
+                        D.print("mAIner:  processRespondingToChallenge - returned from gameStateCanisterActor.submitChallengeResponse");
                         switch (submitMetadaResult) {
                             case (#Err(error)) {
-                                D.print("############################Mainer: submitMetada error############################");
+                                D.print("mAIner:  submitMetada error");
                                 D.print(debug_show (error));
                                 // TODO: error handling
                             };
@@ -334,12 +334,12 @@ actor class MainerAgentCtrlbCanister() = this {
                                     submittedTimestamp : Nat64 = submitMetada.submittedTimestamp;
                                     status : Types.ChallengeResponseSubmissionStatus = submitMetada.status;
                                 };
-                                D.print("Mainer: processRespondingToChallenge - calling putSubmittedResponse");
+                                D.print("mAIner:  processRespondingToChallenge - calling putSubmittedResponse");
                                 let putResult = putSubmittedResponse(challengeResponseSubmission);
-                                D.print("Mainer: processRespondingToChallenge - return from putSubmittedResponse");
+                                D.print("mAIner:  processRespondingToChallenge - return from putSubmittedResponse");
                                 switch (putResult) {
                                     case (false) {
-                                        D.print("############################Mainer: putResult error############################");
+                                        D.print("mAIner:  putResult error");
                                         // TODO: error handling
                                     };
                                     case (true) {};
@@ -354,6 +354,7 @@ actor class MainerAgentCtrlbCanister() = this {
 
     private func respondToChallengeDoIt_(challenge : Types.Challenge) : async Types.ChallengeResponseResult {
         // TODO: probably need to improve the seed generation variability
+        let maxContinueLoopCount : Nat = 3; // After this many calls to run_update, we stop.
         let num_tokens : Nat64 = 1024;
         let seed : Nat64 = getNextRngSeed();
         let temp : Float = 0.8;
@@ -366,19 +367,19 @@ actor class MainerAgentCtrlbCanister() = this {
 
         let llmCanister = _getRoundRobinCanister();
 
-        D.print("mAiner: llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
+        D.print("mAIner:  llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
 
         // Check health of llmCanister
-        D.print("mAiner: calling health endpoint of LLM");
+        // D.print("mAIner:  calling health endpoint of LLM");
         let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.health();
-        D.print("mAiner: returned from health endpoint of LLM with : ");
-        D.print("mAiner: statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
+        // D.print("mAIner:  returned from health endpoint of LLM with : ");
+        // D.print("mAIner:  statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
         switch (statusCodeRecordResult) {
             case (#Err(error)) {
                 return #Err(error);
             };
             case (#Ok(_statusCodeRecord)) {
-                D.print("mAiner: LLM is healthy");
+                D.print("mAIner:  LLM is healthy");
             };
         };
 
@@ -409,12 +410,12 @@ actor class MainerAgentCtrlbCanister() = this {
                 promptCache,
             ];
             let inputRecord : Types.InputRecord = { args = args };
-            D.print("mAiner: calling new_chat with args: ");
-            D.print(debug_show (args));
+            D.print("mAIner:  calling new_chat...");
+            // D.print(debug_show (args));
             num_update_calls += 1;
             let outputRecordResult : Types.OutputRecordResult = await llmCanister.new_chat(inputRecord);
-            D.print("mAiner: returned from new_chat with outputRecordResult: ");
-            D.print(debug_show (outputRecordResult));
+            // D.print("mAIner:  returned from new_chat with outputRecordResult: ");
+            // D.print(debug_show (outputRecordResult));
 
             switch (outputRecordResult) {
                 case (#Err(error)) {
@@ -428,18 +429,18 @@ actor class MainerAgentCtrlbCanister() = this {
                     error := outputRecord.error;
                     prompt_remaining := outputRecord.prompt_remaining;
                     generated_eog := outputRecord.generated_eog;
-                    D.print("mAiner: status_code      : " # debug_show (status_code));
-                    D.print("mAiner: output           : " # debug_show (output));
-                    D.print("mAiner: conversation     : " # debug_show (conversation));
-                    D.print("mAiner: error            : " # debug_show (error));
-                    D.print("mAiner: prompt_remaining : " # debug_show (prompt_remaining));
-                    D.print("mAiner: generated_eog    : " # debug_show (generated_eog));
+                    // D.print("mAIner:  status_code      : " # debug_show (status_code));
+                    D.print("mAIner:  output           : " # debug_show (output));
+                    // D.print("mAIner:  conversation     : " # debug_show (conversation));
+                    // D.print("mAIner:  error            : " # debug_show (error));
+                    // D.print("mAIner:  prompt_remaining : " # debug_show (prompt_remaining));
+                    // D.print("mAIner:  generated_eog    : " # debug_show (generated_eog));
                 };
             };
         } catch (error : Error) {
             // Handle errors, such as llm canister not responding
-            D.print("mAiner: catch error when calling new_chat : ");
-            D.print("mAiner: error: " # Error.message(error));
+            D.print("mAIner:  catch error when calling new_chat : ");
+            D.print("mAIner:  error: " # Error.message(error));
             return #Err(
                 #Other(
                     "Failed call to new_chat of " # Principal.toText(Principal.fromActor(llmCanister)) #
@@ -459,7 +460,7 @@ actor class MainerAgentCtrlbCanister() = this {
 
         // Avoid endless loop by limiting the number of iterations
         var continueLoopCount : Nat = 0;
-        label continueLoop while (continueLoopCount < 30) {
+        label continueLoop while (continueLoopCount < maxContinueLoopCount) {
             try {
                 let args = [
                     "--prompt-cache",
@@ -477,12 +478,16 @@ actor class MainerAgentCtrlbCanister() = this {
                     prompt,
                 ];
                 let inputRecord : Types.InputRecord = { args = args };
-                D.print("mAiner: INGESTING PROMPT: calling run_update with args: ");
-                D.print(debug_show (args));
+                D.print("mAIner:  calling run_update...");
+                // D.print(debug_show (args));
                 num_update_calls += 1;
+                if (num_update_calls > 30) {
+                    D.print("mAIner:  too many calls run_update - Breaking out of loop...");
+                    break continueLoop; // Protective break for endless loop.
+                };
                 let outputRecordResult : Types.OutputRecordResult = await llmCanister.run_update(inputRecord);
-                D.print("mAiner: INGESTING PROMPT:returned from run_update with outputRecordResult: ");
-                D.print(debug_show (outputRecordResult));
+                // D.print("mAIner:  INGESTING PROMPT:returned from run_update with outputRecordResult: ");
+                // D.print(debug_show (outputRecordResult));
 
                 switch (outputRecordResult) {
                     case (#Err(error)) {
@@ -496,18 +501,19 @@ actor class MainerAgentCtrlbCanister() = this {
                         error := outputRecord.error;
                         prompt_remaining := outputRecord.prompt_remaining;
                         generated_eog := outputRecord.generated_eog;
-                        D.print("mAiner: status_code      : " # debug_show (status_code));
-                        D.print("mAiner: output           : " # debug_show (output));
-                        D.print("mAiner: conversation     : " # debug_show (conversation));
-                        D.print("mAiner: error            : " # debug_show (error));
-                        D.print("mAiner: prompt_remaining : " # debug_show (prompt_remaining));
-                        D.print("mAiner: generated_eog    : " # debug_show (generated_eog));
+                        // D.print("mAIner:  status_code      : " # debug_show (status_code));
+                        D.print("mAIner:  output           : " # debug_show (output));
+                        // D.print("mAIner:  conversation     : " # debug_show (conversation));
+                        // D.print("mAIner:  error            : " # debug_show (error));
+                        // D.print("mAIner:  prompt_remaining : " # debug_show (prompt_remaining));
+                        // D.print("mAIner:  generated_eog    : " # debug_show (generated_eog));
 
                         generationOutput := generationOutput # output;
-                        D.print("mAiner: generationOutput : " # debug_show (generationOutput));
+                        // D.print("mAIner:  generationOutput : " # debug_show (generationOutput));
 
                         if (prompt_remaining == "") {
                             prompt := ""; // Send empty prompt - the prompt ingestion is done.
+                            continueLoopCount += 1; // We count the actual generation steps
                         };
                         if (generated_eog) {
                             break continueLoop; // Exit the loop - the challenge is generated.
@@ -516,8 +522,8 @@ actor class MainerAgentCtrlbCanister() = this {
                 };
             } catch (error : Error) {
                 // Handle errors, such as llm canister not responding
-                D.print("mAiner: catch error when calling new_chat : ");
-                D.print("mAiner: error: " # Error.message(error));
+                D.print("mAIner:  catch error when calling new_chat : ");
+                D.print("mAIner:  error: " # Error.message(error));
                 return #Err(
                     #Other(
                         "Failed call to run_update of " # Principal.toText(Principal.fromActor(llmCanister)) #
@@ -525,7 +531,6 @@ actor class MainerAgentCtrlbCanister() = this {
                     )
                 );
             };
-            continueLoopCount += 1;
         };
 
         // Delete the prompt cache in the LLM
@@ -535,17 +540,17 @@ actor class MainerAgentCtrlbCanister() = this {
                 promptCache,
             ];
             let inputRecord : Types.InputRecord = { args = args };
-            D.print("mAiner: calling remove_prompt_cache with args: ");
-            D.print(debug_show (args));
+            // D.print("mAIner:  calling remove_prompt_cache with args: ");
+            // D.print(debug_show (args));
             num_update_calls += 1;
             let outputRecordResult : Types.OutputRecordResult = await llmCanister.remove_prompt_cache(inputRecord);
-            D.print("mAiner: returned from remove_prompt_cache with outputRecordResult: ");
-            D.print(debug_show (outputRecordResult));
+            // D.print("mAIner:  returned from remove_prompt_cache with outputRecordResult: ");
+            // D.print(debug_show (outputRecordResult));
 
         } catch (error : Error) {
             // Handle errors, such as llm canister not responding
-            D.print("mAiner: catch error when calling remove_prompt_cache : ");
-            D.print("mAiner: error: " # Error.message(error));
+            D.print("mAIner:  catch error when calling remove_prompt_cache : ");
+            D.print("mAIner:  error: " # Error.message(error));
             return #Err(
                 #Other(
                     "Failed call to remove_prompt_cache of " # Principal.toText(Principal.fromActor(llmCanister)) #
@@ -554,9 +559,9 @@ actor class MainerAgentCtrlbCanister() = this {
             );
         };
 
-        D.print("mAiner: generationOutput: " # generationOutput);
+        D.print("mAIner:  generationOutput: " # generationOutput);
         let filteredOutput = filterText(generationOutput);
-        D.print("mAiner: filteredOutput  : " # filteredOutput);
+        D.print("mAIner:  filteredOutput  : " # filteredOutput);
 
 
         // Return the generated response
@@ -572,20 +577,20 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     private func respondToNextChallenge() : async () {
-        D.print("############################mAIner: respondToNextChallenge############################");
+        D.print("mAIner:  respondToNextChallenge");
         // TODO: incorporate cycles burn rate setting
 
         // Get the next challenge to respond to
-        D.print("mAIner: respondToNextChallenge - calling getChallengeFromGameStateCanister.");
+        D.print("mAIner:  respondToNextChallenge - calling getChallengeFromGameStateCanister.");
         let challengeResult : Types.ChallengeResult = await getChallengeFromGameStateCanister();
-        D.print("mAIner: respondToNextChallenge - received challengeResult from getChallengeFromGameStateCanister: " # debug_show (challengeResult));
+        D.print("mAIner:  respondToNextChallenge - received challengeResult from getChallengeFromGameStateCanister: " # debug_show (challengeResult));
         switch (challengeResult) {
             case (#Err(error)) {
-                D.print("mAIner: respondToNextChallenge - challengeResult error : " # debug_show (error));
+                D.print("mAIner:  respondToNextChallenge - challengeResult error : " # debug_show (error));
                 // TODO: error handling
             };
             case (#Ok(nextChallenge : Types.Challenge)) {
-                D.print("############################mAIner: respondToNextChallenge challengeResult nextChallenge############################");
+                D.print("mAIner:  respondToNextChallenge challengeResult nextChallenge");
                 D.print(debug_show (nextChallenge));
                 // Process the challenge
                 // Sanity checks
@@ -623,7 +628,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     private func _getRoundRobinCanister() : Types.LLMCanister {
-        D.print("_getRoundRobinCanister: using roundRobinIndex " # Nat.toText(roundRobinIndex));
+        D.print("mAIner: _getRoundRobinCanister: using roundRobinIndex " # Nat.toText(roundRobinIndex));
         let canister = llmCanisters.get(roundRobinIndex);
         roundRobinIndex += 1;
 
@@ -670,13 +675,13 @@ actor class MainerAgentCtrlbCanister() = this {
     stable var actionRegularityInSeconds = 300; // TODO: set based on user setting for cycles burn rate
 
     private func triggerRecurringAction() : async () {
-        D.print("############################mAIner: Recurring action was triggered############################");
+        D.print("mAIner:  Recurring action was triggered");
         //ignore respondToNextChallenge(); TODO
         let result = await respondToNextChallenge();
-        D.print("############################mAIner: Recurring action result############################");
+        D.print("mAIner:  Recurring action result");
         print(debug_show (result));
         D.print(debug_show (result));
-        D.print("############################mAIner: Recurring action result############################");
+        D.print("mAIner:  Recurring action result");
     };
 
     public shared (msg) func startTimerExecutionAdmin() : async Types.AuthRecordResult {
@@ -685,7 +690,7 @@ actor class MainerAgentCtrlbCanister() = this {
         };
         ignore setTimer<system>(#seconds 5,
             func () : async () {
-                D.print("############################mAIner: setTimer############################");
+                D.print("mAIner:  setTimer");
                 ignore recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction);
                 await triggerRecurringAction();
         });

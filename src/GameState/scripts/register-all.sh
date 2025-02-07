@@ -94,6 +94,7 @@ echo "output: $output"
 if [[ "$output" != *"Ok = record"* ]]; then
     echo "Error calling addMainerAgentCanisterAdmin for mAIner $CANISTER_ID_MAINER_CTRLB_CANISTER."
     echo "This is most likely because the mAIner was already registered, and you can ignore this..."
+    echo " "
     exit 1
 else
     echo "Successfully called addMainerAgentCanisterAdmin for mAIner $CANISTER_ID_MAINER_CTRLB_CANISTER."
