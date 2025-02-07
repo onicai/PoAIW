@@ -53,12 +53,19 @@ scripts/deploy.sh --network $NETWORK_TYPE --mode $DEPLOY_MODE
 echo "-src/GameState: register-all.sh"
 scripts/register-all.sh --network $NETWORK_TYPE
 
+echo "-------------------------------------------------"
 cd ../Challenger
+echo "-src/Challenger: register-game-state.sh"
+scripts/register-game-state.sh --network $NETWORK_TYPE
+
+echo "-------------------------------------------------"
+cd ../Judge
 echo "-src/Judge: register-game-state.sh"
 scripts/register-game-state.sh --network $NETWORK_TYPE
 
-cd ../Judge
-echo "-src/Judge: register-game-state.sh"
+echo "-------------------------------------------------"
+cd ../mAIner
+echo "-src/mAIner: register-game-state.sh"
 scripts/register-game-state.sh --network $NETWORK_TYPE
 
 #######################################################################

@@ -70,4 +70,8 @@ cd ../../llms/Challenger
 echo "-llms/Challenger: 6-register-ctrlb-canister.sh"
 scripts/6-register-ctrlb-canister.sh --network $NETWORK_TYPE
 
+echo "-llms/Challenger: 7-log-pause.sh"
+scripts/7-log-pause.sh --network $NETWORK_TYPE
+
+
 #######################################################################

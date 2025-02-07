@@ -105,15 +105,15 @@ actor class JudgeCtrlbCanister() = this {
     // Resets llmCanisterIDs, and then adds the argument as the first llmCanisterId
     private func _add_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : Types.StatusCodeRecordResult {
         let llmCanister = actor (llmCanisterIdRecord.canister_id) : Types.LLMCanister;
-        D.print("Inside function _add_llm_canister_id. Adding llm: " # Principal.toText(Principal.fromActor(llmCanister)));
+        D.print("Judge: Inside function _add_llm_canister_id. Adding llm: " # Principal.toText(Principal.fromActor(llmCanister)));
         llmCanisters.add(llmCanister);
 
         // Print content of the llmCanisters Buffer:
-        D.print("Content of llmCanisters after addition: ");
+        D.print("Judge: Content of llmCanisters after addition: ");
         Buffer.iterate(
             llmCanisters,
             func(canister : Types.LLMCanister) : () {
-                D.print("Canister ID: " # Principal.toText(Principal.fromActor(canister)));
+                D.print("Judge: Canister ID: " # Principal.toText(Principal.fromActor(canister)));
             },
         );
         return #Ok({ status_code = 200 });
@@ -212,13 +212,13 @@ actor class JudgeCtrlbCanister() = this {
     };
 
     private func processSubmission(submissionEntry : Types.ChallengeResponseSubmission) : async () {
-        D.print("############################Judge: processSubmission############################");
+        D.print("Judge: processSubmission");
         let judgingResult : Types.JudgeChallengeResponseResult = await judgeChallengeResponseDoIt_(submissionEntry);
-        D.print("############################Judge: processSubmission judgingResult############################");
+        D.print("Judge: processSubmission judgingResult");
         D.print(debug_show (judgingResult));
         switch (judgingResult) {
             case (#Err(error)) {
-                D.print("############################Judge: processSubmission error############################");
+                D.print("Judge: processSubmission error");
                 D.print(debug_show (error));
                 // TODO: error handling
             };
@@ -241,7 +241,7 @@ actor class JudgeCtrlbCanister() = this {
 
                 switch (pushResult) {
                     case (false) {
-                        D.print("############################Judge: pushResult error############################");
+                        D.print("Judge: pushResult error");
                         // TODO: error handling
                     };
                     case (true) {
@@ -261,7 +261,7 @@ actor class JudgeCtrlbCanister() = this {
                         let sendResult : Types.ScoredResponseResult = await sendScoredResponseToGameStateCanister(scoredResponse);
                         switch (sendResult) {
                             case (#Err(error)) {
-                                D.print("############################Judge: sendResult error############################");
+                                D.print("Judge: sendResult error");
                                 D.print(debug_show (error));
                                 // TODO: error handling
                             };
@@ -276,7 +276,8 @@ actor class JudgeCtrlbCanister() = this {
     };
 
     private func judgeChallengeResponseDoIt_(submissionEntry : Types.ChallengeResponseSubmission) : async Types.JudgeChallengeResponseResult {
-        let num_tokens : Nat64 = 10;
+        let maxContinueLoopCount : Nat = 1; // After this many calls to run_update, we stop.
+        let num_tokens : Nat64 = 1024;
         let seed : Nat64 = 42;
         let temp : Float = 0.0;
 
@@ -305,21 +306,21 @@ actor class JudgeCtrlbCanister() = this {
 
         let llmCanister = _getRoundRobinCanister();
 
-        D.print("Inside function challengeGenerationDoIt_. llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
+        D.print("Judge: Inside function challengeGenerationDoIt_. llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
 
         // Check health of llmCanister
-        D.print("---judge_ctrlb_canister---");
-        D.print("calling health endpoint of LLM");
+        // D.print("Judge: ---judge_ctrlb_canister---");
+        // D.print("Judge: calling health endpoint of LLM");
         let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.health();
-        D.print("---judge_ctrlb_canister---");
-        D.print("returned from health endpoint of LLM with : ");
-        D.print("statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
+        // D.print("Judge: ---judge_ctrlb_canister---");
+        // D.print("Judge: returned from health endpoint of LLM with : ");
+        // D.print("Judge: statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
         switch (statusCodeRecordResult) {
             case (#Err(error)) {
                 return #Err(error);
             };
             case (#Ok(_statusCodeRecord)) {
-                D.print("LLM is healthy");
+                D.print("Judge: LLM is healthy");
             };
         };
 
@@ -350,12 +351,12 @@ actor class JudgeCtrlbCanister() = this {
                 promptCache,
             ];
             let inputRecord : Types.InputRecord = { args = args };
-            D.print("Judge: calling new_chat with args: ");
-            D.print(debug_show (args));
+            D.print("Judge: calling new_chat...");
+            // D.print(debug_show (args));
             num_update_calls += 1;
             let outputRecordResult : Types.OutputRecordResult = await llmCanister.new_chat(inputRecord);
-            D.print("Judge: returned from new_chat with outputRecordResult: ");
-            D.print(debug_show (outputRecordResult));
+            // D.print("Judge: returned from new_chat with outputRecordResult: ");
+            // D.print(debug_show (outputRecordResult));
 
             switch (outputRecordResult) {
                 case (#Err(error)) {
@@ -369,12 +370,12 @@ actor class JudgeCtrlbCanister() = this {
                     error := outputRecord.error;
                     prompt_remaining := outputRecord.prompt_remaining;
                     generated_eog := outputRecord.generated_eog;
-                    D.print("Judge: status_code      : " # debug_show (status_code));
+                    // D.print("Judge: status_code      : " # debug_show (status_code));
                     D.print("Judge: output           : " # debug_show (output));
-                    D.print("Judge: conversation     : " # debug_show (conversation));
-                    D.print("Judge: error            : " # debug_show (error));
-                    D.print("Judge: prompt_remaining : " # debug_show (prompt_remaining));
-                    D.print("Judge: generated_eog    : " # debug_show (generated_eog));
+                    // D.print("Judge: conversation     : " # debug_show (conversation));
+                    // D.print("Judge: error            : " # debug_show (error));
+                    // D.print("Judge: prompt_remaining : " # debug_show (prompt_remaining));
+                    // D.print("Judge: generated_eog    : " # debug_show (generated_eog));
                 };
             };
         } catch (error : Error) {
@@ -400,7 +401,7 @@ actor class JudgeCtrlbCanister() = this {
 
         // Avoid endless loop by limiting the number of iterations
         var continueLoopCount : Nat = 0;
-        label continueLoop while (continueLoopCount < 30) {
+        label continueLoop while (continueLoopCount < maxContinueLoopCount) {
             try {
                 let args = [
                     "--prompt-cache",
@@ -418,12 +419,16 @@ actor class JudgeCtrlbCanister() = this {
                     prompt,
                 ];
                 let inputRecord : Types.InputRecord = { args = args };
-                D.print("Judge: INGESTING PROMPT: calling run_update with args: ");
-                D.print(debug_show (args));
+                D.print("Judge: calling run_update...");
+                // D.print(debug_show (args));
                 num_update_calls += 1;
+                if (num_update_calls > 30) {
+                    D.print("Judge:  too many calls run_update - Breaking out of loop...");
+                    break continueLoop; // Protective break for endless loop.
+                };
                 let outputRecordResult : Types.OutputRecordResult = await llmCanister.run_update(inputRecord);
-                D.print("Judge: INGESTING PROMPT:returned from run_update with outputRecordResult: ");
-                D.print("Judge: " # debug_show (outputRecordResult));
+                // D.print("Judge: INGESTING PROMPT:returned from run_update with outputRecordResult: ");
+                // D.print("Judge: " # debug_show (outputRecordResult));
 
                 switch (outputRecordResult) {
                     case (#Err(error)) {
@@ -437,18 +442,19 @@ actor class JudgeCtrlbCanister() = this {
                         error := outputRecord.error;
                         prompt_remaining := outputRecord.prompt_remaining;
                         generated_eog := outputRecord.generated_eog;
-                        D.print("Judge: status_code      : " # debug_show (status_code));
+                        // D.print("Judge: status_code      : " # debug_show (status_code));
                         D.print("Judge: output           : " # debug_show (output));
-                        D.print("Judge: conversation     : " # debug_show (conversation));
-                        D.print("Judge: error            : " # debug_show (error));
-                        D.print("Judge: prompt_remaining : " # debug_show (prompt_remaining));
-                        D.print("Judge: generated_eog    : " # debug_show (generated_eog));
+                        // D.print("Judge: conversation     : " # debug_show (conversation));
+                        // D.print("Judge: error            : " # debug_show (error));
+                        // D.print("Judge: prompt_remaining : " # debug_show (prompt_remaining));
+                        // D.print("Judge: generated_eog    : " # debug_show (generated_eog));
 
                         generationOutput := generationOutput # output;
-                        D.print("Judge: generationOutput : " # debug_show (generationOutput));
+                        // D.print("Judge: generationOutput : " # debug_show (generationOutput));
 
                         if (prompt_remaining == "") {
                             prompt := ""; // Send empty prompt - the prompt ingestion is done.
+                            continueLoopCount += 1; // We count the actual generation steps
                         };
                         if (generated_eog) {
                             break continueLoop; // Exit the loop - the challenge is generated.
@@ -466,7 +472,6 @@ actor class JudgeCtrlbCanister() = this {
                     )
                 );
             };
-            continueLoopCount += 1;
         };
 
         // Delete the prompt cache in the LLM
@@ -476,12 +481,12 @@ actor class JudgeCtrlbCanister() = this {
                 promptCache,
             ];
             let inputRecord : Types.InputRecord = { args = args };
-            D.print("Judge: calling remove_prompt_cache with args: ");
-            D.print(debug_show (args));
+            // D.print("Judge: calling remove_prompt_cache with args: ");
+            // D.print(debug_show (args));
             num_update_calls += 1;
             let outputRecordResult : Types.OutputRecordResult = await llmCanister.remove_prompt_cache(inputRecord);
-            D.print("Judge: returned from remove_prompt_cache with outputRecordResult: ");
-            D.print(debug_show (outputRecordResult));
+            // D.print("Judge: returned from remove_prompt_cache with outputRecordResult: ");
+            // D.print(debug_show (outputRecordResult));
 
         } catch (error : Error) {
             // Handle errors, such as llm canister not responding
