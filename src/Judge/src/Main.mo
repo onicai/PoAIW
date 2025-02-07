@@ -19,14 +19,14 @@ import Utils "Utils";
 actor class JudgeCtrlbCanister() = this {
 
     stable var GAME_STATE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // local dev: "bkyz2-fmaaa-aaaaa-qaaaq-cai";
-
-    stable let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
+    stable var gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
 
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
         GAME_STATE_CANISTER_ID := _game_state_canister_id;
+        gameStateCanisterActor := actor (GAME_STATE_CANISTER_ID);
         return #Ok({ status_code = 200 });
     };
 
@@ -206,6 +206,7 @@ actor class JudgeCtrlbCanister() = this {
             judgedBy : Principal = scoredResponse.judgedBy;
             score : Nat = scoredResponse.score;
         };
+        D.print("Judge: calling addScoredResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let result : Types.ScoredResponseResult = await gameStateCanisterActor.addScoredResponse(scoredResponseInput);
         return result;
     };
@@ -217,6 +218,8 @@ actor class JudgeCtrlbCanister() = this {
         D.print(debug_show (judgingResult));
         switch (judgingResult) {
             case (#Err(error)) {
+                D.print("############################Judge: processSubmission error############################");
+                D.print(debug_show (error));
                 // TODO: error handling
             };
             case (#Ok(scoringOutput)) {
@@ -238,6 +241,7 @@ actor class JudgeCtrlbCanister() = this {
 
                 switch (pushResult) {
                     case (false) {
+                        D.print("############################Judge: pushResult error############################");
                         // TODO: error handling
                     };
                     case (true) {
@@ -256,8 +260,9 @@ actor class JudgeCtrlbCanister() = this {
                         };
                         let sendResult : Types.ScoredResponseResult = await sendScoredResponseToGameStateCanister(scoredResponse);
                         switch (sendResult) {
-                            // TODO: translate LLM output to score
                             case (#Err(error)) {
+                                D.print("############################Judge: sendResult error############################");
+                                D.print(debug_show (error));
                                 // TODO: error handling
                             };
                             case (_) {
@@ -345,13 +350,11 @@ actor class JudgeCtrlbCanister() = this {
                 promptCache,
             ];
             let inputRecord : Types.InputRecord = { args = args };
-            D.print("---judge_ctrlb_canister---");
-            D.print("calling new_chat with args: ");
+            D.print("Judge: calling new_chat with args: ");
             D.print(debug_show (args));
             num_update_calls += 1;
             let outputRecordResult : Types.OutputRecordResult = await llmCanister.new_chat(inputRecord);
-            D.print("---judge_ctrlb_canister---");
-            D.print("returned from new_chat with outputRecordResult: ");
+            D.print("Judge: returned from new_chat with outputRecordResult: ");
             D.print(debug_show (outputRecordResult));
 
             switch (outputRecordResult) {
@@ -366,19 +369,18 @@ actor class JudgeCtrlbCanister() = this {
                     error := outputRecord.error;
                     prompt_remaining := outputRecord.prompt_remaining;
                     generated_eog := outputRecord.generated_eog;
-                    D.print("status_code      : " # debug_show (status_code));
-                    D.print("output           : " # debug_show (output));
-                    D.print("conversation     : " # debug_show (conversation));
-                    D.print("error            : " # debug_show (error));
-                    D.print("prompt_remaining : " # debug_show (prompt_remaining));
-                    D.print("generated_eog    : " # debug_show (generated_eog));
+                    D.print("Judge: status_code      : " # debug_show (status_code));
+                    D.print("Judge: output           : " # debug_show (output));
+                    D.print("Judge: conversation     : " # debug_show (conversation));
+                    D.print("Judge: error            : " # debug_show (error));
+                    D.print("Judge: prompt_remaining : " # debug_show (prompt_remaining));
+                    D.print("Judge: generated_eog    : " # debug_show (generated_eog));
                 };
             };
         } catch (error : Error) {
             // Handle errors, such as llm canister not responding
-            D.print("---judge_ctrlb_canister---");
-            D.print("catch error when calling new_chat : ");
-            D.print("error: " # Error.message(error));
+            D.print("Judge: catch error when calling new_chat : ");
+            D.print("Judge: error: " # Error.message(error));
             return #Err(
                 #Other(
                     "Failed call to new_chat of " # Principal.toText(Principal.fromActor(llmCanister)) #
@@ -416,14 +418,12 @@ actor class JudgeCtrlbCanister() = this {
                     prompt,
                 ];
                 let inputRecord : Types.InputRecord = { args = args };
-                D.print("---judge_ctrlb_canister---");
-                D.print("INGESTING PROMPT: calling run_update with args: ");
+                D.print("Judge: INGESTING PROMPT: calling run_update with args: ");
                 D.print(debug_show (args));
                 num_update_calls += 1;
                 let outputRecordResult : Types.OutputRecordResult = await llmCanister.run_update(inputRecord);
-                D.print("---judge_ctrlb_canister---");
-                D.print("INGESTING PROMPT:returned from run_update with outputRecordResult: ");
-                D.print(debug_show (outputRecordResult));
+                D.print("Judge: INGESTING PROMPT:returned from run_update with outputRecordResult: ");
+                D.print("Judge: " # debug_show (outputRecordResult));
 
                 switch (outputRecordResult) {
                     case (#Err(error)) {
@@ -437,15 +437,15 @@ actor class JudgeCtrlbCanister() = this {
                         error := outputRecord.error;
                         prompt_remaining := outputRecord.prompt_remaining;
                         generated_eog := outputRecord.generated_eog;
-                        D.print("status_code      : " # debug_show (status_code));
-                        D.print("output           : " # debug_show (output));
-                        D.print("conversation     : " # debug_show (conversation));
-                        D.print("error            : " # debug_show (error));
-                        D.print("prompt_remaining : " # debug_show (prompt_remaining));
-                        D.print("generated_eog    : " # debug_show (generated_eog));
+                        D.print("Judge: status_code      : " # debug_show (status_code));
+                        D.print("Judge: output           : " # debug_show (output));
+                        D.print("Judge: conversation     : " # debug_show (conversation));
+                        D.print("Judge: error            : " # debug_show (error));
+                        D.print("Judge: prompt_remaining : " # debug_show (prompt_remaining));
+                        D.print("Judge: generated_eog    : " # debug_show (generated_eog));
 
                         generationOutput := generationOutput # output;
-                        D.print("generationOutput : " # debug_show (generationOutput));
+                        D.print("Judge: generationOutput : " # debug_show (generationOutput));
 
                         if (prompt_remaining == "") {
                             prompt := ""; // Send empty prompt - the prompt ingestion is done.
@@ -457,9 +457,8 @@ actor class JudgeCtrlbCanister() = this {
                 };
             } catch (error : Error) {
                 // Handle errors, such as llm canister not responding
-                D.print("---judge_ctrlb_canister---");
-                D.print("catch error when calling new_chat : ");
-                D.print("error: " # Error.message(error));
+                D.print("Judge: catch error when calling new_chat : ");
+                D.print("Judge: error: " # Error.message(error));
                 return #Err(
                     #Other(
                         "Failed call to run_update of " # Principal.toText(Principal.fromActor(llmCanister)) #
@@ -477,20 +476,17 @@ actor class JudgeCtrlbCanister() = this {
                 promptCache,
             ];
             let inputRecord : Types.InputRecord = { args = args };
-            D.print("---judge_ctrlb_canister---");
-            D.print("calling remove_prompt_cache with args: ");
+            D.print("Judge: calling remove_prompt_cache with args: ");
             D.print(debug_show (args));
             num_update_calls += 1;
             let outputRecordResult : Types.OutputRecordResult = await llmCanister.remove_prompt_cache(inputRecord);
-            D.print("---judge_ctrlb_canister---");
-            D.print("returned from remove_prompt_cache with outputRecordResult: ");
+            D.print("Judge: returned from remove_prompt_cache with outputRecordResult: ");
             D.print(debug_show (outputRecordResult));
 
         } catch (error : Error) {
             // Handle errors, such as llm canister not responding
-            D.print("---judge_ctrlb_canister---");
-            D.print("catch error when calling remove_prompt_cache : ");
-            D.print("error: " # Error.message(error));
+            D.print("Judge: catch error when calling remove_prompt_cache : ");
+            D.print("Judge: error: " # Error.message(error));
             return #Err(
                 #Other(
                     "Failed call to remove_prompt_cache of " # Principal.toText(Principal.fromActor(llmCanister)) #
@@ -518,22 +514,26 @@ actor class JudgeCtrlbCanister() = this {
     };
 
     // Endpoint to be called by Game State canister to score a mAIner's response to a challenge
-    public shared (msg) func addSubmissionToJudge(submissionEntry : Types.ChallengeResponseSubmission) : async Types.ChallengeResponseSubmissionResult {
+    public shared (msg) func addSubmissionToJudge(submissionEntry : Types.ChallengeResponseSubmission) : async Types.ChallengeResponseSubmissionMetadataResult {
+        D.print("Judge: addSubmissionToJudge - entered");
         if (not (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(GAME_STATE_CANISTER_ID)) or Principal.equal(msg.caller, Principal.fromActor(this)))) {
+            D.print("Judge: addSubmissionToJudge - 01");
             return #Err(#StatusCode(401));
         };
 
         // Sanity checks on submitted response
-        if (submissionEntry.status != #Submitted or submissionEntry.submissionId == "" or submissionEntry.challengeId == "" or submissionEntry.challengeQuestion == "" or submissionEntry.challengeAnswer == "") {
+        if (submissionEntry.status != #Received or submissionEntry.submissionId == "" or submissionEntry.challengeId == "" or submissionEntry.challengeQuestion == "" or submissionEntry.challengeAnswer == "") {
+            D.print("Judge: addSubmissionToJudge - 02");
             return #Err(#Other("invalid submission value"));
         };
 
         // Trigger processing submission but don't wait on result
+        D.print("Judge: addSubmissionToJudge - 03");
         ignore processSubmission(submissionEntry);
 
         // Return receipt of submission
+        D.print("Judge: addSubmissionToJudge - 04");
         return #Ok({
-            success : Bool = true;
             submissionId : Text = submissionEntry.submissionId;
             submittedTimestamp : Nat64 = submissionEntry.submittedTimestamp;
             status : Types.ChallengeResponseSubmissionStatus = #Submitted;

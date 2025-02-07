@@ -21,12 +21,15 @@ import Utils "Utils";
 actor class ChallengerCtrlbCanister() {
 
     stable var GAME_STATE_CANISTER_ID : Text = "b77ix-eeaaa-aaaaa-qaada-cai"; // local dev: "b77ix-eeaaa-aaaaa-qaada-cai";
+    
+    stable var gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
 
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
         GAME_STATE_CANISTER_ID := _game_state_canister_id;
+        gameStateCanisterActor := actor (GAME_STATE_CANISTER_ID);
         return #Ok({ status_code = 200 });
     };
 
@@ -61,12 +64,12 @@ actor class ChallengerCtrlbCanister() {
         return true;
     };
 
-    public query (msg) func getChallengesAdmin() : async [Types.GeneratedChallenge] {
+    public shared query (msg) func getChallengesAdmin() : async Types.GeneratedChallengesResult {
         if (not Principal.isController(msg.caller)) {
-            return [];
+            return #Err(#Unauthorized);
         };
-
-        return getGeneratedChallenges();
+        let challenges : [Types.GeneratedChallenge] = getGeneratedChallenges();
+        return #Ok(challenges);
     };
 
     public query (msg) func getChallengesListAdmin() : async List.List<Types.GeneratedChallenge> {
@@ -229,22 +232,22 @@ actor class ChallengerCtrlbCanister() {
     };
 
     private func generateChallenge() : async Types.GeneratedChallengeResult {
-        D.print("############################generateChallenge############################");
+        D.print("############################Challenger: generateChallenge############################");
         let generatedChallengeOutput : Types.GeneratedChallengeResult = await challengeGenerationDoIt_();
-        D.print("############################generateChallenge generatedChallengeOutput############################");
+        D.print("############################Challenger: generateChallenge generatedChallengeOutput############################");
         print(debug_show (generatedChallengeOutput));
         switch (generatedChallengeOutput) {
             case (#Err(error)) {
-                D.print("############################generateChallenge generatedChallengeOutput error############################");
+                D.print("############################Challenger: generateChallenge generatedChallengeOutput error############################");
                 print(debug_show (error));
                 return #Err(error);
             };
             case (#Ok(generatedChallenge)) {
-                D.print("############################generateChallenge generatedChallengeOutput Ok############################");
+                D.print("############################Challenger: generateChallenge generatedChallengeOutput Ok############################");
                 print(debug_show (generatedChallenge));
                 // Store challenge
                 let pushResult = putGeneratedChallenge(generatedChallenge);
-                D.print("############################generateChallenge generatedChallengeOutput Ok pushResult############################");
+                D.print("############################Challenger: generateChallenge generatedChallengeOutput Ok pushResult############################");
                 print(debug_show (pushResult));
 
                 // Add challenge to Game State canister
@@ -252,10 +255,9 @@ actor class ChallengerCtrlbCanister() {
                     challengeQuestion : Text = generatedChallenge.generatedChallengeText;
                 };
 
-                let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister;
-
+                D.print("Challenger: calling addChallenge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
                 let additionResult : Types.ChallengeAdditionResult = await gameStateCanisterActor.addChallenge(newChallenge);
-                D.print("############################generateChallenge generatedChallengeOutput Ok additionResult############################");
+                D.print("############################Challenger: generateChallenge generatedChallengeOutput Ok additionResult############################");
                 print(debug_show (additionResult));
                 switch (additionResult) {
                     case (#Err(error)) {
@@ -290,18 +292,16 @@ actor class ChallengerCtrlbCanister() {
         D.print("Inside function challengeGenerationDoIt_. llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
 
         // Check health of llmCanister
-        D.print("---challenger_ctrlb_canister---");
-        D.print("calling health endpoint of LLM");
+        D.print("Challenger: calling health endpoint of LLM");
         let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.health();
-        D.print("---challenger_ctrlb_canister---");
-        D.print("returned from health endpoint of LLM with : ");
-        D.print("statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
+        D.print("Challenger: returned from health endpoint of LLM with : ");
+        D.print("Challenger: statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
         switch (statusCodeRecordResult) {
             case (#Err(error)) {
                 return #Err(error);
             };
             case (#Ok(_statusCodeRecord)) {
-                D.print("LLM is healthy");
+                D.print("Challenger: LLM is healthy");
             };
         };
 
@@ -332,13 +332,11 @@ actor class ChallengerCtrlbCanister() {
                 promptCache,
             ];
             let inputRecord : Types.InputRecord = { args = args };
-            D.print("---challenger_ctrlb_canister---");
-            D.print("calling new_chat with args: ");
+            D.print("Challenger: calling new_chat with args: ");
             D.print(debug_show (args));
             num_update_calls += 1;
             let outputRecordResult : Types.OutputRecordResult = await llmCanister.new_chat(inputRecord);
-            D.print("---challenger_ctrlb_canister---");
-            D.print("returned from new_chat with outputRecordResult: ");
+            D.print("Challenger: returned from new_chat with outputRecordResult: ");
             D.print(debug_show (outputRecordResult));
 
             switch (outputRecordResult) {
@@ -353,19 +351,18 @@ actor class ChallengerCtrlbCanister() {
                     error := outputRecord.error;
                     prompt_remaining := outputRecord.prompt_remaining;
                     generated_eog := outputRecord.generated_eog;
-                    D.print("status_code      : " # debug_show (status_code));
-                    D.print("output           : " # debug_show (output));
-                    D.print("conversation     : " # debug_show (conversation));
-                    D.print("error            : " # debug_show (error));
-                    D.print("prompt_remaining : " # debug_show (prompt_remaining));
-                    D.print("generated_eog    : " # debug_show (generated_eog));
+                    D.print("Challenger: status_code      : " # debug_show (status_code));
+                    D.print("Challenger: output           : " # debug_show (output));
+                    D.print("Challenger: conversation     : " # debug_show (conversation));
+                    D.print("Challenger: error            : " # debug_show (error));
+                    D.print("Challenger: prompt_remaining : " # debug_show (prompt_remaining));
+                    D.print("Challenger: generated_eog    : " # debug_show (generated_eog));
                 };
             };
         } catch (error : Error) {
             // Handle errors, such as llm canister not responding
-            D.print("---challenger_ctrlb_canister---");
-            D.print("catch error when calling new_chat : ");
-            D.print("error: " # Error.message(error));
+            D.print("Challenger: catch error when calling new_chat : ");
+            D.print("Challenger: error: " # Error.message(error));
             return #Err(
                 #Other(
                     "Failed call to new_chat of " # Principal.toText(Principal.fromActor(llmCanister)) #
@@ -403,13 +400,11 @@ actor class ChallengerCtrlbCanister() {
                     prompt,
                 ];
                 let inputRecord : Types.InputRecord = { args = args };
-                D.print("---challenger_ctrlb_canister---");
-                D.print("INGESTING PROMPT: calling run_update with args: ");
+                D.print("Challenger: INGESTING PROMPT: calling run_update with args: ");
                 D.print(debug_show (args));
                 num_update_calls += 1;
                 let outputRecordResult : Types.OutputRecordResult = await llmCanister.run_update(inputRecord);
-                D.print("---challenger_ctrlb_canister---");
-                D.print("INGESTING PROMPT:returned from run_update with outputRecordResult: ");
+                D.print("Challenger: INGESTING PROMPT:returned from run_update with outputRecordResult: ");
                 D.print(debug_show (outputRecordResult));
 
                 switch (outputRecordResult) {
@@ -424,15 +419,15 @@ actor class ChallengerCtrlbCanister() {
                         error := outputRecord.error;
                         prompt_remaining := outputRecord.prompt_remaining;
                         generated_eog := outputRecord.generated_eog;
-                        D.print("status_code      : " # debug_show (status_code));
-                        D.print("output           : " # debug_show (output));
-                        D.print("conversation     : " # debug_show (conversation));
-                        D.print("error            : " # debug_show (error));
-                        D.print("prompt_remaining : " # debug_show (prompt_remaining));
-                        D.print("generated_eog    : " # debug_show (generated_eog));
+                        D.print("Challenger: status_code      : " # debug_show (status_code));
+                        D.print("Challenger: output           : " # debug_show (output));
+                        D.print("Challenger: conversation     : " # debug_show (conversation));
+                        D.print("Challenger: error            : " # debug_show (error));
+                        D.print("Challenger: prompt_remaining : " # debug_show (prompt_remaining));
+                        D.print("Challenger: generated_eog    : " # debug_show (generated_eog));
 
                         generationOutput := generationOutput # output;
-                        D.print("generationOutput : " # debug_show (generationOutput));
+                        D.print("Challenger: generationOutput : " # debug_show (generationOutput));
 
                         if (prompt_remaining == "") {
                             prompt := ""; // Send empty prompt - the prompt ingestion is done.
@@ -444,9 +439,8 @@ actor class ChallengerCtrlbCanister() {
                 };
             } catch (error : Error) {
                 // Handle errors, such as llm canister not responding
-                D.print("---challenger_ctrlb_canister---");
-                D.print("catch error when calling new_chat : ");
-                D.print("error: " # Error.message(error));
+                D.print("Challenger: catch error when calling new_chat : ");
+                D.print("Challenger: error: " # Error.message(error));
                 return #Err(
                     #Other(
                         "Failed call to run_update of " # Principal.toText(Principal.fromActor(llmCanister)) #
@@ -464,20 +458,17 @@ actor class ChallengerCtrlbCanister() {
                 promptCache,
             ];
             let inputRecord : Types.InputRecord = { args = args };
-            D.print("---challenger_ctrlb_canister---");
-            D.print("calling remove_prompt_cache with args: ");
-            D.print(debug_show (args));
+            D.print("Challenger: calling remove_prompt_cache with args: ");
+            D.print("Challenger: " # debug_show (args));
             num_update_calls += 1;
             let outputRecordResult : Types.OutputRecordResult = await llmCanister.remove_prompt_cache(inputRecord);
-            D.print("---challenger_ctrlb_canister---");
-            D.print("returned from remove_prompt_cache with outputRecordResult: ");
+            D.print("Challenger: returned from remove_prompt_cache with outputRecordResult: ");
             D.print(debug_show (outputRecordResult));
 
         } catch (error : Error) {
             // Handle errors, such as llm canister not responding
-            D.print("---challenger_ctrlb_canister---");
-            D.print("catch error when calling remove_prompt_cache : ");
-            D.print("error: " # Error.message(error));
+            D.print("Challenger: catch error when calling remove_prompt_cache : ");
+            D.print("Challenger: error: " # Error.message(error));
             return #Err(
                 #Other(
                     "Failed call to remove_prompt_cache of " # Principal.toText(Principal.fromActor(llmCanister)) #
@@ -528,16 +519,12 @@ actor class ChallengerCtrlbCanister() {
     let actionRegularityInSeconds = 300;
 
     private func triggerRecurringAction() : async () {
-        print("############################Recurring action was triggered############################");
-        D.print("############################Recurring action was triggered############################");
+        D.print("############################Challenger: Recurring action was triggered############################");
         //ignore generateChallenge(); TODO
         let result = await generateChallenge();
-        print("############################Recurring action result############################");
-        D.print("############################Recurring action result############################");
-        print(debug_show (result));
+        D.print("############################Challenger: Recurring action result############################");
         D.print(debug_show (result));
-        print("############################Recurring action result############################");
-        D.print("############################Recurring action result############################");
+        D.print("############################Challenger: Recurring action result############################");
     };
 
     public shared (msg) func startTimerExecutionAdmin() : async Types.AuthRecordResult {
@@ -546,8 +533,7 @@ actor class ChallengerCtrlbCanister() {
         };
         ignore setTimer<system>(#seconds 5,
             func () : async () {
-                print("############################setTimer############################");
-                D.print("############################setTimer############################");
+                D.print("############################Challenger: setTimer############################");
                 ignore recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction);
                 await triggerRecurringAction();
         });

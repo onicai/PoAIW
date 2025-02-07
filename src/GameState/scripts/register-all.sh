@@ -11,6 +11,7 @@ NETWORK_TYPE="local"
 # When deploying local, use canister IDs from .env
 source ../Challenger/.env
 source ../Judge/.env
+source ../mAIner/.env
 
 # none will not use subnet parameter in deploy to ic
 SUBNET="none"
@@ -24,7 +25,8 @@ while [ $# -gt 0 ]; do
                 NETWORK_TYPE=$1
                 if [ "$NETWORK_TYPE" = "ic" ]; then
                     CANISTER_ID_CHALLENGER_CTRLB_CANISTER='--todo--'
-                    CANISTER_ID_JUDGE_CTRLB_CANISTER='--todo--'  
+                    CANISTER_ID_JUDGE_CTRLB_CANISTER='--todo--' 
+                    CANISTER_ID_MAINER_CTRLB_CANISTER='--todo--' 
                 fi
             else
                 echo "Invalid network type: $1. Use 'local' or 'ic'."
@@ -77,4 +79,22 @@ if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; t
     exit 1
 else
     echo "Successfully called addOfficialCanister for Judge $CANISTER_ID_JUDGE_CTRLB_CANISTER."
+fi 
+
+echo " "
+echo "--------------------------------------------------"
+echo "Registering mAIner with the game_state_canister"
+echo "TODO - WE TEMPORARILY ALLOW A CONTROLLER to add a mAIner Agent, owned by the controller..."
+echo "TODO - Once mAIner agent creator is working, remove this from the GameState canister"
+MYPRINCIPAL=$(dfx identity get-principal | tr -d '\n')
+output=$(dfx canister call game_state_canister addMainerAgentCanisterAdmin "(record { address = \"$CANISTER_ID_MAINER_CTRLB_CANISTER\"; canisterType = variant {MainerAgent}; ownedBy = principal \"$MYPRINCIPAL\" })" --network $NETWORK_TYPE)
+
+echo "output: $output"
+# if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+if [[ "$output" != *"Ok = record"* ]]; then
+    echo "Error calling addMainerAgentCanisterAdmin for mAIner $CANISTER_ID_MAINER_CTRLB_CANISTER."
+    echo "This is most likely because the mAIner was already registered, and you can ignore this..."
+    exit 1
+else
+    echo "Successfully called addMainerAgentCanisterAdmin for mAIner $CANISTER_ID_MAINER_CTRLB_CANISTER."
 fi 

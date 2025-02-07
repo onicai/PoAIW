@@ -1,9 +1,9 @@
-//import D "mo:base/Debug";
-import Array "mo:base/Array";
+import D "mo:base/Debug";
+// import Array "mo:base/Array";
 import Principal "mo:base/Principal";
 import Text "mo:base/Text";
-import Blob "mo:base/Blob";
-import Nat8 "mo:base/Nat8";
+// import Blob "mo:base/Blob";
+// import Nat8 "mo:base/Nat8";
 import Cycles "mo:base/ExperimentalCycles";
 import HashMap "mo:base/HashMap";
 import Nat64 "mo:base/Nat64";
@@ -128,7 +128,11 @@ actor class GameStateCanister() = this {
                 // TODO: add to userToMainerAgentsStorage
                 return true;
             };
-            case (?canisterEntry) { return false; }; //existing entry
+            case (?canisterEntry) { 
+                //existing entry
+                D.print("GameState: putMainerAgentCanister - canisterEntry already exists -" # debug_show(canisterEntry));
+                return false; 
+            }; 
         };
     };
 
@@ -280,14 +284,20 @@ actor class GameStateCanister() = this {
 
     // Challenges helper functions
     private func getRandomChallenge(status : Types.ChallengeStatus) : async ?Types.Challenge {
+        D.print("GameState: getRandomChallenge - status: " # debug_show(status));
         switch (status) {
             case (#Open) {
-                let challengeIds : [Text] = Iter.toArray(challengerCanistersStorage.keys());
+                let challengeIds : [Text] = Iter.toArray(openChallengesStorage.keys());
+                
                 let numberOfChallenges : Nat = challengeIds.size();
 
-                let randomInt : ?Int = await Utils.nextRandomInt(0, numberOfChallenges);
+                let randomInt : ?Int = await Utils.nextRandomInt(0, numberOfChallenges-1);
+                D.print("GameState: getRandomChallenge - challengeIds: " # debug_show(challengeIds));
+                D.print("GameState: getRandomChallenge - numberOfChallenges: " # debug_show(numberOfChallenges));
+                D.print("GameState: getRandomChallenge - randomInt: " # debug_show(randomInt));
                 switch (randomInt) {
                     case (?intToUse) {
+                        D.print("GameState: getRandomChallenge - intToUse: " # debug_show(intToUse));
                         return getOpenChallenge(challengeIds[Int.abs(intToUse)]);
                     };
                     case (_) { return null; };
@@ -660,9 +670,6 @@ actor class GameStateCanister() = this {
 
     // Function for Admin to retrieve current challenges
     public shared query (msg) func getCurrentChallengesAdmin() : async Types.ChallengesResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -771,6 +778,7 @@ actor class GameStateCanister() = this {
             };
             case (_) { return #Err(#Other("Unsupported")); }
         };
+
         // Only official mAIner Agent Creator canisters may call this
         switch (getMainerCreatorCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
@@ -789,6 +797,34 @@ actor class GameStateCanister() = this {
                 return #Ok(canisterEntry);             
             };
         };
+    };
+
+    // TODO: remove; admin Function to add new mAIner agent for testing
+    public shared (msg) func addMainerAgentCanisterAdmin(canisterEntryToAdd : Types.MainerAgentCanisterInput) : async Types.MainerAgentCanisterResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        switch (canisterEntryToAdd.canisterType) {
+            case (#MainerAgent) {
+                // continue
+            };
+            case (_) { return #Err(#Other("Unsupported")); }
+        };
+        let canisterEntry : Types.OfficialProtocolCanister = {
+            address : Text = canisterEntryToAdd.address;
+            canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
+            creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+            createdBy : Principal = msg.caller;
+            ownedBy : Principal = canisterEntryToAdd.ownedBy;
+        };
+        let putResponse = putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry);
+        if (not putResponse) {
+            return #Err(#Other("An error adding the canister occurred"));
+        };
+        return #Ok(canisterEntry); 
     };
 
     // Function to retrieve info on a mAIner agent canister
@@ -832,47 +868,60 @@ actor class GameStateCanister() = this {
     };
 
     // Function for mAIner agent canister to submit a response to an open challenge
-    stable let CYCLES_MILLION = 1_000_000;
+    stable let _CYCLES_MILLION = 1_000_000;
     stable let CYCLES_BILLION = 1_000_000_000;
-    stable let CYCLES_TRILLION = 1_000_000_000_000;
+    stable let _CYCLES_TRILLION = 1_000_000_000_000;
     stable let SUBMISSION_CYCLES_REQUIRED : Nat = 100 * CYCLES_BILLION; // TODO: determine how many cycles are needed to process one submission (incl. judge)
     stable let FAILED_SUBMISSION_CYCLES_CUT : Nat = SUBMISSION_CYCLES_REQUIRED / 5;
-    stable let JUDGE_CYCLES_PROVISION_PER_SUBMISSION : Nat = 80 * CYCLES_BILLION; // TODO: determine how many cycles should be forwarded to judge per submission
+    stable let _JUDGE_CYCLES_PROVISION_PER_SUBMISSION : Nat = 80 * CYCLES_BILLION; // TODO: determine how many cycles should be forwarded to judge per submission
 
-    public shared (msg) func submitChallengeResponse(challengeResponseSubmitted : Types.ChallengeResponseSubmissionInput) : async Types.ChallengeResponseSubmissionResult {
+    public query func getSubmissionCyclesRequired() : async Nat {
+        return SUBMISSION_CYCLES_REQUIRED;
+    };
+
+    public shared (msg) func submitChallengeResponse(challengeResponseSubmissionInput : Types.ChallengeResponseSubmissionInput) : async Types.ChallengeResponseSubmissionMetadataResult {
+        D.print("GameState: submitChallengeResponse - entered");
         if (Principal.isAnonymous(msg.caller)) {
-            let cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+            let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+            D.print("GameState: submitChallengeResponse - 01");
             return #Err(#Unauthorized);
         };
         // Verify that submission is charged with cycles
         if (Cycles.available() < SUBMISSION_CYCLES_REQUIRED) {
-            let cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
-            return #Err(#Unauthorized);                    
+            let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+            D.print("GameState: submitChallengeResponse - 02");
+            D.print("GameState: submitChallengeResponse - cycles available: " # debug_show(Cycles.available()));
+            D.print("GameState: submitChallengeResponse - cycles required : " # debug_show(SUBMISSION_CYCLES_REQUIRED));
+            return #Err(#InsuffientCycles(SUBMISSION_CYCLES_REQUIRED));                    
         };
         // Only official mAIner agent canisters may call this
         switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
             case (null) {
-                let cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                D.print("GameState: submitChallengeResponse - 03");
                 return #Err(#Unauthorized);
             };
-            case (?mainerAgentEntry) {
+            case (?_mainerAgentEntry) {
                 // Check that submission record looks correct
-                if (challengeResponseSubmitted.submittedBy != msg.caller) {
-                    let cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                if (challengeResponseSubmissionInput.submittedBy != msg.caller) {
+                    let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                    D.print("GameState: submitChallengeResponse - 04");
                     return #Err(#Unauthorized);
                 };
 
                 // Verify that challenge is open
-                if (not verifyChallenge(#Open, challengeResponseSubmitted.challengeId)) {
-                    let cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                if (not verifyChallenge(#Open, challengeResponseSubmissionInput.challengeId)) {
+                    let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                    D.print("GameState: submitChallengeResponse - 05");
                     return #Err(#InvalidId);
                 };
 
                 // Get Judge responsible for challenge
-                let judgeCanisterEntry : ?Types.OfficialProtocolCanister = getJudgeCanisterForChallenge(#Open, challengeResponseSubmitted.challengeId);
+                let judgeCanisterEntry : ?Types.OfficialProtocolCanister = getJudgeCanisterForChallenge(#Open, challengeResponseSubmissionInput.challengeId);
                 switch (judgeCanisterEntry) {
                     case (null) {
-                        let cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                        let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                        D.print("GameState: submitChallengeResponse - 06");
                         return #Err(#FailedOperation);
                     };
                     case (?judgeCanister) {
@@ -880,34 +929,39 @@ actor class GameStateCanister() = this {
                         let cyclesAcceptedForSubmission = Cycles.accept<system>(SUBMISSION_CYCLES_REQUIRED);
                         if (cyclesAcceptedForSubmission != SUBMISSION_CYCLES_REQUIRED) {
                             // Sanity check: At this point, this should never fail
+                            D.print("GameState: submitChallengeResponse - 07");
                             return #Err(#Unauthorized);                    
                         };
 
                         // Forward submission to responsible Judge
                         let submissionId : Text = await Utils.newRandomUniqueId();
                         let submissionToForward : Types.ChallengeResponseSubmission = {
-                            submissionId : Text = submissionId;
-                            challengeId : Text = challengeResponseSubmitted.challengeId;
+                            challengeId : Text = challengeResponseSubmissionInput.challengeId;
                             submittedBy : Principal = msg.caller;
-                            response : Text = challengeResponseSubmitted.response;
+                            challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
+                            submissionId : Text = submissionId;
                             submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                             status: Types.ChallengeResponseSubmissionStatus = #Received;
+                            challengeAnswer : Text = challengeResponseSubmissionInput.challengeAnswer;
                         };
                         
                         let judgeAddress = judgeCanister.address;
 
                         let judgeCanisterActor = actor(judgeAddress): Types.Judge_Actor;
-                        let result = await judgeCanisterActor.addSubmissionToJudge(submissionToForward);
+        
+                        D.print("GameState: submitChallengeResponse- calling submitChallengeResponse of judgeCanisterActor = " # Principal.toText(Principal.fromActor(judgeCanisterActor)));
+                        let result : Types.ChallengeResponseSubmissionMetadataResult = await judgeCanisterActor.addSubmissionToJudge(submissionToForward);
+                        D.print("GameState: submitChallengeResponse- returned from submitChallengeResponse of judgeCanisterActor = " # Principal.toText(Principal.fromActor(judgeCanisterActor)));
 
                         switch (result) {
-                            case (#Ok(judgeConfirmation)) {
-                                let submissionEntry : Types.ChallengeResponseSubmissionReturn = {
-                                    success : Bool = true;
+                            case (#Ok(_judgeConfirmation)) {
+                                let submissionMetada : Types.ChallengeResponseSubmissionMetadata = {
                                     submissionId : Text = submissionToForward.submissionId;
                                     submittedTimestamp : Nat64 = submissionToForward.submittedTimestamp;
                                     status: Types.ChallengeResponseSubmissionStatus = #Submitted;
                                 };
-                                return #Ok(submissionEntry);
+                                D.print("GameState: submitChallengeResponse - 08");
+                                return #Ok(submissionMetada);
                             };
                             case (_) { return #Err(#FailedOperation); };
                         };                        
@@ -921,15 +975,20 @@ actor class GameStateCanister() = this {
     stable let THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE = 20; // TODO: determine threshold how many scored responses are needed before challenge is closed (for ranking and winner declaration)
     
     public shared (msg) func addScoredResponse(scoredResponseInput : Types.ScoredResponseInput) : async Types.ScoredResponseResult {
+        D.print("GameState: addScoredResponse - entered");
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
         // Only official Judge canisters may call this
         switch (getJudgeCanister(Principal.toText(msg.caller))) {
-            case (null) { return #Err(#Unauthorized); };
-            case (?judgeEntry) {
+            case (null) { 
+                D.print("GameState: addScoredResponse - 01");
+                return #Err(#Unauthorized); 
+                };
+            case (?_judgeEntry) {
                 // Sanity checks on scored response
                 if (scoredResponseInput.judgedBy != msg.caller) {
+                    D.print("GameState: addScoredResponse - 02");
                     return #Err(#Unauthorized);
                 };
                 // TODO: likely we want to store the submissions from the mAIners and check here that it was an actual submission and that the data matches up
@@ -937,6 +996,7 @@ actor class GameStateCanister() = this {
                 // Verify that challenge is open
                 if (not verifyChallenge(#Open, scoredResponseInput.challengeId)) {
                     // TODO: likely we want to store the scored response nevertheless for the closed challenge
+                    D.print("GameState: addScoredResponse - 03");
                     return #Err(#InvalidId);
                 };
                 
@@ -944,15 +1004,17 @@ actor class GameStateCanister() = this {
                 let responsibleJudgeCanisterEntry : ?Types.OfficialProtocolCanister = getJudgeCanisterForChallenge(#Open, scoredResponseInput.challengeId);
                 switch (responsibleJudgeCanisterEntry) {
                     case (null) {
+                        D.print("GameState: addScoredResponse - 04");
                         return #Err(#Unauthorized);
                     };
-                    case (?responsibleJudgeCanister) {
+                    case (?_responsibleJudgeCanister) {
                         // Store scored response for challenge
                         let scoredResponseEntry : Types.ScoredResponse = {
                             submissionId : Text = scoredResponseInput.submissionId;
                             challengeId : Text = scoredResponseInput.challengeId;
                             submittedBy : Principal = scoredResponseInput.submittedBy;
-                            response : Text = scoredResponseInput.response;
+                            challengeQuestion : Text = scoredResponseInput.challengeQuestion;
+                            challengeAnswer : Text = scoredResponseInput.challengeAnswer;
                             submittedTimestamp : Nat64 = scoredResponseInput.submittedTimestamp;
                             status: Types.ChallengeResponseSubmissionStatus = #Judged;
                             judgedBy: Principal = scoredResponseInput.judgedBy;
@@ -960,6 +1022,8 @@ actor class GameStateCanister() = this {
                             judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                         };
 
+                        D.print("GameState: addScoredResponse - All Good - calling putScoredResponseForChallenge");
+                        D.print("GameState: addScoredResponse - scoredResponseEntry = " # debug_show(scoredResponseEntry));
                         let numberOfScoredResponsesForChallenge : Nat = putScoredResponseForChallenge(scoredResponseEntry);
 
                         // Determine if ranking of scored responses can be triggered

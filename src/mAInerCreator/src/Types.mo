@@ -8,8 +8,10 @@ module Types {
         #Unauthorized;
         #InvalidId;
         #ZeroAddress;
+        #FailedOperation;
         #Other : Text;
         #StatusCode : StatusCode;
+        #InsuffientCycles : Nat; // Returns the required cycles to perform the operation
     };
 
     public type Result<S, E> = {

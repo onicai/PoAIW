@@ -42,6 +42,7 @@ Install mops (https://mops.one/docs/install), and then:
 # Do this in all these folders:
 # - from folder: `PoAIW/src/Challenger`
 # - from folder: `PoAIW/src/Judge`
+# - from folder: `PoAIW/src/mAIner`
 mops init
 mops install
 ```
@@ -58,9 +59,16 @@ sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
 # from folder: PoAIW
 scripts/build_llama_cpp_canister.sh  # Note: Optional - works on Mac only
 
+# All at once:
+# (-) --mode install is slow, because the LLM models are uploaded.
+# (-) --mode upgrade is fast, because the LLM models are NOT uploaded.
+#       The canisters are re-build and re-deployed, but the LLM models are still in the canister's stable memory.
+scripts/deploy-all.sh --mode [install/reinstall/upgrade] --network [local/ic]
+
+# Step-by-step:
 scripts/deploy-challenger.sh --mode [install/reinstall/upgrade] --network [local/ic]
 scripts/deploy-judge.sh      --mode [install/reinstall/upgrade] --network [local/ic]
-
+scripts/deploy-mainer.sh     --mode [install/reinstall/upgrade] --network [local/ic]
 scripts/deploy-gamestate.sh  --mode [install/reinstall/upgrade] --network [local/ic]
 ```
 
@@ -69,25 +77,6 @@ Note: on WSL, you might first have to run
 sudo sysctl -w vm.max_map_count=2097152
 ```
 to successfully load the models in the LLM canisters.
-
-# Test Judge
-To manually add a Submission to Judge, call
-```bash
-# from folder: PoAIW/src/Judge
-dfx canister call judge_ctrlb_canister addSubmissionToJudge \
-  '(record { 
-      submissionId = "s-01"; 
-      challengeId = "c-01"; 
-      challengeQuestion = "What is a blockchain?"; 
-      challengeAnswer = "A distributed ledger"; 
-      submittedBy = principal "aaaaa-aa"; 
-      submittedTimestamp = 1707072000000000000 : nat64; 
-      status = variant { Submitted }
-  })'
-```
-
-Check the logs, and you will see that the challenge is correctly scored.
-TODO: Test sendScoredResponseToGameStateCanister
 
 # Create challenges:
 ```bash
@@ -107,39 +96,55 @@ dfx canister call challenger_ctrlb_canister getChallengesAdmin
 dfx canister call game_state_canister getCurrentChallengesAdmin
 ```
 
-----------
-
-# THIS IS ALREADY DONE BY THE SCRIPTS...
-Once completed:
-- challenger_ctrlb_canister should have the canister id <TBD-1>
-- challenger_ctrlb_canister should have the canister id <TBD-2>
-
-# Deploy Game State canister:
+# Test mAIner:
 ```bash
-# from folder: PoAIW/src/GameState
-dfx deploy game_state_canister
-```
-game_state_canister should now have the canister id <TBD-0>
+# from folder: PoAIW/src/mAIner
+# start the timer that generates challenge responses recurringly
+dfx canister call mainer_ctrlb_canister startTimerExecutionAdmin
 
-Once deployed, connect the Game State with the Challenger & Judge canisters:
+
+# TODO - remove once Create Mainer is functional
+# from folder: PoAIW/src/GameState
+# register the mAIner agent with the Game State canister for testing as an admin
+# NOTE: this is already done by register-all.sh
+# dfx canister call game_state_canister addMainerAgentCanisterAdmin "(record { address = \"ahw5u-keaaa-aaaaa-qaaha-cai\"; canisterType = variant {MainerAgent}; ownedBy = principal\"$(dfx identity get-principal)\" })"
+# you can also trigger a single challenge response generation manually
+dfx canister call mainer_ctrlb_canister triggerChallengeResponseAdmin
+```
+
+The challenge response generation takes a moment:
+(1) The mAIner uses an LLM to generate a response and submits it to the GameState
+(2) The GameState is not storing anything yet. It just forwards the submission to a Judge for scoring
+(3) The Judge uses an LLM to score the response and submits the scored submission to the GameState
+(4) The GameState now stores the scored submission
+
+To ensure it worked, call
 ```bash
-# -----------------------------------
-# Connect Challenger
-#
+# from folder: PoAIW/src/mAIner
+dfx canister call mainer_ctrlb_canister getSubmittedResponsesAdmin  # TODO
+
 # from folder: PoAIW/src/GameState
-dfx canister call game_state_canister addOfficialCanister '(record { address = "TBD-1"; canisterType = variant {Challenger} })'
-# verify with
-dfx canister call game_state_canister getOfficialChallengerCanisters
-
-# from folder: PoAIW/src/Challenger
-dfx canister call challenger_ctrlb_canister setGameStateCanisterId "TBD-0"
-
-# -----------------------------------
-# Connect Judge
-#
-# from folder: PoAIW/src/GameState
-dfx canister call game_state_canister addOfficialCanister '(record { address = "TBD-2"; canisterType = variant {Judge} })'
-
-# from folder: PoAIW/src/Jugde
-dfx canister call judge_ctrlb_canister setGameStateCanisterId "TBD-0"
+dfx canister call game_state_canister get...Admin  # TODO ?
 ```
+
+# Test Judge
+To manually add a Submission to Judge, call
+```bash
+# from folder: PoAIW/src/Judge
+dfx canister call judge_ctrlb_canister addSubmissionToJudge \
+  '(record { 
+      challengeId = "c-01"; 
+      submittedBy = principal "aaaaa-aa"; 
+      challengeQuestion = "What is a blockchain?"; 
+      challengeAnswer = "A distributed ledger"; 
+      submissionId = "s-01"; 
+      submittedTimestamp = 1707072000000000000 : nat64; 
+      status = variant { Received }
+  })'
+```
+
+Check the logs, and you will see that the challenge is correctly scored,
+and after scoring, send to the GameState for storing.
+
+Because this is a fake challenge, the GameState canister will reject storing
+it with a #InvalidId error.
