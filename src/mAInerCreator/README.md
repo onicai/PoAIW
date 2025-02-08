@@ -25,7 +25,7 @@ dfx deploy --network development mainer_creator_canister
 ## production
 dfx deploy --ic mainer_creator_canister
 
-# Set DeVinci Backend as master canister (you have to deploy that canister first and then return with its id)
+# Set Game State as master canister (you have to deploy that canister first and then return with its id)
 # local
 dfx canister call mainer_creator_canister setMasterCanisterId '("be2us-64aaa-aaaaa-qaabq-cai")'
 

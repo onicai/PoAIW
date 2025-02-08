@@ -27,12 +27,14 @@ module Types {
     public type AuthRecordResult = Result<AuthRecord, ApiError>;
 
     //-------------------------------------------------------------------------
+    public type CanisterAddress = Text;
+
     public type CanisterCreationConfigurationInput = {
         canisterType : ProtocolCanisterType;
+        associatedCanisterAddress : CanisterAddress;
     };
 
-    public type CanisterCreationConfiguration = {
-        canisterType : ProtocolCanisterType;
+    public type CanisterCreationConfiguration = CanisterCreationConfigurationInput and {
         owner: Principal;
     };
 
@@ -49,6 +51,7 @@ module Types {
         #Verifier;
         #MainerCreator;
         #MainerAgent;
+        #MainerLlm;
     };
 
     public type FileUploadRecord = {
