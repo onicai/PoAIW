@@ -27,11 +27,22 @@ module Types {
     public type AuthRecordResult = Result<AuthRecord, ApiError>;
 
     //-------------------------------------------------------------------------
+    // data needed to create a new canister with the model
+    public type ModelCreationArtefacts = {
+        canisterWasm : [Nat8];
+        modelFile : [Nat8];
+    };
+
+    public type AvailableModels = {
+        #Qwen25_500M;
+    };
+    
     public type CanisterAddress = Text;
 
     public type CanisterCreationConfigurationInput = {
         canisterType : ProtocolCanisterType;
-        associatedCanisterAddress : CanisterAddress;
+        selectedModel : AvailableModels;
+        associatedCanisterAddress : ?CanisterAddress;
     };
 
     public type CanisterCreationConfiguration = CanisterCreationConfigurationInput and {
