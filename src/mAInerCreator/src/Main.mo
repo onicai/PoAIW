@@ -5,6 +5,9 @@ import Text "mo:base/Text";
 import Blob "mo:base/Blob";
 import Nat8 "mo:base/Nat8";
 import Cycles "mo:base/ExperimentalCycles";
+import HashMap "mo:base/HashMap";
+import Iter "mo:base/Iter";
+import D "mo:base/Debug";
 
 import Types "./Types";
 
@@ -168,7 +171,6 @@ actor class CanisterCreationCanister() = this {
             return #Err(#Unauthorized);
         };
 
-        // TODO: split up functionality and have frontend make several calls (also allows UI to provide feedback to user)
         switch (configurationInput.canisterType) {
             case (#MainerAgent) {
                 // Create mAIner controller canister for new mAIner agent
@@ -191,7 +193,9 @@ actor class CanisterCreationCanister() = this {
                 });
 
                 // Verify new canister is working
-                let readyControllerResult = await createdControllerCanister.health();
+                let controllerCanisterActor = actor (Principal.toText(createdControllerCanister.canister_id)) : Types.MainerAgentCtrlbCanister;
+
+                let readyControllerResult = await controllerCanisterActor.health();
                 switch (readyControllerResult) {
                     case (#Err(error)) {
                         return #Err(error);
@@ -202,7 +206,7 @@ actor class CanisterCreationCanister() = this {
                 };
 
                 // Set Game State canister address
-                let setControllerGameStateResult = await createdControllerCanister.setGameStateCanisterId(MASTER_CANISTER_ID);
+                let setControllerGameStateResult = await controllerCanisterActor.setGameStateCanisterId(MASTER_CANISTER_ID);
                 switch (setControllerGameStateResult) {
                     case (#Err(error)) {
                         return #Err(error);
@@ -223,14 +227,14 @@ actor class CanisterCreationCanister() = this {
                 // Sanity check
                 switch (configurationInput.associatedCanisterAddress) {
                     case (null) {
-                        return #Err("Please provide the canister address of the associated mAIner controller canister");
+                        return #Err(#Other("Please provide the canister address of the associated mAIner controller canister"));
                     };
                     case (?associatedCanisterAddress) {
                         let isValidPrincipal = Principal.fromText(associatedCanisterAddress); // this will throw an error if it's not a valid canister address
                         // all good, continue
                         switch (getModelCreationArtefacts(configurationInput.selectedModel)) {
                             case (null) {
-                                return #Err("Cannot find creation artefacts for the selected model");
+                                return #Err(#Other("Cannot find creation artefacts for the selected model"));
                             };
                             case (?modelCreationArtefacts) {
                                 // Create mAIner LLM (and add it to a mAIner controller)
@@ -253,7 +257,9 @@ actor class CanisterCreationCanister() = this {
                                 });
 
                                 // Verify new canister is working
-                                let readyLlmResult = await createdLlmCanister.health();
+                                let llmCanisterActor = actor (Principal.toText(createdLlmCanister.canister_id)) : Types.LLMCanister;
+
+                                let readyLlmResult = await llmCanisterActor.health();
                                 switch (readyLlmResult) {
                                     case (#Err(error)) {
                                         return #Err(error);
@@ -275,9 +281,9 @@ actor class CanisterCreationCanister() = this {
                                 // connect LLM and controller canisters
                                 // Register LLM with controller
                                 // TODO
-                                stable var associatedControllerCanisterActor = actor (associatedCanisterAddress) : Types.MainerControllerCanister_Actor;
+                                let associatedControllerCanisterActor = actor (associatedCanisterAddress) : Types.MainerAgentCtrlbCanister;
 
-                                let addLlmToControllerResult = await associatedControllerCanisterActor.set_llm_canister_id(Principal.toText(createdLlmCanister.canister_id));
+                                let addLlmToControllerResult = await associatedControllerCanisterActor.add_llm_canister_id({ canister_id = Principal.toText(createdLlmCanister.canister_id); });
                                 switch (addLlmToControllerResult) {
                                     case (#Err(error)) {
                                         return #Err(error);
@@ -322,8 +328,10 @@ actor class CanisterCreationCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        let config = {
+        let config : Types.CanisterCreationConfiguration = {
             canisterType : Types.ProtocolCanisterType = #MainerAgent;
+            selectedModel : Types.AvailableModels = #Qwen2_5_500M;
+            associatedCanisterAddress : ?Types.CanisterAddress = null;
             owner : Principal = msg.caller;
         };
         let result = await createCanister(config);
@@ -340,19 +348,6 @@ actor class CanisterCreationCanister() = this {
         };
 
         mainerControllerCanisterWasm := [];
-
-        return #Ok({ creationResult = "Success" });
-    };
-
-    public shared (msg) func reset_mainer_llm_canister_wasm() : async Types.FileUploadResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-
-        mainerLlmCanisterWasm := [];
 
         return #Ok({ creationResult = "Success" });
     };

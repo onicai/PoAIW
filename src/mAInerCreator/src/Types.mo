@@ -81,6 +81,37 @@ module Types {
 
     public type CanisterIDRecord = { canister_id : Text };
 
+    public type InputRecord = {
+        args : [Text]; // the CLI args of llama.cpp/examples/main, as a list of strings
+    };
+
+    public type OutputRecordResult = Result<OutputRecord, ApiError>;
+    public type OutputRecord = {
+        status_code : Nat16;
+        output : Text;
+        conversation : Text;
+        error : Text;
+        prompt_remaining : Text;
+        generated_eog : Bool;
+    };
+
+    public type MainerAgentCtrlbCanister = actor {
+        add_llm_canister_id: (CanisterIDRecord) -> async StatusCodeRecordResult;
+        health: query () -> async StatusCodeRecordResult;
+        setGameStateCanisterId: (Text) -> async StatusCodeRecordResult;
+        setRoundRobinLLMs: (Nat) -> async StatusCodeRecordResult;
+        set_llm_canister_id: (CanisterIDRecord) -> async StatusCodeRecordResult;
+    };
+
+    public type LLMCanister = actor {
+        health : () -> async StatusCodeRecordResult;
+        ready : () -> async StatusCodeRecordResult;
+        check_access : () -> async StatusCodeRecordResult;
+        new_chat : (InputRecord) -> async OutputRecordResult;
+        run_update : (InputRecord) -> async OutputRecordResult;
+        remove_prompt_cache : (InputRecord) -> async OutputRecordResult;
+    };
+
     // IC Management Canister types
     public type canister_id = Principal;
     public type canister_settings = {
