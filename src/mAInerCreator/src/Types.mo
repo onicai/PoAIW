@@ -1,6 +1,9 @@
 import Blob "mo:base/Blob";
 import Principal "mo:base/Principal";
 import Nat16 "mo:base/Nat16";
+import Nat64 "mo:base/Nat64";
+import Nat8 "mo:base/Nat8";
+import Text "mo:base/Text";
 
 module Types {
     //-------------------------------------------------------------------------
@@ -67,12 +70,6 @@ module Types {
 
     public type InsertArtefactsResult = Result<ModelCreationArtefacts, ApiError>;
 
-    public type FileUploadRecord = {
-        creationResult : Text;
-    };
-
-    public type FileUploadResult = Result<FileUploadRecord, ApiError>;
-
     public type StatusCode = Nat16;
 
     public type StatusCodeRecord = { status_code : StatusCode };
@@ -103,6 +100,30 @@ module Types {
         set_llm_canister_id: (CanisterIDRecord) -> async StatusCodeRecordResult;
     };
 
+    public type MaxTokensRecord = {
+        max_tokens_update : Nat64;
+        max_tokens_query : Nat64;
+    };
+
+    public type FileUploadInputRecord = {
+        filename : Text;
+        chunk : [Nat8]; // the chunk being uploaded, as a vec of bytes
+        chunksize : Nat64; // the chunksize (allowing sanity check)
+        offset : Nat64; // the offset where to write the chunk
+    };
+
+    type FileUploadRecordResult = Result<FileUploadRecord, ApiError>;
+    
+    public type FileUploadRecord = {
+        filesize : Nat64; // the total filesize in bytes after writing chunk at offset
+    };
+
+    public type UploadResult = {
+        creationResult : Text;
+    };
+
+    public type FileUploadResult = Result<UploadResult, ApiError>;
+
     public type LLMCanister = actor {
         health : () -> async StatusCodeRecordResult;
         ready : () -> async StatusCodeRecordResult;
@@ -110,6 +131,9 @@ module Types {
         new_chat : (InputRecord) -> async OutputRecordResult;
         run_update : (InputRecord) -> async OutputRecordResult;
         remove_prompt_cache : (InputRecord) -> async OutputRecordResult;
+        load_model : (InputRecord) -> async OutputRecordResult;
+        set_max_tokens : (MaxTokensRecord) -> async StatusCodeRecordResult;
+        file_upload_chunk : (FileUploadInputRecord) -> async FileUploadRecordResult;
     };
 
     // IC Management Canister types

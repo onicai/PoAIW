@@ -8,6 +8,8 @@ import Cycles "mo:base/ExperimentalCycles";
 import HashMap "mo:base/HashMap";
 import Iter "mo:base/Iter";
 import D "mo:base/Debug";
+import Buffer "mo:base/Buffer";
+import Nat64 "mo:base/Nat64";
 
 import Types "./Types";
 
@@ -271,16 +273,57 @@ actor class CanisterCreationCanister() = this {
 
                                 // TODO: Make LLM functional
                                 // Upload model file
+                                // let chunkSize = 42000; // ~0.01 MB for testing
+                                let chunkSize = 9 * 1024 * 1024; // 9 MB
+
+                                let bufferModelFile = Buffer.fromArray<Nat8>(modelCreationArtefacts.modelFile);
+                                let chunksModelFile = Buffer.chunk<Nat8>(bufferModelFile, chunkSize);
+                                var offset = 0;
+                                for (chunk in chunksModelFile.vals()) {
+                                    D.print("Uploading another chunk of the model file...");
+                                    let uploadChunk = {
+                                        filename = "models/model.gguf";
+                                        chunk = Buffer.toArray<Nat8>(chunk);
+                                        chunksize = Nat64.fromNat(chunkSize);
+                                        offset = Nat64.fromNat(offset);
+                                    };
+                                    let uploadModelFileResult = await llmCanisterActor.file_upload_chunk(uploadChunk);
+                                    offset := offset + chunkSize;
+                                };
 
                                 // load model file in LLM
+                                let inputRecord : Types.InputRecord = {
+                                    args : [Text] = ["--model", "models/model.gguf"];
+                                };
+                                let loadModelResult = await llmCanisterActor.load_model(inputRecord);
+                                switch (loadModelResult) {
+                                    case (#Err(error)) {
+                                        return #Err(error);
+                                    };
+                                    case _ {
+                                        // all good, continue
+                                    };
+                                };
+        
 
                                 // set max tokens
-
-                                
+                                let MAX_TOKENS : Nat64 = 10;
+                                let maxTokensRecord : Types.MaxTokensRecord = {
+                                    max_tokens_update : Nat64 = MAX_TOKENS;
+                                    max_tokens_query : Nat64 = MAX_TOKENS;
+                                };
+                                let setMaxTokensResult = await llmCanisterActor.set_max_tokens(maxTokensRecord);
+                                switch (setMaxTokensResult) {
+                                    case (#Err(error)) {
+                                        return #Err(error);
+                                    };
+                                    case _ {
+                                        // all good, continue
+                                    };
+                                };                                
 
                                 // connect LLM and controller canisters
                                 // Register LLM with controller
-                                // TODO
                                 let associatedControllerCanisterActor = actor (associatedCanisterAddress) : Types.MainerAgentCtrlbCanister;
 
                                 let addLlmToControllerResult = await associatedControllerCanisterActor.add_llm_canister_id({ canister_id = Principal.toText(createdLlmCanister.canister_id); });
