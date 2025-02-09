@@ -34,7 +34,7 @@ module Types {
     };
 
     public type AvailableModels = {
-        #Qwen25_500M;
+        #Qwen2_5_500M;
     };
     
     public type CanisterAddress = Text;
@@ -64,6 +64,8 @@ module Types {
         #MainerAgent;
         #MainerLlm;
     };
+
+    public type InsertArtefactsResult = Result<ModelCreationArtefacts, ApiError>;
 
     public type FileUploadRecord = {
         creationResult : Text;
