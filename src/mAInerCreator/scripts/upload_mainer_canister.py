@@ -102,7 +102,7 @@ def main() -> int:
             print(f"- chunk[0]  = {chunk[0]}")
             print(f"- chunk[-1] = {chunk[-1]}")
 
-        response = canister_creator.upload_mainer_canister_wasm_bytes_chunk(
+        response = canister_creator.upload_mainer_controller_canister_wasm_bytes_chunk(
             chunk
         )  # pylint: disable=no-member
         if "Ok" in response[0].keys():

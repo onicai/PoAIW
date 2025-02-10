@@ -1,0 +1,81 @@
+type TimeInterval = variant {Daily;};
+type StatusCodeRecordResult = 
+ variant {
+   Err: ApiError;
+   Ok: StatusCodeRecord;
+ };
+type StatusCodeRecord = record {status_code: StatusCode;};
+type StatusCode = nat16;
+type MainerAgentSettingsInput = record {cyclesBurnRate: CyclesBurnRate;};
+type MainerAgentCtrlbCanister = 
+ service {
+   add_llm_canister_id: (CanisterIDRecord) -> (StatusCodeRecordResult);
+   amiController: () -> (StatusCodeRecordResult) query;
+   checkAccessToLLMs: () -> (StatusCodeRecordResult);
+   getGameStateCanisterId: () -> (text) query;
+   getRoundRobinCanister: () -> (CanisterIDRecordResult) query;
+   getSubmittedResponsesAdmin: () ->
+    (ChallengeResponseSubmissionsResult) query;
+   health: () -> (StatusCodeRecordResult) query;
+   ready: () -> (StatusCodeRecordResult);
+   setGameStateCanisterId: (text) -> (StatusCodeRecordResult);
+   setRoundRobinLLMs: (nat) -> (StatusCodeRecordResult);
+   set_llm_canister_id: (CanisterIDRecord) -> (StatusCodeRecordResult);
+   startTimerExecutionAdmin: () -> (AuthRecordResult);
+   triggerChallengeResponseAdmin: () -> (AuthRecordResult);
+   updateAgentSettings: (MainerAgentSettingsInput) ->
+    (StatusCodeRecordResult);
+   whoami: () -> (principal) query;
+ };
+type CyclesBurnRate = 
+ record {
+   cycles: nat;
+   timeInterval: TimeInterval;
+ };
+type ChallengeResponseSubmissionsResult = 
+ variant {
+   Err: ApiError;
+   Ok: vec ChallengeResponseSubmission;
+ };
+type ChallengeResponseSubmissionStatus = 
+ variant {
+   FailedSubmission;
+   Judged;
+   Other: text;
+   Processed;
+   Received;
+   Submitted;
+ };
+type ChallengeResponseSubmission = 
+ record {
+   challengeAnswer: text;
+   challengeId: text;
+   challengeQuestion: text;
+   status: ChallengeResponseSubmissionStatus;
+   submissionId: text;
+   submittedBy: principal;
+   submittedTimestamp: nat64;
+ };
+type CanisterIDRecordResult = 
+ variant {
+   Err: ApiError;
+   Ok: CanisterIDRecord;
+ };
+type CanisterIDRecord = record {canister_id: text;};
+type AuthRecordResult = 
+ variant {
+   Err: ApiError;
+   Ok: AuthRecord;
+ };
+type AuthRecord = record {auth: text;};
+type ApiError = 
+ variant {
+   FailedOperation;
+   InsuffientCycles: nat;
+   InvalidId;
+   Other: text;
+   StatusCode: StatusCode;
+   Unauthorized;
+   ZeroAddress;
+ };
+service : () -> MainerAgentCtrlbCanister
