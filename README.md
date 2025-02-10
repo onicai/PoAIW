@@ -62,6 +62,8 @@ scripts/build_llama_cpp_canister.sh  # Note: Optional - works on Mac only
 # (-) --mode install is slow, because the LLM models are uploaded.
 # (-) --mode upgrade is fast, because the LLM models are NOT uploaded.
 #       The canisters are re-build and re-deployed, but the LLM models are still in the canister's stable memory.
+# (-) When we deployed to ic, the initial installation of each component was done manually
+#     to ensure the LLMs ended up on the correct subnet
 scripts/deploy-all.sh --mode [install/reinstall/upgrade] --network [local/ic]
 
 # Step-by-step:
