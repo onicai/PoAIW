@@ -1,8 +1,8 @@
-"""Uploads mainer agent canister wasm
+"""Uploads mainer agent llm canister wasm
 
 Run with:
 
-    python -m scripts.upload_mainer_canister.py
+    python -m scripts.upload_mainer_llm_canister_wasm.py
 """
 
 # pylint: disable=invalid-name, too-few-public-methods, no-member, too-many-statements
@@ -83,6 +83,8 @@ def main() -> int:
     # converting MB to bytes
     chunk_size = int(chunk_size_mb * 1024 * 1024)
 
+    selectedModel = { "Qwen2_5_500M": None}
+
     # Iterate over all chunks
     count_bytes = 0
     for i, chunk in enumerate(generate_chunks(wasm_bytes, chunk_size)):
@@ -102,7 +104,8 @@ def main() -> int:
             print(f"- chunk[0]  = {chunk[0]}")
             print(f"- chunk[-1] = {chunk[-1]}")
 
-        response = canister_creator.upload_mainer_controller_canister_wasm_bytes_chunk(
+        response = canister_creator.upload_mainer_llm_canister_wasm_bytes_chunk(
+            selectedModel,
             chunk
         )  # pylint: disable=no-member
         if "Ok" in response[0].keys():

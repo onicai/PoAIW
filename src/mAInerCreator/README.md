@@ -46,6 +46,8 @@ Setup python environment:
 pip install -r requirements.txt
 ```
 
+#### mAIner Controller Canister
+
 Run upload script - local:
 
 ```bash
@@ -78,8 +80,8 @@ class SyncStream(NetworkStream):
 # ------------------------------------------------------------------------
 
 # ========================================================================
-# TODO: Upload the mainer controller canister wasm
-python3 -m scripts.upload_mainer_canister --network local --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+# Upload the mainer controller canister wasm
+python3 -m scripts.upload_mainer_controller_canister --network local --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 ```
 
 Run upload script - IC:
@@ -88,11 +90,32 @@ Run upload script - IC:
 # To IC
 ## development
 ### TODO: Upload the mainer controller canister wasm
-python3 -m scripts.upload_mainer_canister --network development --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+python3 -m scripts.upload_mainer_controller_canister --network development --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 
 ## production
 ### TODO: Upload the mainer controller canister wasm
-python3 -m scripts.upload_mainer_canister --network ic --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+python3 -m scripts.upload_mainer_controller_canister --network ic --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+```
+
+#### mAIner LLM Canister
+Run upload script - local:
+
+```bash
+# Upload the mainer LLM canister wasm
+python3 -m scripts.upload_mainer_llm_canister_wasm --network local --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+```
+
+Run upload script - IC:
+
+```bash
+# To IC
+## development
+### Upload the mainer LLM canister wasm
+python3 -m scripts.upload_mainer_llm_canister_wasm --network development --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+
+## production
+### Upload the mainer LLM canister wasm
+python3 -m scripts.upload_mainer_llm_canister_wasm --network ic --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 ```
 
 ### Test canister creation
@@ -104,14 +127,15 @@ dfx canister call mainer_creator_canister amiController
 # To test mainer controller canister creation
 dfx canister call mainer_creator_canister testCreateMainerControllerCanister
 
-# use canister address of created mainer controller canister
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister ""
-
 ## Call endpoints on created canister
 ## Note: use newCanisterId printed by testCreateMainerCanister
-# TODO
-dfx canister call b77ix-eeaaa-aaaaa-qaada-cai size
-dfx canister call b77ix-eeaaa-aaaaa-qaada-cai check_cycles_and_topup
+dfx canister call cgpjn-omaaa-aaaaa-qaakq-cai amiController
+dfx canister call cgpjn-omaaa-aaaaa-qaakq-cai health
+dfx canister call cgpjn-omaaa-aaaaa-qaakq-cai ready
+dfx canister call cgpjn-omaaa-aaaaa-qaakq-cai checkAccessToLLMs
+
+# use canister address of created mainer controller canister, e.g. cgpjn-omaaa-aaaaa-qaakq-cai
+dfx canister call mainer_creator_canister testCreateMainerLlmCanister "cgpjn-omaaa-aaaaa-qaakq-cai"
 
 # ----be carefull with these START ---
 ## In case the canister wasm has to be reset (use with caution):
