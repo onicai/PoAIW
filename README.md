@@ -1,6 +1,6 @@
 # PoAIW
 
-Clone this repo into DecentralizedAIonIC
+Clone this repo into funnAI
 
 # Setup
 
@@ -9,7 +9,7 @@ Clone this repo into DecentralizedAIonIC
 Clone the following repos to your local disk using this folder structure:
 
 ```
-|-DecentralizedAIonIC       (https://github.com/patnorris/DecentralizedAIonIC)
+|-funnAI       (https://github.com/onicai/funnAI)
   |-PoAIW                   (https://github.com/onicai/PoAIW)
 
 |-llama_cpp_canister        (https://github.com/onicai/llama_cpp_canister)
