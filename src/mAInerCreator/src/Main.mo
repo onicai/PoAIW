@@ -364,7 +364,7 @@ actor class CanisterCreationCanister() = this {
     };
 
 // Admin 
-    public shared (msg) func testCreateMainerCanister() : async Types.CanisterCreationResult {
+    public shared (msg) func testCreateMainerControllerCanister() : async Types.CanisterCreationResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -375,6 +375,23 @@ actor class CanisterCreationCanister() = this {
             canisterType : Types.ProtocolCanisterType = #MainerAgent;
             selectedModel : Types.AvailableModels = #Qwen2_5_500M;
             associatedCanisterAddress : ?Types.CanisterAddress = null;
+            owner : Principal = msg.caller;
+        };
+        let result = await createCanister(config);
+        return result;
+    };
+
+    public shared (msg) func testCreateMainerLlmCanister(controllerCanisterAddress : Text) : async Types.CanisterCreationResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let config : Types.CanisterCreationConfiguration = {
+            canisterType : Types.ProtocolCanisterType = #MainerLlm;
+            selectedModel : Types.AvailableModels = #Qwen2_5_500M;
+            associatedCanisterAddress : ?Types.CanisterAddress = ?controllerCanisterAddress;
             owner : Principal = msg.caller;
         };
         let result = await createCanister(config);
