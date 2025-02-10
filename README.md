@@ -43,7 +43,6 @@ Install mops (https://mops.one/docs/install), and then:
 # - from folder: `PoAIW/src/Challenger`
 # - from folder: `PoAIW/src/Judge`
 # - from folder: `PoAIW/src/mAIner`
-mops init
 mops install
 ```
 
