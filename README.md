@@ -149,3 +149,14 @@ and after scoring, send to the GameState for storing.
 
 Because this is a fake challenge, the GameState canister will reject storing
 it with a #InvalidId error.
+
+## Top off the LLMs
+
+This script will top-off all LLMs to 20 trillion cycles if their balance is below 18 trillion cycles.
+
+It will use cycles from the wallet: 
+
+```bash
+# from folder: PoAIW
+scripts/top-off-llms.sh --network ic
+```
