@@ -949,9 +949,9 @@ actor class GameStateCanister() = this {
 
                         let judgeCanisterActor = actor(judgeAddress): Types.Judge_Actor;
         
-                        D.print("GameState: submitChallengeResponse- calling submitChallengeResponse of judgeCanisterActor = " # Principal.toText(Principal.fromActor(judgeCanisterActor)));
+                        D.print("GameState: submitChallengeResponse- calling addSubmissionToJudge of judgeCanisterActor = " # Principal.toText(Principal.fromActor(judgeCanisterActor)));
                         let result : Types.ChallengeResponseSubmissionMetadataResult = await judgeCanisterActor.addSubmissionToJudge(submissionToForward);
-                        D.print("GameState: submitChallengeResponse- returned from submitChallengeResponse of judgeCanisterActor = " # Principal.toText(Principal.fromActor(judgeCanisterActor)));
+                        D.print("GameState: submitChallengeResponse- returned from addSubmissionToJudge of judgeCanisterActor = " # Principal.toText(Principal.fromActor(judgeCanisterActor)));
 
                         switch (result) {
                             case (#Ok(_judgeConfirmation)) {
