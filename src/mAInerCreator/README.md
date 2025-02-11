@@ -13,7 +13,7 @@ mops install
 
 ```bash
 # Generate the bindings for the upload scripts and the frontend
-dfx generate
+dfx generate mainer_creator_canister
 
 # local
 dfx deploy mainer_creator_canister

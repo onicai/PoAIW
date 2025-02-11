@@ -12,6 +12,7 @@ import Buffer "mo:base/Buffer";
 import Nat64 "mo:base/Nat64";
 
 import Types "./Types";
+import SB "./StableBuffer/lib";
 
 actor class CanisterCreationCanister() = this {
 
@@ -140,7 +141,26 @@ actor class CanisterCreationCanister() = this {
     };
 
     // Admin function to upload a model file
-    public shared (msg) func upload_mainer_llm_bytes_chunk(selectedModel : Types.AvailableModels, bytesChunk : [Nat8]) : async Types.FileUploadResult {
+    stable let state = SB.State.init({size=1024*64; capacity=10700});
+  
+    //let buffer = SB.StableBuffer( state );
+    //private var modelFileUploadBuffer = Buffer.Buffer<Nat8>(1024 * 1024 * 100);
+    private var modelFileUploadBuffer = SB.StableBuffer( state );
+
+    public shared (msg) func upload_mainer_llm_bytes_chunk(bytesChunk : [Nat8]) : async Types.FileUploadResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let result = modelFileUploadBuffer.add(Blob.fromArray(bytesChunk));
+        return #Ok({ creationResult = "Success" });
+    };
+
+    // Admin function to finish the upload of a model file
+    public shared (msg) func finish_upload_mainer_llm(selectedModel : Types.AvailableModels) : async Types.FileUploadResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -152,7 +172,9 @@ actor class CanisterCreationCanister() = this {
             case (?existingArtefacts) {
                 let updatedArtefacts : Types.ModelCreationArtefacts = {
                     canisterWasm = existingArtefacts.canisterWasm;
-                    modelFile : [Nat8] = Array.append(existingArtefacts.modelFile, bytesChunk);
+                    modelFile : [Nat8] = []; //TODO
+                    //modelFile : [Nat8] = Blob.toArray(modelFileUploadBuffer);
+                    //modelFile = modelFileUploadBuffer;
                 };
 
                 let updateArtefactsResult = putModelCreationArtefacts(selectedModel, updatedArtefacts);
@@ -408,6 +430,20 @@ actor class CanisterCreationCanister() = this {
         };
 
         mainerControllerCanisterWasm := [];
+
+        return #Ok({ creationResult = "Success" });
+    };
+
+    // Use with caution: Admin functions to reset the model file buffer
+    public shared (msg) func reset_mainer_llm_model_file_buffer() : async Types.FileUploadResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        modelFileUploadBuffer := SB.StableBuffer( SB.State.init({size=122; capacity=1000}) );
 
         return #Ok({ creationResult = "Success" });
     };
