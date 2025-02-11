@@ -150,7 +150,7 @@ module Types {
     public type GameStateCanister_Actor = actor {
         addChallenge : (NewChallengeInput) -> async ChallengeAdditionResult;
         addScoredResponse : (ScoredResponseInput) -> async ScoredResponseResult;
-        submitChallengeResponse : (ChallengeResponseSubmissionInput) -> async ChallengeResponseSubmissionResult;
+        submitChallengeResponse : (ChallengeResponseSubmissionInput) -> async ChallengeResponseSubmissionMetadataResult;
         getRandomOpenChallenge : () -> async ChallengeResult;
         getSubmissionCyclesRequired : () -> async Nat;
     };
