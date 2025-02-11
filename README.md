@@ -83,25 +83,25 @@ to successfully load the models in the LLM canisters.
 ```bash
 # from folder: PoAIW/src/Challenger
 # start the timer that generates challenges recurringly
-dfx canister call challenger_ctrlb_canister startTimerExecutionAdmin
+dfx canister call challenger_ctrlb_canister startTimerExecutionAdmin [--ic]
 # you can also trigger a single challenge generation manually
-dfx canister call challenger_ctrlb_canister generateNewChallenge
+dfx canister call challenger_ctrlb_canister generateNewChallenge [--ic]
 ```
 
 The challenge generation takes a moment. To ensure it worked, call
 ```bash
 # from folder: PoAIW/src/Challenger
-dfx canister call challenger_ctrlb_canister getChallengesAdmin
+dfx canister call challenger_ctrlb_canister getChallengesAdmin [--ic]
 
 # from folder: PoAIW/src/GameState
-dfx canister call game_state_canister getCurrentChallengesAdmin
+dfx canister call game_state_canister getCurrentChallengesAdmin [--ic]
 ```
 
 # Test mAIner:
 ```bash
 # from folder: PoAIW/src/mAIner
 # start the timer that generates challenge responses recurringly
-dfx canister call mainer_ctrlb_canister startTimerExecutionAdmin
+dfx canister call mainer_ctrlb_canister startTimerExecutionAdmin [--ic]
 
 
 # TODO - remove once Create Mainer is functional
@@ -110,7 +110,7 @@ dfx canister call mainer_ctrlb_canister startTimerExecutionAdmin
 # NOTE: this is already done by register-all.sh
 # dfx canister call game_state_canister addMainerAgentCanisterAdmin "(record { address = \"ahw5u-keaaa-aaaaa-qaaha-cai\"; canisterType = variant {MainerAgent}; ownedBy = principal\"$(dfx identity get-principal)\" })"
 # you can also trigger a single challenge response generation manually
-dfx canister call mainer_ctrlb_canister triggerChallengeResponseAdmin
+dfx canister call mainer_ctrlb_canister triggerChallengeResponseAdmin [--ic]
 ```
 
 The challenge response generation takes a moment:
@@ -122,10 +122,10 @@ The challenge response generation takes a moment:
 To ensure it worked, call
 ```bash
 # from folder: PoAIW/src/mAIner
-dfx canister call mainer_ctrlb_canister getSubmittedResponsesAdmin  # TODO
+dfx canister call mainer_ctrlb_canister getSubmittedResponsesAdmin [--ic]  # TODO
 
 # from folder: PoAIW/src/GameState
-dfx canister call game_state_canister get...Admin  # TODO ?
+dfx canister call game_state_canister getScoredChallengesAdmin [--ic]  # TODO ?
 ```
 
 # Test Judge
@@ -141,7 +141,7 @@ dfx canister call judge_ctrlb_canister addSubmissionToJudge \
       submissionId = "s-01"; 
       submittedTimestamp = 1707072000000000000 : nat64; 
       status = variant { Received }
-  })'
+  })' [--ic]
 ```
 
 Check the logs, and you will see that the challenge is correctly scored,

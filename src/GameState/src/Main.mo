@@ -422,6 +422,17 @@ actor class GameStateCanister() = this {
         return challengeId;
     };
 
+    // Admin function to get all scored responses
+    public shared query (msg) func getScoredChallengesAdmin() : async Types.ScoredChallengesResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let scoredChallengesArray : [(Text, List.List<Types.ScoredResponse>)] = Iter.toArray(scoredResponsesPerChallenge.entries());
+
+        return #Ok(scoredChallengesArray);
+    };
+
     // TODO: determine exact reward
     stable var REWARD_PER_CHALLENGE = {
         rewardType : Types.RewardType = #MainerToken;

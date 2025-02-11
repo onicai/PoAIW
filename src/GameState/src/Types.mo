@@ -154,6 +154,9 @@ module Types {
 
     public type ScoredResponseResult = Result<ScoredResponseReturn, ApiError>;
 
+    public type ScoredChallengesResult = Result<[(Text, List.List<ScoredResponse>)], ApiError>;
+
+
     //-------------------------------------------------------------------------
     public type ChallengeWinnerDeclaration = {
         challengeId : Text;
