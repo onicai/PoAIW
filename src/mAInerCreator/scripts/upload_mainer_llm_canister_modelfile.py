@@ -81,8 +81,8 @@ def main() -> int:
     print("--\nUploading the wasm bytes")
 
     # converting MB to bytes
-    #chunk_size = int(chunk_size_mb * 1024 * 1024)
-    chunk_size = int(1024*64)
+    chunk_size = int(chunk_size_mb * 1024 * 1024)
+    #chunk_size = int(1024*64)
 
     selectedModel = { "Qwen2_5_500M": None}
 

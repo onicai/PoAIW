@@ -10,9 +10,10 @@ import Iter "mo:base/Iter";
 import D "mo:base/Debug";
 import Buffer "mo:base/Buffer";
 import Nat64 "mo:base/Nat64";
+import Nat "mo:base/Nat";
+import Hash "mo:base/Hash";
 
 import Types "./Types";
-import SB "./StableBuffer/lib";
 
 actor class CanisterCreationCanister() = this {
 
@@ -141,11 +142,32 @@ actor class CanisterCreationCanister() = this {
     };
 
     // Admin function to upload a model file
-    stable let state = SB.State.init({size=1024*64; capacity=10700});
-  
-    //let buffer = SB.StableBuffer( state );
-    //private var modelFileUploadBuffer = Buffer.Buffer<Nat8>(1024 * 1024 * 100);
-    private var modelFileUploadBuffer = SB.StableBuffer( state );
+    private var nextChunkID: Nat = 0;
+    private let chunks: HashMap.HashMap<Nat, [Nat8]> = HashMap.HashMap<Nat, [Nat8]>(
+        0, Nat.equal, Hash.hash,
+    );
+    
+    /* public shared({caller}) func create_chunk(chunk: Types.Chunk) : async {
+        chunk_id : Nat
+    } {
+        nextChunkID := nextChunkID + 1;
+        chunks.put(nextChunkID, chunk);
+        return {chunk_id = nextChunkID};
+    }; */
+    public shared (msg) func upload_mainer_llm_bytes_chunk(bytesChunk : [Nat8]) : async Types.FileUploadResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        chunks.put(nextChunkID, bytesChunk);
+        nextChunkID := nextChunkID + 1;
+        return #Ok({ creationResult = "Success" });
+    };
+
+    /* private var modelFileUploadBuffer = Buffer.Buffer<Nat8>(1024 * 1024 * 100);
 
     public shared (msg) func upload_mainer_llm_bytes_chunk(bytesChunk : [Nat8]) : async Types.FileUploadResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -157,7 +179,7 @@ actor class CanisterCreationCanister() = this {
 
         let result = modelFileUploadBuffer.add(Blob.fromArray(bytesChunk));
         return #Ok({ creationResult = "Success" });
-    };
+    }; */
 
     // Admin function to finish the upload of a model file
     public shared (msg) func finish_upload_mainer_llm(selectedModel : Types.AvailableModels) : async Types.FileUploadResult {
@@ -435,7 +457,7 @@ actor class CanisterCreationCanister() = this {
     };
 
     // Use with caution: Admin functions to reset the model file buffer
-    public shared (msg) func reset_mainer_llm_model_file_buffer() : async Types.FileUploadResult {
+    /* public shared (msg) func reset_mainer_llm_model_file_buffer() : async Types.FileUploadResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -446,7 +468,7 @@ actor class CanisterCreationCanister() = this {
         modelFileUploadBuffer := SB.StableBuffer( SB.State.init({size=122; capacity=1000}) );
 
         return #Ok({ creationResult = "Success" });
-    };
+    }; */
 
     // -------------------------------------------------------------------------------
     // Canister upgrades
