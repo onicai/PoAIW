@@ -17,6 +17,7 @@ import Float "mo:base/Float";
 import Cycles "mo:base/ExperimentalCycles";
 import { print } = "mo:base/Debug";
 import { setTimer; recurringTimer } = "mo:base/Timer";
+import Timer "mo:base/Timer";
 
 import Types "Types";
 import Utils "Utils";
@@ -44,6 +45,9 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Orthogonal Persisted Data storage
+
+    // timer ID, so we can stop it after starting
+    stable var recurringTimerId : ?Timer.TimerId = null;
 
     // Record of settings
     stable var agentSettings : List.List<Types.MainerAgentSettings> = List.nil<Types.MainerAgentSettings>();
@@ -667,7 +671,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
 // Timer
-    stable var actionRegularityInSeconds = 300; // TODO: set based on user setting for cycles burn rate
+    stable var actionRegularityInSeconds = 60; // TODO: set based on user setting for cycles burn rate
 
     private func triggerRecurringAction() : async () {
         D.print("mAIner:  Recurring action was triggered");
@@ -686,11 +690,33 @@ actor class MainerAgentCtrlbCanister() = this {
         ignore setTimer<system>(#seconds 5,
             func () : async () {
                 D.print("mAIner:  setTimer");
-                ignore recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction);
+                let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction);
+                D.print("mAIner: Successfully start timer with id = " # debug_show (id));
+                recurringTimerId := ?id;
                 await triggerRecurringAction();
         });
         let authRecord = { auth = "You started the timer." };
         return #Ok(authRecord);
+    };
+
+    public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+
+        switch (recurringTimerId) {
+            case (?id) {
+                D.print("mAIner: Stopping timer with id = " # debug_show (id));
+                Timer.cancelTimer(id);
+                recurringTimerId := null;
+                D.print("mAIner: Timer stopped successfully.");
+                
+                return #Ok({ auth = "Timer stopped successfully." });
+            };
+            case null {
+                return #Ok({ auth = "There is no active timer. Nothing to do." });
+            };
+        };
     };
 
     // TODO: remove; testing function for admin

@@ -104,7 +104,8 @@ dfx canister call game_state_canister getCurrentChallengesAdmin [--ic]
 # from folder: PoAIW/src/mAIner
 # start the timer that generates challenge responses recurringly
 dfx canister call mainer_ctrlb_canister startTimerExecutionAdmin [--ic]
-
+# stop the timer that generates challenge responses recurringly
+dfx canister call mainer_ctrlb_canister stopTimerExecutionAdmin [--ic]
 
 # TODO - remove once Create Mainer is functional
 # from folder: PoAIW/src/GameState
