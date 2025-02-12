@@ -142,18 +142,12 @@ actor class CanisterCreationCanister() = this {
     };
 
     // Admin function to upload a model file
-    private var nextChunkID: Nat = 0;
-    private let chunks: HashMap.HashMap<Nat, [Nat8]> = HashMap.HashMap<Nat, [Nat8]>(
-        0, Nat.equal, Hash.hash,
-    );
-    
-    /* public shared({caller}) func create_chunk(chunk: Types.Chunk) : async {
-        chunk_id : Nat
-    } {
-        nextChunkID := nextChunkID + 1;
-        chunks.put(nextChunkID, chunk);
-        return {chunk_id = nextChunkID};
-    }; */
+    stable var nextChunkID : Nat = 0;
+    stable var lastChunkIndex : Nat = 400;
+    //stable let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(2000000, 1));
+    stable let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(2, 1));
+    stable var chunks : [var [Nat8]] = Array.init<[Nat8]>(400, innerInitArray);
+
     public shared (msg) func upload_mainer_llm_bytes_chunk(bytesChunk : [Nat8]) : async Types.FileUploadResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -162,7 +156,7 @@ actor class CanisterCreationCanister() = this {
             return #Err(#Unauthorized);
         };
 
-        chunks.put(nextChunkID, bytesChunk);
+        chunks[nextChunkID] := bytesChunk;
         nextChunkID := nextChunkID + 1;
         return #Ok({ creationResult = "Success" });
     };
