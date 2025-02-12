@@ -156,9 +156,9 @@ actor class CanisterCreationCanister() = this {
             return #Err(#Unauthorized);
         };
 
-        //chunks[nextChunkID] := bytesChunk;
+        chunks[nextChunkID] := bytesChunk;
         nextChunkID := nextChunkID + 1;
-        chunks[lastChunkIndex - nextChunkID] := bytesChunk; // decrementing index
+        //chunks[lastChunkIndex - nextChunkID] := bytesChunk; // decrementing index
         return #Ok({ creationResult = "Success" });
     };
 
