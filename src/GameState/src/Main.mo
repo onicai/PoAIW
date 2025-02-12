@@ -925,7 +925,7 @@ actor class GameStateCanister() = this {
                     return #Err(#Unauthorized);                    
                 };
 
-                // Forward submission to responsible Judge
+                // Store the submission
                 let submissionId : Text = await Utils.newRandomUniqueId();
                 let submissionAdded : Types.ChallengeResponseSubmission = {
                     challengeId : Text = challengeResponseSubmissionInput.challengeId;
@@ -933,7 +933,7 @@ actor class GameStateCanister() = this {
                     challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
                     submissionId : Text = submissionId;
                     submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                    status: Types.ChallengeResponseSubmissionStatus = #Received;
+                    status: Types.ChallengeResponseSubmissionStatus = #Submitted;
                     challengeAnswer : Text = challengeResponseSubmissionInput.challengeAnswer;
                 };
 
@@ -941,7 +941,7 @@ actor class GameStateCanister() = this {
                 let submissionMetada : Types.ChallengeResponseSubmissionMetadata = {
                     submissionId : Text = submissionId;
                     submittedTimestamp : Nat64 = submissionAdded.submittedTimestamp;
-                    status: Types.ChallengeResponseSubmissionStatus = #Submitted;
+                    status: Types.ChallengeResponseSubmissionStatus = submissionAdded.status;
                 };
                 D.print("GameState: submitChallengeResponse - submitted!");
                 return #Ok(submissionMetada);           
@@ -956,6 +956,62 @@ actor class GameStateCanister() = this {
         };
         let submissions : [Types.ChallengeResponseSubmission] = getSubmissions();
         return #Ok(submissions);
+    };
+
+    // Function for Judge canister to retrieve the next submission to score
+    public shared (msg) func getNextSubmissionToJudge() : async Types.ChallengeResponseSubmissionResult {
+        D.print("GameState: getNextSubmissionToJudge - entered");
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Only official Judge canisters may call this
+        switch (getJudgeCanister(Principal.toText(msg.caller))) {
+            case (null) { 
+                D.print("GameState: getNextSubmissionToJudge - 01");
+                return #Err(#Unauthorized); 
+            };
+            case (?_judgeEntry) {
+                var foundKey : ?Text = null;
+                var foundSubmission : ?Types.ChallengeResponseSubmission = null;
+
+                D.print("GameState: getNextSubmissionToJudge - searching for a submission to judge");
+                for ((key, submission) in submissionsStorage.entries()) {
+                    switch (submission.status) {
+                        case (#Submitted) {
+                            D.print("GameState: getNextSubmissionToJudge - found a submission to judge");
+                            foundKey := ?key;
+                            foundSubmission := ?submission;
+
+                            switch (foundKey, foundSubmission) {
+                                case (?key, ?submission) {
+                                    // (-) Found a submission with status #Submitted
+                                    // (-) Change status to #Judging
+                                    // (-) Return it to the Judge
+                                    let updatedSubmission : Types.ChallengeResponseSubmission = {
+                                        challengeId = submission.challengeId;
+                                        submittedBy = submission.submittedBy;
+                                        challengeQuestion = submission.challengeQuestion;
+                                        challengeAnswer = submission.challengeAnswer;
+                                        submissionId = submission.submissionId;
+                                        submittedTimestamp = submission.submittedTimestamp;
+                                        status = #Judging;
+                                    };
+                                    D.print("GameState: getNextSubmissionToJudge - updatedSubmission = " # debug_show(updatedSubmission));
+                                    submissionsStorage.put(key, updatedSubmission);
+                                    return #Ok(updatedSubmission);
+                                };
+                                case (_, _) {
+                                    return #Err(#Other("Unexpected Error"));
+                                };
+                            };
+                        };
+                        case (_) {}; // Skip other statuses
+                    };
+                };
+                D.print("GameState: getNextSubmissionToJudge - no submissions to judge");
+                return #Err(#Other("There are no submissions to judge"));
+            };
+        };
     };
 
     // Function for Judge canister to add a new scored response

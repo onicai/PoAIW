@@ -7,6 +7,7 @@ module Types {
         #FailedSubmission;
         #Received;
         #Submitted;
+        #Judging;
         #Judged;
         #Processed;
         #Other : Text;
@@ -124,7 +125,7 @@ module Types {
     public type ChallengeAdditionResult = Result<Challenge, ApiError>;
 
     public type GameStateCanister_Actor = actor {
-        addChallenge : (NewChallengeInput) -> async ChallengeAdditionResult;
+        getNextSubmissionToJudge : () -> async ChallengeResponseSubmissionResult;
         addScoredResponse : (ScoredResponseInput) -> async ScoredResponseResult;
     };
 

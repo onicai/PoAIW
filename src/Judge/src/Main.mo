@@ -211,6 +211,15 @@ actor class JudgeCtrlbCanister() = this {
         return result;
     };
 
+    // Score submissions
+
+    private func getSubmissionFromGameStateCanister() : async Types.ChallengeResponseSubmissionResult {
+        D.print("Judge:  calling getNextSubmissionToJudge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
+        let result : Types.ChallengeResponseSubmissionResult = await gameStateCanisterActor.getNextSubmissionToJudge();
+        D.print("Judge:  getNextSubmissionToJudge returned.");
+        return result;
+    };
+
     private func processSubmission(submissionEntry : Types.ChallengeResponseSubmission) : async () {
         D.print("Judge: processSubmission");
         let judgingResult : Types.JudgeChallengeResponseResult = await judgeChallengeResponseDoIt_(submissionEntry);
@@ -523,11 +532,11 @@ actor class JudgeCtrlbCanister() = this {
         D.print("Judge: scoreNextSubmission - entered");
 
         // Get the next submission to score
-        D.print("Judge:  scoreNextSubmission - calling getChallengeFromGameStateCanister.");
+        D.print("Judge:  scoreNextSubmission - calling getSubmissionFromGameStateCanister.");
+        let submissionResult : Types.ChallengeResponseSubmissionResult = await getSubmissionFromGameStateCanister();
+        D.print("Judge:  scoreNextSubmission - received submissionResult from getSubmissionFromGameStateCanister: " # debug_show (submissionResult));
         D.print("Judge:  TODO TODO TODO ");
         return;
-        // let submissionResult : Types.ChallengeResponseSubmissionResult = await getChallengeFromGameStateCanister();
-        // D.print("Judge:  scoreNextSubmission - received challengeResult from getChallengeFromGameStateCanister: " # debug_show (challengeResult));
         // switch (submissionResult) {
         //     case (#Err(error)) {
         //         D.print("Judge:  scoreNextSubmission - challengeResult error : " # debug_show (error));
@@ -613,7 +622,6 @@ actor class JudgeCtrlbCanister() = this {
         //ignore scoreNextSubmission(); TODO
         let result = await scoreNextSubmission();
         D.print("mAIner:  Recurring action result");
-        D.print(debug_show (result));
         D.print(debug_show (result));
         D.print("mAIner:  Recurring action result");
     };

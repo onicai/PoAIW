@@ -5,6 +5,7 @@ module Types {
         #FailedSubmission;
         #Received;
         #Submitted;
+        #Judging;
         #Judged;
         #Processed;
         #Other : Text;

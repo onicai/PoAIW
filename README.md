@@ -129,7 +129,7 @@ dfx canister call judge_ctrlb_canister startTimerExecutionAdmin [--ic]
 dfx canister call judge_ctrlb_canister stopTimerExecutionAdmin [--ic]
 
 # you can also trigger a single score generation manually
-dfx canister call judge_ctrlb_canister trigger...Admin [--ic]
+dfx canister call judge_ctrlb_canister triggerScoreSubmissionAdmin [--ic]
 ```
 
 To ensure it worked, call
