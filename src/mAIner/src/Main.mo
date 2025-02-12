@@ -131,32 +131,27 @@ actor class MainerAgentCtrlbCanister() = this {
         return seed;
     };
 
-    // The llmCanisterIDs this ctrlb_canister can call
-    private var llmCanisterIDs : Buffer.Buffer<Text> = Buffer.fromArray<Text>([]);
-
     // -------------------------------------------------------------------------------
     // The C++ LLM canisters that can be called
 
     private var llmCanisters : Buffer.Buffer<Types.LLMCanister> = Buffer.fromArray([]);
 
-    // Resets llmCanisterIDs, and then adds the argument as the first llmCanisterId
-    public shared (msg) func set_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
+    // Resets llmCanisters
+    public shared (msg) func reset_llm_canisters() : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
-        llmCanisterIDs.clear();
-        _add_llm_canister_id(llmCanisterIdRecord);
+        llmCanisters.clear();
+        return #Ok({ status_code = 200 });
     };
 
-    // Adds another llmCanisterIDs
-    public shared (msg) func add_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
+    // Adds an llmCanister
+    public shared (msg) func add_llm_canister(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
         _add_llm_canister_id(llmCanisterIdRecord);
     };
-
-    // Resets llmCanisterIDs, and then adds the argument as the first llmCanisterId
     private func _add_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : Types.StatusCodeRecordResult {
         let llmCanister = actor (llmCanisterIdRecord.canister_id) : Types.LLMCanister;
         D.print("mAIner: Inside function _add_llm_canister_id. Adding llm: " # Principal.toText(Principal.fromActor(llmCanister)));

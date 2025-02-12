@@ -84,6 +84,8 @@ to successfully load the models in the LLM canisters.
 # from folder: PoAIW/src/Challenger
 # start the timer that generates challenges recurringly
 dfx canister call challenger_ctrlb_canister startTimerExecutionAdmin [--ic]
+# stop the timer that generates challenges recurringly
+dfx canister call challenger_ctrlb_canister stopTimerExecutionAdmin [--ic]
 # you can also trigger a single challenge generation manually
 dfx canister call challenger_ctrlb_canister generateNewChallenge [--ic]
 ```
@@ -97,7 +99,7 @@ dfx canister call challenger_ctrlb_canister getChallengesAdmin [--ic]
 dfx canister call game_state_canister getCurrentChallengesAdmin [--ic]
 ```
 
-# Test mAIner:
+# Test mAIner & Judge:
 ```bash
 # from folder: PoAIW/src/mAIner
 # start the timer that generates challenge responses recurringly
