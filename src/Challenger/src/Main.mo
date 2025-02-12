@@ -561,5 +561,5 @@ actor class ChallengerCtrlbCanister() {
                 return #Ok({ auth = "There is no active timer. Nothing to do." });
             };
         };
-    }
+    };
 };
