@@ -550,13 +550,6 @@ actor class JudgeCtrlbCanister() = this {
                     // TODO: error handling ... If this happens, we need to call the Game State canister to update the status of the submission to #Error
                     return;
                 };
-                // TODO ??
-                // switch (submissionEntry.closedTimestamp) {
-                //     case (null) {
-                //         // continue
-                //     };
-                //     case (_) { return };
-                // };
 
                 // Trigger processing submission but don't wait on result
                 D.print("Judge: scoreNextSubmission - calling ignore processSubmission");

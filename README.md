@@ -79,7 +79,31 @@ sudo sysctl -w vm.max_map_count=2097152
 ```
 to successfully load the models in the LLM canisters.
 
-# Create challenges:
+# Full system test with timers
+
+```bash
+# from folder: PoAIW
+scripts/start-timers.sh --network [local/ic]
+
+# from folder: PoAIW/src/GameState
+
+# Verify Challenger challenge generations
+dfx canister call game_state_canister getCurrentChallengesAdmin [--ic]
+
+# Verify mAIner response generations
+# Note: status changes from #Submitted > #Judging > #Judged
+dfx canister call game_state_canister getSubmissionsAdmin [--ic]
+
+# Verify Judge score generations
+dfx canister call game_state_canister getScoredChallengesAdmin [--ic]
+
+# from folder: PoAIW
+scripts/stop-timers.sh --network [local/ic]
+```
+
+# Test components individually
+
+## Test Challenger:
 ```bash
 # from folder: PoAIW/src/Challenger
 # start the timer that generates challenges recurringly
@@ -99,7 +123,7 @@ dfx canister call challenger_ctrlb_canister getChallengesAdmin [--ic]
 dfx canister call game_state_canister getCurrentChallengesAdmin [--ic]
 ```
 
-# Test mAIner:
+## Test mAIner:
 ```bash
 # from folder: PoAIW/src/mAIner
 # start the timer that generates challenge responses recurringly
@@ -114,13 +138,13 @@ dfx canister call mainer_ctrlb_canister triggerChallengeResponseAdmin [--ic]
 The response generation takes a moment. To ensure it worked, call
 ```bash
 # from folder: PoAIW/src/mAIner
-dfx canister call mainer_ctrlb_canister getSubmittedResponsesAdmin [--ic]  # TODO
+dfx canister call mainer_ctrlb_canister getSubmittedResponsesAdmin [--ic]
 
 # from folder: PoAIW/src/GameState
-dfx canister call game_state_canister getSubmissionsAdmin [--ic]  # TODO ?
+dfx canister call game_state_canister getSubmissionsAdmin [--ic]
 ```
 
-# Test Judge
+## Test Judge
 ```bash
 # from folder: PoAIW/src/Judge
 # start the timer that generates scores recurringly
@@ -146,5 +170,5 @@ It will use cycles from the wallet:
 
 ```bash
 # from folder: PoAIW
-scripts/top-off-llms.sh --network ic
+scripts/top-off-llms.sh --network [local/ic]
 ```
