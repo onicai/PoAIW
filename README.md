@@ -88,14 +88,14 @@ scripts/start-timers.sh --network [local/ic]
 # from folder: PoAIW/src/GameState
 
 # Verify Challenger challenge generations
-dfx canister call game_state_canister getCurrentChallengesAdmin [--ic]
+dfx canister call game_state_canister getCurrentChallengesAdmin --output json [--ic]
 
 # Verify mAIner response generations
 # Note: status changes from #Submitted > #Judging > #Judged
-dfx canister call game_state_canister getSubmissionsAdmin [--ic]
+dfx canister call game_state_canister getSubmissionsAdmin --output json [--ic]
 
 # Verify Judge score generations
-dfx canister call game_state_canister getScoredChallengesAdmin [--ic]
+dfx canister call game_state_canister getScoredChallengesAdmin --output json [--ic]
 
 # from folder: PoAIW
 scripts/stop-timers.sh --network [local/ic]
@@ -117,10 +117,10 @@ dfx canister call challenger_ctrlb_canister generateNewChallenge [--ic]
 The challenge generation takes a moment. To ensure it worked, call
 ```bash
 # from folder: PoAIW/src/Challenger
-dfx canister call challenger_ctrlb_canister getChallengesAdmin [--ic]
+dfx canister call challenger_ctrlb_canister getChallengesAdmin --output json [--ic]
 
 # from folder: PoAIW/src/GameState
-dfx canister call game_state_canister getCurrentChallengesAdmin [--ic]
+dfx canister call game_state_canister getCurrentChallengesAdmin --output json [--ic]
 ```
 
 ## Test mAIner:
@@ -138,10 +138,10 @@ dfx canister call mainer_ctrlb_canister triggerChallengeResponseAdmin [--ic]
 The response generation takes a moment. To ensure it worked, call
 ```bash
 # from folder: PoAIW/src/mAIner
-dfx canister call mainer_ctrlb_canister getSubmittedResponsesAdmin [--ic]
+dfx canister call mainer_ctrlb_canister getSubmittedResponsesAdmin --output json [--ic]
 
 # from folder: PoAIW/src/GameState
-dfx canister call game_state_canister getSubmissionsAdmin [--ic]
+dfx canister call game_state_canister getSubmissionsAdmin --output json [--ic]
 ```
 
 ## Test Judge
@@ -159,7 +159,7 @@ dfx canister call judge_ctrlb_canister triggerScoreSubmissionAdmin [--ic]
 To ensure it worked, call
 ```bash
 # from folder: PoAIW/src/GameState
-dfx canister call game_state_canister getScoredChallengesAdmin [--ic]
+dfx canister call game_state_canister getScoredChallengesAdmin --output json [--ic]
 ```
 
 ## Top off the LLMs
