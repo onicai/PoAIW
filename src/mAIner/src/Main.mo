@@ -15,7 +15,6 @@ import Iter "mo:base/Iter";
 import Char "mo:base/Char";
 import Float "mo:base/Float";
 import Cycles "mo:base/ExperimentalCycles";
-import { print } = "mo:base/Debug";
 import { setTimer; recurringTimer } = "mo:base/Timer";
 import Timer "mo:base/Timer";
 
@@ -576,7 +575,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     private func respondToNextChallenge() : async () {
-        D.print("mAIner:  respondToNextChallenge");
+        D.print("mAIner:  respondToNextChallenge - entered");
         // TODO: incorporate cycles burn rate setting
 
         // Get the next challenge to respond to
@@ -678,7 +677,6 @@ actor class MainerAgentCtrlbCanister() = this {
         //ignore respondToNextChallenge(); TODO
         let result = await respondToNextChallenge();
         D.print("mAIner:  Recurring action result");
-        print(debug_show (result));
         D.print(debug_show (result));
         D.print("mAIner:  Recurring action result");
     };

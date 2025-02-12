@@ -12,6 +12,8 @@ import Float "mo:base/Float";
 import List "mo:base/List";
 import Int "mo:base/Int";
 import Time "mo:base/Time";
+import { setTimer; recurringTimer } = "mo:base/Timer";
+import Timer "mo:base/Timer";
 
 import Types "Types";
 import Utils "Utils";
@@ -31,6 +33,9 @@ actor class JudgeCtrlbCanister() = this {
     };
 
     // Orthogonal Persisted Data storage
+
+    // timer ID, so we can stop it after starting
+    stable var recurringTimerId : ?Timer.TimerId = null;
 
     // Record of recently score responses
     stable var scoredResponses : List.List<Types.ScoredResponseByJudge> = List.nil<Types.ScoredResponseByJudge>();
@@ -514,30 +519,66 @@ actor class JudgeCtrlbCanister() = this {
     };
 
     // Endpoint to be called by Game State canister to score a mAIner's response to a challenge
-    public shared (msg) func addSubmissionToJudge(submissionEntry : Types.ChallengeResponseSubmission) : async Types.ChallengeResponseSubmissionMetadataResult {
-        D.print("Judge: addSubmissionToJudge - entered");
-        if (not (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(GAME_STATE_CANISTER_ID)) or Principal.equal(msg.caller, Principal.fromActor(this)))) {
-            D.print("Judge: addSubmissionToJudge - 01");
-            return #Err(#StatusCode(401));
-        };
+    private func scoreNextSubmission() : async () {
+        D.print("Judge: scoreNextSubmission - entered");
 
-        // Sanity checks on submitted response
-        if (submissionEntry.status != #Received or submissionEntry.submissionId == "" or submissionEntry.challengeId == "" or submissionEntry.challengeQuestion == "" or submissionEntry.challengeAnswer == "") {
-            D.print("Judge: addSubmissionToJudge - 02");
-            return #Err(#Other("invalid submission value"));
-        };
+        // Get the next submission to score
+        D.print("Judge:  scoreNextSubmission - calling getChallengeFromGameStateCanister.");
+        D.print("Judge:  TODO TODO TODO ");
+        return;
+        // let submissionResult : Types.ChallengeResponseSubmissionResult = await getChallengeFromGameStateCanister();
+        // D.print("Judge:  scoreNextSubmission - received challengeResult from getChallengeFromGameStateCanister: " # debug_show (challengeResult));
+        // switch (submissionResult) {
+        //     case (#Err(error)) {
+        //         D.print("Judge:  scoreNextSubmission - challengeResult error : " # debug_show (error));
+        //         // TODO: error handling
+        //     };
+        //     case (#Ok(nextSubmission : Types.ChallengeResponseSubmission)) {
+        //         D.print("Judge:  scoreNextSubmission submissionResult nextSubmission");
+        //         D.print(debug_show (nextSubmission));
+        //         D.print("Judge: TODO TODO TODO-------");
+        //         return;
+        //         // // Process the submission
+        //         // // Sanity checks
+        //         // if (nextChallenge.challengeId == "" or nextChallenge.challengeQuestion == "") {
+        //         //     return;
+        //         // };
+        //         // switch (nextChallenge.status) {
+        //         //     case (#Open) {
+        //         //         // continue
+        //         //     };
+        //         //     case (_) { return };
+        //         // };
+        //         // switch (nextChallenge.closedTimestamp) {
+        //         //     case (null) {
+        //         //         // continue
+        //         //     };
+        //         //     case (_) { return };
+        //         // };
 
-        // Trigger processing submission but don't wait on result
-        D.print("Judge: addSubmissionToJudge - 03");
-        ignore processSubmission(submissionEntry);
+        //         // // Get response generated for challenge and submit it
+        //         // ignore processRespondingToChallenge(nextChallenge);
+        //         // return;
+        //     };
+        // }
 
-        // Return receipt of submission
-        D.print("Judge: addSubmissionToJudge - 04");
-        return #Ok({
-            submissionId : Text = submissionEntry.submissionId;
-            submittedTimestamp : Nat64 = submissionEntry.submittedTimestamp;
-            status : Types.ChallengeResponseSubmissionStatus = #Submitted;
-        });
+        // // Sanity checks on submitted response
+        // if (submissionEntry.status != #Received or submissionEntry.submissionId == "" or submissionEntry.challengeId == "" or submissionEntry.challengeQuestion == "" or submissionEntry.challengeAnswer == "") {
+        //     D.print("Judge: addSubmissionToJudge - 02");
+        //     return #Err(#Other("invalid submission value"));
+        // };
+
+        // // Trigger processing submission but don't wait on result
+        // D.print("Judge: addSubmissionToJudge - 03");
+        // ignore processSubmission(submissionEntry);
+
+        // // Return receipt of submission
+        // D.print("Judge: addSubmissionToJudge - 04");
+        // return #Ok({
+        //     submissionId : Text = submissionEntry.submissionId;
+        //     submittedTimestamp : Nat64 = submissionEntry.submittedTimestamp;
+        //     status : Types.ChallengeResponseSubmissionStatus = #Submitted;
+        // });
     };
 
     public shared query (msg) func getRoundRobinCanister() : async Types.CanisterIDRecordResult {
@@ -562,5 +603,64 @@ actor class JudgeCtrlbCanister() = this {
         };
 
         return canister;
+    };
+
+// Timer
+    stable var actionRegularityInSeconds = 60; // TODO: set based on user setting for cycles burn rate
+
+    private func triggerRecurringAction() : async () {
+        D.print("mAIner:  Recurring action was triggered");
+        //ignore scoreNextSubmission(); TODO
+        let result = await scoreNextSubmission();
+        D.print("mAIner:  Recurring action result");
+        D.print(debug_show (result));
+        D.print(debug_show (result));
+        D.print("mAIner:  Recurring action result");
+    };
+
+    public shared (msg) func startTimerExecutionAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        ignore setTimer<system>(#seconds 5,
+            func () : async () {
+                D.print("mAIner:  setTimer");
+                let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction);
+                D.print("mAIner: Successfully start timer with id = " # debug_show (id));
+                recurringTimerId := ?id;
+                await triggerRecurringAction();
+        });
+        let authRecord = { auth = "You started the timer." };
+        return #Ok(authRecord);
+    };
+
+    public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+
+        switch (recurringTimerId) {
+            case (?id) {
+                D.print("mAIner: Stopping timer with id = " # debug_show (id));
+                Timer.cancelTimer(id);
+                recurringTimerId := null;
+                D.print("mAIner: Timer stopped successfully.");
+                
+                return #Ok({ auth = "Timer stopped successfully." });
+            };
+            case null {
+                return #Ok({ auth = "There is no active timer. Nothing to do." });
+            };
+        };
+    };
+
+    // TODO: remove; testing function for admin
+    public shared (msg) func triggerScoreSubmissionAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        let result = await scoreNextSubmission();
+        let authRecord = { auth = "You triggered the score generation." };
+        return #Ok(authRecord);
     };
 };
