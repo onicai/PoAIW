@@ -336,6 +336,10 @@ actor class GameStateCanister() = this {
     var submissionsStorage : HashMap.HashMap<Text, Types.ChallengeResponseSubmission> = HashMap.HashMap(0, Text.equal, Text.hash);
 
     private func putSubmission(submissionId : Text, submissionEntry : Types.ChallengeResponseSubmission) : Bool {
+        if (submissionEntry.submissionId != submissionId) {
+            D.print("GameState: putSubmission - ERROR: submissionId does not match submissionEntry.submissionId"); 
+            return false;
+        };
         submissionsStorage.put(submissionId, submissionEntry);
         return true;
     };
@@ -1042,8 +1046,27 @@ actor class GameStateCanister() = this {
                     D.print("GameState: addScoredResponse - 03");
                     return #Err(#InvalidId);
                 };
+
+                // TODO: do we really need a separate storage for submissions & scored submissions?
+                // Change status of the submission in submissionsStorage to #Judged
+                let submissionId : Text = scoredResponseInput.submissionId;
+                let submission : Types.ChallengeResponseSubmission = {
+                    challengeId : Text = scoredResponseInput.challengeId;
+                    submittedBy : Principal = scoredResponseInput.submittedBy;
+                    challengeQuestion : Text = scoredResponseInput.challengeQuestion;
+                    submissionId : Text = scoredResponseInput.submissionId;
+                    submittedTimestamp : Nat64 = scoredResponseInput.submittedTimestamp;
+                    status: Types.ChallengeResponseSubmissionStatus = #Judged;
+                    challengeAnswer : Text = scoredResponseInput.challengeAnswer;
+                };
+                D.print("GameState: addScoredResponse - calling putSubmission (change status to #Judged)");
+                D.print("GameState: addScoredResponse - submission = " # debug_show(submission));
+                if (putSubmission(submissionId, submission) == false) {
+                    D.print("GameState: addScoredResponse - 04");
+                    return #Err(#Other("An error updating the submission occurred"));
+                };
                 
-                // Store scored response for challenge
+                // Store scored response for challenge in scoredResponsesPerChallenge
                 let scoredResponseEntry : Types.ScoredResponse = {
                     submissionId : Text = scoredResponseInput.submissionId;
                     challengeId : Text = scoredResponseInput.challengeId;
@@ -1056,7 +1079,6 @@ actor class GameStateCanister() = this {
                     score: Nat = scoredResponseInput.score;
                     judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                 };
-
                 D.print("GameState: addScoredResponse - All Good - calling putScoredResponseForChallenge");
                 D.print("GameState: addScoredResponse - scoredResponseEntry = " # debug_show(scoredResponseEntry));
                 let numberOfScoredResponsesForChallenge : Nat = putScoredResponseForChallenge(scoredResponseEntry);
