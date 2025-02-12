@@ -43,16 +43,44 @@ echo "Using network type: $NETWORK_TYPE"
 
 #######################################################################
 echo "==========================================="
-cd llms/Challenger
-echo "Balance of llms/Challenger:"
-scripts/balance.sh --network $NETWORK_TYPE
+echo "dfx identity"
+dfx identity whoami; echo " "
+
+echo "==========================================="
+echo "Wallet balance"
+dfx wallet --network $NETWORK_TYPE balance; echo " "
+
+echo "==========================================="
+cd src/GameState
+echo "Balance of GameState canister:"
+dfx canister status game_state_canister --network $NETWORK_TYPE 2>&1 | grep "Balance:"; echo " "
+
+echo "==========================================="
+cd ../Challenger
+echo "Balance of Challenger canister:"
+dfx canister status challenger_ctrlb_canister --network $NETWORK_TYPE 2>&1 | grep "Balance:"; echo " "
+
+echo "==========================================="
+cd ../mAIner
+echo "Balance of mAIner canister:"
+dfx canister status mainer_ctrlb_canister --network $NETWORK_TYPE 2>&1 | grep "Balance:"; echo " "
 
 echo "==========================================="
 cd ../Judge
-echo "Balance of llms/Judge:"
+echo "Balance of Judge canister:"
+dfx canister status judge_ctrlb_canister --network $NETWORK_TYPE 2>&1 | grep "Balance:"; echo " "
+
+echo "==========================================="
+cd ../../llms/Challenger
+echo "Balance of Challenger LLM canisters:"
 scripts/balance.sh --network $NETWORK_TYPE
 
 echo "==========================================="
 cd ../mAIner
-echo "Balance of llms/mAIner:"
+echo "Balance of mAIner LLM canisters:"
+scripts/balance.sh --network $NETWORK_TYPE
+
+echo "==========================================="
+cd ../Judge
+echo "Balance of Judge LLM canisters:"
 scripts/balance.sh --network $NETWORK_TYPE
