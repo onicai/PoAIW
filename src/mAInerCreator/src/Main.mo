@@ -145,7 +145,7 @@ actor class CanisterCreationCanister() = this {
     stable var nextChunkID : Nat = 0;
     stable var lastChunkIndex : Nat = 400;
     //stable let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(2000000, 1));
-    stable let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(2, 1));
+    stable let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(1, 1));
     stable var chunks : [var [Nat8]] = Array.init<[Nat8]>(400, innerInitArray);
 
     public shared (msg) func upload_mainer_llm_bytes_chunk(bytesChunk : [Nat8]) : async Types.FileUploadResult {
@@ -156,8 +156,9 @@ actor class CanisterCreationCanister() = this {
             return #Err(#Unauthorized);
         };
 
-        chunks[nextChunkID] := bytesChunk;
+        //chunks[nextChunkID] := bytesChunk;
         nextChunkID := nextChunkID + 1;
+        chunks[lastChunkIndex - nextChunkID] := bytesChunk; // decrementing index
         return #Ok({ creationResult = "Success" });
     };
 
