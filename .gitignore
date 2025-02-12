@@ -13,6 +13,7 @@ OLD/
 
 # dfx temporary files
 .dfx/
+**/.dfx/
 
 # generated files
 **/declarations/
@@ -27,3 +28,4 @@ dist/
 
 # environment variables
 .env
+**/.env

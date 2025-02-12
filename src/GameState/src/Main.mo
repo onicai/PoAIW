@@ -422,6 +422,17 @@ actor class GameStateCanister() = this {
         return challengeId;
     };
 
+    // Admin function to get all scored responses
+    public shared query (msg) func getScoredChallengesAdmin() : async Types.ScoredChallengesResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let scoredChallengesArray : [(Text, List.List<Types.ScoredResponse>)] = Iter.toArray(scoredResponsesPerChallenge.entries());
+
+        return #Ok(scoredChallengesArray);
+    };
+
     // TODO: determine exact reward
     stable var REWARD_PER_CHALLENGE = {
         rewardType : Types.RewardType = #MainerToken;
@@ -949,9 +960,9 @@ actor class GameStateCanister() = this {
 
                         let judgeCanisterActor = actor(judgeAddress): Types.Judge_Actor;
         
-                        D.print("GameState: submitChallengeResponse- calling submitChallengeResponse of judgeCanisterActor = " # Principal.toText(Principal.fromActor(judgeCanisterActor)));
+                        D.print("GameState: submitChallengeResponse- calling addSubmissionToJudge of judgeCanisterActor = " # Principal.toText(Principal.fromActor(judgeCanisterActor)));
                         let result : Types.ChallengeResponseSubmissionMetadataResult = await judgeCanisterActor.addSubmissionToJudge(submissionToForward);
-                        D.print("GameState: submitChallengeResponse- returned from submitChallengeResponse of judgeCanisterActor = " # Principal.toText(Principal.fromActor(judgeCanisterActor)));
+                        D.print("GameState: submitChallengeResponse- returned from addSubmissionToJudge of judgeCanisterActor = " # Principal.toText(Principal.fromActor(judgeCanisterActor)));
 
                         switch (result) {
                             case (#Ok(_judgeConfirmation)) {

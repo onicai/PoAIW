@@ -1,6 +1,9 @@
 import Blob "mo:base/Blob";
 import Principal "mo:base/Principal";
 import Nat16 "mo:base/Nat16";
+import Nat64 "mo:base/Nat64";
+import Nat8 "mo:base/Nat8";
+import Text "mo:base/Text";
 
 module Types {
     //-------------------------------------------------------------------------
@@ -27,12 +30,25 @@ module Types {
     public type AuthRecordResult = Result<AuthRecord, ApiError>;
 
     //-------------------------------------------------------------------------
-    public type CanisterCreationConfigurationInput = {
-        canisterType : ProtocolCanisterType;
+    // data needed to create a new canister with the model
+    public type ModelCreationArtefacts = {
+        canisterWasm : [Nat8];
+        modelFile : [Nat8];
     };
 
-    public type CanisterCreationConfiguration = {
+    public type AvailableModels = {
+        #Qwen2_5_500M;
+    };
+    
+    public type CanisterAddress = Text;
+
+    public type CanisterCreationConfigurationInput = {
         canisterType : ProtocolCanisterType;
+        selectedModel : AvailableModels;
+        associatedCanisterAddress : ?CanisterAddress;
+    };
+
+    public type CanisterCreationConfiguration = CanisterCreationConfigurationInput and {
         owner: Principal;
     };
 
@@ -49,13 +65,10 @@ module Types {
         #Verifier;
         #MainerCreator;
         #MainerAgent;
+        #MainerLlm;
     };
 
-    public type FileUploadRecord = {
-        creationResult : Text;
-    };
-
-    public type FileUploadResult = Result<FileUploadRecord, ApiError>;
+    public type InsertArtefactsResult = Result<ModelCreationArtefacts, ApiError>;
 
     public type StatusCode = Nat16;
 
@@ -64,6 +77,64 @@ module Types {
     public type StatusCodeRecordResult = Result<StatusCodeRecord, ApiError>;
 
     public type CanisterIDRecord = { canister_id : Text };
+
+    public type InputRecord = {
+        args : [Text]; // the CLI args of llama.cpp/examples/main, as a list of strings
+    };
+
+    public type OutputRecordResult = Result<OutputRecord, ApiError>;
+    public type OutputRecord = {
+        status_code : Nat16;
+        output : Text;
+        conversation : Text;
+        error : Text;
+        prompt_remaining : Text;
+        generated_eog : Bool;
+    };
+
+    public type MainerAgentCtrlbCanister = actor {
+        add_llm_canister_id: (CanisterIDRecord) -> async StatusCodeRecordResult;
+        health: query () -> async StatusCodeRecordResult;
+        setGameStateCanisterId: (Text) -> async StatusCodeRecordResult;
+        setRoundRobinLLMs: (Nat) -> async StatusCodeRecordResult;
+        set_llm_canister_id: (CanisterIDRecord) -> async StatusCodeRecordResult;
+    };
+
+    public type MaxTokensRecord = {
+        max_tokens_update : Nat64;
+        max_tokens_query : Nat64;
+    };
+
+    public type FileUploadInputRecord = {
+        filename : Text;
+        chunk : [Nat8]; // the chunk being uploaded, as a vec of bytes
+        chunksize : Nat64; // the chunksize (allowing sanity check)
+        offset : Nat64; // the offset where to write the chunk
+    };
+
+    type FileUploadRecordResult = Result<FileUploadRecord, ApiError>;
+    
+    public type FileUploadRecord = {
+        filesize : Nat64; // the total filesize in bytes after writing chunk at offset
+    };
+
+    public type UploadResult = {
+        creationResult : Text;
+    };
+
+    public type FileUploadResult = Result<UploadResult, ApiError>;
+
+    public type LLMCanister = actor {
+        health : () -> async StatusCodeRecordResult;
+        ready : () -> async StatusCodeRecordResult;
+        check_access : () -> async StatusCodeRecordResult;
+        new_chat : (InputRecord) -> async OutputRecordResult;
+        run_update : (InputRecord) -> async OutputRecordResult;
+        remove_prompt_cache : (InputRecord) -> async OutputRecordResult;
+        load_model : (InputRecord) -> async OutputRecordResult;
+        set_max_tokens : (MaxTokensRecord) -> async StatusCodeRecordResult;
+        file_upload_chunk : (FileUploadInputRecord) -> async FileUploadRecordResult;
+    };
 
     // IC Management Canister types
     public type canister_id = Principal;

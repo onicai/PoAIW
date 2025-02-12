@@ -154,6 +154,9 @@ module Types {
 
     public type ScoredResponseResult = Result<ScoredResponseReturn, ApiError>;
 
+    public type ScoredChallengesResult = Result<[(Text, List.List<ScoredResponse>)], ApiError>;
+
+
     //-------------------------------------------------------------------------
     public type ChallengeWinnerDeclaration = {
         challengeId : Text;
@@ -217,7 +220,7 @@ module Types {
     //-------------------------------------------------------------------------
 // Canister Actors
     public type Judge_Actor = actor {
-        addSubmissionToJudge: shared (Types.ChallengeResponseSubmission) -> async ChallengeResponseSubmissionResult
+        addSubmissionToJudge: shared (Types.ChallengeResponseSubmission) -> async ChallengeResponseSubmissionMetadataResult
     };
 
     public type MainerCreator_Actor = actor {

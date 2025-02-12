@@ -23,8 +23,8 @@ while [ $# -gt 0 ]; do
             if [ "$1" = "local" ] || [ "$1" = "ic" ]; then
                 NETWORK_TYPE=$1
                 if [ "$NETWORK_TYPE" = "ic" ]; then
-                    CANISTER_ID_LLM_0='--todo--'
-                    CANISTER_ID_LLM_1='--todo--'  
+                    CANISTER_ID_LLM_0='xljph-lyaaa-aaaaj-az4mq-cai'
+                    CANISTER_ID_LLM_1='xcke3-5qaaa-aaaaj-az4na-cai'  
                 fi
             else
                 echo "Invalid network type: $1. Use 'local' or 'ic'."
@@ -88,16 +88,26 @@ done
 #     exit 1
 # fi
 
+echo "Calling reset_llm_canisters."
+output=$(dfx canister call judge_ctrlb_canister reset_llm_canisters --network $NETWORK_TYPE)
+
+if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+    echo "Error calling reset_llm_canisters. Exiting."
+    exit 1
+else
+    echo "Successfully called reset_llm_canisters."
+fi
+
 for i in $(seq $llm_id_start $llm_id_end)
 do
     CANISTER_ID_LLM=${CANISTER_ID_LLMS[$i]}
-    output=$(dfx canister call judge_ctrlb_canister set_llm_canister_id "(record { canister_id = \"$CANISTER_ID_LLM\" })" --network $NETWORK_TYPE)
+    output=$(dfx canister call judge_ctrlb_canister add_llm_canister "(record { canister_id = \"$CANISTER_ID_LLM\" })" --network $NETWORK_TYPE)
 
     if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-        echo "Error calling set_llm_canister_id for $CANISTER_ID_LLM. Exiting."
+        echo "Error calling add_llm_canister for $CANISTER_ID_LLM. Exiting."
         exit 1
     else
-        echo "Successfully called set_llm_canister_id for $CANISTER_ID_LLM."
+        echo "Successfully called add_llm_canister for $CANISTER_ID_LLM."
     fi
 done
 
