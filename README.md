@@ -134,34 +134,9 @@ dfx canister call judge_ctrlb_canister triggerScoreSubmissionAdmin [--ic]
 
 To ensure it worked, call
 ```bash
-# from folder: PoAIW/src/Judge
-dfx canister call judge_ctrlb_canister get....Admin [--ic]  # TODO
-
 # from folder: PoAIW/src/GameState
-dfx canister call game_state_canister getScoredChallengesAdmin [--ic]  # TODO ?
+dfx canister call game_state_canister getScoredChallengesAdmin [--ic]
 ```
-
-REMOVE-REMOVE-REMOVE
-To manually add a Submission to Judge, call
-```bash
-# from folder: PoAIW/src/Judge
-dfx canister call judge_ctrlb_canister addSubmissionToJudge \
-  '(record { 
-      challengeId = "c-01"; 
-      submittedBy = principal "aaaaa-aa"; 
-      challengeQuestion = "What is a blockchain?"; 
-      challengeAnswer = "A distributed ledger"; 
-      submissionId = "s-01"; 
-      submittedTimestamp = 1707072000000000000 : nat64; 
-      status = variant { Received }
-  })' [--ic]
-```
-
-Check the logs, and you will see that the challenge is correctly scored,
-and after scoring, send to the GameState for storing.
-
-Because this is a fake challenge, the GameState canister will reject storing
-it with a #InvalidId error.
 
 ## Top off the LLMs
 

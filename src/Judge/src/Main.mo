@@ -535,59 +535,35 @@ actor class JudgeCtrlbCanister() = this {
         D.print("Judge:  scoreNextSubmission - calling getSubmissionFromGameStateCanister.");
         let submissionResult : Types.ChallengeResponseSubmissionResult = await getSubmissionFromGameStateCanister();
         D.print("Judge:  scoreNextSubmission - received submissionResult from getSubmissionFromGameStateCanister: " # debug_show (submissionResult));
-        D.print("Judge:  TODO TODO TODO ");
-        return;
-        // switch (submissionResult) {
-        //     case (#Err(error)) {
-        //         D.print("Judge:  scoreNextSubmission - challengeResult error : " # debug_show (error));
-        //         // TODO: error handling
-        //     };
-        //     case (#Ok(nextSubmission : Types.ChallengeResponseSubmission)) {
-        //         D.print("Judge:  scoreNextSubmission submissionResult nextSubmission");
-        //         D.print(debug_show (nextSubmission));
-        //         D.print("Judge: TODO TODO TODO-------");
-        //         return;
-        //         // // Process the submission
-        //         // // Sanity checks
-        //         // if (nextChallenge.challengeId == "" or nextChallenge.challengeQuestion == "") {
-        //         //     return;
-        //         // };
-        //         // switch (nextChallenge.status) {
-        //         //     case (#Open) {
-        //         //         // continue
-        //         //     };
-        //         //     case (_) { return };
-        //         // };
-        //         // switch (nextChallenge.closedTimestamp) {
-        //         //     case (null) {
-        //         //         // continue
-        //         //     };
-        //         //     case (_) { return };
-        //         // };
+        switch (submissionResult) {
+            case (#Err(error)) {
+                D.print("Judge:  scoreNextSubmission - submissionResult error : " # debug_show (error));
+                // TODO: error handling
+            };
+            case (#Ok(submissionEntry : Types.ChallengeResponseSubmission)) {
+                D.print("Judge:  scoreNextSubmission submissionResult submissionEntry");
+                D.print(debug_show (submissionEntry));
 
-        //         // // Get response generated for challenge and submit it
-        //         // ignore processRespondingToChallenge(nextChallenge);
-        //         // return;
-        //     };
-        // }
+                // Sanity checks on submitted response
+                if (submissionEntry.status != #Judging or submissionEntry.submissionId == "" or submissionEntry.challengeId == "" or submissionEntry.challengeQuestion == "" or submissionEntry.challengeAnswer == "") {
+                    D.print("Judge: scoreNextSubmission - 02 - submissionEntry error - submissionEntry: " # debug_show (submissionEntry));
+                    // TODO: error handling ... If this happens, we need to call the Game State canister to update the status of the submission to #Error
+                    return;
+                };
+                // TODO ??
+                // switch (submissionEntry.closedTimestamp) {
+                //     case (null) {
+                //         // continue
+                //     };
+                //     case (_) { return };
+                // };
 
-        // // Sanity checks on submitted response
-        // if (submissionEntry.status != #Received or submissionEntry.submissionId == "" or submissionEntry.challengeId == "" or submissionEntry.challengeQuestion == "" or submissionEntry.challengeAnswer == "") {
-        //     D.print("Judge: addSubmissionToJudge - 02");
-        //     return #Err(#Other("invalid submission value"));
-        // };
-
-        // // Trigger processing submission but don't wait on result
-        // D.print("Judge: addSubmissionToJudge - 03");
-        // ignore processSubmission(submissionEntry);
-
-        // // Return receipt of submission
-        // D.print("Judge: addSubmissionToJudge - 04");
-        // return #Ok({
-        //     submissionId : Text = submissionEntry.submissionId;
-        //     submittedTimestamp : Nat64 = submissionEntry.submittedTimestamp;
-        //     status : Types.ChallengeResponseSubmissionStatus = #Submitted;
-        // });
+                // Trigger processing submission but don't wait on result
+                D.print("Judge: scoreNextSubmission - calling ignore processSubmission");
+                ignore processSubmission(submissionEntry);
+                return;
+            };
+        }
     };
 
     public shared query (msg) func getRoundRobinCanister() : async Types.CanisterIDRecordResult {

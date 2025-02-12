@@ -220,10 +220,6 @@ module Types {
 
     //-------------------------------------------------------------------------
 // Canister Actors
-    public type Judge_Actor = actor {
-        addSubmissionToJudge: shared (Types.ChallengeResponseSubmission) -> async ChallengeResponseSubmissionMetadataResult
-    };
-
     public type MainerCreator_Actor = actor {
         createCanister: shared CanisterCreationConfiguration -> async CanisterCreationResult;
     };
