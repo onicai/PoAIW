@@ -331,33 +331,33 @@ actor class GameStateCanister() = this {
         };
     };
 
-    private func getJudgeCanisterForChallenge(status : Types.ChallengeStatus, challengeId: Text) : ?Types.OfficialProtocolCanister {
-        switch (status) {
-            case (#Open) {
-                switch (getOpenChallenge(challengeId)) {
-                    case (null) { return null; };
-                    case (?challengeEntry) {
-                        return getJudgeCanister(challengeEntry.responsibleJudgeAddress);
-                    };
-                };
+    // Submissions to challenges
+    stable var submissionsStorageStable : [(Text, Types.ChallengeResponseSubmission)] = [];
+    var submissionsStorage : HashMap.HashMap<Text, Types.ChallengeResponseSubmission> = HashMap.HashMap(0, Text.equal, Text.hash);
+
+    private func putSubmission(submissionId : Text, submissionEntry : Types.ChallengeResponseSubmission) : Bool {
+        submissionsStorage.put(submissionId, submissionEntry);
+        return true;
+    };
+
+    private func getSubmission(submissionId : Text) : ?Types.ChallengeResponseSubmission {
+        switch (submissionsStorage.get(submissionId)) {
+            case (null) { return null; };
+            case (?submissionEntry) { return ?submissionEntry; };
+        };
+    };
+
+    private func getSubmissions() : [Types.ChallengeResponseSubmission] {
+        return Iter.toArray(submissionsStorage.vals());
+    };
+
+    private func removeSubmission(submissionId : Text) : Bool {
+        switch (submissionsStorage.get(submissionId)) {
+            case (null) { return false; };
+            case (?submissionEntry) {
+                let removeResult = submissionsStorage.remove(submissionId);
+                return true;
             };
-            case (#Closed) {
-                switch (getClosedChallenge(challengeId)) {
-                    case (null) { return null; };
-                    case (?challengeEntry) {
-                        return getJudgeCanister(challengeEntry.responsibleJudgeAddress);
-                    };
-                };
-            };
-            case (#Archived) {
-                switch (getArchivedChallenge(challengeId)) {
-                    case (null) { return null; };
-                    case (?challengeEntry) {
-                        return getJudgeCanister(challengeEntry.responsibleJudgeAddress);
-                    };
-                };
-            };
-            case (_) { return null; };
         };
     };
 
@@ -699,30 +699,20 @@ actor class GameStateCanister() = this {
         switch (getChallengerCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
             case (?challengerEntry) {
-                // Determine which Judge will be responsible for this challenge
-                let judgeCanisterEntry : ?Types.OfficialProtocolCanister = getRandomJudgeCanister();
-                switch (judgeCanisterEntry) {
-                    case (null) {
-                        return #Err(#FailedOperation);
-                    };
-                    case (?judgeCanister) {
-                        let challengeId : Text = await Utils.newRandomUniqueId();
+                let challengeId : Text = await Utils.newRandomUniqueId();
 
-                        let challengeAdded : Types.Challenge = {
-                            challengeId : Text = challengeId;
-                            challengeQuestion : Text = newChallenge.challengeQuestion;
-                            creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                            createdBy : Types.CanisterAddress = challengerEntry.address;
-                            status : Types.ChallengeStatus = #Open;
-                            closedTimestamp : ?Nat64 = null;
-                            responsibleJudgeAddress : Types.CanisterAddress = judgeCanister.address;
-                        };
+                let challengeAdded : Types.Challenge = {
+                    challengeId : Text = challengeId;
+                    challengeQuestion : Text = newChallenge.challengeQuestion;
+                    creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                    createdBy : Types.CanisterAddress = challengerEntry.address;
+                    status : Types.ChallengeStatus = #Open;
+                    closedTimestamp : ?Nat64 = null;
+                };
 
-                        let putResult = putOpenChallenge(challengeId, challengeAdded);
-                        return #Ok(challengeAdded);                        
-                    };
-                };               
-            };
+                let putResult = putOpenChallenge(challengeId, challengeAdded);
+                return #Ok(challengeAdded);                        
+            };             
         };
     };
 
@@ -927,59 +917,45 @@ actor class GameStateCanister() = this {
                     return #Err(#InvalidId);
                 };
 
-                // Get Judge responsible for challenge
-                let judgeCanisterEntry : ?Types.OfficialProtocolCanister = getJudgeCanisterForChallenge(#Open, challengeResponseSubmissionInput.challengeId);
-                switch (judgeCanisterEntry) {
-                    case (null) {
-                        let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
-                        D.print("GameState: submitChallengeResponse - 06");
-                        return #Err(#FailedOperation);
-                    };
-                    case (?judgeCanister) {
-                        // Accept required cycles for submission
-                        let cyclesAcceptedForSubmission = Cycles.accept<system>(SUBMISSION_CYCLES_REQUIRED);
-                        if (cyclesAcceptedForSubmission != SUBMISSION_CYCLES_REQUIRED) {
-                            // Sanity check: At this point, this should never fail
-                            D.print("GameState: submitChallengeResponse - 07");
-                            return #Err(#Unauthorized);                    
-                        };
+                // Accept required cycles for submission
+                let cyclesAcceptedForSubmission = Cycles.accept<system>(SUBMISSION_CYCLES_REQUIRED);
+                if (cyclesAcceptedForSubmission != SUBMISSION_CYCLES_REQUIRED) {
+                    // Sanity check: At this point, this should never fail
+                    D.print("GameState: submitChallengeResponse - 07");
+                    return #Err(#Unauthorized);                    
+                };
 
-                        // Forward submission to responsible Judge
-                        let submissionId : Text = await Utils.newRandomUniqueId();
-                        let submissionToForward : Types.ChallengeResponseSubmission = {
-                            challengeId : Text = challengeResponseSubmissionInput.challengeId;
-                            submittedBy : Principal = msg.caller;
-                            challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
-                            submissionId : Text = submissionId;
-                            submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                            status: Types.ChallengeResponseSubmissionStatus = #Received;
-                            challengeAnswer : Text = challengeResponseSubmissionInput.challengeAnswer;
-                        };
-                        
-                        let judgeAddress = judgeCanister.address;
+                // Forward submission to responsible Judge
+                let submissionId : Text = await Utils.newRandomUniqueId();
+                let submissionAdded : Types.ChallengeResponseSubmission = {
+                    challengeId : Text = challengeResponseSubmissionInput.challengeId;
+                    submittedBy : Principal = msg.caller;
+                    challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
+                    submissionId : Text = submissionId;
+                    submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                    status: Types.ChallengeResponseSubmissionStatus = #Received;
+                    challengeAnswer : Text = challengeResponseSubmissionInput.challengeAnswer;
+                };
 
-                        let judgeCanisterActor = actor(judgeAddress): Types.Judge_Actor;
-        
-                        D.print("GameState: submitChallengeResponse- calling addSubmissionToJudge of judgeCanisterActor = " # Principal.toText(Principal.fromActor(judgeCanisterActor)));
-                        let result : Types.ChallengeResponseSubmissionMetadataResult = await judgeCanisterActor.addSubmissionToJudge(submissionToForward);
-                        D.print("GameState: submitChallengeResponse- returned from addSubmissionToJudge of judgeCanisterActor = " # Principal.toText(Principal.fromActor(judgeCanisterActor)));
-
-                        switch (result) {
-                            case (#Ok(_judgeConfirmation)) {
-                                let submissionMetada : Types.ChallengeResponseSubmissionMetadata = {
-                                    submissionId : Text = submissionToForward.submissionId;
-                                    submittedTimestamp : Nat64 = submissionToForward.submittedTimestamp;
-                                    status: Types.ChallengeResponseSubmissionStatus = #Submitted;
-                                };
-                                D.print("GameState: submitChallengeResponse - 08");
-                                return #Ok(submissionMetada);
-                            };
-                            case (_) { return #Err(#FailedOperation); };
-                        };                        
-                    };
-                }; 
+                let putResult = putSubmission(submissionId, submissionAdded);
+                let submissionMetada : Types.ChallengeResponseSubmissionMetadata = {
+                    submissionId : Text = submissionId;
+                    submittedTimestamp : Nat64 = submissionAdded.submittedTimestamp;
+                    status: Types.ChallengeResponseSubmissionStatus = #Submitted;
+                };
+                D.print("GameState: submitChallengeResponse - submitted!");
+                return #Ok(submissionMetada);           
             };
         };
+    };
+
+    // Function for Admin to retrieve submissions
+    public shared query (msg) func getSubmissionsAdmin() : async Types.ChallengeResponseSubmissionsResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let submissions : [Types.ChallengeResponseSubmission] = getSubmissions();
+        return #Ok(submissions);
     };
 
     // Function for Judge canister to add a new scored response
@@ -1011,62 +987,52 @@ actor class GameStateCanister() = this {
                     return #Err(#InvalidId);
                 };
                 
-                // Determine if Judge is responsible for this challenge
-                let responsibleJudgeCanisterEntry : ?Types.OfficialProtocolCanister = getJudgeCanisterForChallenge(#Open, scoredResponseInput.challengeId);
-                switch (responsibleJudgeCanisterEntry) {
-                    case (null) {
-                        D.print("GameState: addScoredResponse - 04");
-                        return #Err(#Unauthorized);
-                    };
-                    case (?_responsibleJudgeCanister) {
-                        // Store scored response for challenge
-                        let scoredResponseEntry : Types.ScoredResponse = {
-                            submissionId : Text = scoredResponseInput.submissionId;
-                            challengeId : Text = scoredResponseInput.challengeId;
-                            submittedBy : Principal = scoredResponseInput.submittedBy;
-                            challengeQuestion : Text = scoredResponseInput.challengeQuestion;
-                            challengeAnswer : Text = scoredResponseInput.challengeAnswer;
-                            submittedTimestamp : Nat64 = scoredResponseInput.submittedTimestamp;
-                            status: Types.ChallengeResponseSubmissionStatus = #Judged;
-                            judgedBy: Principal = scoredResponseInput.judgedBy;
-                            score: Nat = scoredResponseInput.score;
-                            judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                // Store scored response for challenge
+                let scoredResponseEntry : Types.ScoredResponse = {
+                    submissionId : Text = scoredResponseInput.submissionId;
+                    challengeId : Text = scoredResponseInput.challengeId;
+                    submittedBy : Principal = scoredResponseInput.submittedBy;
+                    challengeQuestion : Text = scoredResponseInput.challengeQuestion;
+                    challengeAnswer : Text = scoredResponseInput.challengeAnswer;
+                    submittedTimestamp : Nat64 = scoredResponseInput.submittedTimestamp;
+                    status: Types.ChallengeResponseSubmissionStatus = #Judged;
+                    judgedBy: Principal = scoredResponseInput.judgedBy;
+                    score: Nat = scoredResponseInput.score;
+                    judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                };
+
+                D.print("GameState: addScoredResponse - All Good - calling putScoredResponseForChallenge");
+                D.print("GameState: addScoredResponse - scoredResponseEntry = " # debug_show(scoredResponseEntry));
+                let numberOfScoredResponsesForChallenge : Nat = putScoredResponseForChallenge(scoredResponseEntry);
+
+                // Determine if ranking of scored responses can be triggered
+                if (numberOfScoredResponsesForChallenge >= THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE) {
+                    // Close challenge
+                    switch (closeChallenge(scoredResponseInput.challengeId)) {
+                        case (false) {
+                            // TODO: error handling (e.g. put into queue and try ranking again later)
                         };
-
-                        D.print("GameState: addScoredResponse - All Good - calling putScoredResponseForChallenge");
-                        D.print("GameState: addScoredResponse - scoredResponseEntry = " # debug_show(scoredResponseEntry));
-                        let numberOfScoredResponsesForChallenge : Nat = putScoredResponseForChallenge(scoredResponseEntry);
-
-                        // Determine if ranking of scored responses can be triggered
-                        if (numberOfScoredResponsesForChallenge >= THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE) {
-                            // Close challenge
-                            switch (closeChallenge(scoredResponseInput.challengeId)) {
-                                case (false) {
+                        case (true) {
+                            // Rank scored responses and declare winner
+                            let rankResult : ?Types.ChallengeWinnerDeclaration = rankScoredResponsesForChallenge(scoredResponseInput.challengeId);
+                            switch (rankResult) {
+                                case (null) {
                                     // TODO: error handling (e.g. put into queue and try ranking again later)
                                 };
-                                case (true) {
-                                    // Rank scored responses and declare winner
-                                    let rankResult : ?Types.ChallengeWinnerDeclaration = rankScoredResponsesForChallenge(scoredResponseInput.challengeId);
-                                    switch (rankResult) {
-                                        case (null) {
-                                            // TODO: error handling (e.g. put into queue and try ranking again later)
-                                        };
-                                        case (?challengeWinnerDeclaration) {
-                                            // TODO: Pay reward
-                                            
-                                        };
-                                    };
+                                case (?challengeWinnerDeclaration) {
+                                    // TODO: Pay reward
+                                    
                                 };
                             };
                         };
-
-                        // Return
-                        let result : Types.ScoredResponseReturn = {
-                            success : Bool = true;
-                        };
-                        return #Ok(result);                      
                     };
-                };               
+                };
+
+                // Return
+                let result : Types.ScoredResponseReturn = {
+                    success : Bool = true;
+                };
+                return #Ok(result);                                     
             };
         };
     };
@@ -1087,6 +1053,7 @@ actor class GameStateCanister() = this {
         mainerAgentCanistersStorageStable := Iter.toArray(mainerAgentCanistersStorage.entries());
         userToMainerAgentsStorageStable := Iter.toArray(userToMainerAgentsStorage.entries());
         openChallengesStorageStable := Iter.toArray(openChallengesStorage.entries());
+        submissionsStorageStable := Iter.toArray(submissionsStorage.entries());
         scoredResponsesPerChallengeStable := Iter.toArray(scoredResponsesPerChallenge.entries());
         winnerDeclarationForChallengeStable := Iter.toArray(winnerDeclarationForChallenge.entries());
     };
@@ -1104,6 +1071,8 @@ actor class GameStateCanister() = this {
         userToMainerAgentsStorageStable := [];
         openChallengesStorage := HashMap.fromIter(Iter.fromArray(openChallengesStorageStable), openChallengesStorageStable.size(), Text.equal, Text.hash);
         openChallengesStorageStable := [];
+        submissionsStorage := HashMap.fromIter(Iter.fromArray(submissionsStorageStable), submissionsStorageStable.size(), Text.equal, Text.hash);
+        submissionsStorageStable := [];
         scoredResponsesPerChallenge := HashMap.fromIter(Iter.fromArray(scoredResponsesPerChallengeStable), scoredResponsesPerChallengeStable.size(), Text.equal, Text.hash);
         scoredResponsesPerChallengeStable := [];
         winnerDeclarationForChallenge := HashMap.fromIter(Iter.fromArray(winnerDeclarationForChallengeStable), winnerDeclarationForChallengeStable.size(), Text.equal, Text.hash);

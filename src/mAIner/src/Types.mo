@@ -127,7 +127,6 @@ module Types {
         challengeQuestion : Text;
         status : ChallengeStatus;
         closedTimestamp : ?Nat64;
-        responsibleJudgeAddress : CanisterAddress;
     };
 
     type CanisterAddress = Text;

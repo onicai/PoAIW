@@ -99,7 +99,7 @@ dfx canister call challenger_ctrlb_canister getChallengesAdmin [--ic]
 dfx canister call game_state_canister getCurrentChallengesAdmin [--ic]
 ```
 
-# Test mAIner & Judge:
+# Test mAIner:
 ```bash
 # from folder: PoAIW/src/mAIner
 # start the timer that generates challenge responses recurringly
@@ -107,31 +107,41 @@ dfx canister call mainer_ctrlb_canister startTimerExecutionAdmin [--ic]
 # stop the timer that generates challenge responses recurringly
 dfx canister call mainer_ctrlb_canister stopTimerExecutionAdmin [--ic]
 
-# TODO - remove once Create Mainer is functional
-# from folder: PoAIW/src/GameState
-# register the mAIner agent with the Game State canister for testing as an admin
-# NOTE: this is already done by register-all.sh
-# dfx canister call game_state_canister addMainerAgentCanisterAdmin "(record { address = \"ahw5u-keaaa-aaaaa-qaaha-cai\"; canisterType = variant {MainerAgent}; ownedBy = principal\"$(dfx identity get-principal)\" })"
 # you can also trigger a single challenge response generation manually
 dfx canister call mainer_ctrlb_canister triggerChallengeResponseAdmin [--ic]
 ```
 
-The challenge response generation takes a moment:
-(1) The mAIner uses an LLM to generate a response and submits it to the GameState
-(2) The GameState is not storing anything yet. It just forwards the submission to a Judge for scoring
-(3) The Judge uses an LLM to score the response and submits the scored submission to the GameState
-(4) The GameState now stores the scored submission
-
-To ensure it worked, call
+The response generation takes a moment. To ensure it worked, call
 ```bash
 # from folder: PoAIW/src/mAIner
 dfx canister call mainer_ctrlb_canister getSubmittedResponsesAdmin [--ic]  # TODO
 
 # from folder: PoAIW/src/GameState
-dfx canister call game_state_canister getScoredChallengesAdmin [--ic]  # TODO ?
+dfx canister call game_state_canister getSubmissionsAdmin [--ic]  # TODO ?
 ```
 
 # Test Judge
+```bash
+# from folder: PoAIW/src/Judge
+# start the timer that generates scores recurringly
+dfx canister call judge_ctrlb_canister startTimerExecutionAdmin [--ic]
+# stop the timer that generates scores recurringly
+dfx canister call judge_ctrlb_canister stopTimerExecutionAdmin [--ic]
+
+# you can also trigger a single score generation manually
+dfx canister call judge_ctrlb_canister trigger...Admin [--ic]
+```
+
+To ensure it worked, call
+```bash
+# from folder: PoAIW/src/Judge
+dfx canister call judge_ctrlb_canister get....Admin [--ic]  # TODO
+
+# from folder: PoAIW/src/GameState
+dfx canister call game_state_canister getScoredChallengesAdmin [--ic]  # TODO ?
+```
+
+REMOVE-REMOVE-REMOVE
 To manually add a Submission to Judge, call
 ```bash
 # from folder: PoAIW/src/Judge

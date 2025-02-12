@@ -92,7 +92,6 @@ module Types {
         challengeQuestion : Text;
         status : ChallengeStatus;
         closedTimestamp : ?Nat64;
-        responsibleJudgeAddress : CanisterAddress;
     };
 
     public type ChallengeStatus = {
@@ -138,6 +137,7 @@ module Types {
 
     public type ChallengeResponseSubmissionMetadataResult = Result<ChallengeResponseSubmissionMetadata, ApiError>;
     public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmission, ApiError>;
+    public type ChallengeResponseSubmissionsResult = Result<[ChallengeResponseSubmission], ApiError>;
 
     public type ScoredResponseInput = ChallengeResponseSubmission and {
         judgedBy: Principal;
