@@ -13,6 +13,9 @@ import Nat64 "mo:base/Nat64";
 import Nat "mo:base/Nat";
 import Hash "mo:base/Hash";
 
+import Map "mo:map/Map";
+import { nhash } "mo:map/Map";
+
 import Types "./Types";
 
 actor class CanisterCreationCanister() = this {
@@ -142,18 +145,9 @@ actor class CanisterCreationCanister() = this {
     };
 
     // Admin function to upload a model file
-    private var nextChunkID: Nat = 0;
-    private let chunks: HashMap.HashMap<Nat, [Nat8]> = HashMap.HashMap<Nat, [Nat8]>(
-        0, Nat.equal, Hash.hash,
-    );
-    
-    /* public shared({caller}) func create_chunk(chunk: Types.Chunk) : async {
-        chunk_id : Nat
-    } {
-        nextChunkID := nextChunkID + 1;
-        chunks.put(nextChunkID, chunk);
-        return {chunk_id = nextChunkID};
-    }; */
+    stable var nextChunkID: Nat = 0;
+    stable let chunks = Map.new<Nat, [Nat8]>();
+
     public shared (msg) func upload_mainer_llm_bytes_chunk(bytesChunk : [Nat8]) : async Types.FileUploadResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -162,7 +156,7 @@ actor class CanisterCreationCanister() = this {
             return #Err(#Unauthorized);
         };
 
-        chunks.put(nextChunkID, bytesChunk);
+        Map.set(chunks, nhash, nextChunkID, bytesChunk);
         nextChunkID := nextChunkID + 1;
         return #Ok({ creationResult = "Success" });
     };
