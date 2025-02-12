@@ -307,9 +307,18 @@ actor class MainerAgentCtrlbCanister() = this {
                             challengeAnswer : Text = respondingOutput.generatedResponseText;
                         };
                         D.print("mAIner:  processRespondingToChallenge- calling getSubmissionCyclesRequired of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
-                        // Add the desired amount of cycles
+                        // Get the required amount of cycles
                         let submissionCyclesRequired : Nat = await gameStateCanisterActor.getSubmissionCyclesRequired();
                         D.print("mAIner:  processRespondingToChallenge- submissionCyclesRequired = " # debug_show(submissionCyclesRequired));
+                        
+                        // Check if the canister has enough cycles
+                        let availableCycles = Cycles.balance();
+                        if (availableCycles < submissionCyclesRequired) {
+                            D.print("mAIner:  processRespondingToChallenge- Not enough cycles available to submit. availableCycles = " # debug_show(availableCycles));
+                            return;
+                        };
+
+                        // Add the required amount of cycles
                         Cycles.add<system>(submissionCyclesRequired);
 
                         D.print("mAIner:  processRespondingToChallenge- calling submitChallengeResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
