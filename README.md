@@ -101,6 +101,12 @@ dfx canister call game_state_canister getScoredChallengesAdmin --output json [--
 scripts/stop-timers.sh --network [local/ic]
 ```
 
+NOTE: when working locally, you easily add cycles to the canisters with:
+```bash
+# From the canister folders: to add 2 trillion cycles
+dfx ledger fabricate-cycles --all --t 2
+```
+
 # Test components individually
 
 ## Test Challenger:
