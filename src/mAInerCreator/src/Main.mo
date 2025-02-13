@@ -148,10 +148,12 @@ actor class CanisterCreationCanister() = this {
     stable var nextChunkID : Nat = 0;
     //stable var lastChunkIndex : Nat = 400;
     //stable let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(2000000, 1));
-    //stable let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(1, 1));
+    stable let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(1, 1));
     //stable var chunks : [var [Nat8]] = Array.init<[Nat8]>(400, innerInitArray);
+    stable let initBlob : Blob = Blob.fromArray(innerInitArray);
+    stable var chunks : [var Blob] = Array.init<Blob>(400, initBlob);
     //stable let chunks = Map.new<Nat, [Nat8]>();
-    stable let chunks = Map.new<Nat, Blob>();
+    //stable let chunks = Map.new<Nat, Blob>();
 
     public shared (msg) func upload_mainer_llm_bytes_chunk(bytesChunk : Blob) : async Types.FileUploadResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -161,8 +163,8 @@ actor class CanisterCreationCanister() = this {
             return #Err(#Unauthorized);
         };
 
-        //chunks[nextChunkID] := bytesChunk;
-        ignore Map.set(chunks, nhash, nextChunkID, bytesChunk); // TODO: try set
+        ignore chunks[nextChunkID] := bytesChunk;
+        //ignore Map.set(chunks, nhash, nextChunkID, bytesChunk); // TODO: try set
         nextChunkID := nextChunkID + 1;
         //ignore Map.put(chunks, nhash, nextChunkID, bytesChunk); // TODO: try Blob
         //chunks[lastChunkIndex - nextChunkID] := bytesChunk; // decrementing index
