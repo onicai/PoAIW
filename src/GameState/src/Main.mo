@@ -712,6 +712,7 @@ actor class GameStateCanister() = this {
                     createdBy : Types.CanisterAddress = challengerEntry.address;
                     status : Types.ChallengeStatus = #Open;
                     closedTimestamp : ?Nat64 = null;
+                    submissionCyclesRequired : Nat = SUBMISSION_CYCLES_REQUIRED;
                 };
 
                 let putResult = putOpenChallenge(challengeId, challengeAdded);
