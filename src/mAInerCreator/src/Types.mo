@@ -5,7 +5,6 @@ import Nat64 "mo:base/Nat64";
 import Nat8 "mo:base/Nat8";
 import Text "mo:base/Text";
 import Buffer "mo:base/Buffer";
-import SB "./StableBuffer";
 
 module Types {
     //-------------------------------------------------------------------------
@@ -36,7 +35,6 @@ module Types {
     public type ModelCreationArtefacts = {
         canisterWasm : [Nat8];
         modelFile : [Nat8];
-        //modelFile : SB.StableBuffer;
     };
 
     public type AvailableModels = {

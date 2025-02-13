@@ -13,6 +13,9 @@ import Nat64 "mo:base/Nat64";
 import Nat "mo:base/Nat";
 import Hash "mo:base/Hash";
 
+import Map "mo:map/Map";
+import { nhash } "mo:map/Map";
+
 import Types "./Types";
 
 actor class CanisterCreationCanister() = this {
@@ -143,12 +146,14 @@ actor class CanisterCreationCanister() = this {
 
     // Admin function to upload a model file
     stable var nextChunkID : Nat = 0;
-    stable var lastChunkIndex : Nat = 400;
+    //stable var lastChunkIndex : Nat = 400;
     //stable let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(2000000, 1));
-    stable let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(1, 1));
-    stable var chunks : [var [Nat8]] = Array.init<[Nat8]>(400, innerInitArray);
+    //stable let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(1, 1));
+    //stable var chunks : [var [Nat8]] = Array.init<[Nat8]>(400, innerInitArray);
+    //stable let chunks = Map.new<Nat, [Nat8]>();
+    stable let chunks = Map.new<Nat, Blob>();
 
-    public shared (msg) func upload_mainer_llm_bytes_chunk(bytesChunk : [Nat8]) : async Types.FileUploadResult {
+    public shared (msg) func upload_mainer_llm_bytes_chunk(bytesChunk : Blob) : async Types.FileUploadResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -156,8 +161,10 @@ actor class CanisterCreationCanister() = this {
             return #Err(#Unauthorized);
         };
 
-        chunks[nextChunkID] := bytesChunk;
+        //chunks[nextChunkID] := bytesChunk;
+        ignore Map.set(chunks, nhash, nextChunkID, bytesChunk); // TODO: try set
         nextChunkID := nextChunkID + 1;
+        //ignore Map.put(chunks, nhash, nextChunkID, bytesChunk); // TODO: try Blob
         //chunks[lastChunkIndex - nextChunkID] := bytesChunk; // decrementing index
         return #Ok({ creationResult = "Success" });
     };
