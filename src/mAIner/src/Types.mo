@@ -152,7 +152,6 @@ module Types {
         addScoredResponse : (ScoredResponseInput) -> async ScoredResponseResult;
         submitChallengeResponse : (ChallengeResponseSubmissionInput) -> async ChallengeResponseSubmissionMetadataResult;
         getRandomOpenChallenge : () -> async ChallengeResult;
-        getSubmissionCyclesRequired : () -> async Nat;
     };
 
     // Agent Settings
