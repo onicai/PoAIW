@@ -527,7 +527,7 @@ actor class JudgeCtrlbCanister() = this {
         return #Ok(scoringOutput);
     };
 
-    // Endpoint to be called by Game State canister to score a mAIner's response to a challenge
+    // Score a mAIner's response to a challenge
     private func scoreNextSubmission() : async () {
         D.print("Judge: scoreNextSubmission - entered");
 
@@ -587,12 +587,12 @@ actor class JudgeCtrlbCanister() = this {
     stable var actionRegularityInSeconds = 60; // TODO: set based on user setting for cycles burn rate
 
     private func triggerRecurringAction() : async () {
-        D.print("mAIner:  Recurring action was triggered");
+        D.print("Judge:  Recurring action was triggered");
         //ignore scoreNextSubmission(); TODO
         let result = await scoreNextSubmission();
-        D.print("mAIner:  Recurring action result");
+        D.print("Judge:  Recurring action result");
         D.print(debug_show (result));
-        D.print("mAIner:  Recurring action result");
+        D.print("Judge:  Recurring action result");
     };
 
     public shared (msg) func startTimerExecutionAdmin() : async Types.AuthRecordResult {
@@ -601,9 +601,9 @@ actor class JudgeCtrlbCanister() = this {
         };
         ignore setTimer<system>(#seconds 5,
             func () : async () {
-                D.print("mAIner:  setTimer");
+                D.print("Judge:  setTimer");
                 let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction);
-                D.print("mAIner: Successfully start timer with id = " # debug_show (id));
+                D.print("Judge: Successfully start timer with id = " # debug_show (id));
                 recurringTimerId := ?id;
                 await triggerRecurringAction();
         });
@@ -618,10 +618,10 @@ actor class JudgeCtrlbCanister() = this {
 
         switch (recurringTimerId) {
             case (?id) {
-                D.print("mAIner: Stopping timer with id = " # debug_show (id));
+                D.print("Judge: Stopping timer with id = " # debug_show (id));
                 Timer.cancelTimer(id);
                 recurringTimerId := null;
-                D.print("mAIner: Timer stopped successfully.");
+                D.print("Judge: Timer stopped successfully.");
                 
                 return #Ok({ auth = "Timer stopped successfully." });
             };
