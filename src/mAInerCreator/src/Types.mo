@@ -34,7 +34,7 @@ module Types {
     // data needed to create a new canister with the model
     public type ModelCreationArtefacts = {
         canisterWasm : [Nat8];
-        modelFile : [Nat8];
+        modelFile : [Blob];
     };
 
     public type AvailableModels = {

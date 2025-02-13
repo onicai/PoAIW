@@ -124,7 +124,7 @@ actor class CanisterCreationCanister() = this {
             case (?existingArtefacts) {
                 let updatedArtefacts : Types.ModelCreationArtefacts = {
                     canisterWasm = Array.append(existingArtefacts.canisterWasm, bytesChunk);
-                    modelFile : [Nat8] = existingArtefacts.modelFile;
+                    modelFile : [Blob] = existingArtefacts.modelFile;
                 };
 
                 let updateArtefactsResult = putModelCreationArtefacts(selectedModel, updatedArtefacts);
@@ -135,7 +135,7 @@ actor class CanisterCreationCanister() = this {
                 // new entry
                 let newArtefacts : Types.ModelCreationArtefacts = {
                     canisterWasm : [Nat8] = bytesChunk;
-                    modelFile : [Nat8] = [];
+                    modelFile : [Blob] = [];
                 };
 
                 let updateArtefactsResult = putModelCreationArtefacts(selectedModel, newArtefacts);
@@ -198,8 +198,8 @@ actor class CanisterCreationCanister() = this {
             case (?existingArtefacts) {
                 let updatedArtefacts : Types.ModelCreationArtefacts = {
                     canisterWasm = existingArtefacts.canisterWasm;
-                    modelFile : [Nat8] = []; //TODO
-                    //modelFile : [Nat8] = Blob.toArray(modelFileUploadBuffer);
+                    //modelFile : [Nat8] = []; //TODO
+                    modelFile : [Blob] = Array.freeze<Blob>(chunks);
                     //modelFile = modelFileUploadBuffer;
                 };
 
@@ -324,14 +324,16 @@ actor class CanisterCreationCanister() = this {
                                 // let chunkSize = 42000; // ~0.01 MB for testing
                                 let chunkSize = 9 * 1024 * 1024; // 9 MB
 
-                                let bufferModelFile = Buffer.fromArray<Nat8>(modelCreationArtefacts.modelFile);
-                                let chunksModelFile = Buffer.chunk<Nat8>(bufferModelFile, chunkSize);
+                                //let bufferModelFile = Buffer.fromArray<Nat8>(modelCreationArtefacts.modelFile);
+                                //let chunksModelFile = Buffer.chunk<Nat8>(bufferModelFile, chunkSize);
                                 var offset = 0;
-                                for (chunk in chunksModelFile.vals()) {
+                                //for (chunk in chunksModelFile.vals()) {
+                                for (chunk in modelCreationArtefacts.modelFile.vals()) {
                                     D.print("Uploading another chunk of the model file...");
                                     let uploadChunk = {
                                         filename = "models/model.gguf";
-                                        chunk = Buffer.toArray<Nat8>(chunk);
+                                        //chunk = Buffer.toArray<Nat8>(chunk);
+                                        chunk = Blob.toArray(chunk);
                                         chunksize = Nat64.fromNat(chunkSize);
                                         offset = Nat64.fromNat(offset);
                                     };
