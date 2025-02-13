@@ -92,7 +92,6 @@ module Types {
         challengeQuestion : Text;
         status : ChallengeStatus;
         closedTimestamp : ?Nat64;
-        responsibleJudgeAddress : CanisterAddress;
     };
 
     public type ChallengeStatus = {
@@ -116,6 +115,7 @@ module Types {
         #FailedSubmission;
         #Received;
         #Submitted;
+        #Judging;
         #Judged;
         #Processed;
         #Other : Text;
@@ -138,6 +138,7 @@ module Types {
 
     public type ChallengeResponseSubmissionMetadataResult = Result<ChallengeResponseSubmissionMetadata, ApiError>;
     public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmission, ApiError>;
+    public type ChallengeResponseSubmissionsResult = Result<[ChallengeResponseSubmission], ApiError>;
 
     public type ScoredResponseInput = ChallengeResponseSubmission and {
         judgedBy: Principal;
@@ -219,10 +220,6 @@ module Types {
 
     //-------------------------------------------------------------------------
 // Canister Actors
-    public type Judge_Actor = actor {
-        addSubmissionToJudge: shared (Types.ChallengeResponseSubmission) -> async ChallengeResponseSubmissionMetadataResult
-    };
-
     public type MainerCreator_Actor = actor {
         createCanister: shared CanisterCreationConfiguration -> async CanisterCreationResult;
     };

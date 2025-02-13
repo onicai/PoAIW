@@ -5,6 +5,7 @@ module Types {
         #FailedSubmission;
         #Received;
         #Submitted;
+        #Judging;
         #Judged;
         #Processed;
         #Other : Text;
@@ -127,7 +128,6 @@ module Types {
         challengeQuestion : Text;
         status : ChallengeStatus;
         closedTimestamp : ?Nat64;
-        responsibleJudgeAddress : CanisterAddress;
     };
 
     type CanisterAddress = Text;
@@ -152,7 +152,6 @@ module Types {
         addScoredResponse : (ScoredResponseInput) -> async ScoredResponseResult;
         submitChallengeResponse : (ChallengeResponseSubmissionInput) -> async ChallengeResponseSubmissionMetadataResult;
         getRandomOpenChallenge : () -> async ChallengeResult;
-        getSubmissionCyclesRequired : () -> async Nat;
     };
 
     // Agent Settings

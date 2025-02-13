@@ -15,7 +15,6 @@ import Iter "mo:base/Iter";
 import Char "mo:base/Char";
 import Float "mo:base/Float";
 import Cycles "mo:base/ExperimentalCycles";
-import { print } = "mo:base/Debug";
 import { setTimer; recurringTimer } = "mo:base/Timer";
 import Timer "mo:base/Timer";
 
@@ -307,11 +306,21 @@ actor class MainerAgentCtrlbCanister() = this {
                             challengeQuestion : Text = challenge.challengeQuestion;
                             challengeAnswer : Text = respondingOutput.generatedResponseText;
                         };
-                        D.print("mAIner:  processRespondingToChallenge- calling getSubmissionCyclesRequired of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
-                        // Add the desired amount of cycles
-                        let submissionCyclesRequired : Nat = await gameStateCanisterActor.getSubmissionCyclesRequired();
-                        D.print("mAIner:  processRespondingToChallenge- submissionCyclesRequired = " # debug_show(submissionCyclesRequired));
-                        Cycles.add<system>(submissionCyclesRequired);
+                        
+                        // Final check if the canister still has enough cycles
+                        let availableCycles = Cycles.balance();
+                        if (availableCycles < SUBMISSION_CYCLES_REQUIRED + CYCLE_BALANCE_MINIMUM) {
+                            D.print("mAIner:  respondToNextChallenge- PAUSING RESPONSE GENERATION DUE TO LOW CYCLE BALANCE");
+                            D.print("mAIner:  respondToNextChallenge- SUBMISSION_CYCLES_REQUIRED = " # debug_show(SUBMISSION_CYCLES_REQUIRED));
+                            D.print("mAIner:  respondToNextChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
+                            D.print("mAIner:  respondToNextChallenge- availableCycles          = " # debug_show(availableCycles));
+
+                            PAUSED_DUE_TO_LOW_CYCLE_BALANCE := true;
+                            return;
+                        };
+
+                        // Add the required amount of cycles
+                        Cycles.add<system>(SUBMISSION_CYCLES_REQUIRED);
 
                         D.print("mAIner:  processRespondingToChallenge- calling submitChallengeResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
                         let submitMetadaResult : Types.ChallengeResponseSubmissionMetadataResult = await gameStateCanisterActor.submitChallengeResponse(challengeResponseSubmissionInput);
@@ -575,9 +584,39 @@ actor class MainerAgentCtrlbCanister() = this {
         return #Ok(responseOutput);
     };
 
+    // Keep in sync with SUBMISSION_CYCLES_REQUIRED in GameState
+    stable let _CYCLES_MILLION = 1_000_000;
+    stable let CYCLES_BILLION = 1_000_000_000;
+    stable let _CYCLES_TRILLION = 1_000_000_000_000;
+    stable let SUBMISSION_CYCLES_REQUIRED : Nat = 100 * CYCLES_BILLION; // TODO: determine how many cycles are needed to process one submission (incl. judge)
+
+    // A flag for the frontend to pick up and display a message to the user
+    stable var PAUSED_DUE_TO_LOW_CYCLE_BALANCE : Bool = false;
+
+    // The minimum cycle balance we want to maintain
+    stable let CYCLE_BALANCE_MINIMUM = 250 * CYCLES_BILLION;
+
     private func respondToNextChallenge() : async () {
-        D.print("mAIner:  respondToNextChallenge");
-        // TODO: incorporate cycles burn rate setting
+        D.print("mAIner:  respondToNextChallenge - entered");
+
+        // -----------------------------------------------------
+        // Check if the canister has enough cycles to submit
+
+        // Before doing anything, check if the canister has enough cycles
+        let availableCycles = Cycles.balance();
+        if (availableCycles < SUBMISSION_CYCLES_REQUIRED + CYCLE_BALANCE_MINIMUM) {
+            D.print("mAIner:  respondToNextChallenge- PAUSING RESPONSE GENERATION DUE TO LOW CYCLE BALANCE");
+            D.print("mAIner:  respondToNextChallenge- SUBMISSION_CYCLES_REQUIRED = " # debug_show(SUBMISSION_CYCLES_REQUIRED));
+            D.print("mAIner:  respondToNextChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
+            D.print("mAIner:  respondToNextChallenge- availableCycles          = " # debug_show(availableCycles));
+
+            PAUSED_DUE_TO_LOW_CYCLE_BALANCE := true;
+            return;
+        };
+
+        // -----------------------------------------------------
+        // Ok,the canister has enough cycles to submit
+        PAUSED_DUE_TO_LOW_CYCLE_BALANCE := false;
 
         // Get the next challenge to respond to
         D.print("mAIner:  respondToNextChallenge - calling getChallengeFromGameStateCanister.");
@@ -678,7 +717,6 @@ actor class MainerAgentCtrlbCanister() = this {
         //ignore respondToNextChallenge(); TODO
         let result = await respondToNextChallenge();
         D.print("mAIner:  Recurring action result");
-        print(debug_show (result));
         D.print(debug_show (result));
         D.print("mAIner:  Recurring action result");
     };

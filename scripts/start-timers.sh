@@ -2,7 +2,7 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/top-off-all.sh --network [local/ic]
+# scripts/start-all-timers.sh --network [local/ic]
 #######################################################################
 
 # Default network type is local
@@ -43,16 +43,17 @@ echo "Using network type: $NETWORK_TYPE"
 
 #######################################################################
 echo "==========================================="
-cd llms/Challenger
-echo "Balance of llms/Challenger:"
-scripts/balance.sh --network $NETWORK_TYPE
-
-echo "==========================================="
-cd ../Judge
-echo "Balance of llms/Judge:"
-scripts/balance.sh --network $NETWORK_TYPE
+cd src/Challenger
+echo "Starting timer for Challenger:"
+dfx canister call challenger_ctrlb_canister startTimerExecutionAdmin --network $NETWORK_TYPE
 
 echo "==========================================="
 cd ../mAIner
-echo "Balance of llms/mAIner:"
-scripts/balance.sh --network $NETWORK_TYPE
+echo "Starting timer for mAIner:"
+dfx canister call mainer_ctrlb_canister startTimerExecutionAdmin --network $NETWORK_TYPE
+
+echo "==========================================="
+cd ../Judge
+echo "Starting timer for Judge:"
+dfx canister call judge_ctrlb_canister startTimerExecutionAdmin --network $NETWORK_TYPE
+
