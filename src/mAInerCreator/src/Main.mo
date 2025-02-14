@@ -1,4 +1,3 @@
-//import D "mo:base/Debug";
 import Array "mo:base/Array";
 import Principal "mo:base/Principal";
 import Text "mo:base/Text";
@@ -12,9 +11,6 @@ import Buffer "mo:base/Buffer";
 import Nat64 "mo:base/Nat64";
 import Nat "mo:base/Nat";
 import Hash "mo:base/Hash";
-
-import Map "mo:map/Map";
-import { nhash } "mo:map/Map";
 
 import Types "./Types";
 
@@ -69,6 +65,7 @@ actor class CanisterCreationCanister() = this {
 
     // Admin function to upload artefacts for mainer agent LLM canister 
     // Map each AI model id to a record with the artefacts needed to create a new canister
+    // TODO: optimize to not hit heap memory limit during upgrade
     private var creationArtefactsByModel = HashMap.HashMap<Text, Types.ModelCreationArtefacts>(0, Text.equal, Text.hash);
     stable var creationArtefactsByModelStable : [(Text, Types.ModelCreationArtefacts)] = [];
 
@@ -146,14 +143,9 @@ actor class CanisterCreationCanister() = this {
 
     // Admin function to upload a model file
     stable var nextChunkID : Nat = 0;
-    //stable var lastChunkIndex : Nat = 400;
-    //stable let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(2000000, 1));
     stable let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(1, 1));
-    //stable var chunks : [var [Nat8]] = Array.init<[Nat8]>(400, innerInitArray);
     stable let initBlob : Blob = Blob.fromArray(innerInitArray);
     stable var chunks : [var Blob] = Array.init<Blob>(400, initBlob);
-    //stable let chunks = Map.new<Nat, [Nat8]>();
-    //stable let chunks = Map.new<Nat, Blob>();
 
     public shared (msg) func upload_mainer_llm_bytes_chunk(bytesChunk : Blob) : async Types.FileUploadResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -164,26 +156,9 @@ actor class CanisterCreationCanister() = this {
         };
 
         ignore chunks[nextChunkID] := bytesChunk;
-        //ignore Map.set(chunks, nhash, nextChunkID, bytesChunk); // TODO: try set
         nextChunkID := nextChunkID + 1;
-        //ignore Map.put(chunks, nhash, nextChunkID, bytesChunk); // TODO: try Blob
-        //chunks[lastChunkIndex - nextChunkID] := bytesChunk; // decrementing index
         return #Ok({ creationResult = "Success" });
     };
-
-    /* private var modelFileUploadBuffer = Buffer.Buffer<Nat8>(1024 * 1024 * 100);
-
-    public shared (msg) func upload_mainer_llm_bytes_chunk(bytesChunk : [Nat8]) : async Types.FileUploadResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-
-        let result = modelFileUploadBuffer.add(Blob.fromArray(bytesChunk));
-        return #Ok({ creationResult = "Success" });
-    }; */
 
     // Admin function to finish the upload of a model file
     public shared (msg) func finish_upload_mainer_llm(selectedModel : Types.AvailableModels) : async Types.FileUploadResult {
@@ -198,9 +173,7 @@ actor class CanisterCreationCanister() = this {
             case (?existingArtefacts) {
                 let updatedArtefacts : Types.ModelCreationArtefacts = {
                     canisterWasm = existingArtefacts.canisterWasm;
-                    //modelFile : [Nat8] = []; //TODO
                     modelFile : [Blob] = Array.subArray<Blob>(Array.freeze<Blob>(chunks), 0, nextChunkID);
-                    //modelFile = modelFileUploadBuffer;
                 };
 
                 let updateArtefactsResult = putModelCreationArtefacts(selectedModel, updatedArtefacts);
@@ -343,16 +316,14 @@ actor class CanisterCreationCanister() = this {
                                     };
                                 };
 
-                                // TODO: Make LLM functional
+                                // Make LLM functional
                                 // Upload model file
                                 // let chunkSize = 42000; // ~0.01 MB for testing
                                 var chunkSize : Nat = 9 * 1024 * 1024; // 9 MB
 
-                                //let bufferModelFile = Buffer.fromArray<Nat8>(modelCreationArtefacts.modelFile);
-                                //let chunksModelFile = Buffer.chunk<Nat8>(bufferModelFile, chunkSize);
                                 var offset : Nat = 0;
                                 var nextChunk : [Nat8] = [];
-                                //for (chunk in chunksModelFile.vals()) {
+                                
                                 for (chunk in modelCreationArtefacts.modelFile.vals()) {
                                     D.print("Uploading another chunk of the model file...");
                                     nextChunk := Blob.toArray(chunk);
