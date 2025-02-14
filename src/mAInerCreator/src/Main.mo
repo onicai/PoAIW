@@ -199,7 +199,7 @@ actor class CanisterCreationCanister() = this {
                 let updatedArtefacts : Types.ModelCreationArtefacts = {
                     canisterWasm = existingArtefacts.canisterWasm;
                     //modelFile : [Nat8] = []; //TODO
-                    modelFile : [Blob] = Array.freeze<Blob>(chunks);
+                    modelFile : [Blob] = Array.subArray<Blob>(Array.freeze<Blob>(chunks), 0, nextChunkID);
                     //modelFile = modelFileUploadBuffer;
                 };
 
@@ -220,9 +220,12 @@ actor class CanisterCreationCanister() = this {
         if (not (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID)) or Principal.equal(msg.caller, Principal.fromActor(this)))) {
             return #Err(#Unauthorized);
         };
+        D.print("in createCanister configurationInput");
+        D.print(debug_show (configurationInput));
 
         switch (configurationInput.canisterType) {
             case (#MainerAgent) {
+                D.print("in createCanister MainerAgent");
                 // Create mAIner controller canister for new mAIner agent
                 Cycles.add(700_000_000_000); // TODO: determine exact cycles amount
 
@@ -235,17 +238,24 @@ actor class CanisterCreationCanister() = this {
                     };
                 });
 
+                D.print("in createCanister createdControllerCanister");
+                D.print(debug_show (createdControllerCanister));
+
                 let installControllerWasm = await IC0.install_code({
                     arg = "";
                     wasm_module = Blob.fromArray(mainerControllerCanisterWasm);
                     mode = #install;
                     canister_id = createdControllerCanister.canister_id;
                 });
+                D.print("in createCanister installControllerWasm");
+                D.print(debug_show (installControllerWasm));
 
                 // Verify new canister is working
                 let controllerCanisterActor = actor (Principal.toText(createdControllerCanister.canister_id)) : Types.MainerAgentCtrlbCanister;
-
+                D.print("in createCanister controllerCanisterActor");
                 let readyControllerResult = await controllerCanisterActor.health();
+                D.print("in createCanister readyControllerResult");
+                D.print(debug_show (readyControllerResult));
                 switch (readyControllerResult) {
                     case (#Err(error)) {
                         return #Err(error);
@@ -257,6 +267,8 @@ actor class CanisterCreationCanister() = this {
 
                 // Set Game State canister address
                 let setControllerGameStateResult = await controllerCanisterActor.setGameStateCanisterId(MASTER_CANISTER_ID);
+                D.print("in createCanister setControllerGameStateResult");
+                D.print(debug_show (setControllerGameStateResult));
                 switch (setControllerGameStateResult) {
                     case (#Err(error)) {
                         return #Err(error);
@@ -274,19 +286,25 @@ actor class CanisterCreationCanister() = this {
                 return #Ok(creationRecord);
             };
             case (#MainerLlm) {
+                D.print("in createCanister MainerLlm");
                 // Sanity check
                 switch (configurationInput.associatedCanisterAddress) {
                     case (null) {
                         return #Err(#Other("Please provide the canister address of the associated mAIner controller canister"));
                     };
                     case (?associatedCanisterAddress) {
+                        D.print("in createCanister associatedCanisterAddress");
+                        D.print(debug_show (associatedCanisterAddress));
                         let isValidPrincipal = Principal.fromText(associatedCanisterAddress); // this will throw an error if it's not a valid canister address
+                        D.print("in createCanister isValidPrincipal");
+                        D.print(debug_show (isValidPrincipal));
                         // all good, continue
                         switch (getModelCreationArtefacts(configurationInput.selectedModel)) {
                             case (null) {
                                 return #Err(#Other("Cannot find creation artefacts for the selected model"));
                             };
                             case (?modelCreationArtefacts) {
+                                D.print("in createCanister modelCreationArtefacts");
                                 // Create mAIner LLM (and add it to a mAIner controller)
                                 Cycles.add(700_000_000_000); // TODO: determine exact cycles amount
 
@@ -298,6 +316,8 @@ actor class CanisterCreationCanister() = this {
                                         compute_allocation = null;
                                     };
                                 });
+                                D.print("in createCanister createdLlmCanister");
+                                D.print(debug_show (createdLlmCanister));
 
                                 let installLlmWasm = await IC0.install_code({
                                     arg = "";
@@ -305,11 +325,15 @@ actor class CanisterCreationCanister() = this {
                                     mode = #install;
                                     canister_id = createdLlmCanister.canister_id;
                                 });
+                                D.print("in createCanister installLlmWasm");
+                                D.print(debug_show (installLlmWasm));
 
                                 // Verify new canister is working
                                 let llmCanisterActor = actor (Principal.toText(createdLlmCanister.canister_id)) : Types.LLMCanister;
-
+                                D.print("in createCanister llmCanisterActor");
                                 let readyLlmResult = await llmCanisterActor.health();
+                                D.print("in createCanister readyLlmResult");
+                                D.print(debug_show (readyLlmResult));
                                 switch (readyLlmResult) {
                                     case (#Err(error)) {
                                         return #Err(error);
@@ -322,30 +346,38 @@ actor class CanisterCreationCanister() = this {
                                 // TODO: Make LLM functional
                                 // Upload model file
                                 // let chunkSize = 42000; // ~0.01 MB for testing
-                                let chunkSize = 9 * 1024 * 1024; // 9 MB
+                                var chunkSize : Nat = 9 * 1024 * 1024; // 9 MB
 
                                 //let bufferModelFile = Buffer.fromArray<Nat8>(modelCreationArtefacts.modelFile);
                                 //let chunksModelFile = Buffer.chunk<Nat8>(bufferModelFile, chunkSize);
-                                var offset = 0;
+                                var offset : Nat = 0;
+                                var nextChunk : [Nat8] = [];
                                 //for (chunk in chunksModelFile.vals()) {
                                 for (chunk in modelCreationArtefacts.modelFile.vals()) {
                                     D.print("Uploading another chunk of the model file...");
+                                    nextChunk := Blob.toArray(chunk);
+                                    chunkSize := nextChunk.size();
                                     let uploadChunk = {
                                         filename = "models/model.gguf";
-                                        //chunk = Buffer.toArray<Nat8>(chunk);
-                                        chunk = Blob.toArray(chunk);
+                                        chunk = nextChunk;
                                         chunksize = Nat64.fromNat(chunkSize);
                                         offset = Nat64.fromNat(offset);
                                     };
                                     let uploadModelFileResult = await llmCanisterActor.file_upload_chunk(uploadChunk);
+                                    D.print("in createCanister uploadModelFileResult");
+                                    D.print(debug_show (uploadModelFileResult));
                                     offset := offset + chunkSize;
                                 };
+
+                                D.print("in createCanister after upload");
 
                                 // load model file in LLM
                                 let inputRecord : Types.InputRecord = {
                                     args : [Text] = ["--model", "models/model.gguf"];
                                 };
                                 let loadModelResult = await llmCanisterActor.load_model(inputRecord);
+                                D.print("in createCanister loadModelResult");
+                                D.print(debug_show (loadModelResult));
                                 switch (loadModelResult) {
                                     case (#Err(error)) {
                                         return #Err(error);
@@ -354,7 +386,6 @@ actor class CanisterCreationCanister() = this {
                                         // all good, continue
                                     };
                                 };
-        
 
                                 // set max tokens
                                 let MAX_TOKENS : Nat64 = 10;
@@ -363,6 +394,8 @@ actor class CanisterCreationCanister() = this {
                                     max_tokens_query : Nat64 = MAX_TOKENS;
                                 };
                                 let setMaxTokensResult = await llmCanisterActor.set_max_tokens(maxTokensRecord);
+                                D.print("in createCanister setMaxTokensResult");
+                                D.print(debug_show (setMaxTokensResult));
                                 switch (setMaxTokensResult) {
                                     case (#Err(error)) {
                                         return #Err(error);
@@ -375,8 +408,10 @@ actor class CanisterCreationCanister() = this {
                                 // connect LLM and controller canisters
                                 // Register LLM with controller
                                 let associatedControllerCanisterActor = actor (associatedCanisterAddress) : Types.MainerAgentCtrlbCanister;
-
+                                D.print("in createCanister associatedControllerCanisterActor");
                                 let addLlmToControllerResult = await associatedControllerCanisterActor.add_llm_canister_id({ canister_id = Principal.toText(createdLlmCanister.canister_id); });
+                                D.print("in createCanister addLlmToControllerResult");
+                                D.print(debug_show (addLlmToControllerResult));
                                 switch (addLlmToControllerResult) {
                                     case (#Err(error)) {
                                         return #Err(error);
@@ -388,6 +423,8 @@ actor class CanisterCreationCanister() = this {
                                 // TODO: which number? Should this be done here or via an additional call?
                                 let roundRobinSetting : Nat = 1;
                                 let setControllerRoundRobinResult = await associatedControllerCanisterActor.setRoundRobinLLMs(roundRobinSetting);
+                                D.print("in createCanister setControllerRoundRobinResult");
+                                D.print(debug_show (setControllerRoundRobinResult));
                                 switch (setControllerRoundRobinResult) {
                                     case (#Err(error)) {
                                         return #Err(error);
@@ -401,6 +438,8 @@ actor class CanisterCreationCanister() = this {
                                     creationResult = "Success";
                                     newCanisterId = Principal.toText(createdLlmCanister.canister_id);
                                 };
+                                D.print("in createCanister creationRecord");
+                                D.print(debug_show (creationRecord));
                                 return #Ok(creationRecord);
                             };
                         };
