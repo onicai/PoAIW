@@ -107,6 +107,7 @@ module Types {
         challengeQuestion : Text;
         status : ChallengeStatus;
         closedTimestamp : ?Nat64;
+        submissionCyclesRequired : Nat;
     };
 
     type CanisterAddress = Text;

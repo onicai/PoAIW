@@ -308,14 +308,15 @@ actor class MainerAgentCtrlbCanister() = this {
                         };
                         
                         // Final check if the canister still has enough cycles
+                        // Check against the number sent by the GameState for this particular Challenge
+                        let submissionCyclesRequired : Nat = challenge.submissionCyclesRequired;
                         let availableCycles = Cycles.balance();
-                        if (availableCycles < SUBMISSION_CYCLES_REQUIRED + CYCLE_BALANCE_MINIMUM) {
-                            D.print("mAIner:  respondToNextChallenge- PAUSING RESPONSE GENERATION DUE TO LOW CYCLE BALANCE");
-                            D.print("mAIner:  respondToNextChallenge- SUBMISSION_CYCLES_REQUIRED = " # debug_show(SUBMISSION_CYCLES_REQUIRED));
+                        if (availableCycles < submissionCyclesRequired + CYCLE_BALANCE_MINIMUM) {
+                            D.print("mAIner:  respondToNextChallenge- NOT ENOUGH CYCLES TO SUBMIT THE GENERATED RESPONSE FOR THIS CHALLENGE");
+                            D.print("mAIner:  respondToNextChallenge- submissionCyclesRequired = " # debug_show(submissionCyclesRequired));
                             D.print("mAIner:  respondToNextChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
                             D.print("mAIner:  respondToNextChallenge- availableCycles          = " # debug_show(availableCycles));
-
-                            PAUSED_DUE_TO_LOW_CYCLE_BALANCE := true;
+                            // Note: do not pause...
                             return;
                         };
 
@@ -630,6 +631,20 @@ actor class MainerAgentCtrlbCanister() = this {
             case (#Ok(nextChallenge : Types.Challenge)) {
                 D.print("mAIner:  respondToNextChallenge challengeResult nextChallenge");
                 D.print(debug_show (nextChallenge));
+
+                // Second check if the canister has enough cycles to submit
+                // Check against the number sent by the GameState for this particular Challenge
+                let submissionCyclesRequired : Nat = nextChallenge.submissionCyclesRequired;
+                let availableCycles = Cycles.balance();
+                if (availableCycles < submissionCyclesRequired + CYCLE_BALANCE_MINIMUM) {
+                    D.print("mAIner:  respondToNextChallenge- SKIPPING RESPONSE GENERATION; NOT ENOUGH CYCLES TO SUBMIT THIS CHALLENGE");
+                    D.print("mAIner:  respondToNextChallenge- submissionCyclesRequired = " # debug_show(submissionCyclesRequired));
+                    D.print("mAIner:  respondToNextChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
+                    D.print("mAIner:  respondToNextChallenge- availableCycles          = " # debug_show(availableCycles));
+                    // Note: do not pause...
+                    return;
+                };
+
                 // Process the challenge
                 // Sanity checks
                 if (nextChallenge.challengeId == "" or nextChallenge.challengeQuestion == "") {

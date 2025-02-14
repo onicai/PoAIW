@@ -92,6 +92,7 @@ module Types {
         challengeQuestion : Text;
         status : ChallengeStatus;
         closedTimestamp : ?Nat64;
+        submissionCyclesRequired : Nat;
     };
 
     public type ChallengeStatus = {
