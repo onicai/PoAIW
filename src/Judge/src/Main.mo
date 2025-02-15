@@ -12,6 +12,8 @@ import Float "mo:base/Float";
 import List "mo:base/List";
 import Int "mo:base/Int";
 import Time "mo:base/Time";
+import { setTimer; recurringTimer } = "mo:base/Timer";
+import Timer "mo:base/Timer";
 
 import Types "Types";
 import Utils "Utils";
@@ -31,6 +33,9 @@ actor class JudgeCtrlbCanister() = this {
     };
 
     // Orthogonal Persisted Data storage
+
+    // timer ID, so we can stop it after starting
+    stable var recurringTimerId : ?Timer.TimerId = null;
 
     // Record of recently score responses
     stable var scoredResponses : List.List<Types.ScoredResponseByJudge> = List.nil<Types.ScoredResponseByJudge>();
@@ -77,32 +82,27 @@ actor class JudgeCtrlbCanister() = this {
         return seed;
     };
 
-    // The llmCanisterIDs this ctrlb_canister can call
-    private var llmCanisterIDs : Buffer.Buffer<Text> = Buffer.fromArray<Text>([]);
-
     // -------------------------------------------------------------------------------
     // The C++ LLM canisters that can be called
 
     private var llmCanisters : Buffer.Buffer<Types.LLMCanister> = Buffer.fromArray([]);
 
-    // Resets llmCanisterIDs, and then adds the argument as the first llmCanisterId
-    public shared (msg) func set_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
+    // Resets llmCanisters
+    public shared (msg) func reset_llm_canisters() : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
-        llmCanisterIDs.clear();
-        _add_llm_canister_id(llmCanisterIdRecord);
+        llmCanisters.clear();
+        return #Ok({ status_code = 200 });
     };
 
-    // Adds another llmCanisterIDs
-    public shared (msg) func add_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
+    // Adds an llmCanister
+    public shared (msg) func add_llm_canister(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
         _add_llm_canister_id(llmCanisterIdRecord);
     };
-
-    // Resets llmCanisterIDs, and then adds the argument as the first llmCanisterId
     private func _add_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : Types.StatusCodeRecordResult {
         let llmCanister = actor (llmCanisterIdRecord.canister_id) : Types.LLMCanister;
         D.print("Judge: Inside function _add_llm_canister_id. Adding llm: " # Principal.toText(Principal.fromActor(llmCanister)));
@@ -208,6 +208,15 @@ actor class JudgeCtrlbCanister() = this {
         };
         D.print("Judge: calling addScoredResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let result : Types.ScoredResponseResult = await gameStateCanisterActor.addScoredResponse(scoredResponseInput);
+        return result;
+    };
+
+    // Score submissions
+
+    private func getSubmissionFromGameStateCanister() : async Types.ChallengeResponseSubmissionResult {
+        D.print("Judge:  calling getNextSubmissionToJudge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
+        let result : Types.ChallengeResponseSubmissionResult = await gameStateCanisterActor.getNextSubmissionToJudge();
+        D.print("Judge:  getNextSubmissionToJudge returned.");
         return result;
     };
 
@@ -518,31 +527,36 @@ actor class JudgeCtrlbCanister() = this {
         return #Ok(scoringOutput);
     };
 
-    // Endpoint to be called by Game State canister to score a mAIner's response to a challenge
-    public shared (msg) func addSubmissionToJudge(submissionEntry : Types.ChallengeResponseSubmission) : async Types.ChallengeResponseSubmissionMetadataResult {
-        D.print("Judge: addSubmissionToJudge - entered");
-        if (not (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(GAME_STATE_CANISTER_ID)) or Principal.equal(msg.caller, Principal.fromActor(this)))) {
-            D.print("Judge: addSubmissionToJudge - 01");
-            return #Err(#StatusCode(401));
-        };
+    // Score a mAIner's response to a challenge
+    private func scoreNextSubmission() : async () {
+        D.print("Judge: scoreNextSubmission - entered");
 
-        // Sanity checks on submitted response
-        if (submissionEntry.status != #Received or submissionEntry.submissionId == "" or submissionEntry.challengeId == "" or submissionEntry.challengeQuestion == "" or submissionEntry.challengeAnswer == "") {
-            D.print("Judge: addSubmissionToJudge - 02");
-            return #Err(#Other("invalid submission value"));
-        };
+        // Get the next submission to score
+        D.print("Judge:  scoreNextSubmission - calling getSubmissionFromGameStateCanister.");
+        let submissionResult : Types.ChallengeResponseSubmissionResult = await getSubmissionFromGameStateCanister();
+        D.print("Judge:  scoreNextSubmission - received submissionResult from getSubmissionFromGameStateCanister: " # debug_show (submissionResult));
+        switch (submissionResult) {
+            case (#Err(error)) {
+                D.print("Judge:  scoreNextSubmission - submissionResult error : " # debug_show (error));
+                // TODO: error handling
+            };
+            case (#Ok(submissionEntry : Types.ChallengeResponseSubmission)) {
+                D.print("Judge:  scoreNextSubmission submissionResult submissionEntry");
+                D.print(debug_show (submissionEntry));
 
-        // Trigger processing submission but don't wait on result
-        D.print("Judge: addSubmissionToJudge - 03");
-        ignore processSubmission(submissionEntry);
+                // Sanity checks on submitted response
+                if (submissionEntry.status != #Judging or submissionEntry.submissionId == "" or submissionEntry.challengeId == "" or submissionEntry.challengeQuestion == "" or submissionEntry.challengeAnswer == "") {
+                    D.print("Judge: scoreNextSubmission - 02 - submissionEntry error - submissionEntry: " # debug_show (submissionEntry));
+                    // TODO: error handling ... If this happens, we need to call the Game State canister to update the status of the submission to #Error
+                    return;
+                };
 
-        // Return receipt of submission
-        D.print("Judge: addSubmissionToJudge - 04");
-        return #Ok({
-            submissionId : Text = submissionEntry.submissionId;
-            submittedTimestamp : Nat64 = submissionEntry.submittedTimestamp;
-            status : Types.ChallengeResponseSubmissionStatus = #Submitted;
-        });
+                // Trigger processing submission but don't wait on result
+                D.print("Judge: scoreNextSubmission - calling ignore processSubmission");
+                ignore processSubmission(submissionEntry);
+                return;
+            };
+        }
     };
 
     public shared query (msg) func getRoundRobinCanister() : async Types.CanisterIDRecordResult {
@@ -567,5 +581,63 @@ actor class JudgeCtrlbCanister() = this {
         };
 
         return canister;
+    };
+
+// Timer
+    stable var actionRegularityInSeconds = 60; // TODO: set based on user setting for cycles burn rate
+
+    private func triggerRecurringAction() : async () {
+        D.print("Judge:  Recurring action was triggered");
+        //ignore scoreNextSubmission(); TODO
+        let result = await scoreNextSubmission();
+        D.print("Judge:  Recurring action result");
+        D.print(debug_show (result));
+        D.print("Judge:  Recurring action result");
+    };
+
+    public shared (msg) func startTimerExecutionAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        ignore setTimer<system>(#seconds 5,
+            func () : async () {
+                D.print("Judge:  setTimer");
+                let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction);
+                D.print("Judge: Successfully start timer with id = " # debug_show (id));
+                recurringTimerId := ?id;
+                await triggerRecurringAction();
+        });
+        let authRecord = { auth = "You started the timer." };
+        return #Ok(authRecord);
+    };
+
+    public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+
+        switch (recurringTimerId) {
+            case (?id) {
+                D.print("Judge: Stopping timer with id = " # debug_show (id));
+                Timer.cancelTimer(id);
+                recurringTimerId := null;
+                D.print("Judge: Timer stopped successfully.");
+                
+                return #Ok({ auth = "Timer stopped successfully." });
+            };
+            case null {
+                return #Ok({ auth = "There is no active timer. Nothing to do." });
+            };
+        };
+    };
+
+    // TODO: remove; testing function for admin
+    public shared (msg) func triggerScoreSubmissionAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        let result = await scoreNextSubmission();
+        let authRecord = { auth = "You triggered the score generation." };
+        return #Ok(authRecord);
     };
 };

@@ -1,6 +1,6 @@
 # PoAIW
 
-Clone this repo into DecentralizedAIonIC
+Clone this repo into funnAI
 
 # Setup
 
@@ -9,7 +9,7 @@ Clone this repo into DecentralizedAIonIC
 Clone the following repos to your local disk using this folder structure:
 
 ```
-|-DecentralizedAIonIC       (https://github.com/patnorris/DecentralizedAIonIC)
+|-funnAI       (https://github.com/onicai/funnAI)
   |-PoAIW                   (https://github.com/onicai/PoAIW)
 
 |-llama_cpp_canister        (https://github.com/onicai/llama_cpp_canister)
@@ -43,7 +43,6 @@ Install mops (https://mops.one/docs/install), and then:
 # - from folder: `PoAIW/src/Challenger`
 # - from folder: `PoAIW/src/Judge`
 # - from folder: `PoAIW/src/mAIner`
-mops init
 mops install
 ```
 
@@ -63,6 +62,8 @@ scripts/build_llama_cpp_canister.sh  # Note: Optional - works on Mac only
 # (-) --mode install is slow, because the LLM models are uploaded.
 # (-) --mode upgrade is fast, because the LLM models are NOT uploaded.
 #       The canisters are re-build and re-deployed, but the LLM models are still in the canister's stable memory.
+# (-) When we deployed to ic, the initial installation of each component was done manually
+#     to ensure the LLMs ended up on the correct subnet
 scripts/deploy-all.sh --mode [install/reinstall/upgrade] --network [local/ic]
 
 # Step-by-step:
@@ -78,73 +79,102 @@ sudo sysctl -w vm.max_map_count=2097152
 ```
 to successfully load the models in the LLM canisters.
 
-# Create challenges:
+# Full system test with timers
+
+```bash
+# from folder: PoAIW
+scripts/start-timers.sh --network [local/ic]
+
+# from folder: PoAIW/src/GameState
+
+# Verify Challenger challenge generations
+dfx canister call game_state_canister getCurrentChallengesAdmin --output json [--ic]
+
+# Verify mAIner response generations
+# Note: status changes from #Submitted > #Judging > #Judged
+dfx canister call game_state_canister getSubmissionsAdmin --output json [--ic]
+
+# Verify Judge score generations
+dfx canister call game_state_canister getScoredChallengesAdmin --output json [--ic]
+
+# from folder: PoAIW
+scripts/stop-timers.sh --network [local/ic]
+```
+
+NOTE: when working locally, you easily add cycles to the canisters with:
+```bash
+# From the canister folders: to add 2 trillion cycles
+dfx ledger fabricate-cycles --all --t 2
+```
+
+# Test components individually
+
+## Test Challenger:
 ```bash
 # from folder: PoAIW/src/Challenger
 # start the timer that generates challenges recurringly
-dfx canister call challenger_ctrlb_canister startTimerExecutionAdmin
+dfx canister call challenger_ctrlb_canister startTimerExecutionAdmin [--ic]
+# stop the timer that generates challenges recurringly
+dfx canister call challenger_ctrlb_canister stopTimerExecutionAdmin [--ic]
 # you can also trigger a single challenge generation manually
-dfx canister call challenger_ctrlb_canister generateNewChallenge
+dfx canister call challenger_ctrlb_canister generateNewChallenge [--ic]
 ```
 
 The challenge generation takes a moment. To ensure it worked, call
 ```bash
 # from folder: PoAIW/src/Challenger
-dfx canister call challenger_ctrlb_canister getChallengesAdmin
+dfx canister call challenger_ctrlb_canister getChallengesAdmin --output json [--ic]
 
 # from folder: PoAIW/src/GameState
-dfx canister call game_state_canister getCurrentChallengesAdmin
+dfx canister call game_state_canister getCurrentChallengesAdmin --output json [--ic]
 ```
 
-# Test mAIner:
+## Test mAIner:
 ```bash
 # from folder: PoAIW/src/mAIner
 # start the timer that generates challenge responses recurringly
-dfx canister call mainer_ctrlb_canister startTimerExecutionAdmin
+dfx canister call mainer_ctrlb_canister startTimerExecutionAdmin [--ic]
+# stop the timer that generates challenge responses recurringly
+dfx canister call mainer_ctrlb_canister stopTimerExecutionAdmin [--ic]
 
-
-# TODO - remove once Create Mainer is functional
-# from folder: PoAIW/src/GameState
-# register the mAIner agent with the Game State canister for testing as an admin
-# NOTE: this is already done by register-all.sh
-# dfx canister call game_state_canister addMainerAgentCanisterAdmin "(record { address = \"ahw5u-keaaa-aaaaa-qaaha-cai\"; canisterType = variant {MainerAgent}; ownedBy = principal\"$(dfx identity get-principal)\" })"
 # you can also trigger a single challenge response generation manually
-dfx canister call mainer_ctrlb_canister triggerChallengeResponseAdmin
+dfx canister call mainer_ctrlb_canister triggerChallengeResponseAdmin [--ic]
 ```
 
-The challenge response generation takes a moment:
-(1) The mAIner uses an LLM to generate a response and submits it to the GameState
-(2) The GameState is not storing anything yet. It just forwards the submission to a Judge for scoring
-(3) The Judge uses an LLM to score the response and submits the scored submission to the GameState
-(4) The GameState now stores the scored submission
+The response generation takes a moment. To ensure it worked, call
+```bash
+# from folder: PoAIW/src/mAIner
+dfx canister call mainer_ctrlb_canister getSubmittedResponsesAdmin --output json [--ic]
+
+# from folder: PoAIW/src/GameState
+dfx canister call game_state_canister getSubmissionsAdmin --output json [--ic]
+```
+
+## Test Judge
+```bash
+# from folder: PoAIW/src/Judge
+# start the timer that generates scores recurringly
+dfx canister call judge_ctrlb_canister startTimerExecutionAdmin [--ic]
+# stop the timer that generates scores recurringly
+dfx canister call judge_ctrlb_canister stopTimerExecutionAdmin [--ic]
+
+# you can also trigger a single score generation manually
+dfx canister call judge_ctrlb_canister triggerScoreSubmissionAdmin [--ic]
+```
 
 To ensure it worked, call
 ```bash
-# from folder: PoAIW/src/mAIner
-dfx canister call mainer_ctrlb_canister getSubmittedResponsesAdmin  # TODO
-
 # from folder: PoAIW/src/GameState
-dfx canister call game_state_canister get...Admin  # TODO ?
+dfx canister call game_state_canister getScoredChallengesAdmin --output json [--ic]
 ```
 
-# Test Judge
-To manually add a Submission to Judge, call
+## Top off the LLMs
+
+This script will top-off all LLMs to 20 trillion cycles if their balance is below 18 trillion cycles.
+
+It will use cycles from the wallet: 
+
 ```bash
-# from folder: PoAIW/src/Judge
-dfx canister call judge_ctrlb_canister addSubmissionToJudge \
-  '(record { 
-      challengeId = "c-01"; 
-      submittedBy = principal "aaaaa-aa"; 
-      challengeQuestion = "What is a blockchain?"; 
-      challengeAnswer = "A distributed ledger"; 
-      submissionId = "s-01"; 
-      submittedTimestamp = 1707072000000000000 : nat64; 
-      status = variant { Received }
-  })'
+# from folder: PoAIW
+scripts/top-off-llms.sh --network [local/ic]
 ```
-
-Check the logs, and you will see that the challenge is correctly scored,
-and after scoring, send to the GameState for storing.
-
-Because this is a fake challenge, the GameState canister will reject storing
-it with a #InvalidId error.

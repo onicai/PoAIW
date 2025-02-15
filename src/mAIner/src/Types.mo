@@ -5,6 +5,7 @@ module Types {
         #FailedSubmission;
         #Received;
         #Submitted;
+        #Judging;
         #Judged;
         #Processed;
         #Other : Text;
@@ -127,7 +128,7 @@ module Types {
         challengeQuestion : Text;
         status : ChallengeStatus;
         closedTimestamp : ?Nat64;
-        responsibleJudgeAddress : CanisterAddress;
+        submissionCyclesRequired : Nat;
     };
 
     type CanisterAddress = Text;
@@ -150,9 +151,8 @@ module Types {
     public type GameStateCanister_Actor = actor {
         addChallenge : (NewChallengeInput) -> async ChallengeAdditionResult;
         addScoredResponse : (ScoredResponseInput) -> async ScoredResponseResult;
-        submitChallengeResponse : (ChallengeResponseSubmissionInput) -> async ChallengeResponseSubmissionResult;
+        submitChallengeResponse : (ChallengeResponseSubmissionInput) -> async ChallengeResponseSubmissionMetadataResult;
         getRandomOpenChallenge : () -> async ChallengeResult;
-        getSubmissionCyclesRequired : () -> async Nat;
     };
 
     // Agent Settings

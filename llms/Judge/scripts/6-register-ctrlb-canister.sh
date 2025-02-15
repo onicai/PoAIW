@@ -19,7 +19,7 @@ while [ $# -gt 0 ]; do
             if [ "$1" = "local" ] || [ "$1" = "ic" ]; then
                 NETWORK_TYPE=$1
                 if [ "$NETWORK_TYPE" = "ic" ]; then
-                    CANISTER_ID_JUDGE_CTRLB_CANISTER="--todo--"
+                    CANISTER_ID_JUDGE_CTRLB_CANISTER="xxnvw-4yaaa-aaaaj-az4oq-cai"
                 fi
             else
                 echo "Invalid network type: $1. Use 'local' or 'ic'."

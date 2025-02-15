@@ -48,7 +48,7 @@ module Types {
         challengeQuestion : Text;
         status : ChallengeStatus;
         closedTimestamp : ?Nat64;
-        responsibleJudgeAddress : CanisterAddress;
+        submissionCyclesRequired : Nat;
     };
 
     type CanisterAddress = Text;

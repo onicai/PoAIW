@@ -2,12 +2,11 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/balance.sh --network [local|ic]
+# scripts/top-off-all.sh --network [local/ic]
 #######################################################################
 
 # Default network type is local
 NETWORK_TYPE="local"
-NUM_LLMS_DEPLOYED=2
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -22,6 +21,16 @@ while [ $# -gt 0 ]; do
             fi
             shift
             ;;
+        --mode)
+            shift
+            if [ "$1" = "install" ] || [ "$1" = "reinstall" ] || [ "$1" = "upgrade" ]; then
+                DEPLOY_MODE=$1
+            else
+                echo "Invalid mode: $1. Use 'install', 'reinstall' or 'upgrade'."
+                exit 1
+            fi
+            shift
+            ;;
         *)
             echo "Unknown argument: $1"
             echo "Usage: $0 --network [local|ic]"
@@ -31,16 +40,19 @@ while [ $# -gt 0 ]; do
 done
 
 echo "Using network type: $NETWORK_TYPE"
-echo "NUM_LLMS_DEPLOYED : $NUM_LLMS_DEPLOYED"
-echo " "
 
 #######################################################################
-llm_id_start=0
-llm_id_end=$((NUM_LLMS_DEPLOYED - 1))
+echo "==========================================="
+cd llms/Challenger
+echo "Topping off llms/Challenger:"
+scripts/top-off.sh --network $NETWORK_TYPE
 
-for i in $(seq $llm_id_start $llm_id_end)
-do
-	echo " "
-    echo "- llm_$i "
-    dfx canister status llm_$i --network $NETWORK_TYPE 2>&1 | grep "Balance:"; echo " "
-done
+echo "==========================================="
+cd ../Judge
+echo "Topping off llms/Judge:"
+scripts/top-off.sh --network $NETWORK_TYPE
+
+echo "==========================================="
+cd ../mAIner
+echo "Topping off llms/mAIner:"
+scripts/top-off.sh --network $NETWORK_TYPE

@@ -65,7 +65,6 @@ actor class CanisterCreationCanister() = this {
 
     // Admin function to upload artefacts for mainer agent LLM canister 
     // Map each AI model id to a record with the artefacts needed to create a new canister
-    // TODO: optimize to not hit heap memory limit during upgrade
     private var creationArtefactsByModel = HashMap.HashMap<Text, Types.ModelCreationArtefacts>(0, Text.equal, Text.hash);
     stable var creationArtefactsByModelStable : [(Text, Types.ModelCreationArtefacts)] = [];
 

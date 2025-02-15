@@ -12,8 +12,8 @@ DEPLOY_MODE="install"
 
 # When deploying to IC, we deploy to a specific subnet
 # none will not use subnet parameter in deploy to ic
-SUBNET="none"
-# SUBNET="qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe"
+# SUBNET="none"
+SUBNET="qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe"
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -64,6 +64,10 @@ do
             yes | dfx deploy llm_$i --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
         else
             yes | dfx deploy llm_$i --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE --subnet $SUBNET
+        fi
+        if [ "$DEPLOY_MODE" = "install" ]; then
+            echo "Initial install to ic: Waiting for 30 seconds before checking health endpoint for llm_$i"
+            sleep 30
         fi
     else
         yes | dfx deploy llm_$i --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE

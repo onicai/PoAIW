@@ -14,6 +14,7 @@ import Float "mo:base/Float";
 import Time "mo:base/Time";
 import { print } = "mo:base/Debug";
 import { setTimer; recurringTimer } = "mo:base/Timer";
+import Timer "mo:base/Timer";
 
 import Types "Types";
 import Utils "Utils";
@@ -42,6 +43,9 @@ actor class ChallengerCtrlbCanister() {
     };
 
     // Orthogonal Persisted Data storage
+
+    // timer ID, so we can stop it after starting
+    stable var recurringTimerId : ?Timer.TimerId = null;
 
     // Record of all generated challenges
     stable var generatedChallenges : List.List<Types.GeneratedChallenge> = List.nil<Types.GeneratedChallenge>();
@@ -104,32 +108,27 @@ actor class ChallengerCtrlbCanister() {
         return seed;
     };
 
-    // The llmCanisterIDs this challenger_ctrlb_canister can call
-    private var llmCanisterIDs : Buffer.Buffer<Text> = Buffer.fromArray<Text>([]);
-
     // -------------------------------------------------------------------------------
     // The C++ LLM canisters that can be called
 
     private var llmCanisters : Buffer.Buffer<Types.LLMCanister> = Buffer.fromArray([]);
 
-    // Resets llmCanisterIDs, and then adds the argument as the first llmCanisterId
-    public shared (msg) func set_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
+    // Resets llmCanisters
+    public shared (msg) func reset_llm_canisters() : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
-        llmCanisterIDs.clear();
-        _add_llm_canister_id(llmCanisterIdRecord);
+        llmCanisters.clear();
+        return #Ok({ status_code = 200 });
     };
 
-    // Adds another llmCanisterIDs
-    public shared (msg) func add_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
+    // Adds an llmCanister
+    public shared (msg) func add_llm_canister(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
         _add_llm_canister_id(llmCanisterIdRecord);
     };
-
-    // Resets llmCanisterIDs, and then adds the argument as the first llmCanisterId
     private func _add_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : Types.StatusCodeRecordResult {
         let llmCanister = actor (llmCanisterIdRecord.canister_id) : Types.LLMCanister;
         D.print("Challenger: Inside function _add_llm_canister_id. Adding llm: " # Principal.toText(Principal.fromActor(llmCanister)));
@@ -286,13 +285,13 @@ actor class ChallengerCtrlbCanister() {
 
         let llmCanister = _getRoundRobinCanister();
 
-        D.print("Challenger: Inside function challengeGenerationDoIt_. llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
+        D.print("Challenger: challengeGenerationDoIt_ - llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
 
         // Check health of llmCanister
-        // D.print("Challenger: calling health endpoint of LLM");
+        D.print("Challenger: calling health endpoint of LLM");
         let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.health();
-        // D.print("Challenger: returned from health endpoint of LLM with : ");
-        // D.print("Challenger: statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
+        D.print("Challenger: returned from health endpoint of LLM with : ");
+        D.print("Challenger: statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
         switch (statusCodeRecordResult) {
             case (#Err(error)) {
                 return #Err(error);
@@ -517,7 +516,7 @@ actor class ChallengerCtrlbCanister() {
     };
 
     // Timer
-    let actionRegularityInSeconds = 300;
+    let actionRegularityInSeconds = 60;
 
     private func triggerRecurringAction() : async () {
         D.print("Challenger: Recurring action was triggered");
@@ -535,10 +534,32 @@ actor class ChallengerCtrlbCanister() {
         ignore setTimer<system>(#seconds 5,
             func () : async () {
                 D.print("Challenger: setTimer");
-                ignore recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction);
+                let id = recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction);
+                D.print("Challenger: Successfully start timer with id = " # debug_show (id));
+                recurringTimerId := ?id;
                 await triggerRecurringAction();
         });
         let authRecord = { auth = "You started the timer." };
         return #Ok(authRecord);
+    };
+
+    public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+
+        switch (recurringTimerId) {
+            case (?id) {
+                D.print("Challenger: Stopping timer with id = " # debug_show (id));
+                Timer.cancelTimer(id);
+                recurringTimerId := null;
+                D.print("Challenger: Timer stopped successfully.");
+                
+                return #Ok({ auth = "Timer stopped successfully." });
+            };
+            case null {
+                return #Ok({ auth = "There is no active timer. Nothing to do." });
+            };
+        };
     };
 };
