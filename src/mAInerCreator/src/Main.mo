@@ -145,7 +145,7 @@ actor class CanisterCreationCanister() = this {
     stable var nextChunkID : Nat = 0;
     stable let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(1, 1));
     stable let initBlob : Blob = Blob.fromArray(innerInitArray);
-    stable var chunks : [var Blob] = Array.init<Blob>(400, initBlob);
+    stable var modelFileChunks : [var Blob] = Array.init<Blob>(1, initBlob);
 
     public shared (msg) func upload_mainer_llm_bytes_chunk(bytesChunk : Blob) : async Types.FileUploadResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -154,8 +154,12 @@ actor class CanisterCreationCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        if (nextChunkID == 0) {
+            // initialize data structure
+            modelFileChunks := Array.init<Blob>(400, initBlob);
+        };
 
-        ignore chunks[nextChunkID] := bytesChunk;
+        ignore modelFileChunks[nextChunkID] := bytesChunk;
         nextChunkID := nextChunkID + 1;
         return #Ok({ creationResult = "Success" });
     };
@@ -173,12 +177,21 @@ actor class CanisterCreationCanister() = this {
             case (?existingArtefacts) {
                 let updatedArtefacts : Types.ModelCreationArtefacts = {
                     canisterWasm = existingArtefacts.canisterWasm;
-                    modelFile : [Blob] = Array.subArray<Blob>(Array.freeze<Blob>(chunks), 0, nextChunkID);
+                    modelFile : [Blob] = Array.subArray<Blob>(Array.freeze<Blob>(modelFileChunks), 0, nextChunkID);
                 };
 
                 let updateArtefactsResult = putModelCreationArtefacts(selectedModel, updatedArtefacts);
 
-                return #Ok({ creationResult = "Success" });
+                switch (updateArtefactsResult) {
+                    case (true) {
+                        modelFileChunks := Array.init<Blob>(1, initBlob); // reset model file upload data structure (to save memory)
+                        nextChunkID := 0;
+                        return #Ok({ creationResult = "Success" });
+                    };
+                    case (false) {
+                        return #Err(#Other("Error storing the model artefact"));
+                    };
+                };                
             };
             case _ { return #Err(#Other("Add the canisterWasm first.")) };
         };
@@ -319,8 +332,8 @@ actor class CanisterCreationCanister() = this {
                                 // Make LLM functional
                                 // Upload model file
                                 // let chunkSize = 42000; // ~0.01 MB for testing
-                                var chunkSize : Nat = 9 * 1024 * 1024; // 9 MB
-
+                                //var chunkSize : Nat = 9 * 1024 * 1024; // 9 MB
+                                var chunkSize : Nat = 0;
                                 var offset : Nat = 0;
                                 var nextChunk : [Nat8] = [];
                                 
@@ -472,8 +485,8 @@ actor class CanisterCreationCanister() = this {
         return #Ok({ creationResult = "Success" });
     };
 
-    // Use with caution: Admin functions to reset the model file buffer
-    /* public shared (msg) func reset_mainer_llm_model_file_buffer() : async Types.FileUploadResult {
+    // Use with caution: Admin functions to reset the model file data structure
+    public shared (msg) func reset_mainer_llm_model_file_upload_data() : async Types.FileUploadResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -481,10 +494,11 @@ actor class CanisterCreationCanister() = this {
             return #Err(#Unauthorized);
         };
 
-        modelFileUploadBuffer := SB.StableBuffer( SB.State.init({size=122; capacity=1000}) );
+        modelFileChunks := Array.init<Blob>(1, initBlob);
+        nextChunkID := 0;
 
         return #Ok({ creationResult = "Success" });
-    }; */
+    };
 
     // -------------------------------------------------------------------------------
     // Canister upgrades
