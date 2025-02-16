@@ -104,6 +104,7 @@ Run upload script - local:
 # Upload the mainer LLM canister wasm
 python -m scripts.upload_mainer_llm_canister_wasm --network local --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 
+# Upload the mainer LLM model file (gguf)
 python -m scripts.upload_mainer_llm_canister_modelfile --network local --canister mainer_creator_canister --wasm files/qwen2.5-0.5b-instruct-q8_0.gguf --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 ```
 
