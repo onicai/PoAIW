@@ -4,6 +4,7 @@ import Nat16 "mo:base/Nat16";
 import Nat64 "mo:base/Nat64";
 import Nat8 "mo:base/Nat8";
 import Text "mo:base/Text";
+import Buffer "mo:base/Buffer";
 
 module Types {
     //-------------------------------------------------------------------------
@@ -33,7 +34,7 @@ module Types {
     // data needed to create a new canister with the model
     public type ModelCreationArtefacts = {
         canisterWasm : [Nat8];
-        modelFile : [Nat8];
+        modelFile : [Blob];
     };
 
     public type AvailableModels = {

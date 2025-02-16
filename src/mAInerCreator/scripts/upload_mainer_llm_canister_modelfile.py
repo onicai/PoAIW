@@ -82,6 +82,7 @@ def main() -> int:
 
     # converting MB to bytes
     chunk_size = int(chunk_size_mb * 1024 * 1024)
+    #chunk_size = int(1024*64)
 
     selectedModel = { "Qwen2_5_500M": None}
 
@@ -105,7 +106,6 @@ def main() -> int:
             print(f"- chunk[-1] = {chunk[-1]}")
 
         response = canister_creator.upload_mainer_llm_bytes_chunk(
-            selectedModel,
             chunk
         )  # pylint: disable=no-member
         if "Ok" in response[0].keys():
@@ -116,6 +116,10 @@ def main() -> int:
             sys.exit(1)
 
     # ---------------------------------------------------------------------------
+    finishResponse = canister_creator.finish_upload_mainer_llm(
+        selectedModel
+    )  # pylint: disable=no-member
+    print(finishResponse)
     return 0
 
 
