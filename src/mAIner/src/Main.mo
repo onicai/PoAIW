@@ -386,11 +386,11 @@ actor class MainerAgentCtrlbCanister() = this {
         let seed : Nat64 = getNextRngSeed();
         let temp : Float = 0.8;
 
-        let challengeQuestion : Text = challenge.challengeQuestion;
         var prompt : Text = "<|im_start|>user\n" #
-        "Answer this question as brief as possible.\n" #
-        "This is the question: " # challengeQuestion # "\n" #
-        "<|im_end|>\n<|im_start|>assistant\n";
+        "This is a question about " # challenge.challengeTopic # " " #
+        "Give the answer as brief as possible. This is the question: " # challenge.challengeQuestion # "\n" #
+        "<|im_end|>\n<|im_start|>assistant\n" #
+        "The answer is: ";
 
         let llmCanister = _getRoundRobinCanister();
 
