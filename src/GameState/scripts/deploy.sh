@@ -75,6 +75,20 @@ else
     echo "game_state_canister is healthy."
 fi
 
+if [ "$DEPLOY_MODE" != "upgrade" ]; then
+    echo " "
+    echo "--------------------------------------------------"
+    echo "Setting initial challenge topics"
+    output=$(dfx canister call game_state_canister setInitialChallengeTopics --network $NETWORK_TYPE)
+
+    if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+        echo "setInitialChallengeTopics failed. Exiting."
+        exit 1
+    else
+        echo "setInitialChallengeTopics successfull."
+    fi
+fi
+
 echo " "
 echo "--------------------------------------------------"
 echo "Generating bindings for a frontend"

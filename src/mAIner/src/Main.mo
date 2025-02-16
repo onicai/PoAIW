@@ -301,10 +301,19 @@ actor class MainerAgentCtrlbCanister() = this {
                         // Submit response to Game State canister
                         let submittedBy : Principal = Principal.fromActor(this);
                         let challengeResponseSubmissionInput : Types.ChallengeResponseSubmissionInput = {
-                            challengeId : Text = challenge.challengeId;
-                            submittedBy : Principal = submittedBy;
+                            challengeTopic : Text = challenge.challengeTopic;
+                            challengeTopicId : Text = challenge.challengeTopicId;
+                            challengeTopicCreationTimestamp : Nat64 = challenge.challengeTopicCreationTimestamp;
+                            challengeTopicStatus : Types.ChallengeTopicStatus = challenge.challengeTopicStatus;
                             challengeQuestion : Text = challenge.challengeQuestion;
+                            challengeId : Text = challenge.challengeId;
+                            challengeCreationTimestamp : Nat64 = challenge.challengeCreationTimestamp;
+                            challengeCreatedBy : Types.CanisterAddress = challenge.challengeCreatedBy;
+                            challengeStatus : Types.ChallengeStatus = challenge.challengeStatus;
+                            challengeClosedTimestamp : ?Nat64 = challenge.challengeClosedTimestamp;
+                            submissionCyclesRequired : Nat = challenge.submissionCyclesRequired;
                             challengeAnswer : Text = respondingOutput.generatedResponseText;
+                            submittedBy : Principal = submittedBy;
                         };
                         
                         // Final check if the canister still has enough cycles
@@ -312,10 +321,10 @@ actor class MainerAgentCtrlbCanister() = this {
                         let submissionCyclesRequired : Nat = challenge.submissionCyclesRequired;
                         let availableCycles = Cycles.balance();
                         if (availableCycles < submissionCyclesRequired + CYCLE_BALANCE_MINIMUM) {
-                            D.print("mAIner:  respondToNextChallenge- NOT ENOUGH CYCLES TO SUBMIT THE GENERATED RESPONSE FOR THIS CHALLENGE");
-                            D.print("mAIner:  respondToNextChallenge- submissionCyclesRequired = " # debug_show(submissionCyclesRequired));
-                            D.print("mAIner:  respondToNextChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
-                            D.print("mAIner:  respondToNextChallenge- availableCycles          = " # debug_show(availableCycles));
+                            D.print("mAIner:  processRespondingToChallenge- NOT ENOUGH CYCLES TO SUBMIT THE GENERATED RESPONSE FOR THIS CHALLENGE");
+                            D.print("mAIner:  processRespondingToChallenge- submissionCyclesRequired = " # debug_show(submissionCyclesRequired));
+                            D.print("mAIner:  processRespondingToChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
+                            D.print("mAIner:  processRespondingToChallenge- availableCycles          = " # debug_show(availableCycles));
                             // Note: do not pause...
                             return;
                         };
@@ -335,13 +344,22 @@ actor class MainerAgentCtrlbCanister() = this {
                             case (#Ok(submitMetada : Types.ChallengeResponseSubmissionMetadata)) {
                                 // Successfully submitted to Game State
                                 let challengeResponseSubmission : Types.ChallengeResponseSubmission = {
-                                    challengeId : Text = challengeResponseSubmissionInput.challengeId;
-                                    submittedBy : Principal = challengeResponseSubmissionInput.submittedBy;
-                                    challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
-                                    challengeAnswer : Text = challengeResponseSubmissionInput.challengeAnswer;
+                                    challengeTopic : Text = challenge.challengeTopic;
+                                    challengeTopicId : Text = challenge.challengeTopicId;
+                                    challengeTopicCreationTimestamp : Nat64 = challenge.challengeTopicCreationTimestamp;
+                                    challengeTopicStatus : Types.ChallengeTopicStatus = challenge.challengeTopicStatus;
+                                    challengeQuestion : Text = challenge.challengeQuestion;
+                                    challengeId : Text = challenge.challengeId;
+                                    challengeCreationTimestamp : Nat64 = challenge.challengeCreationTimestamp;
+                                    challengeCreatedBy : Types.CanisterAddress = challenge.challengeCreatedBy;
+                                    challengeStatus : Types.ChallengeStatus = challenge.challengeStatus;
+                                    challengeClosedTimestamp : ?Nat64 = challenge.challengeClosedTimestamp;
+                                    submissionCyclesRequired : Nat = challenge.submissionCyclesRequired;
+                                    challengeAnswer : Text = respondingOutput.generatedResponseText;
+                                    submittedBy : Principal = submittedBy;
                                     submissionId : Text = submitMetada.submissionId;
                                     submittedTimestamp : Nat64 = submitMetada.submittedTimestamp;
-                                    status : Types.ChallengeResponseSubmissionStatus = submitMetada.status;
+                                    submissionStatus : Types.ChallengeResponseSubmissionStatus = submitMetada.submissionStatus;
                                 };
                                 D.print("mAIner:  processRespondingToChallenge - calling putSubmittedResponse");
                                 let putResult = putSubmittedResponse(challengeResponseSubmission);
@@ -641,22 +659,22 @@ actor class MainerAgentCtrlbCanister() = this {
                     D.print("mAIner:  respondToNextChallenge- submissionCyclesRequired = " # debug_show(submissionCyclesRequired));
                     D.print("mAIner:  respondToNextChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
                     D.print("mAIner:  respondToNextChallenge- availableCycles          = " # debug_show(availableCycles));
-                    // Note: do not pause...
+                    // Note: do not set pause flag
                     return;
                 };
 
                 // Process the challenge
                 // Sanity checks
-                if (nextChallenge.challengeId == "" or nextChallenge.challengeQuestion == "") {
+                if (nextChallenge.challengeId == "" or nextChallenge.challengeQuestion == "" or nextChallenge.challengeTopic == "") {
                     return;
                 };
-                switch (nextChallenge.status) {
+                switch (nextChallenge.challengeStatus) {
                     case (#Open) {
                         // continue
                     };
                     case (_) { return };
                 };
-                switch (nextChallenge.closedTimestamp) {
+                switch (nextChallenge.challengeClosedTimestamp) {
                     case (null) {
                         // continue
                     };

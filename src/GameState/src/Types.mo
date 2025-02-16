@@ -85,14 +85,12 @@ module Types {
     public type CanisterCreationResult = Result<CanisterCreationRecord, ApiError>;
 
     //-------------------------------------------------------------------------
-    public type Challenge = {
-        challengeId : Text;
-        creationTimestamp : Nat64;
-        createdBy : CanisterAddress;
-        challengeQuestion : Text;
-        status : ChallengeStatus;
-        closedTimestamp : ?Nat64;
-        submissionCyclesRequired : Nat;
+    // Challenger
+    public type ChallengeTopicStatus = {
+        #Open;
+        #Closed;
+        #Archived;
+        #Other : Text;
     };
 
     public type ChallengeStatus = {
@@ -102,8 +100,27 @@ module Types {
         #Other : Text;
     };
 
-    public type NewChallengeInput = {
+    public type ChallengeTopicInput = {
+        challengeTopic : Text;
+    };
+    public type ChallengeTopic = ChallengeTopicInput and {
+        challengeTopicId : Text;
+        challengeTopicCreationTimestamp : Nat64;
+        challengeTopicStatus : ChallengeTopicStatus;
+    };
+    public type ChallengeTopicResult = Result<ChallengeTopic, ApiError>;
+
+    public type NewChallengeInput = ChallengeTopic and {
         challengeQuestion : Text;
+    };
+
+    public type Challenge = NewChallengeInput and {
+        challengeId : Text;
+        challengeCreationTimestamp : Nat64;
+        challengeCreatedBy : CanisterAddress;
+        challengeStatus : ChallengeStatus;
+        challengeClosedTimestamp : ?Nat64;
+        submissionCyclesRequired : Nat;
     };
 
     public type ChallengeAdditionResult = Result<Challenge, ApiError>;
@@ -122,17 +139,15 @@ module Types {
         #Other : Text;
     };
 
-    public type ChallengeResponseSubmissionInput = {
-        challengeId : Text;
-        submittedBy : Principal;
-        challengeQuestion : Text;
+    public type ChallengeResponseSubmissionInput = Challenge and {
         challengeAnswer : Text;
+        submittedBy : Principal;
     };
 
     public type ChallengeResponseSubmissionMetadata = {
         submissionId : Text;
         submittedTimestamp : Nat64;
-        status : ChallengeResponseSubmissionStatus;
+        submissionStatus : ChallengeResponseSubmissionStatus;
     };
 
     public type ChallengeResponseSubmission = ChallengeResponseSubmissionInput and ChallengeResponseSubmissionMetadata;
@@ -141,6 +156,7 @@ module Types {
     public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmission, ApiError>;
     public type ChallengeResponseSubmissionsResult = Result<[ChallengeResponseSubmission], ApiError>;
 
+    // Judge
     public type ScoredResponseInput = ChallengeResponseSubmission and {
         judgedBy: Principal;
         score: Nat;

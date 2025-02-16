@@ -196,13 +196,22 @@ actor class JudgeCtrlbCanister() = this {
 
     private func sendScoredResponseToGameStateCanister(scoredResponse : Types.ScoredResponse) : async Types.ScoredResponseResult {
         let scoredResponseInput : Types.ScoredResponseInput = {
-            submissionId : Text = scoredResponse.submissionId;
-            challengeId : Text = scoredResponse.challengeId;
+            challengeTopic : Text = scoredResponse.challengeTopic;
+            challengeTopicId : Text = scoredResponse.challengeTopicId;
+            challengeTopicCreationTimestamp : Nat64 = scoredResponse.challengeTopicCreationTimestamp;
+            challengeTopicStatus : Types.ChallengeTopicStatus = scoredResponse.challengeTopicStatus;
             challengeQuestion : Text = scoredResponse.challengeQuestion;
+            challengeId : Text = scoredResponse.challengeId;
+            challengeCreationTimestamp : Nat64 = scoredResponse.challengeCreationTimestamp;
+            challengeCreatedBy : Types.CanisterAddress = scoredResponse.challengeCreatedBy;
+            challengeStatus : Types.ChallengeStatus = scoredResponse.challengeStatus;
+            challengeClosedTimestamp : ?Nat64 = scoredResponse.challengeClosedTimestamp;
+            submissionCyclesRequired : Nat = scoredResponse.submissionCyclesRequired;
             challengeAnswer : Text = scoredResponse.challengeAnswer;
             submittedBy : Principal = scoredResponse.submittedBy;
+            submissionId : Text = scoredResponse.submissionId;
             submittedTimestamp : Nat64 = scoredResponse.submittedTimestamp;
-            status : Types.ChallengeResponseSubmissionStatus = scoredResponse.status;
+            submissionStatus: Types.ChallengeResponseSubmissionStatus = scoredResponse.submissionStatus;
             judgedBy : Principal = scoredResponse.judgedBy;
             score : Nat = scoredResponse.score;
         };
@@ -234,13 +243,22 @@ actor class JudgeCtrlbCanister() = this {
             case (#Ok(scoringOutput)) {
                 // Store record of scoring the response
                 let scoredResponseEntry : Types.ScoredResponseByJudge = {
-                    submissionId : Text = submissionEntry.submissionId;
-                    challengeId : Text = submissionEntry.challengeId;
+                    challengeTopic : Text = submissionEntry.challengeTopic;
+                    challengeTopicId : Text = submissionEntry.challengeTopicId;
+                    challengeTopicCreationTimestamp : Nat64 = submissionEntry.challengeTopicCreationTimestamp;
+                    challengeTopicStatus : Types.ChallengeTopicStatus = submissionEntry.challengeTopicStatus;
                     challengeQuestion : Text = submissionEntry.challengeQuestion;
+                    challengeId : Text = submissionEntry.challengeId;
+                    challengeCreationTimestamp : Nat64 = submissionEntry.challengeCreationTimestamp;
+                    challengeCreatedBy : Types.CanisterAddress = submissionEntry.challengeCreatedBy;
+                    challengeStatus : Types.ChallengeStatus = submissionEntry.challengeStatus;
+                    challengeClosedTimestamp : ?Nat64 = submissionEntry.challengeClosedTimestamp;
+                    submissionCyclesRequired : Nat = submissionEntry.submissionCyclesRequired;
                     challengeAnswer : Text = submissionEntry.challengeAnswer;
                     submittedBy : Principal = submissionEntry.submittedBy;
+                    submissionId : Text = submissionEntry.submissionId;
                     submittedTimestamp : Nat64 = submissionEntry.submittedTimestamp;
-                    status : Types.ChallengeResponseSubmissionStatus = #Judged;
+                    submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
                     judgedBy : Principal = Principal.fromActor(this);
                     score : Nat = scoringOutput.generatedScore;
                     judgedTimestamp : Nat64 = scoringOutput.generatedTimestamp;
@@ -256,13 +274,22 @@ actor class JudgeCtrlbCanister() = this {
                     case (true) {
                         // Send scored response to Game State canister
                         let scoredResponse : Types.ScoredResponse = {
-                            submissionId : Text = submissionEntry.submissionId;
-                            challengeId : Text = submissionEntry.challengeId;
+                            challengeTopic : Text = submissionEntry.challengeTopic;
+                            challengeTopicId : Text = submissionEntry.challengeTopicId;
+                            challengeTopicCreationTimestamp : Nat64 = submissionEntry.challengeTopicCreationTimestamp;
+                            challengeTopicStatus : Types.ChallengeTopicStatus = submissionEntry.challengeTopicStatus;
                             challengeQuestion : Text = submissionEntry.challengeQuestion;
+                            challengeId : Text = submissionEntry.challengeId;
+                            challengeCreationTimestamp : Nat64 = submissionEntry.challengeCreationTimestamp;
+                            challengeCreatedBy : Types.CanisterAddress = submissionEntry.challengeCreatedBy;
+                            challengeStatus : Types.ChallengeStatus = submissionEntry.challengeStatus;
+                            challengeClosedTimestamp : ?Nat64 = submissionEntry.challengeClosedTimestamp;
+                            submissionCyclesRequired : Nat = submissionEntry.submissionCyclesRequired;
                             challengeAnswer : Text = submissionEntry.challengeAnswer;
                             submittedBy : Principal = submissionEntry.submittedBy;
+                            submissionId : Text = submissionEntry.submissionId;
                             submittedTimestamp : Nat64 = submissionEntry.submittedTimestamp;
-                            status : Types.ChallengeResponseSubmissionStatus = #Judged;
+                            submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
                             judgedBy : Principal = Principal.fromActor(this);
                             score : Nat = scoringOutput.generatedScore;
                             judgedTimestamp : Nat64 = scoringOutput.generatedTimestamp;
@@ -545,9 +572,9 @@ actor class JudgeCtrlbCanister() = this {
                 D.print(debug_show (submissionEntry));
 
                 // Sanity checks on submitted response
-                if (submissionEntry.status != #Judging or submissionEntry.submissionId == "" or submissionEntry.challengeId == "" or submissionEntry.challengeQuestion == "" or submissionEntry.challengeAnswer == "") {
+                if (submissionEntry.submissionStatus != #Judging or submissionEntry.submissionId == "" or submissionEntry.challengeId == "" or submissionEntry.challengeQuestion == "" or submissionEntry.challengeAnswer == "") {
                     D.print("Judge: scoreNextSubmission - 02 - submissionEntry error - submissionEntry: " # debug_show (submissionEntry));
-                    // TODO: error handling ... If this happens, we need to call the Game State canister to update the status of the submission to #Error
+                    // TODO: error handling ... If this happens, we need to call the Game State canister to update the submissionStatus of the submission to #Error
                     return;
                 };
 

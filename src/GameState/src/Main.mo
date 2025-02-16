@@ -156,6 +156,26 @@ actor class GameStateCanister() = this {
 
     // TODO: put, get, remove for userToMainerAgentsStorage
 
+    // Open topics for Challenges to be generated
+    stable var openChallengeTopicsStorageStable : [(Text, Types.ChallengeTopic)] = [];
+    var openChallengeTopicsStorage : HashMap.HashMap<Text, Types.ChallengeTopic> = HashMap.HashMap(0, Text.equal, Text.hash);
+
+    private func putOpenChallengeTopic(challengeTopicId : Text, challengeTopicEntry : Types.ChallengeTopic) : Bool {
+        openChallengeTopicsStorage.put(challengeTopicId, challengeTopicEntry);
+        return true;
+    };
+
+    private func getOpenChallengeTopic(challengeTopicId : Text) : ?Types.ChallengeTopic {
+        switch (openChallengeTopicsStorage.get(challengeTopicId)) {
+            case (null) { return null; };
+            case (?challengeTopicEntry) { return ?challengeTopicEntry; };
+        };
+    };
+
+    private func getOpenChallengeTopics() : [Types.ChallengeTopic] {
+        return Iter.toArray(openChallengeTopicsStorage.vals());
+    };
+
     // Open challenges
     stable var openChallengesStorageStable : [(Text, Types.Challenge)] = [];
     var openChallengesStorage : HashMap.HashMap<Text, Types.Challenge> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -283,9 +303,33 @@ actor class GameStateCanister() = this {
     };
 
     // Challenges helper functions
-    private func getRandomChallenge(status : Types.ChallengeStatus) : async ?Types.Challenge {
-        D.print("GameState: getRandomChallenge - status: " # debug_show(status));
-        switch (status) {
+    private func getRandomChallengeTopic(challengeTopicStatus : Types.ChallengeTopicStatus) : async ?Types.ChallengeTopic {
+        D.print("GameState: getRandomChallengeTopic - challengeTopicStatus: " # debug_show(challengeTopicStatus));
+        switch (challengeTopicStatus) {
+            case (#Open) {
+                let topicIds : [Text] = Iter.toArray(openChallengeTopicsStorage.keys());
+                
+                let numberOfTopics : Nat = topicIds.size();
+
+                let randomInt : ?Int = await Utils.nextRandomInt(0, numberOfTopics-1);
+                D.print("GameState: getRandomChallengeTopic - topicIds: " # debug_show(topicIds));
+                D.print("GameState: getRandomChallengeTopic - numberOfTopics: " # debug_show(numberOfTopics));
+                D.print("GameState: getRandomChallengeTopic - randomInt: " # debug_show(randomInt));
+                switch (randomInt) {
+                    case (?intToUse) {
+                        D.print("GameState: getRandomChallengeTopic - intToUse: " # debug_show(intToUse));
+                        return getOpenChallengeTopic(topicIds[Int.abs(intToUse)]);
+                    };
+                    case (_) { return null; };
+                };
+            };
+            case (_) { return null; };
+        };
+    };
+
+    private func getRandomChallenge(challengeStatus : Types.ChallengeStatus) : async ?Types.Challenge {
+        D.print("GameState: getRandomChallenge - challengeStatus: " # debug_show(challengeStatus));
+        switch (challengeStatus) {
             case (#Open) {
                 let challengeIds : [Text] = Iter.toArray(openChallengesStorage.keys());
                 
@@ -307,8 +351,8 @@ actor class GameStateCanister() = this {
         };
     };
 
-    private func verifyChallenge(status : Types.ChallengeStatus, challengeId: Text) : Bool {
-        switch (status) {
+    private func verifyChallenge(challengeStatus : Types.ChallengeStatus, challengeId: Text) : Bool {
+        switch (challengeStatus) {
             case (#Open) {
                 switch (getOpenChallenge(challengeId)) {
                     case (null) { return false; };
@@ -600,6 +644,32 @@ actor class GameStateCanister() = this {
         return #Ok(authRecord);
     }; */
 
+    public shared (msg) func setInitialChallengeTopics() : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        D.print("GameState: setInitialChallengeTopics - entered");
+        // Start with some initial topics
+        let initialTopics : [Text] = [
+            "crypto",     "nature",      "space", "history", "science", 
+            "technology", "engineering", "math",  "art",     "music"
+        ];
+        for (initialTopic in Iter.fromArray(initialTopics)) {
+            let challengeTopicId : Text = await Utils.newRandomUniqueId();
+
+            let challengeTopic : Types.ChallengeTopic = {
+                challengeTopic : Text = initialTopic;
+                challengeTopicId : Text = challengeTopicId;
+                challengeTopicCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                challengeTopicStatus : Types.ChallengeTopicStatus = #Open;
+            };
+
+            D.print("GameState: init - Adding challengeTopic: " # debug_show(challengeTopic));
+            let _ = putOpenChallengeTopic(challengeTopicId, challengeTopic);
+        };
+        return #Ok({ status_code = 200 });
+    };
+
     // Admin function to get the official protocol canisters
     public shared (msg) func getOfficialChallengerCanisters() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -667,6 +737,24 @@ actor class GameStateCanister() = this {
         };
         return #Ok({ status_code = 200 });
     };
+    
+    // Function for Admin to add new challengeTopics
+    public shared (msg) func addChallengeTopic(challengeTopicInput : Types.ChallengeTopicInput) : async Types.ChallengeTopicResult {
+        if (Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let challengeTopicId : Text = await Utils.newRandomUniqueId();
+
+        let challengeTopic : Types.ChallengeTopic = {
+            challengeTopic : Text = challengeTopicInput.challengeTopic;
+            challengeTopicId : Text = challengeTopicId;
+            challengeTopicCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+            challengeTopicStatus : Types.ChallengeTopicStatus = #Open;
+        };
+
+        let _ = putOpenChallengeTopic(challengeTopicId, challengeTopic);
+        return #Ok(challengeTopic);
+    };
 
     // Function for Challenger canister to retrieve current challenges
     public shared query (msg) func getCurrentChallenges() : async Types.ChallengesResult {
@@ -692,6 +780,26 @@ actor class GameStateCanister() = this {
         return #Ok(challenges);
     };
 
+    // Function for Challenger agent canister to retrieve a random challenge topic
+    public shared (msg) func getRandomOpenChallengeTopic() : async Types.ChallengeTopicResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Only official Challenger canisters may call this
+        switch (getChallengerCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?_challengerEntry) {
+                let challengeTopicResult : ?Types.ChallengeTopic = await getRandomChallengeTopic(#Open);
+                switch (challengeTopicResult) {
+                    case (?challengeTopic) {
+                        return #Ok(challengeTopic);                
+                    };
+                    case (_) { return #Err(#FailedOperation); };
+                };             
+            };
+        };
+    };
+
     // Function for Challenger canister to add new challenge
     public shared (msg) func addChallenge(newChallenge : Types.NewChallengeInput) : async Types.ChallengeAdditionResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -706,12 +814,16 @@ actor class GameStateCanister() = this {
                 let challengeId : Text = await Utils.newRandomUniqueId();
 
                 let challengeAdded : Types.Challenge = {
+                    challengeTopic : Text = newChallenge.challengeTopic;
+                    challengeTopicId : Text = newChallenge.challengeTopicId;
+                    challengeTopicCreationTimestamp : Nat64 = newChallenge.challengeTopicCreationTimestamp;
+                    challengeTopicStatus : Types.ChallengeTopicStatus = newChallenge.challengeTopicStatus;
                     challengeId : Text = challengeId;
                     challengeQuestion : Text = newChallenge.challengeQuestion;
-                    creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                    createdBy : Types.CanisterAddress = challengerEntry.address;
-                    status : Types.ChallengeStatus = #Open;
-                    closedTimestamp : ?Nat64 = null;
+                    challengeCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                    challengeCreatedBy : Types.CanisterAddress = challengerEntry.address;
+                    challengeStatus : Types.ChallengeStatus = #Open;
+                    challengeClosedTimestamp : ?Nat64 = null;
                     submissionCyclesRequired : Nat = SUBMISSION_CYCLES_REQUIRED;
                 };
 
@@ -932,20 +1044,29 @@ actor class GameStateCanister() = this {
                 // Store the submission
                 let submissionId : Text = await Utils.newRandomUniqueId();
                 let submissionAdded : Types.ChallengeResponseSubmission = {
-                    challengeId : Text = challengeResponseSubmissionInput.challengeId;
-                    submittedBy : Principal = msg.caller;
+                    challengeTopic : Text = challengeResponseSubmissionInput.challengeTopic;
+                    challengeTopicId : Text = challengeResponseSubmissionInput.challengeTopicId;
+                    challengeTopicCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeTopicCreationTimestamp;
+                    challengeTopicStatus : Types.ChallengeTopicStatus = challengeResponseSubmissionInput.challengeTopicStatus;
                     challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
+                    challengeId : Text = challengeResponseSubmissionInput.challengeId;
+                    challengeCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeCreationTimestamp;
+                    challengeCreatedBy : Types.CanisterAddress = challengeResponseSubmissionInput.challengeCreatedBy;
+                    challengeStatus : Types.ChallengeStatus = challengeResponseSubmissionInput.challengeStatus;
+                    challengeClosedTimestamp : ?Nat64 = challengeResponseSubmissionInput.challengeClosedTimestamp;
+                    submissionCyclesRequired : Nat = challengeResponseSubmissionInput.submissionCyclesRequired;
+                    challengeAnswer : Text = challengeResponseSubmissionInput.challengeAnswer;
+                    submittedBy : Principal = challengeResponseSubmissionInput.submittedBy;
                     submissionId : Text = submissionId;
                     submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                    status: Types.ChallengeResponseSubmissionStatus = #Submitted;
-                    challengeAnswer : Text = challengeResponseSubmissionInput.challengeAnswer;
+                    submissionStatus: Types.ChallengeResponseSubmissionStatus = #Submitted;
                 };
 
                 let putResult = putSubmission(submissionId, submissionAdded);
                 let submissionMetada : Types.ChallengeResponseSubmissionMetadata = {
                     submissionId : Text = submissionId;
                     submittedTimestamp : Nat64 = submissionAdded.submittedTimestamp;
-                    status: Types.ChallengeResponseSubmissionStatus = submissionAdded.status;
+                    submissionStatus: Types.ChallengeResponseSubmissionStatus = submissionAdded.submissionStatus;
                 };
                 D.print("GameState: submitChallengeResponse - submitted!");
                 return #Ok(submissionMetada);           
@@ -980,7 +1101,7 @@ actor class GameStateCanister() = this {
 
                 D.print("GameState: getNextSubmissionToJudge - searching for a submission to judge");
                 for ((key, submission) in submissionsStorage.entries()) {
-                    switch (submission.status) {
+                    switch (submission.submissionStatus) {
                         case (#Submitted) {
                             D.print("GameState: getNextSubmissionToJudge - found a submission to judge");
                             foundKey := ?key;
@@ -988,17 +1109,26 @@ actor class GameStateCanister() = this {
 
                             switch (foundKey, foundSubmission) {
                                 case (?key, ?submission) {
-                                    // (-) Found a submission with status #Submitted
-                                    // (-) Change status to #Judging
+                                    // (-) Found a submission with submissionStatus #Submitted
+                                    // (-) Change submissionStatus to #Judging
                                     // (-) Return it to the Judge
                                     let updatedSubmission : Types.ChallengeResponseSubmission = {
-                                        challengeId = submission.challengeId;
-                                        submittedBy = submission.submittedBy;
-                                        challengeQuestion = submission.challengeQuestion;
-                                        challengeAnswer = submission.challengeAnswer;
-                                        submissionId = submission.submissionId;
-                                        submittedTimestamp = submission.submittedTimestamp;
-                                        status = #Judging;
+                                        challengeTopic : Text = submission.challengeTopic;
+                                        challengeTopicId : Text = submission.challengeTopicId;
+                                        challengeTopicCreationTimestamp : Nat64 = submission.challengeTopicCreationTimestamp;
+                                        challengeTopicStatus : Types.ChallengeTopicStatus = submission.challengeTopicStatus;
+                                        challengeQuestion : Text = submission.challengeQuestion;
+                                        challengeId : Text = submission.challengeId;
+                                        challengeCreationTimestamp : Nat64 = submission.challengeCreationTimestamp;
+                                        challengeCreatedBy : Types.CanisterAddress = submission.challengeCreatedBy;
+                                        challengeStatus : Types.ChallengeStatus = submission.challengeStatus;
+                                        challengeClosedTimestamp : ?Nat64 = submission.challengeClosedTimestamp;
+                                        submissionCyclesRequired : Nat = submission.submissionCyclesRequired;
+                                        challengeAnswer : Text = submission.challengeAnswer;
+                                        submittedBy : Principal = submission.submittedBy;
+                                        submissionId : Text = submission.submissionId;
+                                        submittedTimestamp : Nat64 = submission.submittedTimestamp;
+                                        submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judging;
                                     };
                                     D.print("GameState: getNextSubmissionToJudge - updatedSubmission = " # debug_show(updatedSubmission));
                                     submissionsStorage.put(key, updatedSubmission);
@@ -1048,18 +1178,27 @@ actor class GameStateCanister() = this {
                 };
 
                 // TODO: do we really need a separate storage for submissions & scored submissions?
-                // Change status of the submission in submissionsStorage to #Judged
+                // Change submissionStatus of the submission in submissionsStorage to #Judged
                 let submissionId : Text = scoredResponseInput.submissionId;
                 let submission : Types.ChallengeResponseSubmission = {
-                    challengeId : Text = scoredResponseInput.challengeId;
-                    submittedBy : Principal = scoredResponseInput.submittedBy;
+                    challengeTopic : Text = scoredResponseInput.challengeTopic;
+                    challengeTopicId : Text = scoredResponseInput.challengeTopicId;
+                    challengeTopicCreationTimestamp : Nat64 = scoredResponseInput.challengeTopicCreationTimestamp;
+                    challengeTopicStatus : Types.ChallengeTopicStatus = scoredResponseInput.challengeTopicStatus;
                     challengeQuestion : Text = scoredResponseInput.challengeQuestion;
+                    challengeId : Text = scoredResponseInput.challengeId;
+                    challengeCreationTimestamp : Nat64 = scoredResponseInput.challengeCreationTimestamp;
+                    challengeCreatedBy : Types.CanisterAddress = scoredResponseInput.challengeCreatedBy;
+                    challengeStatus : Types.ChallengeStatus = scoredResponseInput.challengeStatus;
+                    challengeClosedTimestamp : ?Nat64 = scoredResponseInput.challengeClosedTimestamp;
+                    submissionCyclesRequired : Nat = scoredResponseInput.submissionCyclesRequired;
+                    challengeAnswer : Text = scoredResponseInput.challengeAnswer;
+                    submittedBy : Principal = scoredResponseInput.submittedBy;
                     submissionId : Text = scoredResponseInput.submissionId;
                     submittedTimestamp : Nat64 = scoredResponseInput.submittedTimestamp;
-                    status: Types.ChallengeResponseSubmissionStatus = #Judged;
-                    challengeAnswer : Text = scoredResponseInput.challengeAnswer;
+                    submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
                 };
-                D.print("GameState: addScoredResponse - calling putSubmission (change status to #Judged)");
+                D.print("GameState: addScoredResponse - calling putSubmission (change submissionStatus to #Judged)");
                 D.print("GameState: addScoredResponse - submission = " # debug_show(submission));
                 if (putSubmission(submissionId, submission) == false) {
                     D.print("GameState: addScoredResponse - 04");
@@ -1068,13 +1207,22 @@ actor class GameStateCanister() = this {
                 
                 // Store scored response for challenge in scoredResponsesPerChallenge
                 let scoredResponseEntry : Types.ScoredResponse = {
-                    submissionId : Text = scoredResponseInput.submissionId;
-                    challengeId : Text = scoredResponseInput.challengeId;
-                    submittedBy : Principal = scoredResponseInput.submittedBy;
+                    challengeTopic : Text = scoredResponseInput.challengeTopic;
+                    challengeTopicId : Text = scoredResponseInput.challengeTopicId;
+                    challengeTopicCreationTimestamp : Nat64 = scoredResponseInput.challengeTopicCreationTimestamp;
+                    challengeTopicStatus : Types.ChallengeTopicStatus = scoredResponseInput.challengeTopicStatus;
                     challengeQuestion : Text = scoredResponseInput.challengeQuestion;
+                    challengeId : Text = scoredResponseInput.challengeId;
+                    challengeCreationTimestamp : Nat64 = scoredResponseInput.challengeCreationTimestamp;
+                    challengeCreatedBy : Types.CanisterAddress = scoredResponseInput.challengeCreatedBy;
+                    challengeStatus : Types.ChallengeStatus = scoredResponseInput.challengeStatus;
+                    challengeClosedTimestamp : ?Nat64 = scoredResponseInput.challengeClosedTimestamp;
+                    submissionCyclesRequired : Nat = scoredResponseInput.submissionCyclesRequired;
                     challengeAnswer : Text = scoredResponseInput.challengeAnswer;
+                    submittedBy : Principal = scoredResponseInput.submittedBy;
+                    submissionId : Text = scoredResponseInput.submissionId;
                     submittedTimestamp : Nat64 = scoredResponseInput.submittedTimestamp;
-                    status: Types.ChallengeResponseSubmissionStatus = #Judged;
+                    submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
                     judgedBy: Principal = scoredResponseInput.judgedBy;
                     score: Nat = scoredResponseInput.score;
                     judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
@@ -1130,6 +1278,7 @@ actor class GameStateCanister() = this {
         mainerCreatorCanistersStorageStable := Iter.toArray(mainerCreatorCanistersStorage.entries());
         mainerAgentCanistersStorageStable := Iter.toArray(mainerAgentCanistersStorage.entries());
         userToMainerAgentsStorageStable := Iter.toArray(userToMainerAgentsStorage.entries());
+        openChallengeTopicsStorageStable := Iter.toArray(openChallengeTopicsStorage.entries());
         openChallengesStorageStable := Iter.toArray(openChallengesStorage.entries());
         submissionsStorageStable := Iter.toArray(submissionsStorage.entries());
         scoredResponsesPerChallengeStable := Iter.toArray(scoredResponsesPerChallenge.entries());
@@ -1147,6 +1296,8 @@ actor class GameStateCanister() = this {
         mainerAgentCanistersStorageStable := [];
         userToMainerAgentsStorage := HashMap.fromIter(Iter.fromArray(userToMainerAgentsStorageStable), userToMainerAgentsStorageStable.size(), Principal.equal, Principal.hash);
         userToMainerAgentsStorageStable := [];
+        openChallengeTopicsStorage := HashMap.fromIter(Iter.fromArray(openChallengeTopicsStorageStable), openChallengeTopicsStorageStable.size(), Text.equal, Text.hash);
+        openChallengeTopicsStorageStable := [];
         openChallengesStorage := HashMap.fromIter(Iter.fromArray(openChallengesStorageStable), openChallengesStorageStable.size(), Text.equal, Text.hash);
         openChallengesStorageStable := [];
         submissionsStorage := HashMap.fromIter(Iter.fromArray(submissionsStorageStable), submissionsStorageStable.size(), Text.equal, Text.hash);

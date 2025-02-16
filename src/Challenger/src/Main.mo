@@ -230,52 +230,77 @@ actor class ChallengerCtrlbCanister() {
         return generatedChallengeOutput;
     };
 
+    private func getChallengeTopicFromGameStateCanister() : async Types.ChallengeTopicResult {
+        D.print("Challenger:  calling getRandomOpenChallengeTopic of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
+        let result : Types.ChallengeTopicResult = await gameStateCanisterActor.getRandomOpenChallengeTopic();
+        D.print("Challenger:  getRandomOpenChallengeTopic returned.");
+        return result;
+    };
+
     private func generateChallenge() : async Types.GeneratedChallengeResult {
-        D.print("Challenger: generateChallenge");
-        let generatedChallengeOutput : Types.GeneratedChallengeResult = await challengeGenerationDoIt_();
-        D.print("Challenger: generateChallenge generatedChallengeOutput");
-        print(debug_show (generatedChallengeOutput));
-        switch (generatedChallengeOutput) {
+        // Get the next topic to generate a Challenge for
+        
+        D.print("Challenger: generateChallenge - calling getChallengeTopicFromGameStateCanister.");
+        let challengeTopicResult : Types.ChallengeTopicResult = await getChallengeTopicFromGameStateCanister();
+        D.print("Challenger: generateChallenge - received challengeResult from getChallengeTopicFromGameStateCanister: " # debug_show (challengeTopicResult));
+        switch (challengeTopicResult) {
             case (#Err(error)) {
-                D.print("Challenger: generateChallenge generatedChallengeOutput error");
-                print(debug_show (error));
+                D.print("Challenger: generateChallenge - challengeTopicResult error : " # debug_show (error));
                 return #Err(error);
             };
-            case (#Ok(generatedChallenge)) {
-                // Store challenge
-                let pushResult = putGeneratedChallenge(generatedChallenge);
+            case (#Ok(challengeTopic : Types.ChallengeTopic)) {
+                D.print("Challenger: generateChallenge - challengeTopic = " # debug_show(challengeTopic));
 
-                // Add challenge to Game State canister
-                let newChallenge : Types.NewChallengeInput = {
-                    challengeQuestion : Text = generatedChallenge.generatedChallengeText;
-                };
+                let generatedChallengeOutput : Types.GeneratedChallengeResult = await challengeGenerationDoIt_(challengeTopic.challengeTopic);
 
-                D.print("Challenger: calling addChallenge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
-                let additionResult : Types.ChallengeAdditionResult = await gameStateCanisterActor.addChallenge(newChallenge);
-                D.print("Challenger: generateChallenge generatedChallengeOutput Ok additionResult");
-                print(debug_show (additionResult));
-                switch (additionResult) {
+                D.print("Challenger: generateChallenge generatedChallengeOutput");
+                print(debug_show (generatedChallengeOutput));
+                switch (generatedChallengeOutput) {
                     case (#Err(error)) {
-                        // TODO: error handling (e.g. put into queue and try again later)
+                        D.print("Challenger: generateChallenge generatedChallengeOutput error");
+                        print(debug_show (error));
+                        return #Err(error);
                     };
-                    case (#Ok(addedChallenge)) {
-                        // TODO: decide if returned challenge entry should be stored as well
+                    case (#Ok(generatedChallenge)) {
+                        // Store challenge
+                        let pushResult = putGeneratedChallenge(generatedChallenge);
+
+                        // Add challenge to Game State canister
+                        let newChallenge : Types.NewChallengeInput = {
+                            challengeTopic : Text = challengeTopic.challengeTopic;
+                            challengeTopicId : Text = challengeTopic.challengeTopicId;
+                            challengeTopicCreationTimestamp : Nat64 = challengeTopic.challengeTopicCreationTimestamp;
+                            challengeTopicStatus : Types.ChallengeTopicStatus = challengeTopic.challengeTopicStatus;
+                            challengeQuestion : Text = generatedChallenge.generatedChallengeText;
+                        };
+
+                        D.print("Challenger: calling addChallenge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
+                        let additionResult : Types.ChallengeAdditionResult = await gameStateCanisterActor.addChallenge(newChallenge);
+                        D.print("Challenger: generateChallenge generatedChallengeOutput Ok additionResult");
+                        print(debug_show (additionResult));
+                        switch (additionResult) {
+                            case (#Err(error)) {
+                                // TODO: error handling (e.g. put into queue and try again later)
+                            };
+                            case (#Ok(addedChallenge)) {
+                                // TODO: decide if returned challenge entry should be stored as well
+                            };
+                        };
+                        return generatedChallengeOutput;
                     };
                 };
-                return generatedChallengeOutput;
             };
         };
     };
 
-    private func challengeGenerationDoIt_() : async Types.GeneratedChallengeResult {
+    private func challengeGenerationDoIt_(challengeTopic : Text) : async Types.GeneratedChallengeResult {
         // TODO: probably need to improve the seed generation variability
         let maxContinueLoopCount : Nat = 30; // After this many calls to run_update, we stop.
         let num_tokens : Nat64 = 1024;
         let seed : Nat64 = getNextRngSeed();
         let temp : Float = 0.7;
 
-        // TODO: introduce variability in prompt for Topic and PromptStartsWith
-        var challengeTopic : Text = "crypto";
+        // TODO: introduce variability in prompt for PromptStartsWith
         var challengePromptStartsWith : Text = "What";
         var prompt : Text = "<|im_start|>user\nAsk a question about " #
         challengeTopic #

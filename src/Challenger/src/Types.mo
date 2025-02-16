@@ -41,17 +41,14 @@ module Types {
     };
 
     // Game State canister
-    type Challenge = {
-        challengeId : Text;
-        creationTimestamp : Nat64;
-        createdBy : CanisterAddress;
-        challengeQuestion : Text;
-        status : ChallengeStatus;
-        closedTimestamp : ?Nat64;
-        submissionCyclesRequired : Nat;
-    };
-
     type CanisterAddress = Text;
+
+    public type ChallengeTopicStatus = {
+        #Open;
+        #Closed;
+        #Archived;
+        #Other : Text;
+    };
 
     type ChallengeStatus = {
         #Open;
@@ -60,13 +57,33 @@ module Types {
         #Other : Text;
     };
 
-    public type NewChallengeInput = {
+    public type ChallengeTopicInput = {
+        challengeTopic : Text;
+    };
+    public type ChallengeTopic = ChallengeTopicInput and {
+        challengeTopicId : Text;
+        challengeTopicCreationTimestamp : Nat64;
+        challengeTopicStatus : ChallengeTopicStatus;
+    };
+    public type ChallengeTopicResult = Result<ChallengeTopic, ApiError>;
+
+    public type NewChallengeInput = ChallengeTopic and {
         challengeQuestion : Text;
+    };
+
+    public type Challenge = NewChallengeInput and {
+        challengeId : Text;
+        challengeCreationTimestamp : Nat64;
+        challengeCreatedBy : CanisterAddress;
+        challengeStatus : ChallengeStatus;
+        challengeClosedTimestamp : ?Nat64;
+        submissionCyclesRequired : Nat;
     };
 
     public type ChallengeAdditionResult = Result<Challenge, ApiError>;
 
     public type GameStateCanister_Actor = actor {
+        getRandomOpenChallengeTopic : () -> async ChallengeTopicResult;
         addChallenge : (NewChallengeInput) -> async ChallengeAdditionResult;
     };
 
