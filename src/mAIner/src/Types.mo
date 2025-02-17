@@ -1,6 +1,52 @@
 import Nat64 "mo:base/Nat64";
 
 module Types {
+
+    public type CanisterAddress = Text;
+
+    // Challenger
+    public type ChallengeTopicStatus = {
+        #Open;
+        #Closed;
+        #Archived;
+        #Other : Text;
+    };
+
+    public type ChallengeStatus = {
+        #Open;
+        #Closed;
+        #Archived;
+        #Other : Text;
+    };
+
+    public type ChallengeTopicInput = {
+        challengeTopic : Text;
+    };
+    public type ChallengeTopic = ChallengeTopicInput and {
+        challengeTopicId : Text;
+        challengeTopicCreationTimestamp : Nat64;
+        challengeTopicStatus : ChallengeTopicStatus;
+    };
+    public type ChallengeTopicResult = Result<ChallengeTopic, ApiError>;
+
+    public type NewChallengeInput = ChallengeTopic and {
+        challengeQuestion : Text;
+    };
+
+    public type Challenge = NewChallengeInput and {
+        challengeId : Text;
+        challengeCreationTimestamp : Nat64;
+        challengeCreatedBy : CanisterAddress;
+        challengeStatus : ChallengeStatus;
+        challengeClosedTimestamp : ?Nat64;
+        submissionCyclesRequired : Nat;
+    };
+
+    public type ChallengeAdditionResult = Result<Challenge, ApiError>;
+
+    public type ChallengeResult = Result<Challenge, ApiError>;
+
+    // mAIner
     public type ChallengeResponseSubmissionStatus = {
         #FailedSubmission;
         #Received;
@@ -11,17 +57,15 @@ module Types {
         #Other : Text;
     };
 
-    public type ChallengeResponseSubmissionInput = {
-        challengeId : Text;
-        submittedBy : Principal;
-        challengeQuestion : Text;
+    public type ChallengeResponseSubmissionInput = Challenge and {
         challengeAnswer : Text;
+        submittedBy : Principal;
     };
 
     public type ChallengeResponseSubmissionMetadata = {
         submissionId : Text;
         submittedTimestamp : Nat64;
-        status : ChallengeResponseSubmissionStatus;
+        submissionStatus : ChallengeResponseSubmissionStatus;
     };
 
     public type ChallengeResponseSubmission = ChallengeResponseSubmissionInput and ChallengeResponseSubmissionMetadata;
@@ -30,17 +74,7 @@ module Types {
     public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmission, ApiError>;
     public type ChallengeResponseSubmissionsResult = Result<[ChallengeResponseSubmission], ApiError>;
 
-
-    public type ChallengeResponseSubmissionReturn = {
-        success : Bool;
-        submissionId : Text;
-        submittedTimestamp : Nat64;
-        status : ChallengeResponseSubmissionStatus;
-    };
-
-    public type ChallengeResponseSubmissionReturnResult = Result<ChallengeResponseSubmissionReturn, ApiError>;
-    public type ChallengeResponseSubmissionsReturnResult = Result<[ChallengeResponseSubmissionReturn], ApiError>;
-
+    // Judge
     public type ScoredResponseInput = ChallengeResponseSubmission and {
         judgedBy : Principal;
         score : Nat;
@@ -56,6 +90,7 @@ module Types {
 
     public type ScoredResponseResult = Result<ScoredResponseReturn, ApiError>;
 
+    // local for Judge interacting with LLM
     public type JudgeScore = {
         generationId : Text;
         generatedTimestamp : Nat64;
@@ -71,6 +106,7 @@ module Types {
 
     public type JudgeChallengeResponseResult = Result<JudgeScore, ApiError>;
 
+    // local for mAIner interacting with LLM
     public type ChallengeResponse = {
         challengeId : Text;
         generationId : Text;
@@ -121,33 +157,7 @@ module Types {
     };
 
     // Game State canister
-    public type Challenge = {
-        challengeId : Text;
-        creationTimestamp : Nat64;
-        createdBy : CanisterAddress;
-        challengeQuestion : Text;
-        status : ChallengeStatus;
-        closedTimestamp : ?Nat64;
-        submissionCyclesRequired : Nat;
-    };
-
-    type CanisterAddress = Text;
-
-    type ChallengeStatus = {
-        #Open;
-        #Closed;
-        #Archived;
-        #Other : Text;
-    };
-
-    public type NewChallengeInput = {
-        challengeQuestion : Text;
-    };
-
-    public type ChallengeAdditionResult = Result<Challenge, ApiError>;
-
-    public type ChallengeResult = Result<Challenge, ApiError>;
-
+    
     public type GameStateCanister_Actor = actor {
         addChallenge : (NewChallengeInput) -> async ChallengeAdditionResult;
         addScoredResponse : (ScoredResponseInput) -> async ScoredResponseResult;
