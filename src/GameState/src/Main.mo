@@ -740,7 +740,7 @@ actor class GameStateCanister() = this {
     
     // Function for Admin to add new challengeTopics
     public shared (msg) func addChallengeTopic(challengeTopicInput : Types.ChallengeTopicInput) : async Types.ChallengeTopicResult {
-        if (Principal.isController(msg.caller)) {
+        if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
         let challengeTopicId : Text = await Utils.newRandomUniqueId();
