@@ -8,6 +8,8 @@ import Source "mo:uuid/async/SourceV4";
 import Text "mo:base/Text";
 import Blob "mo:base/Blob";
 import Array "mo:base/Array";
+import Random "mo:base/Random";
+import Int "mo:base/Int";
 import HashMap "mo:base/HashMap";
 import Nat32 "mo:base/Nat32";
 import Nat "mo:base/Nat";
@@ -107,6 +109,27 @@ module {
         } else {
             return b;
         };
+    };
+
+    public func nextRandomInt(min : Int, max : Int) : async ?Int {
+        if (min > max) {
+            //Debug.trap("Min cannot be larger than max");
+            return null;
+        };
+        let range : Nat = Int.abs(max - min) + 1;
+
+        // Calculate the number of bits needed to represent the range
+        var bitsNeeded : Nat = 0;
+        var temp : Nat = range;
+        while (temp > 0) {
+            temp := temp / 2;
+            bitsNeeded += 1;
+        };
+
+        let random = Random.Finite(await Random.blob());
+        let ?randVal = random.range(Nat8.fromNat(bitsNeeded)) else return null;
+        let randInt = min + (randVal % range);
+        ?randInt;
     };
 
     // Convert a random string to a seed for the LLM model, with wide variability

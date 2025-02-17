@@ -281,8 +281,29 @@ actor class ChallengerCtrlbCanister() {
         let num_tokens : Nat64 = 1024;
         let temp : Float = 0.7;
 
-        // TODO: introduce variability in prompt for PromptStartsWith
-        var challengePromptStartsWith : Text = "What";
+        let startsWithOptions : [Text] = [
+            "What",
+            "Who",
+            "Where",
+            "When",
+            "Why",
+            "How",
+            "Which",
+            "Can",
+            "Is",
+            "Do",
+        ];
+        var challengePromptStartsWith : Text = startsWithOptions[0];
+        let randomInt : ?Int = await Utils.nextRandomInt(0, startsWithOptions.size()-1);
+        switch (randomInt) {
+            case (?intToUse) {
+                challengePromptStartsWith := startsWithOptions[Int.abs(intToUse)];
+            };
+            case (_) { // continue with default
+            };
+        };
+        D.print("Challenger: challengeGenerationDoIt_ - challengePromptStartsWith: " # debug_show(challengePromptStartsWith));
+
         var prompt : Text = "<|im_start|>user\nAsk a question about " #
         challengeTopic #
         ", that can be answered with common knowledge. Do NOT give the answer. Start the question with " #
