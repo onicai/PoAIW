@@ -254,6 +254,7 @@ actor class ChallengerCtrlbCanister() {
                             challengeTopicCreationTimestamp : Nat64 = challengeTopic.challengeTopicCreationTimestamp;
                             challengeTopicStatus : Types.ChallengeTopicStatus = challengeTopic.challengeTopicStatus;
                             challengeQuestion : Text = generatedChallenge.generatedChallengeText;
+                            challengeQuestionSeed : Nat32 = generatedChallenge.generationSeed;
                         };
 
                         D.print("Challenger: calling addChallenge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
@@ -490,6 +491,7 @@ actor class ChallengerCtrlbCanister() {
         // Return the generated challenge
         let challengeOutput : Types.GeneratedChallenge = {
             generationId : Text = generationId;
+            generationSeed : Nat32 = seed;
             generatedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
             generatedByLlmId : Text = Principal.toText(Principal.fromActor(llmCanister));
             generationPrompt : Text = generationPrompt;
