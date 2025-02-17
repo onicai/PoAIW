@@ -9,6 +9,8 @@ import Text "mo:base/Text";
 import Blob "mo:base/Blob";
 import Array "mo:base/Array";
 import HashMap "mo:base/HashMap";
+import Nat32 "mo:base/Nat32";
+import Nat "mo:base/Nat";
 
 import Types "Types";
 
@@ -104,6 +106,22 @@ module {
             return a;
         } else {
             return b;
+        };
+    };
+
+    // Convert a random string to a seed for the LLM model, with wide variability
+    public func getRandomLlmSeed(randomString : Text) : Nat32 {
+        let value : Nat32 = Text.hash(randomString);
+
+        let selector = value % 6;  // Use last bits to select range between 0-5
+        
+        switch (selector) {
+            case 0 { value % 10 };  // 0-9
+            case 1 { value % 100 };  // 0-99
+            case 2 { value % 1000 };  // 0-999
+            case 3 { value % 1_000_000 };  // 0-999,999
+            case 4 { value % 1_000_000_000 };  // 0-999,999,999
+            case _ { value };  // Full range
         };
     };
 
