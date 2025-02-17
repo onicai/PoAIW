@@ -367,7 +367,7 @@ actor class MainerAgentCtrlbCanister() = this {
 
     private func respondToChallengeDoIt_(challenge : Types.Challenge) : async Types.ChallengeResponseResult {
         // TODO: probably need to improve the seed generation variability
-        let maxContinueLoopCount : Nat = 3; // After this many calls to run_update, we stop.
+        let maxContinueLoopCount : Nat = 6; // After this many calls to run_update, we stop.
         let num_tokens : Nat64 = 1024;
         let temp : Float = 0.8;
 
@@ -576,11 +576,6 @@ actor class MainerAgentCtrlbCanister() = this {
             );
         };
 
-        D.print("mAIner:  generationOutput: " # generationOutput);
-        let filteredOutput = filterText(generationOutput);
-        D.print("mAIner:  filteredOutput  : " # filteredOutput);
-
-
         // Return the generated response
         let responseOutput : Types.ChallengeResponse = {
             challengeId :Text = challenge.challengeId;
@@ -589,7 +584,7 @@ actor class MainerAgentCtrlbCanister() = this {
             generatedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
             generatedByLlmId : Text = Principal.toText(Principal.fromActor(llmCanister));
             generationPrompt : Text = generationPrompt;
-            generatedResponseText : Text = filteredOutput;
+            generatedResponseText : Text = generationOutput;
         };
         return #Ok(responseOutput);
     };
@@ -704,33 +699,6 @@ actor class MainerAgentCtrlbCanister() = this {
         };
 
         return canister;
-    };
-
-    func filterText(text : Text) : Text {
-        // Only keep the first line of the answer
-        let firstLine = switch (Text.split(text, #text("\n")).next()) {
-            case (?line) line;
-            case null "";
-        };
-
-        // Remove quotes and backslashes
-        let withoutQuotes = Text.replace(firstLine, #text("\""), "");
-        let withoutSingleQuotes = Text.replace(withoutQuotes, #text("'"), "");
-        let withoutBackslashes = Text.replace(withoutSingleQuotes, #text("\\"), "");
-
-        // Remove leading and trailing whitespaces
-        let trimmed = Text.trim(withoutBackslashes, #text(" \t\n\r"));
-
-        // Remove [end of text]
-        let withoutEndText = Text.replace(trimmed, #text("[end of text]"), "");
-
-        // Remove non-ASCII characters (simplified version)
-        let filteredChars = Iter.filter(Text.toIter(withoutEndText), func (c : Char) : Bool {
-            let code = Char.toNat32(c);
-            code >= 32 and code <= 126
-        });
-
-        return Text.fromIter(filteredChars);
     };
 
 // Timer
