@@ -31,6 +31,7 @@ module Types {
 
     public type NewChallengeInput = ChallengeTopic and {
         challengeQuestion : Text;
+        challengeQuestionSeed : Nat32;
     };
 
     public type Challenge = NewChallengeInput and {
@@ -59,6 +60,7 @@ module Types {
 
     public type ChallengeResponseSubmissionInput = Challenge and {
         challengeAnswer : Text;
+        challengeAnswerSeed : Nat32;
         submittedBy : Principal;
     };
 
@@ -78,6 +80,7 @@ module Types {
     public type ScoredResponseInput = ChallengeResponseSubmission and {
         judgedBy : Principal;
         score : Nat;
+        scoreSeed : Nat32;
     };
 
     public type ScoredResponse = ScoredResponseInput and {
@@ -110,6 +113,7 @@ module Types {
     public type ChallengeResponse = {
         challengeId : Text;
         generationId : Text;
+        generationSeed : Nat32;
         generatedTimestamp : Nat64;
         generatedByLlmId : Text;
         generationPrompt : Text;

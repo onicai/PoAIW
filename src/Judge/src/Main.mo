@@ -5,6 +5,7 @@ import Error "mo:base/Error";
 import Principal "mo:base/Principal";
 import Text "mo:base/Text";
 import Nat "mo:base/Nat";
+import Nat32 "mo:base/Nat32";
 import Nat64 "mo:base/Nat64";
 import Bool "mo:base/Bool";
 import Float "mo:base/Float";
@@ -62,25 +63,6 @@ actor class JudgeCtrlbCanister() = this {
     private var roundRobinIndex : Nat = 0;
     private var roundRobinUseAll : Bool = true;
     private var roundRobinLLMs : Nat = 0; // Only used when roundRobinUseAll is false
-
-    // Generate the array of values from 0 to 100000 in steps of 11
-    let seedValues : [Nat64] = Array.tabulate(
-        100000,
-        func(index : Nat) : Nat64 {
-            return Nat64.fromNat(index * 11);
-        },
-    );
-
-    // Variable to track the current index
-    var currentSeedIndex : Nat = 0;
-
-    // Function to get the next rng_seed
-    private func getNextRngSeed() : Nat64 {
-        let seed = seedValues[currentSeedIndex];
-        // Update the index to the next value, cycling back to 0
-        currentSeedIndex := (currentSeedIndex + 1) % seedValues.size();
-        return seed;
-    };
 
     // -------------------------------------------------------------------------------
     // The C++ LLM canisters that can be called
@@ -201,6 +183,7 @@ actor class JudgeCtrlbCanister() = this {
             challengeTopicCreationTimestamp : Nat64 = scoredResponse.challengeTopicCreationTimestamp;
             challengeTopicStatus : Types.ChallengeTopicStatus = scoredResponse.challengeTopicStatus;
             challengeQuestion : Text = scoredResponse.challengeQuestion;
+            challengeQuestionSeed : Nat32 = scoredResponse.challengeQuestionSeed;
             challengeId : Text = scoredResponse.challengeId;
             challengeCreationTimestamp : Nat64 = scoredResponse.challengeCreationTimestamp;
             challengeCreatedBy : Types.CanisterAddress = scoredResponse.challengeCreatedBy;
@@ -208,12 +191,14 @@ actor class JudgeCtrlbCanister() = this {
             challengeClosedTimestamp : ?Nat64 = scoredResponse.challengeClosedTimestamp;
             submissionCyclesRequired : Nat = scoredResponse.submissionCyclesRequired;
             challengeAnswer : Text = scoredResponse.challengeAnswer;
+            challengeAnswerSeed : Nat32 = scoredResponse.challengeAnswerSeed;
             submittedBy : Principal = scoredResponse.submittedBy;
             submissionId : Text = scoredResponse.submissionId;
             submittedTimestamp : Nat64 = scoredResponse.submittedTimestamp;
             submissionStatus: Types.ChallengeResponseSubmissionStatus = scoredResponse.submissionStatus;
             judgedBy : Principal = scoredResponse.judgedBy;
             score : Nat = scoredResponse.score;
+            scoreSeed : Nat32 = scoredResponse.scoreSeed;
         };
         D.print("Judge: calling addScoredResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let result : Types.ScoredResponseResult = await gameStateCanisterActor.addScoredResponse(scoredResponseInput);
@@ -248,6 +233,7 @@ actor class JudgeCtrlbCanister() = this {
                     challengeTopicCreationTimestamp : Nat64 = submissionEntry.challengeTopicCreationTimestamp;
                     challengeTopicStatus : Types.ChallengeTopicStatus = submissionEntry.challengeTopicStatus;
                     challengeQuestion : Text = submissionEntry.challengeQuestion;
+                    challengeQuestionSeed : Nat32 = submissionEntry.challengeQuestionSeed;
                     challengeId : Text = submissionEntry.challengeId;
                     challengeCreationTimestamp : Nat64 = submissionEntry.challengeCreationTimestamp;
                     challengeCreatedBy : Types.CanisterAddress = submissionEntry.challengeCreatedBy;
@@ -255,12 +241,14 @@ actor class JudgeCtrlbCanister() = this {
                     challengeClosedTimestamp : ?Nat64 = submissionEntry.challengeClosedTimestamp;
                     submissionCyclesRequired : Nat = submissionEntry.submissionCyclesRequired;
                     challengeAnswer : Text = submissionEntry.challengeAnswer;
+                    challengeAnswerSeed : Nat32 = submissionEntry.challengeAnswerSeed;
                     submittedBy : Principal = submissionEntry.submittedBy;
                     submissionId : Text = submissionEntry.submissionId;
                     submittedTimestamp : Nat64 = submissionEntry.submittedTimestamp;
                     submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
                     judgedBy : Principal = Principal.fromActor(this);
                     score : Nat = scoringOutput.generatedScore;
+                    scoreSeed : Nat32 = scoringOutput.generationSeed;
                     judgedTimestamp : Nat64 = scoringOutput.generatedTimestamp;
                     judgeScoreRecord : Types.JudgeScore = scoringOutput;
                 };
@@ -279,6 +267,7 @@ actor class JudgeCtrlbCanister() = this {
                             challengeTopicCreationTimestamp : Nat64 = submissionEntry.challengeTopicCreationTimestamp;
                             challengeTopicStatus : Types.ChallengeTopicStatus = submissionEntry.challengeTopicStatus;
                             challengeQuestion : Text = submissionEntry.challengeQuestion;
+                            challengeQuestionSeed : Nat32 = submissionEntry.challengeQuestionSeed;
                             challengeId : Text = submissionEntry.challengeId;
                             challengeCreationTimestamp : Nat64 = submissionEntry.challengeCreationTimestamp;
                             challengeCreatedBy : Types.CanisterAddress = submissionEntry.challengeCreatedBy;
@@ -286,12 +275,14 @@ actor class JudgeCtrlbCanister() = this {
                             challengeClosedTimestamp : ?Nat64 = submissionEntry.challengeClosedTimestamp;
                             submissionCyclesRequired : Nat = submissionEntry.submissionCyclesRequired;
                             challengeAnswer : Text = submissionEntry.challengeAnswer;
+                            challengeAnswerSeed : Nat32 = submissionEntry.challengeAnswerSeed;
                             submittedBy : Principal = submissionEntry.submittedBy;
                             submissionId : Text = submissionEntry.submissionId;
                             submittedTimestamp : Nat64 = submissionEntry.submittedTimestamp;
                             submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
                             judgedBy : Principal = Principal.fromActor(this);
                             score : Nat = scoringOutput.generatedScore;
+                            scoreSeed : Nat32 = scoringOutput.generationSeed;
                             judgedTimestamp : Nat64 = scoringOutput.generatedTimestamp;
                         };
                         let sendResult : Types.ScoredResponseResult = await sendScoredResponseToGameStateCanister(scoredResponse);
@@ -314,8 +305,8 @@ actor class JudgeCtrlbCanister() = this {
     private func judgeChallengeResponseDoIt_(submissionEntry : Types.ChallengeResponseSubmission) : async Types.JudgeChallengeResponseResult {
         let maxContinueLoopCount : Nat = 1; // After this many calls to run_update, we stop.
         let num_tokens : Nat64 = 1024;
-        let seed : Nat64 = 42;
-        let temp : Float = 0.0;
+        let seed : Nat32 = 42; // fixed seed for reproducibility
+        let temp : Float = 0.0; // zero temperature for deterministic output
 
         let challengeQuestion : Text = submissionEntry.challengeQuestion;
         var challengeAnswer : Text = submissionEntry.challengeAnswer;
@@ -448,7 +439,7 @@ actor class JudgeCtrlbCanister() = this {
                     "-n",
                     Nat64.toText(num_tokens),
                     "--seed",
-                    Nat64.toText(seed),
+                    Nat32.toText(seed),
                     "--temp",
                     Float.toText(temp),
                     "-p",
@@ -545,6 +536,7 @@ actor class JudgeCtrlbCanister() = this {
         // Return the scored response
         let scoringOutput : Types.JudgeScore = {
             generationId : Text = generationId;
+            generationSeed : Nat32 = seed;
             generatedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
             generatedByLlmId : Text = Principal.toText(Principal.fromActor(llmCanister));
             generationPrompt : Text = generationPrompt;

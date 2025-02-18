@@ -3,6 +3,7 @@ import Nat64 "mo:base/Nat64";
 module Types {
     public type GeneratedChallenge = {
         generationId : Text;
+        generationSeed : Nat32;
         generatedTimestamp : Nat64;
         generatedByLlmId : Text;
         generationPrompt : Text;
@@ -69,6 +70,7 @@ module Types {
 
     public type NewChallengeInput = ChallengeTopic and {
         challengeQuestion : Text;
+        challengeQuestionSeed : Nat32;
     };
 
     public type Challenge = NewChallengeInput and {

@@ -8,7 +8,11 @@ import Source "mo:uuid/async/SourceV4";
 import Text "mo:base/Text";
 import Blob "mo:base/Blob";
 import Array "mo:base/Array";
+import Random "mo:base/Random";
+import Int "mo:base/Int";
 import HashMap "mo:base/HashMap";
+import Nat32 "mo:base/Nat32";
+import Nat "mo:base/Nat";
 
 import Types "Types";
 
@@ -104,6 +108,43 @@ module {
             return a;
         } else {
             return b;
+        };
+    };
+
+    public func nextRandomInt(min : Int, max : Int) : async ?Int {
+        if (min > max) {
+            //Debug.trap("Min cannot be larger than max");
+            return null;
+        };
+        let range : Nat = Int.abs(max - min) + 1;
+
+        // Calculate the number of bits needed to represent the range
+        var bitsNeeded : Nat = 0;
+        var temp : Nat = range;
+        while (temp > 0) {
+            temp := temp / 2;
+            bitsNeeded += 1;
+        };
+
+        let random = Random.Finite(await Random.blob());
+        let ?randVal = random.range(Nat8.fromNat(bitsNeeded)) else return null;
+        let randInt = min + (randVal % range);
+        ?randInt;
+    };
+
+    // Convert a random string to a seed for the LLM model, with wide variability
+    public func getRandomLlmSeed(randomString : Text) : Nat32 {
+        let value : Nat32 = Text.hash(randomString);
+
+        let selector = value % 6;  // Use last bits to select range between 0-5
+        
+        switch (selector) {
+            case 0 { value % 10 };  // 0-9
+            case 1 { value % 100 };  // 0-99
+            case 2 { value % 1000 };  // 0-999
+            case 3 { value % 1_000_000 };  // 0-999,999
+            case 4 { value % 1_000_000_000 };  // 0-999,999,999
+            case _ { value };  // Full range
         };
     };
 

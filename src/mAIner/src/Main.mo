@@ -5,6 +5,7 @@ import Error "mo:base/Error";
 import Principal "mo:base/Principal";
 import Text "mo:base/Text";
 import Nat "mo:base/Nat";
+import Nat32 "mo:base/Nat32";
 import Nat64 "mo:base/Nat64";
 import Bool "mo:base/Bool";
 // import HashMap "mo:base/HashMap";
@@ -114,25 +115,6 @@ actor class MainerAgentCtrlbCanister() = this {
     private var roundRobinIndex : Nat = 0;
     private var roundRobinUseAll : Bool = true;
     private var roundRobinLLMs : Nat = 0; // Only used when roundRobinUseAll is false
-
-    // Generate the array of values from 0 to 100000 in steps of 11
-    let seedValues : [Nat64] = Array.tabulate(
-        100000,
-        func(index : Nat) : Nat64 {
-            return Nat64.fromNat(index * 11);
-        },
-    );
-
-    // Variable to track the current index
-    var currentSeedIndex : Nat = 0;
-
-    // Function to get the next rng_seed
-    private func getNextRngSeed() : Nat64 {
-        let seed = seedValues[currentSeedIndex];
-        // Update the index to the next value, cycling back to 0
-        currentSeedIndex := (currentSeedIndex + 1) % seedValues.size();
-        return seed;
-    };
 
     // -------------------------------------------------------------------------------
     // The C++ LLM canisters that can be called
@@ -306,6 +288,7 @@ actor class MainerAgentCtrlbCanister() = this {
                             challengeTopicCreationTimestamp : Nat64 = challenge.challengeTopicCreationTimestamp;
                             challengeTopicStatus : Types.ChallengeTopicStatus = challenge.challengeTopicStatus;
                             challengeQuestion : Text = challenge.challengeQuestion;
+                            challengeQuestionSeed : Nat32 = challenge.challengeQuestionSeed;
                             challengeId : Text = challenge.challengeId;
                             challengeCreationTimestamp : Nat64 = challenge.challengeCreationTimestamp;
                             challengeCreatedBy : Types.CanisterAddress = challenge.challengeCreatedBy;
@@ -313,6 +296,7 @@ actor class MainerAgentCtrlbCanister() = this {
                             challengeClosedTimestamp : ?Nat64 = challenge.challengeClosedTimestamp;
                             submissionCyclesRequired : Nat = challenge.submissionCyclesRequired;
                             challengeAnswer : Text = respondingOutput.generatedResponseText;
+                            challengeAnswerSeed : Nat32 = respondingOutput.generationSeed;
                             submittedBy : Principal = submittedBy;
                         };
                         
@@ -349,6 +333,7 @@ actor class MainerAgentCtrlbCanister() = this {
                                     challengeTopicCreationTimestamp : Nat64 = challenge.challengeTopicCreationTimestamp;
                                     challengeTopicStatus : Types.ChallengeTopicStatus = challenge.challengeTopicStatus;
                                     challengeQuestion : Text = challenge.challengeQuestion;
+                                    challengeQuestionSeed : Nat32 = challenge.challengeQuestionSeed;
                                     challengeId : Text = challenge.challengeId;
                                     challengeCreationTimestamp : Nat64 = challenge.challengeCreationTimestamp;
                                     challengeCreatedBy : Types.CanisterAddress = challenge.challengeCreatedBy;
@@ -356,6 +341,7 @@ actor class MainerAgentCtrlbCanister() = this {
                                     challengeClosedTimestamp : ?Nat64 = challenge.challengeClosedTimestamp;
                                     submissionCyclesRequired : Nat = challenge.submissionCyclesRequired;
                                     challengeAnswer : Text = respondingOutput.generatedResponseText;
+                                    challengeAnswerSeed : Nat32 = respondingOutput.generationSeed;
                                     submittedBy : Principal = submittedBy;
                                     submissionId : Text = submitMetada.submissionId;
                                     submittedTimestamp : Nat64 = submitMetada.submittedTimestamp;
@@ -381,9 +367,8 @@ actor class MainerAgentCtrlbCanister() = this {
 
     private func respondToChallengeDoIt_(challenge : Types.Challenge) : async Types.ChallengeResponseResult {
         // TODO: probably need to improve the seed generation variability
-        let maxContinueLoopCount : Nat = 3; // After this many calls to run_update, we stop.
+        let maxContinueLoopCount : Nat = 6; // After this many calls to run_update, we stop.
         let num_tokens : Nat64 = 1024;
-        let seed : Nat64 = getNextRngSeed();
         let temp : Float = 0.8;
 
         var prompt : Text = "<|im_start|>user\n" #
@@ -411,6 +396,11 @@ actor class MainerAgentCtrlbCanister() = this {
         };
 
         let generationId : Text = await Utils.newRandomUniqueId();
+
+        // Use the generationId to create a highly variable seed or the LLM
+        let seed : Nat32 = Utils.getRandomLlmSeed(generationId);
+        D.print("Challenger: challengeGenerationDoIt_ - seed = " # debug_show(seed));
+
         var generationOutput : Text = "";
         let generationPrompt : Text = prompt;
 
@@ -498,7 +488,7 @@ actor class MainerAgentCtrlbCanister() = this {
                     "-n",
                     Nat64.toText(num_tokens),
                     "--seed",
-                    Nat64.toText(seed),
+                    Nat32.toText(seed),
                     "--temp",
                     Float.toText(temp),
                     "-p",
@@ -586,19 +576,15 @@ actor class MainerAgentCtrlbCanister() = this {
             );
         };
 
-        D.print("mAIner:  generationOutput: " # generationOutput);
-        let filteredOutput = filterText(generationOutput);
-        D.print("mAIner:  filteredOutput  : " # filteredOutput);
-
-
         // Return the generated response
         let responseOutput : Types.ChallengeResponse = {
             challengeId :Text = challenge.challengeId;
             generationId : Text = generationId;
+            generationSeed : Nat32 = seed;
             generatedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
             generatedByLlmId : Text = Principal.toText(Principal.fromActor(llmCanister));
             generationPrompt : Text = generationPrompt;
-            generatedResponseText : Text = filteredOutput;
+            generatedResponseText : Text = generationOutput;
         };
         return #Ok(responseOutput);
     };
@@ -713,33 +699,6 @@ actor class MainerAgentCtrlbCanister() = this {
         };
 
         return canister;
-    };
-
-    func filterText(text : Text) : Text {
-        // Only keep the first line of the answer
-        let firstLine = switch (Text.split(text, #text("\n")).next()) {
-            case (?line) line;
-            case null "";
-        };
-
-        // Remove quotes and backslashes
-        let withoutQuotes = Text.replace(firstLine, #text("\""), "");
-        let withoutSingleQuotes = Text.replace(withoutQuotes, #text("'"), "");
-        let withoutBackslashes = Text.replace(withoutSingleQuotes, #text("\\"), "");
-
-        // Remove leading and trailing whitespaces
-        let trimmed = Text.trim(withoutBackslashes, #text(" \t\n\r"));
-
-        // Remove [end of text]
-        let withoutEndText = Text.replace(trimmed, #text("[end of text]"), "");
-
-        // Remove non-ASCII characters (simplified version)
-        let filteredChars = Iter.filter(Text.toIter(withoutEndText), func (c : Char) : Bool {
-            let code = Char.toNat32(c);
-            code >= 32 and code <= 126
-        });
-
-        return Text.fromIter(filteredChars);
     };
 
 // Timer
