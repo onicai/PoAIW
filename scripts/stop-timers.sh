@@ -7,6 +7,7 @@
 
 # Default network type is local
 NETWORK_TYPE="local"
+NUM_MAINERS_DEPLOYED=2
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -49,8 +50,15 @@ dfx canister call challenger_ctrlb_canister stopTimerExecutionAdmin --network $N
 
 echo "==========================================="
 cd ../mAIner
-echo "Stopping timer for mAIner:"
-dfx canister call mainer_ctrlb_canister stopTimerExecutionAdmin --network $NETWORK_TYPE
+mainer_id_start=0
+mainer_id_end=$((NUM_MAINERS_DEPLOYED - 1))
+
+for m in $(seq $mainer_id_start $mainer_id_end)
+do
+    MAINER="mainer_ctrlb_canister_$m"
+    echo "Stopping timer for $MAINER:"
+    dfx canister call $MAINER stopTimerExecutionAdmin --network $NETWORK_TYPE
+done
 
 echo "==========================================="
 cd ../Judge

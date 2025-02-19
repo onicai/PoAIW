@@ -52,6 +52,28 @@ mops install
 sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
 ```
 
+# Download the LLMs from HuggingFace
+
+The scripts expect the *.gguf files to be in the correct location:
+
+```bash
+# See: llms/mAIner/scripts/3-upload-model.sh
+#      These paths are relative to the llama_cpp_canister root folder
+MODELS=(
+    "models/tensorblock/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q8_0.gguf"
+    "models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q8_0.gguf"
+)
+
+# Download 
+# (1) SmolLM2-135M-Instruct-Q8_0.gguf from https://huggingface.co/tensorblock/SmolLM2-135M-Instruct-GGUF
+# (2) qwen2.5-0.5b-instruct-q8_0.gguf from https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF
+
+# Verify they're in correct location
+# From folder: PoAIW
+ls ../../llama_cpp_canister/models/tensorblock/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q8_0.gguf
+ls ../../llama_cpp_canister/models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q8_0.gguf
+```
+
 # Deploy ALL canisters:
 
 ```bash
@@ -129,16 +151,20 @@ dfx canister call challenger_ctrlb_canister getChallengesAdmin --output json [--
 dfx canister call game_state_canister getCurrentChallengesAdmin --output json [--ic]
 ```
 
-## Test mAIner:
+## Test mAIners:
+
 ```bash
 # from folder: PoAIW/src/mAIner
 # start the timer that generates challenge responses recurringly
-dfx canister call mainer_ctrlb_canister startTimerExecutionAdmin [--ic]
+dfx canister call mainer_ctrlb_canister_0 startTimerExecutionAdmin [--ic]
+dfx canister call mainer_ctrlb_canister_1 startTimerExecutionAdmin [--ic]
 # stop the timer that generates challenge responses recurringly
-dfx canister call mainer_ctrlb_canister stopTimerExecutionAdmin [--ic]
+dfx canister call mainer_ctrlb_canister_0 stopTimerExecutionAdmin [--ic]
+dfx canister call mainer_ctrlb_canister_1 stopTimerExecutionAdmin [--ic]
 
 # you can also trigger a single challenge response generation manually
-dfx canister call mainer_ctrlb_canister triggerChallengeResponseAdmin [--ic]
+dfx canister call mainer_ctrlb_canister_0 triggerChallengeResponseAdmin [--ic]
+dfx canister call mainer_ctrlb_canister_1 triggerChallengeResponseAdmin [--ic]
 ```
 
 The response generation takes a moment. To ensure it worked, call

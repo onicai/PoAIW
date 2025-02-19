@@ -7,8 +7,10 @@
 
 # Default network type is local
 NETWORK_TYPE="local"
-NUM_LLMS_DEPLOYED=2
-NUM_LLMS_ROUND_ROBIN=2 # how many LLMs we actually use
+NUM_MAINERS_DEPLOYED=2 # Total number of mainers deployed
+NUM_LLMS_DEPLOYED=2 # Total number of LLMs deployed for use by all mainers
+NUM_LLMS_PER_MAINER=1 # Number of LLMs registered with each mainer 
+NUM_LLMS_ROUND_ROBIN=1 # how many registered LLMs per mainer we actually use
 # When deploying local, use canister IDs from .env
 source ../../llms/mAIner/.env
 
@@ -45,19 +47,7 @@ echo "Using network type: $NETWORK_TYPE"
 #######################################################################
 echo " "
 echo "--------------------------------------------------"
-echo "Checking health endpoint"
-output=$(dfx canister call mainer_ctrlb_canister health --network $NETWORK_TYPE)
-
-if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-    echo "mainer_ctrlb_canister is not healthy. Exiting."
-    exit 1
-else
-    echo "mainer_ctrlb_canister is healthy."
-fi
-
-echo " "
-echo "--------------------------------------------------"
-echo "Registering $NUM_LLMS_DEPLOYED llm canisterIDs with the mainer_ctrlb_canister"
+echo "We have deployed a total of $NUM_LLMS_DEPLOYED llm canisters, with canisterIDs:"
 CANISTER_ID_LLMS=(
     $CANISTER_ID_LLM_0
     $CANISTER_ID_LLM_1
@@ -81,44 +71,57 @@ do
     echo "CANISTER_ID_LLM_$i: $CANISTER_ID_LLM"
 done
 
-# # Ask user if this is correct, and continue when answer is yes
-# read -p "Proceed? (yes/no): " confirm
-# if [[ $confirm != "yes" ]]; then
-#     echo "Aborting script."
-#     exit 1
-# fi
+echo " "
+echo "==================================================="
+echo "We have $NUM_MAINERS_DEPLOYED mainers"
+mainer_id_start=0
+mainer_id_end=$((NUM_MAINERS_DEPLOYED - 1))
 
-echo "Calling reset_llm_canisters."
-output=$(dfx canister call mainer_ctrlb_canister reset_llm_canisters --network $NETWORK_TYPE)
-
-if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-    echo "Error calling reset_llm_canisters. Exiting."
-    exit 1
-else
-    echo "Successfully called reset_llm_canisters."
-fi
-
-for i in $(seq $llm_id_start $llm_id_end)
+i=0 # LLM index
+for m in $(seq $mainer_id_start $mainer_id_end)
 do
-    CANISTER_ID_LLM=${CANISTER_ID_LLMS[$i]}
-    output=$(dfx canister call mainer_ctrlb_canister add_llm_canister "(record { canister_id = \"$CANISTER_ID_LLM\" })" --network $NETWORK_TYPE)
+    MAINER="mainer_ctrlb_canister_$m"
+
+    echo " "
+    echo "--------------------------------------------------"
+    echo "Checking health endpoint for $MAINER"
+    output=$(dfx canister call $MAINER health --network $NETWORK_TYPE)
 
     if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-        echo "Error calling add_llm_canister for $CANISTER_ID_LLM. Exiting."
+        echo "$MAINER is not healthy. Exiting."
         exit 1
     else
-        echo "Successfully called add_llm_canister for $CANISTER_ID_LLM."
+        echo "$MAINER is healthy."
+    fi
+
+    echo "Calling reset_llm_canisters."
+    output=$(dfx canister call $MAINER reset_llm_canisters --network $NETWORK_TYPE)
+
+    if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+        echo "Error calling reset_llm_canisters. Exiting."
+        exit 1
+    fi
+
+    for n in $(seq 0 $((NUM_LLMS_PER_MAINER - 1)));
+    do
+        CANISTER_ID_LLM=${CANISTER_ID_LLMS[$i]}
+        echo "registering LLM $i ($CANISTER_ID_LLM) with $MAINER"
+        output=$(dfx canister call $MAINER add_llm_canister "(record { canister_id = \"$CANISTER_ID_LLM\" })" --network $NETWORK_TYPE)
+
+        if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+            echo "Error calling add_llm_canister for $CANISTER_ID_LLM. Exiting."
+            exit 1
+        fi
+        ((i++)) # next LLM
+    done
+
+    echo " "
+    echo "--------------------------------------------------"
+    echo "Setting NUM_LLMS_ROUND_ROBIN to $NUM_LLMS_ROUND_ROBIN"
+    output=$(dfx canister call $MAINER setRoundRobinLLMs "($NUM_LLMS_ROUND_ROBIN)" --network $NETWORK_TYPE)
+
+    if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+        echo "setRoundRobinLLMs call failed. Exiting."
+        exit 1
     fi
 done
-
-echo " "
-echo "--------------------------------------------------"
-echo "Setting NUM_LLMS_ROUND_ROBIN to $NUM_LLMS_ROUND_ROBIN"
-output=$(dfx canister call mainer_ctrlb_canister setRoundRobinLLMs "($NUM_LLMS_ROUND_ROBIN)" --network $NETWORK_TYPE)
-
-if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-    echo "setRoundRobinLLMs call failed. Exiting."
-    exit 1
-else
-    echo "setRoundRobinLLMs was successful."
-fi

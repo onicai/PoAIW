@@ -8,6 +8,8 @@
 # Default network type is local
 NETWORK_TYPE="local"
 
+NUM_MAINERS_DEPLOYED=2
+
 # When deploying local, use canister IDs from .env
 source ../GameState/.env
 
@@ -42,25 +44,36 @@ echo "Using network type: $NETWORK_TYPE"
 
 #######################################################################
 echo " "
-echo "--------------------------------------------------"
-echo "Checking health endpoint"
-output=$(dfx canister call mainer_ctrlb_canister health --network $NETWORK_TYPE)
+echo "==================================================="
+echo "We have $NUM_MAINERS_DEPLOYED mainers"
+mainer_id_start=0
+mainer_id_end=$((NUM_MAINERS_DEPLOYED - 1))
 
-if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-    echo "mainer_ctrlb_canister is not healthy. Exiting."
-    exit 1
-else
-    echo "mainer_ctrlb_canister is healthy."
-fi
+for m in $(seq $mainer_id_start $mainer_id_end)
+do
+    MAINER="mainer_ctrlb_canister_$m"
 
-echo " "
-echo "--------------------------------------------------"
-echo "Registering GameState with the mainer_ctrlb_canister"
-output=$(dfx canister call mainer_ctrlb_canister setGameStateCanisterId "(\"$CANISTER_ID_GAME_STATE_CANISTER\")" --network $NETWORK_TYPE)
+    echo " "
+    echo "--------------------------------------------------"
+    echo "Checking health endpoint for $MAINER"
+    output=$(dfx canister call $MAINER health --network $NETWORK_TYPE)
 
-if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-    echo "Error calling setGameStateCanisterId for GameState $CANISTER_ID_GAME_STATE_CANISTER."
-    exit 1
-else
-    echo "Successfully called setGameStateCanisterId for GameState $CANISTER_ID_GAME_STATE_CANISTER."
-fi
+    if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+        echo "$MAINER is not healthy. Exiting."
+        exit 1
+    else
+        echo "$MAINER is healthy."
+    fi
+
+    echo " "
+    echo "--------------------------------------------------"
+    echo "Registering GameState with the $MAINER"
+    output=$(dfx canister call $MAINER setGameStateCanisterId "(\"$CANISTER_ID_GAME_STATE_CANISTER\")" --network $NETWORK_TYPE)
+
+    if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+        echo "Error calling setGameStateCanisterId for GameState $CANISTER_ID_GAME_STATE_CANISTER."
+        exit 1
+    else
+        echo "Successfully called setGameStateCanisterId for GameState $CANISTER_ID_GAME_STATE_CANISTER."
+    fi
+done

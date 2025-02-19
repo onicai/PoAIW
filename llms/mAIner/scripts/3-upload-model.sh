@@ -12,13 +12,11 @@ export PYTHONPATH="${PYTHONPATH}:$(realpath $LLAMA_CPP_CANISTER_PATH)"
 NETWORK_TYPE="local"
 NUM_LLMS_DEPLOYED=2
 
-# The gguf model file to upload (Relative to llama_cpp_canister folder)
-# MODEL="models/stories260Ktok512.gguf"
-# MODEL="models/stories15Mtok4096.gguf"
-# MODEL="models/tensorblock/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M.gguf"
-MODEL="models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q8_0.gguf"
-# MODEL="models/unsloth/DeepSeek-R1-Distill-Qwen-1.5B-GGUF/DeepSeek-R1-Distill-Qwen-1.5B-Q2_K.gguf"
-# MODEL="models/unsloth/DeepSeek-R1-Distill-Qwen-7B-GGUF/DeepSeek-R1-Distill-Qwen-7B-Q2_K.gguf"
+# The gguf model files to upload to each LLM(Relative to llama_cpp_canister folder)
+MODELS=(
+    "models/tensorblock/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q8_0.gguf"
+    "models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q8_0.gguf"
+)
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -67,6 +65,7 @@ do
 
     echo " "
     echo "--------------------------------------------------"
+    MODEL=${MODELS[$i]}
     echo "Upload the model ($MODEL) to llm_$i"
     python -m scripts.upload --network $NETWORK_TYPE --canister llm_$i --canister-filename models/model.gguf $MODEL
 

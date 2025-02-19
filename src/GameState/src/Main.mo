@@ -121,17 +121,17 @@ actor class GameStateCanister() = this {
     stable var userToMainerAgentsStorageStable : [(Principal, List.List<Types.OfficialProtocolCanister>)] = [];
     var userToMainerAgentsStorage : HashMap.HashMap<Principal, List.List<Types.OfficialProtocolCanister>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
 
-    private func putMainerAgentCanister(canisterAddress : Text, canisterEntry : Types.OfficialProtocolCanister) : Bool {
+    private func putMainerAgentCanister(canisterAddress : Text, canisterEntry : Types.OfficialProtocolCanister) : Types.MainerAgentCanisterResult {
         switch (getMainerAgentCanister(canisterAddress)) {
             case (null) {
                 mainerAgentCanistersStorage.put(canisterAddress, canisterEntry);
                 // TODO: add to userToMainerAgentsStorage
-                return true;
+                #Ok(canisterEntry)
             };
             case (?canisterEntry) { 
                 //existing entry
                 D.print("GameState: putMainerAgentCanister - canisterEntry already exists -" # debug_show(canisterEntry));
-                return false; 
+                #Err(#Other("Canister entry already exists"));
             }; 
         };
     };
@@ -874,11 +874,7 @@ actor class GameStateCanister() = this {
                             createdBy : Principal = msg.caller; // mAIner Creator
                             ownedBy : Principal = msg.caller; // User
                         };
-                        let putResponse = putMainerAgentCanister(canisterCreationRecord.newCanisterId, canisterEntry);
-                        if (not putResponse) {
-                            return #Err(#Other("An error creating the canister occurred"));
-                        };
-                        return #Ok(canisterEntry);                         
+                        putMainerAgentCanister(canisterCreationRecord.newCanisterId, canisterEntry);                        
                     };
                     case (_) { return #Err(#FailedOperation); };
                 };            
@@ -909,11 +905,7 @@ actor class GameStateCanister() = this {
                     createdBy : Principal = msg.caller;
                     ownedBy : Principal = canisterEntryToAdd.ownedBy;
                 };
-                let putResponse = putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry);
-                if (not putResponse) {
-                    return #Err(#Other("An error adding the canister occurred"));
-                };
-                return #Ok(canisterEntry);             
+                putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry);           
             };
         };
     };
@@ -938,12 +930,8 @@ actor class GameStateCanister() = this {
             creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
             createdBy : Principal = msg.caller;
             ownedBy : Principal = canisterEntryToAdd.ownedBy;
-        };
-        let putResponse = putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry);
-        if (not putResponse) {
-            return #Err(#Other("An error adding the canister occurred"));
-        };
-        return #Ok(canisterEntry); 
+        }; 
+        putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry); 
     };
 
     // Function to retrieve info on a mAIner agent canister
