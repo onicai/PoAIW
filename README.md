@@ -208,11 +208,20 @@ dfx canister call game_state_canister getScoredChallengesAdmin --output json [--
 
 ## Top off the LLMs
 
-This script will top-off all LLMs to 20 trillion cycles if their balance is below 18 trillion cycles.
-
-It will use cycles from the wallet: 
+This script will top-off ALL the canisters:
+(-) all LLMs to 20 trillion cycles if their balance is below 18 trillion cycles.
+(-) all ctrlbs to 3 trillion cycles if their balance is below 1 trillion cycles.
 
 ```bash
 # from folder: PoAIW
-scripts/top-off-llms.sh --network [local/ic]
+scripts/top-off-all.sh --network [local/ic]
+```
+
+NOTE: 
+The top-off script uses cycles from the dfx user's wallet. Make sure there is enough.
+
+```bash
+# When running locally, you can just fabricate more cycles and send them to your wallet
+WALLET_CANISTER_ID=`dfx identity get-wallet`
+dfx ledger fabricate-cycles --canister $WALLET_CANISTER_ID --t 200
 ```
