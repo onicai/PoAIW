@@ -79,8 +79,19 @@ ls ../../llama_cpp_canister/models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-
 ```bash
 # from folder: PoAIW
 scripts/build_llama_cpp_canister.sh  # Note: Optional - works on Mac only
+# On Ubuntu, get llama_cpp.did & llama_cpp.wasm from google drive:
+# (-) Google Drive: ONICAI > Files > llama_cpp_canister
+#                   https://drive.google.com/drive/u/0/folders/1HAjHWSgANf8XDR6AzurZ-8JPpHDcLXae
+# (-) Store llama_cpp.did & llama_cpp.wasm in llama_cpp_canister/build
 
-# All at once:
+# Verify the did & wasm files are in place:
+ls ../../llama_cpp_canister/build/llama_cpp.did
+ls ../../llama_cpp_canister/build/llama_cpp.wasm
+
+# If deploying locally & not yet done, start the local network
+dfx start --clean
+
+# Deploy it all at once:
 # (-) --mode install is slow, because the LLM models are uploaded.
 # (-) --mode upgrade is fast, because the LLM models are NOT uploaded.
 #       The canisters are re-build and re-deployed, but the LLM models are still in the canister's stable memory.
