@@ -1,1 +1,1 @@
-# GameState canister
+See instructions in `PoAIW/README.md`

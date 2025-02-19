@@ -170,7 +170,8 @@ dfx canister call mainer_ctrlb_canister_1 triggerChallengeResponseAdmin [--ic]
 The response generation takes a moment. To ensure it worked, call
 ```bash
 # from folder: PoAIW/src/mAIner
-dfx canister call mainer_ctrlb_canister getSubmittedResponsesAdmin --output json [--ic]
+dfx canister call mainer_ctrlb_canister_0 getSubmittedResponsesAdmin --output json [--ic]
+dfx canister call mainer_ctrlb_canister_1 getSubmittedResponsesAdmin --output json [--ic]
 
 # from folder: PoAIW/src/GameState
 dfx canister call game_state_canister getSubmissionsAdmin --output json [--ic]

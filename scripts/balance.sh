@@ -7,6 +7,7 @@
 
 # Default network type is local
 NETWORK_TYPE="local"
+NUM_MAINERS_DEPLOYED=2
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -62,8 +63,16 @@ dfx canister status challenger_ctrlb_canister --network $NETWORK_TYPE 2>&1 | gre
 
 echo "==========================================="
 cd ../mAIner
-echo "Balance of mAIner canister:"
-dfx canister status mainer_ctrlb_canister --network $NETWORK_TYPE 2>&1 | grep "Balance:"; echo " "
+mainer_id_start=0
+mainer_id_end=$((NUM_MAINERS_DEPLOYED - 1))
+
+for m in $(seq $mainer_id_start $mainer_id_end)
+do
+    MAINER="mainer_ctrlb_canister_$m"
+    echo "Balance of $MAINER:"
+    dfx canister status $MAINER --network $NETWORK_TYPE 2>&1 | grep "Balance:"; echo " "
+done
+
 
 echo "==========================================="
 cd ../Judge

@@ -16,7 +16,9 @@ from icpp.smoketest import call_canister_api
 DFX_JSON_PATH = Path(__file__).parent / "../dfx.json"
 
 # Canister in the dfx.json file we want to test
-CANISTER_NAME = "mainer_ctrlb_canister"
+# TODO: put this in a loop over all mAIner control canisters
+CANISTER_NAME = "mainer_ctrlb_canister_0"
+# CANISTER_NAME = "mainer_ctrlb_canister_1"
 
 
 def test__whoami_anonymous(identity_anonymous: dict[str, str], network: str) -> None:
