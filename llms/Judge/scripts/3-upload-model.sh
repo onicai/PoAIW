@@ -15,7 +15,7 @@ NUM_LLMS_DEPLOYED=2
 # The gguf model file to upload (Relative to llama_cpp_canister folder)
 # MODEL="models/stories260Ktok512.gguf"
 # MODEL="models/stories15Mtok4096.gguf"
-# MODEL="models/tensorblock/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q4_K_M.gguf"
+# MODEL="models/tensorblock/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q8_0.gguf"
 MODEL="models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q8_0.gguf"
 # MODEL="models/unsloth/DeepSeek-R1-Distill-Qwen-1.5B-GGUF/DeepSeek-R1-Distill-Qwen-1.5B-Q2_K.gguf"
 # MODEL="models/unsloth/DeepSeek-R1-Distill-Qwen-7B-GGUF/DeepSeek-R1-Distill-Qwen-7B-Q2_K.gguf"

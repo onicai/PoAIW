@@ -100,7 +100,7 @@ To verify the files are in correct relative location:
 ```bash
 # from folder `DecentralizedAIonIC/PoAIW/llms/Challenger`:
 
-ls ../../../../llama_cpp_canister/src/llama_cpp.did
+ls ../../../../llama_cpp_canister/build/llama_cpp.did
 ls ../../../../llama_cpp_canister/build/llama_cpp.wasm
 ```
 

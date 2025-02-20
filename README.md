@@ -52,13 +52,46 @@ mops install
 sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
 ```
 
+# Download the LLMs from HuggingFace
+
+The scripts expect the *.gguf files to be in the correct location:
+
+```bash
+# See: llms/mAIner/scripts/3-upload-model.sh
+#      These paths are relative to the llama_cpp_canister root folder
+MODELS=(
+    "models/tensorblock/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q8_0.gguf"
+    "models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q8_0.gguf"
+)
+
+# Download 
+# (1) SmolLM2-135M-Instruct-Q8_0.gguf from https://huggingface.co/tensorblock/SmolLM2-135M-Instruct-GGUF
+# (2) qwen2.5-0.5b-instruct-q8_0.gguf from https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF
+
+# Verify they're in correct location
+# From folder: PoAIW
+ls ../../llama_cpp_canister/models/tensorblock/SmolLM2-135M-Instruct-GGUF/SmolLM2-135M-Instruct-Q8_0.gguf
+ls ../../llama_cpp_canister/models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q8_0.gguf
+```
+
 # Deploy ALL canisters:
 
 ```bash
 # from folder: PoAIW
 scripts/build_llama_cpp_canister.sh  # Note: Optional - works on Mac only
+# On Ubuntu, get llama_cpp.did & llama_cpp.wasm from google drive:
+# (-) Google Drive: ONICAI > Files > llama_cpp_canister
+#                   https://drive.google.com/drive/u/0/folders/1HAjHWSgANf8XDR6AzurZ-8JPpHDcLXae
+# (-) Store llama_cpp.did & llama_cpp.wasm in llama_cpp_canister/build
 
-# All at once:
+# Verify the did & wasm files are in place:
+ls ../../llama_cpp_canister/build/llama_cpp.did
+ls ../../llama_cpp_canister/build/llama_cpp.wasm
+
+# If deploying locally & not yet done, start the local network
+dfx start --clean
+
+# Deploy it all at once:
 # (-) --mode install is slow, because the LLM models are uploaded.
 # (-) --mode upgrade is fast, because the LLM models are NOT uploaded.
 #       The canisters are re-build and re-deployed, but the LLM models are still in the canister's stable memory.
@@ -129,22 +162,27 @@ dfx canister call challenger_ctrlb_canister getChallengesAdmin --output json [--
 dfx canister call game_state_canister getCurrentChallengesAdmin --output json [--ic]
 ```
 
-## Test mAIner:
+## Test mAIners:
+
 ```bash
 # from folder: PoAIW/src/mAIner
 # start the timer that generates challenge responses recurringly
-dfx canister call mainer_ctrlb_canister startTimerExecutionAdmin [--ic]
+dfx canister call mainer_ctrlb_canister_0 startTimerExecutionAdmin [--ic]
+dfx canister call mainer_ctrlb_canister_1 startTimerExecutionAdmin [--ic]
 # stop the timer that generates challenge responses recurringly
-dfx canister call mainer_ctrlb_canister stopTimerExecutionAdmin [--ic]
+dfx canister call mainer_ctrlb_canister_0 stopTimerExecutionAdmin [--ic]
+dfx canister call mainer_ctrlb_canister_1 stopTimerExecutionAdmin [--ic]
 
 # you can also trigger a single challenge response generation manually
-dfx canister call mainer_ctrlb_canister triggerChallengeResponseAdmin [--ic]
+dfx canister call mainer_ctrlb_canister_0 triggerChallengeResponseAdmin [--ic]
+dfx canister call mainer_ctrlb_canister_1 triggerChallengeResponseAdmin [--ic]
 ```
 
 The response generation takes a moment. To ensure it worked, call
 ```bash
 # from folder: PoAIW/src/mAIner
-dfx canister call mainer_ctrlb_canister getSubmittedResponsesAdmin --output json [--ic]
+dfx canister call mainer_ctrlb_canister_0 getSubmittedResponsesAdmin --output json [--ic]
+dfx canister call mainer_ctrlb_canister_1 getSubmittedResponsesAdmin --output json [--ic]
 
 # from folder: PoAIW/src/GameState
 dfx canister call game_state_canister getSubmissionsAdmin --output json [--ic]
@@ -170,11 +208,20 @@ dfx canister call game_state_canister getScoredChallengesAdmin --output json [--
 
 ## Top off the LLMs
 
-This script will top-off all LLMs to 20 trillion cycles if their balance is below 18 trillion cycles.
-
-It will use cycles from the wallet: 
+This script will top-off ALL the canisters:
+(-) all LLMs to 20 trillion cycles if their balance is below 18 trillion cycles.
+(-) all ctrlbs to 3 trillion cycles if their balance is below 1 trillion cycles.
 
 ```bash
 # from folder: PoAIW
-scripts/top-off-llms.sh --network [local/ic]
+scripts/top-off-all.sh --network [local/ic]
+```
+
+NOTE: 
+The top-off script uses cycles from the dfx user's wallet. Make sure there is enough.
+
+```bash
+# When running locally, you can just fabricate more cycles and send them to your wallet
+WALLET_CANISTER_ID=`dfx identity get-wallet`
+dfx ledger fabricate-cycles --canister $WALLET_CANISTER_ID --t 200
 ```

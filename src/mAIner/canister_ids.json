@@ -1,5 +1,8 @@
 {
-  "mainer_ctrlb_canister": {
-    "ic": "x6o6k-kqaaa-aaaaj-az4pa-cai"
+  "mainer_ctrlb_canister_0": {
+    "ic": "qwlb3-eyaaa-aaaaj-az46q-cai"
+  },
+  "mainer_ctrlb_canister_1": {
+    "ic": "q7ikh-sqaaa-aaaaj-az47a-cai"
   }
 }

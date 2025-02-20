@@ -1,7 +1,10 @@
 {
   "version": 1,
   "canisters": {
-    "mainer_ctrlb_canister": {
+    "mainer_ctrlb_canister_0": {
+      "main": "src/Main.mo"
+    },
+    "mainer_ctrlb_canister_1": {
       "main": "src/Main.mo"
     }
   },

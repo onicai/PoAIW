@@ -9,6 +9,8 @@
 NETWORK_TYPE="local"
 DEPLOY_MODE="install"
 
+NUM_MAINERS_DEPLOYED=2
+
 # When deploying to IC, we deploy to a specific subnet
 # none will not use subnet parameter in deploy to ic
 # SUBNET="none"
@@ -50,30 +52,42 @@ echo "Using network type: $NETWORK_TYPE"
 #######################################################################
 
 echo " "
-echo "--------------------------------------------------"
-echo "Deploying the mainer_ctrlb_canister"
+echo "==================================================="
+echo "Deploying $NUM_MAINERS_DEPLOYED mainers"
+mainer_id_start=0
+mainer_id_end=$((NUM_MAINERS_DEPLOYED - 1))
 
-if [ "$NETWORK_TYPE" = "ic" ]; then
-    if [ "$SUBNET" = "none" ]; then
-        dfx deploy mainer_ctrlb_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
+for m in $(seq $mainer_id_start $mainer_id_end)
+do
+    
+    MAINER="mainer_ctrlb_canister_$m"
+
+    echo " "
+    echo "--------------------------------------------------"
+    echo "Deploying $MAINER"
+
+    if [ "$NETWORK_TYPE" = "ic" ]; then
+        if [ "$SUBNET" = "none" ]; then
+            dfx deploy $MAINER --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
+        else
+            dfx deploy $MAINER --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE --subnet $SUBNET
+        fi
     else
-        dfx deploy mainer_ctrlb_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE --subnet $SUBNET
+        dfx deploy $MAINER --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
     fi
-else
-    dfx deploy mainer_ctrlb_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
-fi
 
-echo " "
-echo "--------------------------------------------------"
-echo "Checking health endpoint"
-output=$(dfx canister call mainer_ctrlb_canister health --network $NETWORK_TYPE)
+    echo " "
+    echo "--------------------------------------------------"
+    echo "Checking health endpoint"
+    output=$(dfx canister call $MAINER health --network $NETWORK_TYPE)
 
-if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-    echo "mainer_ctrlb_canister is not healthy. Exiting."
-    exit 1
-else
-    echo "mainer_ctrlb_canister is healthy."
-fi
+    if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+        echo "$MAINER is not healthy. Exiting."
+        exit 1
+    else
+        echo "$MAINER is healthy."
+    fi
+done
 
 echo " "
 echo "--------------------------------------------------"

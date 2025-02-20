@@ -2,7 +2,7 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/top-off-all.sh --network [local/ic]
+# scripts/top-off-llms.sh --network [local/ic]
 #######################################################################
 
 # Default network type is local
@@ -42,17 +42,58 @@ done
 echo "Using network type: $NETWORK_TYPE"
 
 #######################################################################
+echo " "
+echo "==========================================="
+echo "dfx identity"
+dfx identity whoami
+
+echo " "
+echo "==========================================="
+echo "Wallet canister for this identity:"
+dfx identity get-wallet --network $NETWORK_TYPE
+
+echo " "
+echo "==========================================="
+echo "Wallet balance before top-off:"
+dfx wallet --network $NETWORK_TYPE balance
+
+echo " "
 echo "==========================================="
 cd llms/Challenger
-echo "Topping off llms/Challenger:"
+echo "Topping off Challenger LLMs:"
 scripts/top-off.sh --network $NETWORK_TYPE
 
 echo "==========================================="
 cd ../Judge
-echo "Topping off llms/Judge:"
+echo "Topping off Judge LLMs:"
 scripts/top-off.sh --network $NETWORK_TYPE
 
 echo "==========================================="
 cd ../mAIner
-echo "Topping off llms/mAIner:"
+echo "Topping off mAIner LLMs:"
 scripts/top-off.sh --network $NETWORK_TYPE
+
+echo "==========================================="
+cd ../../src/GameState
+echo "Topping off GameState ctrlb:"
+scripts/top-off.sh --network $NETWORK_TYPE
+
+echo "==========================================="
+cd ../Challenger
+echo "Topping off Challenger ctrlb:"
+scripts/top-off.sh --network $NETWORK_TYPE
+
+echo "==========================================="
+cd ../Judge
+echo "Topping off Judge ctrlb:"
+scripts/top-off.sh --network $NETWORK_TYPE
+
+echo "==========================================="
+cd ../mAIner
+echo "Topping off mAIner ctrlb:"
+scripts/top-off.sh --network $NETWORK_TYPE
+
+echo "==========================================="
+echo " "
+echo "Wallet balance after top-off:"
+dfx wallet --network $NETWORK_TYPE balance

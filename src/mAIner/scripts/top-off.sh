@@ -7,7 +7,7 @@
 
 # Default network type is local
 NETWORK_TYPE="local"
-NUM_LLMS_DEPLOYED=2
+NUM_MAINERS_DEPLOYED=2 # Total number of mainers deployed
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -31,30 +31,32 @@ while [ $# -gt 0 ]; do
 done
 
 #######################################################################
-llm_id_start=0
-llm_id_end=$((NUM_LLMS_DEPLOYED - 1))
-
 # Define the threshold balance in TCycles (When to top off)
-TOPPED_OFF_BALANCE_TRESHOLD_TC=18
+TOPPED_OFF_BALANCE_TRESHOLD_TC=1
 TOPPED_OFF_BALANCE_TRESHOLD=$(echo "$TOPPED_OFF_BALANCE_TRESHOLD_TC * 1000000000000" | bc)
 TOPPED_OFF_BALANCE_TRESHOLD=$(printf "%.0f" $TOPPED_OFF_BALANCE_TRESHOLD)
 
 # Define the target balance in TCycles (To top off too)
-TOPPED_OFF_BALANCE_TARGET_TC=20
+TOPPED_OFF_BALANCE_TARGET_TC=3
 TOPPED_OFF_BALANCE_TARGET=$(echo "$TOPPED_OFF_BALANCE_TARGET_TC * 1000000000000" | bc)
 TOPPED_OFF_BALANCE_TARGET=$(printf "%.0f" $TOPPED_OFF_BALANCE_TARGET)
 
-# top off cycles for all llms in sequential mode
-for i in $(seq $llm_id_start $llm_id_end)
+# top off cycles
+mainer_id_start=0
+mainer_id_end=$((NUM_MAINERS_DEPLOYED - 1))
+
+i=0 # LLM index
+for m in $(seq $mainer_id_start $mainer_id_end)
 do
-    CURRENT_BALANCE=$(dfx canister --network $NETWORK_TYPE status llm_$i 2>&1 | grep "Balance:" | awk '{gsub("_", ""); print $2}')
+    MAINER="mainer_ctrlb_canister_$m"
+    CURRENT_BALANCE=$(dfx canister --network $NETWORK_TYPE status $MAINER 2>&1 | grep "Balance:" | awk '{gsub("_", ""); print $2}')
     NEED_CYCLES_THRESHOLD=$(echo "$TOPPED_OFF_BALANCE_TRESHOLD - $CURRENT_BALANCE" | bc)
     NEED_CYCLES_TARGET=$(echo "$TOPPED_OFF_BALANCE_TARGET - $CURRENT_BALANCE" | bc)
     if [ $(echo "$NEED_CYCLES_THRESHOLD > 0" | bc) -eq 1 ]; then
-        CANISTER_ID=$(dfx canister --network $NETWORK_TYPE id llm_$i)
-        echo "Sending $NEED_CYCLES_TARGET cycles to llm_$i"
+        CANISTER_ID=$(dfx canister --network $NETWORK_TYPE id $MAINER)
+        echo "Sending $NEED_CYCLES_TARGET cycles to $MAINER"
         dfx wallet send $CANISTER_ID $NEED_CYCLES_TARGET --network $NETWORK_TYPE
     else
-        echo "No need to send cycles to llm_$i. Balance = $(echo "scale=2; $CURRENT_BALANCE / 1000000000000" | bc) TCycles"
+        echo "No need to send cycles to $MAINER. Balance = $(echo "scale=2; $CURRENT_BALANCE / 1000000000000" | bc) TCycles"
     fi
 done
