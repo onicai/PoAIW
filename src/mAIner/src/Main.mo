@@ -51,11 +51,11 @@ actor class MainerAgentCtrlbCanister() = this {
     // Keep in sync with SUBMISSION_CYCLES_REQUIRED in GameState
     stable let SUBMISSION_CYCLES_REQUIRED : Nat = 100 * CYCLES_BILLION; // TODO: determine how many cycles are needed to process one submission (incl. judge)
 
-    // A flag for the frontend to pick up and display a message to the user
-    stable var PAUSED_DUE_TO_LOW_CYCLE_BALANCE : Bool = false;
-
     // The minimum cycle balance we want to maintain
     stable let CYCLE_BALANCE_MINIMUM = 250 * CYCLES_BILLION;
+
+    // A flag for the frontend to pick up and display a message to the user
+    stable var PAUSED_DUE_TO_LOW_CYCLE_BALANCE : Bool = false;
 
     public query (msg) func getIssueFlagsAdmin() : async Types.IssueFlagsRetrievalResult {
         if (not Principal.isController(msg.caller)) {
@@ -63,6 +63,40 @@ actor class MainerAgentCtrlbCanister() = this {
         };
         let response : Types.IssueFlagsRecord = {
             lowCycleBalance = PAUSED_DUE_TO_LOW_CYCLE_BALANCE;
+        };
+        return #Ok(response);
+    };
+
+    // Statistics
+    stable var TOTAL_MAINER_CYCLES_BURNT : Nat = 0;
+
+    private func increaseTotalCyclesBurnt(cyclesBurntToAdd : Nat) : Bool {
+        TOTAL_MAINER_CYCLES_BURNT := TOTAL_MAINER_CYCLES_BURNT + cyclesBurntToAdd;
+        return true;
+    };
+
+    stable var CYCLES_BURNT_RESPONSE_GENERATION : Nat = 50 * CYCLES_BILLION;
+
+    stable let CYCLES_BURN_RATE_DEFAULT : Types.CyclesBurnRate = {
+        cycles : Nat = 10 * _CYCLES_TRILLION;
+        timeInterval : Types.TimeInterval = #Daily;
+    };
+
+    public query (msg) func getMainerStatisticsAdmin() : async Types.StatisticsRetrievalResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        var cyclesBurnRateToReturn : Types.CyclesBurnRate = CYCLES_BURN_RATE_DEFAULT;
+        switch (getCurrentAgentSettings()) {
+            case (null) {};
+            case (?agentSettings) {
+                cyclesBurnRateToReturn := agentSettings.cyclesBurnRate;
+            };
+        };
+        let response : Types.StatisticsRecord = {
+            totalCyclesBurnt = TOTAL_MAINER_CYCLES_BURNT;
+            cycleBalance = Cycles.balance();
+            cyclesBurnRate = cyclesBurnRateToReturn;
         };
         return #Ok(response);
     };
@@ -303,6 +337,9 @@ actor class MainerAgentCtrlbCanister() = this {
             case (#Ok(respondingOutput : Types.ChallengeResponse)) {
                 D.print("mAIner:  processRespondingToChallenge - calling putGeneratedResponse");
                 D.print("mAIner:  respondingOutput = " # debug_show (respondingOutput));
+                // TODO: adapt cycles burnt stats
+                ignore increaseTotalCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
+
                 // Store response
                 let storeResult : Bool = putGeneratedResponse(respondingOutput);
                 D.print("mAIner:  processRespondingToChallenge - returned from putGeneratedResponse");
@@ -388,7 +425,10 @@ actor class MainerAgentCtrlbCanister() = this {
                                         D.print("mAIner:  putResult error");
                                         // TODO: error handling
                                     };
-                                    case (true) {};
+                                    case (true) {
+                                        // TODO: adapt cycles burnt stats
+                                        ignore increaseTotalCyclesBurnt(SUBMISSION_CYCLES_REQUIRED);
+                                    };
                                 };
                             };
                         };

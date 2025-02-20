@@ -223,4 +223,12 @@ module Types {
     };
 
     public type IssueFlagsRetrievalResult = Result<IssueFlagsRecord, ApiError>;
+
+    public type StatisticsRecord = {
+        totalCyclesBurnt : Nat;
+        cycleBalance : Nat;
+        cyclesBurnRate : CyclesBurnRate;
+    };
+
+    public type StatisticsRetrievalResult = Result<StatisticsRecord, ApiError>;
 };
