@@ -217,4 +217,10 @@ module Types {
     };
 
     public type AuthRecordResult = Result<AuthRecord, ApiError>;
+
+    public type IssueFlagsRecord = {
+        lowCycleBalance : Bool;
+    };
+
+    public type IssueFlagsRetrievalResult = Result<IssueFlagsRecord, ApiError>;
 };

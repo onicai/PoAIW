@@ -45,6 +45,27 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Orthogonal Persisted Data storage
+    stable let _CYCLES_MILLION = 1_000_000;
+    stable let CYCLES_BILLION = 1_000_000_000;
+    stable let _CYCLES_TRILLION = 1_000_000_000_000;
+    // Keep in sync with SUBMISSION_CYCLES_REQUIRED in GameState
+    stable let SUBMISSION_CYCLES_REQUIRED : Nat = 100 * CYCLES_BILLION; // TODO: determine how many cycles are needed to process one submission (incl. judge)
+
+    // A flag for the frontend to pick up and display a message to the user
+    stable var PAUSED_DUE_TO_LOW_CYCLE_BALANCE : Bool = false;
+
+    // The minimum cycle balance we want to maintain
+    stable let CYCLE_BALANCE_MINIMUM = 250 * CYCLES_BILLION;
+
+    public query (msg) func getIssueFlagsAdmin() : async Types.IssueFlagsRetrievalResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let response : Types.IssueFlagsRecord = {
+            lowCycleBalance = PAUSED_DUE_TO_LOW_CYCLE_BALANCE;
+        };
+        return #Ok(response);
+    };
 
     // timer ID, so we can stop it after starting
     stable var recurringTimerId : ?Timer.TimerId = null;
@@ -600,18 +621,6 @@ actor class MainerAgentCtrlbCanister() = this {
         };
         return #Ok(responseOutput);
     };
-
-    // Keep in sync with SUBMISSION_CYCLES_REQUIRED in GameState
-    stable let _CYCLES_MILLION = 1_000_000;
-    stable let CYCLES_BILLION = 1_000_000_000;
-    stable let _CYCLES_TRILLION = 1_000_000_000_000;
-    stable let SUBMISSION_CYCLES_REQUIRED : Nat = 100 * CYCLES_BILLION; // TODO: determine how many cycles are needed to process one submission (incl. judge)
-
-    // A flag for the frontend to pick up and display a message to the user
-    stable var PAUSED_DUE_TO_LOW_CYCLE_BALANCE : Bool = false;
-
-    // The minimum cycle balance we want to maintain
-    stable let CYCLE_BALANCE_MINIMUM = 250 * CYCLES_BILLION;
 
     private func respondToNextChallenge() : async () {
         D.print("mAIner:  respondToNextChallenge - entered");
