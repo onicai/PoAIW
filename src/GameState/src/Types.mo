@@ -179,6 +179,12 @@ module Types {
 
     public type ScoredChallengesResult = Result<[(Text, List.List<ScoredResponse>)], ApiError>;
 
+    public type SubmissionRetrievalInput = {
+        challengeId : Text;
+        submissionId : Text;
+    };
+
+    public type ScoredResponseRetrievalResult = Result<ScoredResponse, ApiError>;
 
     //-------------------------------------------------------------------------
     public type ChallengeWinnerDeclaration = {

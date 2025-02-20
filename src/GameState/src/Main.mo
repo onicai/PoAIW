@@ -1334,6 +1334,24 @@ actor class GameStateCanister() = this {
         return #Ok(result);
     };
 
+    // Function for user to get the score of a submission by one of their mAIners
+    public shared query (msg) func getScoreForSubmission(submissionInput : Types.SubmissionRetrievalInput) : async Types.ScoredResponseRetrievalResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let result : ?Types.ScoredResponse = getScoredResponse(submissionInput.challengeId, submissionInput.submissionId);
+        switch (result) {
+            case (null) {
+                return #Err(#InvalidId);
+            };
+            case (?scoredResponse) {
+                // TODO: decide if only owner of mAIner should be allowed to retrieve this
+                return #Ok(scoredResponse);
+            };
+        };
+    };
+
 // Upgrade Hooks
     system func preupgrade() {
         challengerCanistersStorageStable := Iter.toArray(challengerCanistersStorage.entries());
