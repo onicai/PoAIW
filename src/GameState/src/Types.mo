@@ -59,6 +59,8 @@ module Types {
 
     public type MainerAgentCanisterResult = Result<OfficialProtocolCanister, ApiError>;
 
+    public type MainerAgentCanistersResult = Result<[OfficialProtocolCanister], ApiError>;
+
     public type CanisterRetrieveInput = {
         address : CanisterAddress;
     };

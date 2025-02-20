@@ -125,13 +125,19 @@ actor class GameStateCanister() = this {
         switch (getMainerAgentCanister(canisterAddress)) {
             case (null) {
                 mainerAgentCanistersStorage.put(canisterAddress, canisterEntry);
-                // TODO: add to userToMainerAgentsStorage
-                #Ok(canisterEntry)
+                switch (putUserMainerAgent(canisterEntry)) {
+                    case (false) {
+                        return #Err(#Other("Error in putUserMainerAgent"));
+                    };
+                    case (true) {
+                        return #Ok(canisterEntry);
+                    };
+                };
             };
             case (?canisterEntry) { 
                 //existing entry
                 D.print("GameState: putMainerAgentCanister - canisterEntry already exists -" # debug_show(canisterEntry));
-                #Err(#Other("Canister entry already exists"));
+                return #Err(#Other("Canister entry already exists"));
             }; 
         };
     };
@@ -154,7 +160,41 @@ actor class GameStateCanister() = this {
         };
     };
 
-    // TODO: put, get, remove for userToMainerAgentsStorage
+    private func putUserMainerAgent(canisterEntry : Types.OfficialProtocolCanister) : Bool {
+        switch (getUserMainerAgents(canisterEntry.ownedBy)) {
+            case (null) {
+                // first entry
+                let userCanistersList : List.List<Types.OfficialProtocolCanister> = List.make<Types.OfficialProtocolCanister>(canisterEntry);
+                userToMainerAgentsStorage.put(canisterEntry.ownedBy, userCanistersList);
+                return true;
+            };
+            case (?userCanistersList) { 
+                //existing list, add entry to it
+                let updatedUserCanistersList : List.List<Types.OfficialProtocolCanister> = List.push<Types.OfficialProtocolCanister>(canisterEntry, userCanistersList);
+                userToMainerAgentsStorage.put(canisterEntry.ownedBy, updatedUserCanistersList);
+                return true;
+            }; 
+        };
+    };
+
+    private func getUserMainerAgents(userId : Principal) : ?List.List<Types.OfficialProtocolCanister> {
+        switch (userToMainerAgentsStorage.get(userId)) {
+            case (null) { return null; };
+            case (?userCanistersList) { return ?userCanistersList; };
+        };
+    };
+
+    private func removeUserMainerAgent(canisterEntry : Types.OfficialProtocolCanister) : Bool {
+        switch (getUserMainerAgents(canisterEntry.ownedBy)) {
+            case (null) { return false; };
+            case (?userCanistersList) { 
+                //existing list, remove entry from it
+                let updatedUserCanistersList : List.List<Types.OfficialProtocolCanister> = List.filter(userCanistersList, func(listEntry: Types.OfficialProtocolCanister) : Bool { listEntry.address != canisterEntry.address });
+                userToMainerAgentsStorage.put(canisterEntry.ownedBy, updatedUserCanistersList);
+                return true;
+            }; 
+        };
+    };
 
     // Open topics for Challenges to be generated
     stable var openChallengeTopicsStorageStable : [(Text, Types.ChallengeTopic)] = [];
@@ -932,6 +972,20 @@ actor class GameStateCanister() = this {
             ownedBy : Principal = canisterEntryToAdd.ownedBy;
         }; 
         putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry); 
+    };
+
+    // Function for user to get their mAIner agent canisters
+    public shared query (msg) func getMainerAgentCanistersForUser() : async Types.MainerAgentCanistersResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Only official Challenger canisters may call this
+        switch (getUserMainerAgents(msg.caller)) {
+            case (null) { return #Err(#Other("No canisters for this caller")); };
+            case (?userCanistersList) {
+                return #Ok(List.toArray<Types.OfficialProtocolCanister>(userCanistersList));                              
+            };
+        };
     };
 
     // Function to retrieve info on a mAIner agent canister
