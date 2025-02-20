@@ -98,16 +98,28 @@ actor class MainerAgentCtrlbCanister() = this {
         return List.toArray<Types.ChallengeResponseSubmission>(submittedResponses);
     };
 
+    private func getLastSubmittedResponses(numberToRetrieve : Nat) : [Types.ChallengeResponseSubmission] {
+        return List.toArray<Types.ChallengeResponseSubmission>(List.take<Types.ChallengeResponseSubmission>(submittedResponses, numberToRetrieve));
+    };
+
     private func removeSubmittedResponse(submissionId : Text) : Bool {
         submittedResponses := List.filter(submittedResponses, func(responseEntry : Types.ChallengeResponseSubmission) : Bool { responseEntry.submissionId != submissionId });
         return true;
     };
 
-    public shared query (msg) func getSubmittedResponsesAdmin() : async Types.ChallengeResponseSubmissionsResult {
+    public query (msg) func getSubmittedResponsesAdmin() : async Types.ChallengeResponseSubmissionsResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
         let submissions : [Types.ChallengeResponseSubmission] = getSubmittedResponses();
+        return #Ok(submissions);
+    };
+
+    public query (msg) func getRecentSubmittedResponsesAdmin() : async Types.ChallengeResponseSubmissionsResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let submissions : [Types.ChallengeResponseSubmission] = getLastSubmittedResponses(5);
         return #Ok(submissions);
     };
 
