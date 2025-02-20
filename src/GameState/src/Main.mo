@@ -42,9 +42,10 @@ actor class GameStateCanister() = this {
     stable let FAILED_SUBMISSION_CYCLES_CUT : Nat = SUBMISSION_CYCLES_REQUIRED / 5;
     stable let _JUDGE_CYCLES_PROVISION_PER_SUBMISSION : Nat = 80 * CYCLES_BILLION; // TODO: determine how many cycles should be forwarded to judge per submission
 
-    stable var CYCLES_BURNT_CHALLENGE_CREATION : Nat = 50 * CYCLES_BILLION;
-    stable var CYCLES_BURNT_RESPONSE_GENERATION : Nat = 50 * CYCLES_BILLION;
-    stable var CYCLES_BURNT_JUDGE_SCORING : Nat = 50 * CYCLES_BILLION;
+    // TODO: llama_cpp_canister must return these values
+    stable var CYCLES_BURNT_CHALLENGE_CREATION : Nat = 110 * CYCLES_BILLION;
+    stable var CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * CYCLES_BILLION;
+    stable var CYCLES_BURNT_JUDGE_SCORING : Nat = 300 * CYCLES_BILLION;
 
     // Official Challenger canisters
     stable var challengerCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
