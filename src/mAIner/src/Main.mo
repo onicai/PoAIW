@@ -75,7 +75,8 @@ actor class MainerAgentCtrlbCanister() = this {
         return true;
     };
 
-    stable var CYCLES_BURNT_RESPONSE_GENERATION : Nat = 50 * CYCLES_BILLION;
+    // TODO: llama_cpp_canister must return this number
+    stable var CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * CYCLES_BILLION;
 
     stable let CYCLES_BURN_RATE_DEFAULT : Types.CyclesBurnRate = {
         cycles : Nat = 10 * CYCLES_TRILLION;
