@@ -47,7 +47,7 @@ actor class MainerAgentCtrlbCanister() = this {
     // Orthogonal Persisted Data storage
     stable let _CYCLES_MILLION = 1_000_000;
     stable let CYCLES_BILLION = 1_000_000_000;
-    stable let _CYCLES_TRILLION = 1_000_000_000_000;
+    stable let CYCLES_TRILLION = 1_000_000_000_000;
     // Keep in sync with SUBMISSION_CYCLES_REQUIRED in GameState
     stable let SUBMISSION_CYCLES_REQUIRED : Nat = 100 * CYCLES_BILLION; // TODO: determine how many cycles are needed to process one submission (incl. judge)
 
@@ -78,7 +78,7 @@ actor class MainerAgentCtrlbCanister() = this {
     stable var CYCLES_BURNT_RESPONSE_GENERATION : Nat = 50 * CYCLES_BILLION;
 
     stable let CYCLES_BURN_RATE_DEFAULT : Types.CyclesBurnRate = {
-        cycles : Nat = 10 * _CYCLES_TRILLION;
+        cycles : Nat = 10 * CYCLES_TRILLION;
         timeInterval : Types.TimeInterval = #Daily;
     };
 
