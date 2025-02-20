@@ -224,6 +224,13 @@ module Types {
 
     public type ChallengeWinnersResult = Result<[ChallengeWinnerDeclaration], ApiError>;
 
+    public type ProtocolActivityRecord = {
+        winners : [ChallengeWinnerDeclaration];
+        challenges : [Challenge];
+    };
+
+    public type ProtocolActivityResult = Result<ProtocolActivityRecord, ApiError>;
+
     //-------------------------------------------------------------------------
 
     public type FileUploadRecord = {

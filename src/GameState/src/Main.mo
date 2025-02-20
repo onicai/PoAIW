@@ -1323,6 +1323,17 @@ actor class GameStateCanister() = this {
         return #Ok(getWinnersForRecentChallenges());
     };
 
+    // Function to get recent protocol activity
+    public query func getRecentProtocolActivity() : async Types.ProtocolActivityResult {
+        let winnersForRecentChallenges : [Types.ChallengeWinnerDeclaration] = getWinnersForRecentChallenges();
+        let openChallenges : [Types.Challenge] = getOpenChallenges();
+        let result : Types.ProtocolActivityRecord = {
+            winners = winnersForRecentChallenges;
+            challenges = openChallenges;
+        };
+        return #Ok(result);
+    };
+
 // Upgrade Hooks
     system func preupgrade() {
         challengerCanistersStorageStable := Iter.toArray(challengerCanistersStorage.entries());
