@@ -238,7 +238,9 @@ module Types {
     public type ProtocolActivityResult = Result<ProtocolActivityRecord, ApiError>;
 
     //-------------------------------------------------------------------------
+    public type CyclesBurntResult = Result<Nat, ApiError>;
 
+    //-------------------------------------------------------------------------
     public type FileUploadRecord = {
         creationResult : Text;
     };

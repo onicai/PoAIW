@@ -24,6 +24,28 @@ actor class GameStateCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
+    // Statistics
+    stable var TOTAL_PROTOCOL_CYCLES_BURNT : Nat = 0;
+
+    private func increaseTotalProtocolCyclesBurnt(cyclesBurntToAdd : Nat) : Bool {
+        TOTAL_PROTOCOL_CYCLES_BURNT := TOTAL_PROTOCOL_CYCLES_BURNT + cyclesBurntToAdd;
+        return true;
+    };
+
+    // TODO: Cycles burnt per operation    
+    stable let _CYCLES_MILLION = 1_000_000;
+    stable let CYCLES_BILLION = 1_000_000_000;
+    stable let _CYCLES_TRILLION = 1_000_000_000_000;
+    // TODO: Keep in sync with SUBMISSION_CYCLES_REQUIRED in mAIner
+    stable let SUBMISSION_CYCLES_REQUIRED : Nat = 100 * CYCLES_BILLION; // TODO: determine how many cycles are needed to process one submission (incl. judge)
+    
+    stable let FAILED_SUBMISSION_CYCLES_CUT : Nat = SUBMISSION_CYCLES_REQUIRED / 5;
+    stable let _JUDGE_CYCLES_PROVISION_PER_SUBMISSION : Nat = 80 * CYCLES_BILLION; // TODO: determine how many cycles should be forwarded to judge per submission
+
+    stable var CYCLES_BURNT_CHALLENGE_CREATION : Nat = 50 * CYCLES_BILLION;
+    stable var CYCLES_BURNT_RESPONSE_GENERATION : Nat = 50 * CYCLES_BILLION;
+    stable var CYCLES_BURNT_JUDGE_SCORING : Nat = 50 * CYCLES_BILLION;
+
     // Official Challenger canisters
     stable var challengerCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
     var challengerCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -846,6 +868,7 @@ actor class GameStateCanister() = this {
             return #Err(#Unauthorized);
         };
         // TODO: require cycles for adding new challenge
+        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_CHALLENGE_CREATION);
 
         // Only official Challenger canisters may call this
         switch (getChallengerCanister(Principal.toText(msg.caller))) {
@@ -1029,16 +1052,6 @@ actor class GameStateCanister() = this {
     };
 
     // Function for mAIner agent canister to submit a response to an open challenge
-
-    // Keep in sync with SUBMISSION_CYCLES_REQUIRED in mAIner 
-    stable let _CYCLES_MILLION = 1_000_000;
-    stable let CYCLES_BILLION = 1_000_000_000;
-    stable let _CYCLES_TRILLION = 1_000_000_000_000;
-    stable let SUBMISSION_CYCLES_REQUIRED : Nat = 100 * CYCLES_BILLION; // TODO: determine how many cycles are needed to process one submission (incl. judge)
-    
-    stable let FAILED_SUBMISSION_CYCLES_CUT : Nat = SUBMISSION_CYCLES_REQUIRED / 5;
-    stable let _JUDGE_CYCLES_PROVISION_PER_SUBMISSION : Nat = 80 * CYCLES_BILLION; // TODO: determine how many cycles should be forwarded to judge per submission
-
     public shared (msg) func submitChallengeResponse(challengeResponseSubmissionInput : Types.ChallengeResponseSubmissionInput) : async Types.ChallengeResponseSubmissionMetadataResult {
         D.print("GameState: submitChallengeResponse - entered");
         if (Principal.isAnonymous(msg.caller)) {
@@ -1054,6 +1067,8 @@ actor class GameStateCanister() = this {
             D.print("GameState: submitChallengeResponse - cycles required : " # debug_show(SUBMISSION_CYCLES_REQUIRED));
             return #Err(#InsuffientCycles(SUBMISSION_CYCLES_REQUIRED));                    
         };
+        // TODO: adapt cycles burnt stats
+        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
         // Only official mAIner agent canisters may call this
         switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
             case (null) {
@@ -1203,6 +1218,8 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        // TODO: adapt cycles burnt stats
+        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_JUDGE_SCORING);
         // Only official Judge canisters may call this
         switch (getJudgeCanister(Principal.toText(msg.caller))) {
             case (null) { 
@@ -1335,7 +1352,7 @@ actor class GameStateCanister() = this {
     };
 
     // Function for user to get the score of a submission by one of their mAIners
-    public shared query (msg) func getScoreForSubmission(submissionInput : Types.SubmissionRetrievalInput) : async Types.ScoredResponseRetrievalResult {
+    public query (msg) func getScoreForSubmission(submissionInput : Types.SubmissionRetrievalInput) : async Types.ScoredResponseRetrievalResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -1350,6 +1367,10 @@ actor class GameStateCanister() = this {
                 return #Ok(scoredResponse);
             };
         };
+    };
+
+    public query func getProtocolTotalCyclesBurnt() : async Types.CyclesBurntResult {
+        return #Ok(TOTAL_PROTOCOL_CYCLES_BURNT);
     };
 
 // Upgrade Hooks
