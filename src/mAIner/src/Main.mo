@@ -58,9 +58,10 @@ actor class MainerAgentCtrlbCanister() = this {
     stable var PAUSED_DUE_TO_LOW_CYCLE_BALANCE : Bool = false;
 
     public query (msg) func getIssueFlagsAdmin() : async Types.IssueFlagsRetrievalResult {
-        if (not Principal.isController(msg.caller)) {
+        // TODO: put access checks in place
+        /* if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
-        };
+        }; */
         let response : Types.IssueFlagsRecord = {
             lowCycleBalance = PAUSED_DUE_TO_LOW_CYCLE_BALANCE;
         };
@@ -84,9 +85,10 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getMainerStatisticsAdmin() : async Types.StatisticsRetrievalResult {
-        if (not Principal.isController(msg.caller)) {
+        // TODO: put access checks in place
+        /* if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
-        };
+        }; */
         var cyclesBurnRateToReturn : Types.CyclesBurnRate = CYCLES_BURN_RATE_DEFAULT;
         switch (getCurrentAgentSettings()) {
             case (null) {};
@@ -172,9 +174,10 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getRecentSubmittedResponsesAdmin() : async Types.ChallengeResponseSubmissionsResult {
-        if (not Principal.isController(msg.caller)) {
+        // TODO: put access checks in place
+        /* if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
-        };
+        }; */
         let submissions : [Types.ChallengeResponseSubmission] = getLastSubmittedResponses(5);
         return #Ok(submissions);
     };

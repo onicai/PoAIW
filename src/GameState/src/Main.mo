@@ -207,6 +207,15 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Caution: function that returns all mAIner agents (TODO: decide if needed)
+    private func getMainerAgents() : [Types.OfficialProtocolCanister] {
+        var mainerAgents : List.List<Types.OfficialProtocolCanister> = List.nil<Types.OfficialProtocolCanister>();
+        for (userMainerAgentsList in userToMainerAgentsStorage.vals()) {
+            mainerAgents := List.append<Types.OfficialProtocolCanister>(userMainerAgentsList, mainerAgents);    
+        };
+        return List.toArray(mainerAgents);
+    };
+
     private func removeUserMainerAgent(canisterEntry : Types.OfficialProtocolCanister) : Bool {
         switch (getUserMainerAgents(canisterEntry.ownedBy)) {
             case (null) { return false; };
@@ -1000,7 +1009,11 @@ actor class GameStateCanister() = this {
 
     // Function for user to get their mAIner agent canisters
     public shared query (msg) func getMainerAgentCanistersForUser() : async Types.MainerAgentCanistersResult {
-        if (Principal.isAnonymous(msg.caller)) {
+        // TODO: only for demo: allow open access
+        return #Ok(getMainerAgents()); 
+        
+        // TODO: put access checks into place again 
+        /* if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
         // Only official Challenger canisters may call this
@@ -1009,7 +1022,7 @@ actor class GameStateCanister() = this {
             case (?userCanistersList) {
                 return #Ok(List.toArray<Types.OfficialProtocolCanister>(userCanistersList));                              
             };
-        };
+        }; */
     };
 
     // Function to retrieve info on a mAIner agent canister
@@ -1341,7 +1354,7 @@ actor class GameStateCanister() = this {
         return #Ok(getWinnersForRecentChallenges());
     };
 
-    // Function to get recent protocol activity
+    // Function to get recent protocol activity (TODO: decide if access should remain public)
     public query func getRecentProtocolActivity() : async Types.ProtocolActivityResult {
         let winnersForRecentChallenges : [Types.ChallengeWinnerDeclaration] = getWinnersForRecentChallenges();
         let openChallenges : [Types.Challenge] = getOpenChallenges();
@@ -1354,9 +1367,10 @@ actor class GameStateCanister() = this {
 
     // Function for user to get the score of a submission by one of their mAIners
     public query (msg) func getScoreForSubmission(submissionInput : Types.SubmissionRetrievalInput) : async Types.ScoredResponseRetrievalResult {
-        if (Principal.isAnonymous(msg.caller)) {
+        // TODO: put access checks in place
+        /* if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
-        };
+        }; */
 
         let result : ?Types.ScoredResponse = getScoredResponse(submissionInput.challengeId, submissionInput.submissionId);
         switch (result) {
