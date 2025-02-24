@@ -25,7 +25,9 @@ actor class GameStateCanister() = this {
     };
 
     // Game Settings
-    stable var THRESHOLD_MAX_OPEN_CHALLENGES : Nat = 2;
+    // TODO: Create an endpoint, so we can modify these values without having to do a reinstall
+    stable var THRESHOLD_MAX_OPEN_CHALLENGES : Nat = 2; // When falling below, new challenges will generated
+    stable var THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE = 3; // When reached, ranking and winner declaration; challenge is closed
     stable var THRESHOLD_ARCHIVE_CLOSED_CHALLENGES : Nat = 30;
 
     // Statistics
@@ -1232,8 +1234,7 @@ actor class GameStateCanister() = this {
     };
 
     // Function for Judge canister to add a new scored response
-    stable let THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE = 20; // TODO: determine threshold how many scored responses are needed before challenge is closed (for ranking and winner declaration)
-    
+        
     public shared (msg) func addScoredResponse(scoredResponseInput : Types.ScoredResponseInput) : async Types.ScoredResponseResult {
         D.print("GameState: addScoredResponse - entered");
         if (Principal.isAnonymous(msg.caller)) {
@@ -1320,10 +1321,17 @@ actor class GameStateCanister() = this {
                 D.print("GameState: addScoredResponse - All Good - calling putScoredResponseForChallenge");
                 D.print("GameState: addScoredResponse - scoredResponseEntry = " # debug_show(scoredResponseEntry));
                 let numberOfScoredResponsesForChallenge : Nat = putScoredResponseForChallenge(scoredResponseEntry);
+                D.print("GameState: addScoredResponse - numberOfScoredResponsesForChallenge = " # debug_show(numberOfScoredResponsesForChallenge));
+                D.print("GameState: addScoredResponse - THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE = " # debug_show(THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE));
 
                 // Determine if ranking of scored responses can be triggered
                 if (numberOfScoredResponsesForChallenge >= THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE) {
+                    // TODO: we should close the challenge for handing out to mAIners, but we need to:
+                    //       (-) accept mAIner submissions that have already received this challenge
+                    //       (-) score those submissions
+                    //       FOR NOW - JUST CLOSE IT AND RANK IT...
                     // Close challenge
+                    D.print("GameState: addScoredResponse - reached threshold & closing the challenge: " # debug_show(scoredResponseInput.challengeQuestion));
                     switch (closeChallenge(scoredResponseInput.challengeId)) {
                         case (false) {
                             // TODO: error handling (e.g. put into queue and try ranking again later)
@@ -1336,6 +1344,7 @@ actor class GameStateCanister() = this {
                                     // TODO: error handling (e.g. put into queue and try ranking again later)
                                 };
                                 case (?challengeWinnerDeclaration) {
+                                    D.print("GameState: addScoredResponse - ranked and declared winner: " # debug_show(challengeWinnerDeclaration));
                                     // TODO: Pay reward
                                     
                                 };
