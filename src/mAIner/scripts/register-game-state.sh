@@ -11,7 +11,10 @@ NETWORK_TYPE="local"
 NUM_MAINERS_DEPLOYED=2
 
 # When deploying local, use canister IDs from .env
-source ../GameState/.env
+# Use this when deploying from funnAI
+source ../../../.env
+# Use this when deploying from PoAIW
+# source ../GameState/.env
 
 # none will not use subnet parameter in deploy to ic
 SUBNET="none"
