@@ -24,6 +24,10 @@ actor class GameStateCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
+    // Game Settings
+    stable var THRESHOLD_MAX_OPEN_CHALLENGES : Nat = 2;
+    stable var THRESHOLD_ARCHIVE_CLOSED_CHALLENGES : Nat = 30;
+
     // Statistics
     stable var TOTAL_PROTOCOL_CYCLES_BURNT : Nat = 0;
 
@@ -319,8 +323,6 @@ actor class GameStateCanister() = this {
         closedChallenges := newClosedChallenges;
         return true;
     };
-
-    stable var THRESHOLD_ARCHIVE_CLOSED_CHALLENGES : Nat = 30;
 
     private func archiveClosedChallenges() : Bool {
         let numberOfClosedChallenges = List.size<Types.Challenge>(closedChallenges);
@@ -861,6 +863,11 @@ actor class GameStateCanister() = this {
         switch (getChallengerCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
             case (?_challengerEntry) {
+                // Do we already have enough open challenges?
+                let openChallenges : [Types.Challenge] = getOpenChallenges();
+                if (openChallenges.size() >= THRESHOLD_MAX_OPEN_CHALLENGES) {
+                    return #Err(#Other("We already have sufficient open challenges."));
+                };
                 let challengeTopicResult : ?Types.ChallengeTopic = await getRandomChallengeTopic(#Open);
                 switch (challengeTopicResult) {
                     case (?challengeTopic) {
