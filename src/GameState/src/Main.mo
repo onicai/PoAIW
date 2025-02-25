@@ -24,6 +24,37 @@ actor class GameStateCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
+    // Game Settings
+    stable var THRESHOLD_ARCHIVE_CLOSED_CHALLENGES : Nat = 30;
+    stable var THRESHOLD_MAX_OPEN_CHALLENGES : Nat = 2; // When above, Challengers will not be given a topic able to generate new challenges
+    stable var THRESHOLD_MAX_OPEN_SUBMISSIONS : Nat = 5; // When above, mAIner agents will not be given a challenge to generate new responses
+    stable var THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE : Nat = 3; // When reached, ranking and winner declaration; challenge is closed
+    
+    public shared (msg) func setGameStateThresholdsAdmin(thresholds : Types.GameStateTresholds) : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        THRESHOLD_ARCHIVE_CLOSED_CHALLENGES := thresholds.thresholdArchiveClosedChallenges;
+        THRESHOLD_MAX_OPEN_CHALLENGES := thresholds.thresholdMaxOpenChallenges;
+        THRESHOLD_MAX_OPEN_SUBMISSIONS := thresholds.thresholdMaxOpenSubmissions;
+        THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE := thresholds.thresholdScoredResponsesPerChallenge;
+        return #Ok({ status_code = 200 });
+    };
+
+    public shared query (msg) func getGameStateThresholdsAdmin() : async Types.GameStateTresholdsResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let thresholds : Types.GameStateTresholds = {
+            thresholdArchiveClosedChallenges = THRESHOLD_ARCHIVE_CLOSED_CHALLENGES;
+            thresholdMaxOpenChallenges = THRESHOLD_MAX_OPEN_CHALLENGES;
+            thresholdMaxOpenSubmissions = THRESHOLD_MAX_OPEN_SUBMISSIONS;
+            thresholdScoredResponsesPerChallenge = THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE;
+        };
+        return #Ok(thresholds);
+    };  
+
+
     // Statistics
     stable var TOTAL_PROTOCOL_CYCLES_BURNT : Nat = 0;
 
@@ -320,8 +351,6 @@ actor class GameStateCanister() = this {
         return true;
     };
 
-    stable var THRESHOLD_ARCHIVE_CLOSED_CHALLENGES : Nat = 30;
-
     private func archiveClosedChallenges() : Bool {
         let numberOfClosedChallenges = List.size<Types.Challenge>(closedChallenges);
         if (numberOfClosedChallenges >= THRESHOLD_ARCHIVE_CLOSED_CHALLENGES) {
@@ -471,6 +500,15 @@ actor class GameStateCanister() = this {
         return Iter.toArray(submissionsStorage.vals());
     };
 
+    private func getOpenSubmissions() : [Types.ChallengeResponseSubmission] {
+        return Iter.toArray(Iter.filter(submissionsStorage.vals(), func(submission: Types.ChallengeResponseSubmission) : Bool {
+            switch (submission.submissionStatus) {
+            case (#Submitted) { true };
+            case (_) { false };
+            }
+        }));
+    };
+
     private func removeSubmission(submissionId : Text) : Bool {
         switch (submissionsStorage.get(submissionId)) {
             case (null) { return false; };
@@ -479,6 +517,23 @@ actor class GameStateCanister() = this {
                 return true;
             };
         };
+    };
+
+    // Admin functions to get all open submissions
+    public shared query (msg) func getOpenSubmissionsAdmin() : async Types.ChallengeResponseSubmissionsResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let openSubmissions : [Types.ChallengeResponseSubmission] = getOpenSubmissions();
+        return #Ok(openSubmissions);
+    };
+
+    public shared query (msg) func getNumOpenSubmissionsAdmin() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let openSubmissions : [Types.ChallengeResponseSubmission] = getOpenSubmissions();
+        return #Ok(openSubmissions.size());
     };
 
     // Winner declaration per challenge id
@@ -542,7 +597,7 @@ actor class GameStateCanister() = this {
         return challengeId;
     };
 
-    // Admin function to get all scored responses
+    // Admin functions to get all scored responses
     public shared query (msg) func getScoredChallengesAdmin() : async Types.ScoredChallengesResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -551,6 +606,16 @@ actor class GameStateCanister() = this {
         let scoredChallengesArray : [(Text, List.List<Types.ScoredResponse>)] = Iter.toArray(scoredResponsesPerChallenge.entries());
 
         return #Ok(scoredChallengesArray);
+    };
+
+    public shared query (msg) func getNumScoredChallengesAdmin() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let scoredChallengesArray : [(Text, List.List<Types.ScoredResponse>)] = Iter.toArray(scoredResponsesPerChallenge.entries());
+
+        return #Ok(scoredChallengesArray.size());
     };
 
     // TODO: determine exact reward
@@ -843,13 +908,21 @@ actor class GameStateCanister() = this {
         };
     };
 
-    // Function for Admin to retrieve current challenges
+    // Functions for Admin to retrieve current challenges
     public shared query (msg) func getCurrentChallengesAdmin() : async Types.ChallengesResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
         let challenges : [Types.Challenge] = getOpenChallenges();
         return #Ok(challenges);
+    };
+
+    public shared query (msg) func getNumCurrentChallengesAdmin() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let challenges : [Types.Challenge] = getOpenChallenges();
+        return #Ok(challenges.size());
     };
 
     // Function for Challenger agent canister to retrieve a random challenge topic
@@ -861,6 +934,11 @@ actor class GameStateCanister() = this {
         switch (getChallengerCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
             case (?_challengerEntry) {
+                // Do we already have enough open challenges?
+                let openChallenges : [Types.Challenge] = getOpenChallenges();
+                if (openChallenges.size() >= THRESHOLD_MAX_OPEN_CHALLENGES) {
+                    return #Err(#Other("We already have sufficient open challenges."));
+                };
                 let challengeTopicResult : ?Types.ChallengeTopic = await getRandomChallengeTopic(#Open);
                 switch (challengeTopicResult) {
                     case (?challengeTopic) {
@@ -1054,6 +1132,11 @@ actor class GameStateCanister() = this {
         switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
             case (?mainerAgentEntry) {
+                // Do we already have enough open responses?
+                let openSubmissions : [Types.ChallengeResponseSubmission] = getOpenSubmissions();
+                if (openSubmissions.size() >= THRESHOLD_MAX_OPEN_SUBMISSIONS) {
+                    return #Err(#Other("We have a judging backlog & currently do not distribute open challenges to mAIners."));
+                };
                 let challengeResult : ?Types.Challenge = await getRandomChallenge(#Open);
                 switch (challengeResult) {
                     case (?challenge) {
@@ -1148,13 +1231,21 @@ actor class GameStateCanister() = this {
         };
     };
 
-    // Function for Admin to retrieve submissions
+    // Functions for Admin to retrieve submissions
     public shared query (msg) func getSubmissionsAdmin() : async Types.ChallengeResponseSubmissionsResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
         let submissions : [Types.ChallengeResponseSubmission] = getSubmissions();
         return #Ok(submissions);
+    };
+
+    public shared query (msg) func getNumSubmissionsAdmin() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let submissions : [Types.ChallengeResponseSubmission] = getSubmissions();
+        return #Ok(submissions.size());
     };
 
     // Function for Judge canister to retrieve the next submission to score
@@ -1225,8 +1316,7 @@ actor class GameStateCanister() = this {
     };
 
     // Function for Judge canister to add a new scored response
-    stable let THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE = 20; // TODO: determine threshold how many scored responses are needed before challenge is closed (for ranking and winner declaration)
-    
+        
     public shared (msg) func addScoredResponse(scoredResponseInput : Types.ScoredResponseInput) : async Types.ScoredResponseResult {
         D.print("GameState: addScoredResponse - entered");
         if (Principal.isAnonymous(msg.caller)) {
@@ -1313,10 +1403,17 @@ actor class GameStateCanister() = this {
                 D.print("GameState: addScoredResponse - All Good - calling putScoredResponseForChallenge");
                 D.print("GameState: addScoredResponse - scoredResponseEntry = " # debug_show(scoredResponseEntry));
                 let numberOfScoredResponsesForChallenge : Nat = putScoredResponseForChallenge(scoredResponseEntry);
+                D.print("GameState: addScoredResponse - numberOfScoredResponsesForChallenge = " # debug_show(numberOfScoredResponsesForChallenge));
+                D.print("GameState: addScoredResponse - THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE = " # debug_show(THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE));
 
                 // Determine if ranking of scored responses can be triggered
                 if (numberOfScoredResponsesForChallenge >= THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE) {
+                    // TODO: we should close the challenge for handing out to mAIners, but we need to:
+                    //       (-) accept mAIner submissions that have already received this challenge
+                    //       (-) score those submissions
+                    //       FOR NOW - JUST CLOSE IT AND RANK IT...
                     // Close challenge
+                    D.print("GameState: addScoredResponse - reached threshold & closing the challenge: " # debug_show(scoredResponseInput.challengeQuestion));
                     switch (closeChallenge(scoredResponseInput.challengeId)) {
                         case (false) {
                             // TODO: error handling (e.g. put into queue and try ranking again later)
@@ -1329,6 +1426,7 @@ actor class GameStateCanister() = this {
                                     // TODO: error handling (e.g. put into queue and try ranking again later)
                                 };
                                 case (?challengeWinnerDeclaration) {
+                                    D.print("GameState: addScoredResponse - ranked and declared winner: " # debug_show(challengeWinnerDeclaration));
                                     // TODO: Pay reward
                                     
                                 };

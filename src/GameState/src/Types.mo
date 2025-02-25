@@ -28,6 +28,19 @@ module Types {
     public type AuthRecordResult = Result<AuthRecord, ApiError>;
 
     //-------------------------------------------------------------------------
+    public type NatResult = Result<Nat, ApiError>;
+
+    //-------------------------------------------------------------------------
+    public type GameStateTresholds = {
+        thresholdArchiveClosedChallenges : Nat;
+        thresholdMaxOpenChallenges : Nat;
+        thresholdMaxOpenSubmissions : Nat;
+        thresholdScoredResponsesPerChallenge : Nat;
+    };
+
+    public type GameStateTresholdsResult = Result<GameStateTresholds, ApiError>;
+
+    //-------------------------------------------------------------------------
     public type ProtocolCanisterType = {
         #Challenger;
         #Judge;

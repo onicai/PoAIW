@@ -118,17 +118,23 @@ to successfully load the models in the LLM canisters.
 # from folder: PoAIW
 scripts/start-timers.sh --network [local/ic]
 
-# from folder: PoAIW/src/GameState
+# from folder: funnAI  (We now deploy gamestate from there...)
 
 # Verify Challenger challenge generations
 dfx canister call game_state_canister getCurrentChallengesAdmin --output json [--ic]
+dfx canister call game_state_canister getNumCurrentChallengesAdmin --output json [--ic]
 
 # Verify mAIner response generations
 # Note: status changes from #Submitted > #Judging > #Judged
 dfx canister call game_state_canister getSubmissionsAdmin --output json [--ic]
+dfx canister call game_state_canister getNumSubmissionsAdmin --output json [--ic]
+
+dfx canister call game_state_canister getOpenSubmissionsAdmin --output json [--ic]
+dfx canister call game_state_canister getNumOpenSubmissionsAdmin --output json [--ic]
 
 # Verify Judge score generations
 dfx canister call game_state_canister getScoredChallengesAdmin --output json [--ic]
+dfx canister call game_state_canister getNumScoredChallengesAdmin --output json [--ic]
 
 # from folder: PoAIW
 scripts/stop-timers.sh --network [local/ic]
