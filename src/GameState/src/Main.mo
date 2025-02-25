@@ -1388,6 +1388,186 @@ actor class GameStateCanister() = this {
         return #Ok(TOTAL_PROTOCOL_CYCLES_BURNT);
     };
 
+// Mockup functions
+    // Function for frontend integration testing that returns mockup data
+    public query (msg) func getScoreForSubmission_mockup(submissionInput : Types.SubmissionRetrievalInput) : async Types.ScoredResponseRetrievalResult {
+        switch (getOpenChallenge(submissionInput.challengeId)) {
+            case (?openChallenge) {
+                let scoredResponseEntry : Types.ScoredResponse = {
+                    challengeTopic : Text = openChallenge.challengeTopic;
+                    challengeTopicId : Text = openChallenge.challengeTopicId;
+                    challengeTopicCreationTimestamp : Nat64 = openChallenge.challengeTopicCreationTimestamp;
+                    challengeTopicStatus : Types.ChallengeTopicStatus = openChallenge.challengeTopicStatus;
+                    challengeQuestion : Text = openChallenge.challengeQuestion;
+                    challengeQuestionSeed : Nat32 = openChallenge.challengeQuestionSeed;
+                    challengeId : Text = openChallenge.challengeId;
+                    challengeCreationTimestamp : Nat64 = openChallenge.challengeCreationTimestamp;
+                    challengeCreatedBy : Types.CanisterAddress = openChallenge.challengeCreatedBy;
+                    challengeStatus : Types.ChallengeStatus = openChallenge.challengeStatus;
+                    challengeClosedTimestamp : ?Nat64 = openChallenge.challengeClosedTimestamp;
+                    submissionCyclesRequired : Nat = openChallenge.submissionCyclesRequired;
+                    challengeAnswer : Text = "";
+                    challengeAnswerSeed : Nat32 = 0;
+                    submittedBy : Principal = msg.caller;
+                    submissionId : Text = submissionInput.submissionId;
+                    submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                    submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                    judgedBy: Principal = msg.caller;
+                    score: Nat = 5;
+                    scoreSeed: Nat32 = 0;
+                    judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                };
+                return #Ok(scoredResponseEntry);              
+            };
+            case (null) {
+                switch (getClosedChallenge(submissionInput.challengeId)) {
+                    case (?closedChallenge) {
+                        let scoredResponseEntry : Types.ScoredResponse = {
+                            challengeTopic : Text = closedChallenge.challengeTopic;
+                            challengeTopicId : Text = closedChallenge.challengeTopicId;
+                            challengeTopicCreationTimestamp : Nat64 = closedChallenge.challengeTopicCreationTimestamp;
+                            challengeTopicStatus : Types.ChallengeTopicStatus = closedChallenge.challengeTopicStatus;
+                            challengeQuestion : Text = closedChallenge.challengeQuestion;
+                            challengeQuestionSeed : Nat32 = closedChallenge.challengeQuestionSeed;
+                            challengeId : Text = closedChallenge.challengeId;
+                            challengeCreationTimestamp : Nat64 = closedChallenge.challengeCreationTimestamp;
+                            challengeCreatedBy : Types.CanisterAddress = closedChallenge.challengeCreatedBy;
+                            challengeStatus : Types.ChallengeStatus = closedChallenge.challengeStatus;
+                            challengeClosedTimestamp : ?Nat64 = closedChallenge.challengeClosedTimestamp;
+                            submissionCyclesRequired : Nat = closedChallenge.submissionCyclesRequired;
+                            challengeAnswer : Text = "";
+                            challengeAnswerSeed : Nat32 = 0;
+                            submittedBy : Principal = msg.caller;
+                            submissionId : Text = submissionInput.submissionId;
+                            submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                            judgedBy: Principal = msg.caller;
+                            score: Nat = 5;
+                            scoreSeed: Nat32 = 0;
+                            judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                        };
+                        return #Ok(scoredResponseEntry);                       
+                    };
+                    case (null) {
+                        let scoredResponseEntry : Types.ScoredResponse = {
+                            challengeTopic : Text = "";
+                            challengeTopicId : Text = "";
+                            challengeTopicCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            challengeTopicStatus : Types.ChallengeTopicStatus = #Archived;
+                            challengeQuestion : Text = "";
+                            challengeQuestionSeed : Nat32 = 0;
+                            challengeId : Text = submissionInput.challengeId;
+                            challengeCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            challengeCreatedBy : Types.CanisterAddress = "";
+                            challengeStatus : Types.ChallengeStatus = #Archived;
+                            challengeClosedTimestamp : ?Nat64 = ?Nat64.fromNat(Int.abs(Time.now()));
+                            submissionCyclesRequired : Nat = SUBMISSION_CYCLES_REQUIRED;
+                            challengeAnswer : Text = "";
+                            challengeAnswerSeed : Nat32 = 0;
+                            submittedBy : Principal = msg.caller;
+                            submissionId : Text = submissionInput.submissionId;
+                            submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                            judgedBy: Principal = msg.caller;
+                            score: Nat = 5;
+                            scoreSeed: Nat32 = 0;
+                            judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                        };
+                        return #Ok(scoredResponseEntry);                        
+                    };
+                };  
+            };
+        };
+    };
+
+    public query func getRecentProtocolActivity_mockup() : async Types.ProtocolActivityResult {
+        let mainerAgents : [Types.OfficialProtocolCanister] = getMainerAgents();
+
+        if (mainerAgents.size() > 0) {
+            var winnerAgent = mainerAgents[0];
+            var secondPlaceAgent = mainerAgents[0];
+            var thirdPlaceAgent = mainerAgents[0];
+            if (mainerAgents.size() > 1) {
+                secondPlaceAgent := mainerAgents[1];
+            } else if (mainerAgents.size() > 2) {
+                secondPlaceAgent := mainerAgents[1];
+                thirdPlaceAgent := mainerAgents[2];
+            };
+            var participantsList : List.List<Types.ChallengeParticipantEntry> = List.nil<Types.ChallengeParticipantEntry>();
+            // Winner
+            var rewardAmount : Nat = getRewardAmountForResult(#Winner, 3);
+            let winnerReward : Types.ChallengeWinnerReward = {
+                rewardType : Types.RewardType = REWARD_PER_CHALLENGE.rewardType;
+                amount : Nat = rewardAmount;
+                rewardDetails : Text = "";
+                distributed : Bool = false;
+                distributedTimestamp : ?Nat64 = null;
+            };
+            let winnerParticipant : Types.ChallengeParticipantEntry = {
+                submissionId : Text = "";
+                submittedBy : Principal = Principal.fromText(winnerAgent.address);
+                ownedBy: Principal = winnerAgent.ownedBy;
+                result : Types.ChallengeParticipationResult = #Winner;
+                reward : Types.ChallengeWinnerReward = winnerReward;
+            };
+            participantsList := List.push<Types.ChallengeParticipantEntry>(winnerParticipant, participantsList);
+            
+            // Second Place
+            rewardAmount := getRewardAmountForResult(#SecondPlace, 3);
+            let secondPlaceReward : Types.ChallengeWinnerReward = {
+                rewardType : Types.RewardType = REWARD_PER_CHALLENGE.rewardType;
+                amount : Nat = rewardAmount;
+                rewardDetails : Text = "";
+                distributed : Bool = false;
+                distributedTimestamp : ?Nat64 = null;
+            };
+            let secondPlaceParticipant : Types.ChallengeParticipantEntry = {
+                submissionId : Text = "";
+                submittedBy : Principal = Principal.fromText(secondPlaceAgent.address);
+                ownedBy: Principal = secondPlaceAgent.ownedBy;
+                result : Types.ChallengeParticipationResult = #SecondPlace;
+                reward : Types.ChallengeWinnerReward = secondPlaceReward;
+            };
+            participantsList := List.push<Types.ChallengeParticipantEntry>(secondPlaceParticipant, participantsList);
+            
+            // Third Place
+            rewardAmount := getRewardAmountForResult(#ThirdPlace, 3);
+            let thirdPlaceReward : Types.ChallengeWinnerReward = {
+                rewardType : Types.RewardType = REWARD_PER_CHALLENGE.rewardType;
+                amount : Nat = rewardAmount;
+                rewardDetails : Text = "";
+                distributed : Bool = false;
+                distributedTimestamp : ?Nat64 = null;
+            };
+            let thirdPlaceParticipant : Types.ChallengeParticipantEntry = {
+                submissionId : Text = "";
+                submittedBy : Principal = Principal.fromText(thirdPlaceAgent.address);
+                ownedBy: Principal = thirdPlaceAgent.ownedBy;
+                result : Types.ChallengeParticipationResult = #ThirdPlace;
+                reward : Types.ChallengeWinnerReward = thirdPlaceReward;
+            };
+            participantsList := List.push<Types.ChallengeParticipantEntry>(thirdPlaceParticipant, participantsList);
+            
+            let challengeWinnerDeclaration : Types.ChallengeWinnerDeclaration = {
+                challengeId : Text = "";
+                finalizedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                winner : Types.ChallengeParticipantEntry = winnerParticipant;
+                secondPlace : Types.ChallengeParticipantEntry = secondPlaceParticipant;
+                thirdPlace : Types.ChallengeParticipantEntry = thirdPlaceParticipant;
+                participants : List.List<Types.ChallengeParticipantEntry> = participantsList;
+            };
+            let winnersForRecentChallenges : [Types.ChallengeWinnerDeclaration] = [challengeWinnerDeclaration];
+            let openChallenges : [Types.Challenge] = getOpenChallenges();
+            let result : Types.ProtocolActivityRecord = {
+                winners = winnersForRecentChallenges;
+                challenges = openChallenges;
+            };
+            return #Ok(result);
+        } else {
+            return #Err(#InvalidId);
+        };
+    };
+
 // Upgrade Hooks
     system func preupgrade() {
         challengerCanistersStorageStable := Iter.toArray(challengerCanistersStorage.entries());
