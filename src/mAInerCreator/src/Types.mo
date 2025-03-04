@@ -95,11 +95,10 @@ module Types {
     };
 
     public type MainerAgentCtrlbCanister = actor {
-        add_llm_canister_id: (CanisterIDRecord) -> async StatusCodeRecordResult;
+        add_llm_canister: (CanisterIDRecord) -> async StatusCodeRecordResult;
         health: query () -> async StatusCodeRecordResult;
         setGameStateCanisterId: (Text) -> async StatusCodeRecordResult;
         setRoundRobinLLMs: (Nat) -> async StatusCodeRecordResult;
-        set_llm_canister_id: (CanisterIDRecord) -> async StatusCodeRecordResult;
     };
 
     public type MaxTokensRecord = {

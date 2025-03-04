@@ -143,8 +143,11 @@ python -m scripts.upload_mainer_llm_canister_wasm --network ic --canister mainer
 dfx canister call mainer_creator_canister whoami
 dfx canister call mainer_creator_canister amiController
 
+# For selectedModel, you can chose:
+#  (-) SmolLM2_135M
+#  (-) Qwen2_5_500M
 # To test mainer controller canister creation
-dfx canister call mainer_creator_canister testCreateMainerControllerCanister
+dfx canister call mainer_creator_canister testCreateMainerControllerCanister '(variant { SmolLM2_135M })'
 
 ## Call endpoints on created canister
 ## Note: use newCanisterId printed by testCreateMainerCanister
@@ -154,7 +157,7 @@ dfx canister call cgpjn-omaaa-aaaaa-qaakq-cai ready
 dfx canister call cgpjn-omaaa-aaaaa-qaakq-cai checkAccessToLLMs
 
 # use canister address of created mainer controller canister, e.g. cgpjn-omaaa-aaaaa-qaakq-cai
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister "cgpjn-omaaa-aaaaa-qaakq-cai"
+dfx canister call mainer_creator_canister testCreateMainerLlmCanister '(variant { SmolLM2_135M }, "cgpjn-omaaa-aaaaa-qaakq-cai")'
 
 # ----be carefull with these START ---
 ## In case the canister wasm has to be reset (use with caution):

@@ -403,7 +403,7 @@ actor class CanisterCreationCanister() = this {
                                 // Register LLM with controller
                                 let associatedControllerCanisterActor = actor (associatedCanisterAddress) : Types.MainerAgentCtrlbCanister;
                                 D.print("in createCanister associatedControllerCanisterActor");
-                                let addLlmToControllerResult = await associatedControllerCanisterActor.add_llm_canister_id({ canister_id = Principal.toText(createdLlmCanister.canister_id); });
+                                let addLlmToControllerResult = await associatedControllerCanisterActor.add_llm_canister({ canister_id = Principal.toText(createdLlmCanister.canister_id); });
                                 D.print("in createCanister addLlmToControllerResult");
                                 D.print(debug_show (addLlmToControllerResult));
                                 switch (addLlmToControllerResult) {
@@ -447,7 +447,7 @@ actor class CanisterCreationCanister() = this {
     };
 
 // Admin 
-    public shared (msg) func testCreateMainerControllerCanister() : async Types.CanisterCreationResult {
+    public shared (msg) func testCreateMainerControllerCanister(selectedModel : Types.AvailableModels) : async Types.CanisterCreationResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -456,15 +456,16 @@ actor class CanisterCreationCanister() = this {
         };
         let config : Types.CanisterCreationConfiguration = {
             canisterType : Types.ProtocolCanisterType = #MainerAgent;
-            selectedModel : Types.AvailableModels = #Qwen2_5_500M;
+            selectedModel : Types.AvailableModels = selectedModel;
             associatedCanisterAddress : ?Types.CanisterAddress = null;
             owner : Principal = msg.caller;
         };
+        D.print("mAInerCreater: deploying mAIner controller canister with config " # debug_show(config));
         let result = await createCanister(config);
         return result;
     };
 
-    public shared (msg) func testCreateMainerLlmCanister(controllerCanisterAddress : Text) : async Types.CanisterCreationResult {
+    public shared (msg) func testCreateMainerLlmCanister(selectedModel : Types.AvailableModels, controllerCanisterAddress : Text) : async Types.CanisterCreationResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -473,10 +474,11 @@ actor class CanisterCreationCanister() = this {
         };
         let config : Types.CanisterCreationConfiguration = {
             canisterType : Types.ProtocolCanisterType = #MainerLlm;
-            selectedModel : Types.AvailableModels = #Qwen2_5_500M;
+            selectedModel : Types.AvailableModels = selectedModel;
             associatedCanisterAddress : ?Types.CanisterAddress = ?controllerCanisterAddress;
             owner : Principal = msg.caller;
         };
+        D.print("mAInerCreater: deploying mAIner LLM canister with config " # debug_show(config));
         let result = await createCanister(config);
         return result;
     };
