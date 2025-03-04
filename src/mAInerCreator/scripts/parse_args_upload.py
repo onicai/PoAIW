@@ -84,5 +84,11 @@ def parse_args() -> argparse.Namespace:
         default="files/llama2.wasm",
         help="path to canister's wasm",
     )
+    parser.add_argument(
+        "--selected-model",
+        type=str,
+        default="Qwen2_5_500M",
+        help="selectedModel",
+    )
     args = parser.parse_args()
     return args

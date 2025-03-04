@@ -70,16 +70,27 @@ actor class CanisterCreationCanister() = this {
 
     private func getModelCreationArtefacts(selectedModel : Types.AvailableModels) : ?Types.ModelCreationArtefacts {
         switch (selectedModel) {
+            case (#SmolLM2_135M) {
+                let creationArtefacts : ?Types.ModelCreationArtefacts = creationArtefactsByModel.get("SmolLM2_135M");
+                return creationArtefacts;
+            };
             case (#Qwen2_5_500M) {
                 let creationArtefacts : ?Types.ModelCreationArtefacts = creationArtefactsByModel.get("Qwen2_5_500M");
                 return creationArtefacts;
             };
-            case _ { return null };
+            case _ { 
+                D.print("getModelCreationArtefacts: selectedModel not found" # debug_show(selectedModel));
+                return null 
+            };
         };
     };
 
     private func putModelCreationArtefacts(selectedModel : Types.AvailableModels, creationArtefacts : Types.ModelCreationArtefacts) : Bool {
         switch (selectedModel) {
+            case (#SmolLM2_135M) {
+                let putArtefacts = creationArtefactsByModel.put("SmolLM2_135M", creationArtefacts);
+                return true;
+            };
             case (#Qwen2_5_500M) {
                 let putArtefacts = creationArtefactsByModel.put("Qwen2_5_500M", creationArtefacts);
                 return true;

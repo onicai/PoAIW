@@ -38,6 +38,7 @@ module Types {
     };
 
     public type AvailableModels = {
+        #SmolLM2_135M;
         #Qwen2_5_500M;
     };
     

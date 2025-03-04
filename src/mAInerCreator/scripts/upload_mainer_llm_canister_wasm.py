@@ -53,6 +53,7 @@ def main() -> int:
     candid_path = ROOT_PATH / args.candid
     chunk_size_mb = args.chunksize
     wasm_path = ROOT_PATH / args.wasm
+    selected_model = args.selected_model
 
     dfx_json_path = ROOT_PATH / "dfx.json"
 
@@ -63,7 +64,8 @@ def main() -> int:
         f"\n - canister_id     = {canister_id}"
         f"\n - dfx_json_path   = {dfx_json_path}"
         f"\n - candid_path     = {candid_path}"
-        f"\n - wasm_path  = {wasm_path}"
+        f"\n - wasm_path       = {wasm_path}"
+        f"\n - selected_model  = {selected_model}"
     )
 
     # ---------------------------------------------------------------------------
@@ -82,8 +84,6 @@ def main() -> int:
 
     # converting MB to bytes
     chunk_size = int(chunk_size_mb * 1024 * 1024)
-
-    selectedModel = { "Qwen2_5_500M": None}
 
     # Iterate over all chunks
     count_bytes = 0
@@ -105,7 +105,7 @@ def main() -> int:
             print(f"- chunk[-1] = {chunk[-1]}")
 
         response = canister_creator.upload_mainer_llm_canister_wasm_bytes_chunk(
-            selectedModel,
+            { selected_model: None},
             chunk
         )  # pylint: disable=no-member
         if "Ok" in response[0].keys():
