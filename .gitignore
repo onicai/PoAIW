@@ -29,3 +29,12 @@ dist/
 # environment variables
 .env
 **/.env
+
+# Python
+pip-log.txt
+pip-delete-this-directory.txt
+.ipynb_checkpoints
+.mypy_cache/
+__pycache__/
+*.py[cod]
+*$py.class
