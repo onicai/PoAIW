@@ -6,31 +6,67 @@ type StatusCodeRecordResult =
  };
 type StatusCodeRecord = record {status_code: StatusCode;};
 type StatusCode = nat16;
+type StatisticsRetrievalResult = 
+ variant {
+   Err: ApiError;
+   Ok: StatisticsRecord;
+ };
+type StatisticsRecord = 
+ record {
+   cycleBalance: nat;
+   cyclesBurnRate: CyclesBurnRate;
+   totalCyclesBurnt: nat;
+ };
 type MainerAgentSettingsInput = record {cyclesBurnRate: CyclesBurnRate;};
 type MainerAgentCtrlbCanister = 
  service {
-   add_llm_canister_id: (CanisterIDRecord) -> (StatusCodeRecordResult);
+   add_llm_canister: (CanisterIDRecord) -> (StatusCodeRecordResult);
    amiController: () -> (StatusCodeRecordResult) query;
    checkAccessToLLMs: () -> (StatusCodeRecordResult);
    getGameStateCanisterId: () -> (text) query;
+   getIssueFlagsAdmin: () -> (IssueFlagsRetrievalResult) query;
+   getMainerStatisticsAdmin: () -> (StatisticsRetrievalResult) query;
+   getRecentSubmittedResponsesAdmin: () ->
+    (ChallengeResponseSubmissionsResult) query;
    getRoundRobinCanister: () -> (CanisterIDRecordResult) query;
    getSubmittedResponsesAdmin: () ->
     (ChallengeResponseSubmissionsResult) query;
    health: () -> (StatusCodeRecordResult) query;
    ready: () -> (StatusCodeRecordResult);
+   reset_llm_canisters: () -> (StatusCodeRecordResult);
    setGameStateCanisterId: (text) -> (StatusCodeRecordResult);
    setRoundRobinLLMs: (nat) -> (StatusCodeRecordResult);
-   set_llm_canister_id: (CanisterIDRecord) -> (StatusCodeRecordResult);
    startTimerExecutionAdmin: () -> (AuthRecordResult);
+   stopTimerExecutionAdmin: () -> (AuthRecordResult);
    triggerChallengeResponseAdmin: () -> (AuthRecordResult);
    updateAgentSettings: (MainerAgentSettingsInput) ->
     (StatusCodeRecordResult);
    whoami: () -> (principal) query;
  };
+type IssueFlagsRetrievalResult = 
+ variant {
+   Err: ApiError;
+   Ok: IssueFlagsRecord;
+ };
+type IssueFlagsRecord = record {lowCycleBalance: bool;};
 type CyclesBurnRate = 
  record {
    cycles: nat;
    timeInterval: TimeInterval;
+ };
+type ChallengeTopicStatus = 
+ variant {
+   Archived;
+   Closed;
+   Open;
+   Other: text;
+ };
+type ChallengeStatus = 
+ variant {
+   Archived;
+   Closed;
+   Open;
+   Other: text;
  };
 type ChallengeResponseSubmissionsResult = 
  variant {
@@ -41,6 +77,7 @@ type ChallengeResponseSubmissionStatus =
  variant {
    FailedSubmission;
    Judged;
+   Judging;
    Other: text;
    Processed;
    Received;
@@ -49,10 +86,21 @@ type ChallengeResponseSubmissionStatus =
 type ChallengeResponseSubmission = 
  record {
    challengeAnswer: text;
+   challengeAnswerSeed: nat32;
+   challengeClosedTimestamp: opt nat64;
+   challengeCreatedBy: CanisterAddress;
+   challengeCreationTimestamp: nat64;
    challengeId: text;
    challengeQuestion: text;
-   status: ChallengeResponseSubmissionStatus;
+   challengeQuestionSeed: nat32;
+   challengeStatus: ChallengeStatus;
+   challengeTopic: text;
+   challengeTopicCreationTimestamp: nat64;
+   challengeTopicId: text;
+   challengeTopicStatus: ChallengeTopicStatus;
+   submissionCyclesRequired: nat;
    submissionId: text;
+   submissionStatus: ChallengeResponseSubmissionStatus;
    submittedBy: principal;
    submittedTimestamp: nat64;
  };
@@ -62,6 +110,7 @@ type CanisterIDRecordResult =
    Ok: CanisterIDRecord;
  };
 type CanisterIDRecord = record {canister_id: text;};
+type CanisterAddress = text;
 type AuthRecordResult = 
  variant {
    Err: ApiError;
