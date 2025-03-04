@@ -9,7 +9,7 @@
 NETWORK_TYPE="local"
 DEPLOY_MODE="install"
 
-NUM_MAINERS_DEPLOYED=2
+NUM_MAINERS_DEPLOYED=3
 
 # When deploying to IC, we deploy to a specific subnet
 # none will not use subnet parameter in deploy to ic

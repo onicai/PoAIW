@@ -7,7 +7,7 @@
 
 # Default network type is local
 NETWORK_TYPE="local"
-NUM_MAINERS_DEPLOYED=2
+NUM_MAINERS_DEPLOYED=3
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do

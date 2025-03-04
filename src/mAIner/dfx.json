@@ -6,6 +6,9 @@
     },
     "mainer_ctrlb_canister_1": {
       "main": "src/Main.mo"
+    },
+    "mainer_ctrlb_canister_2": {
+      "main": "src/Main.mo"
     }
   },
   "defaults": {

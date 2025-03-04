@@ -175,13 +175,16 @@ dfx canister call game_state_canister getCurrentChallengesAdmin --output json [-
 # start the timer that generates challenge responses recurringly
 dfx canister call mainer_ctrlb_canister_0 startTimerExecutionAdmin [--ic]
 dfx canister call mainer_ctrlb_canister_1 startTimerExecutionAdmin [--ic]
+dfx canister call mainer_ctrlb_canister_2 startTimerExecutionAdmin [--ic]
 # stop the timer that generates challenge responses recurringly
 dfx canister call mainer_ctrlb_canister_0 stopTimerExecutionAdmin [--ic]
 dfx canister call mainer_ctrlb_canister_1 stopTimerExecutionAdmin [--ic]
+dfx canister call mainer_ctrlb_canister_2 stopTimerExecutionAdmin [--ic]
 
 # you can also trigger a single challenge response generation manually
 dfx canister call mainer_ctrlb_canister_0 triggerChallengeResponseAdmin [--ic]
 dfx canister call mainer_ctrlb_canister_1 triggerChallengeResponseAdmin [--ic]
+dfx canister call mainer_ctrlb_canister_2 triggerChallengeResponseAdmin [--ic]
 ```
 
 The response generation takes a moment. To ensure it worked, call
@@ -189,6 +192,7 @@ The response generation takes a moment. To ensure it worked, call
 # from folder: PoAIW/src/mAIner
 dfx canister call mainer_ctrlb_canister_0 getSubmittedResponsesAdmin --output json [--ic]
 dfx canister call mainer_ctrlb_canister_1 getSubmittedResponsesAdmin --output json [--ic]
+dfx canister call mainer_ctrlb_canister_2 getSubmittedResponsesAdmin --output json [--ic]
 
 # from folder: PoAIW/src/GameState
 dfx canister call game_state_canister getSubmissionsAdmin --output json [--ic]

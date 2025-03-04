@@ -7,7 +7,7 @@
 
 # Default network type is local
 NETWORK_TYPE="local"
-NUM_MAINERS_DEPLOYED=2 # Total number of mainers deployed
+NUM_MAINERS_DEPLOYED=3 # Total number of mainers deployed
 
 # When deploying local, use canister IDs from .env
 source ../Challenger/.env

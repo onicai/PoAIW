@@ -7,10 +7,9 @@
 
 # Default network type is local
 NETWORK_TYPE="local"
-NUM_MAINERS_DEPLOYED=2 # Total number of mainers deployed
-NUM_LLMS_DEPLOYED=2 # Total number of LLMs deployed for use by all mainers
-NUM_LLMS_PER_MAINER=1 # Number of LLMs registered with each mainer 
+NUM_MAINERS_DEPLOYED=3 # Total number of mainers deployed
 NUM_LLMS_ROUND_ROBIN=1 # how many registered LLMs per mainer we actually use
+
 # When deploying local, use canister IDs from .env
 source ../../llms/mAIner/.env
 
@@ -45,31 +44,14 @@ done
 echo "Using network type: $NETWORK_TYPE"
 
 #######################################################################
-echo " "
-echo "--------------------------------------------------"
-echo "We have deployed a total of $NUM_LLMS_DEPLOYED llm canisters, with canisterIDs:"
+# What LLM is used by each mAIner
+# (-) In demo, we have 3 mainers
+# (-) First two share an LLM, the third has its own
 CANISTER_ID_LLMS=(
     $CANISTER_ID_LLM_0
+    $CANISTER_ID_LLM_0
     $CANISTER_ID_LLM_1
-    $CANISTER_ID_LLM_2
-    $CANISTER_ID_LLM_3
-    $CANISTER_ID_LLM_4
-    $CANISTER_ID_LLM_5
-    $CANISTER_ID_LLM_6
-    $CANISTER_ID_LLM_7
-    $CANISTER_ID_LLM_8
-    $CANISTER_ID_LLM_9
-    $CANISTER_ID_LLM_10
-    $CANISTER_ID_LLM_11
 )
-llm_id_start=0
-llm_id_end=$((NUM_LLMS_DEPLOYED - 1))
-
-for i in $(seq $llm_id_start $llm_id_end)
-do
-    CANISTER_ID_LLM=${CANISTER_ID_LLMS[$i]}
-    echo "CANISTER_ID_LLM_$i: $CANISTER_ID_LLM"
-done
 
 echo " "
 echo "==================================================="
@@ -77,7 +59,6 @@ echo "We have $NUM_MAINERS_DEPLOYED mainers"
 mainer_id_start=0
 mainer_id_end=$((NUM_MAINERS_DEPLOYED - 1))
 
-i=0 # LLM index
 for m in $(seq $mainer_id_start $mainer_id_end)
 do
     MAINER="mainer_ctrlb_canister_$m"
@@ -102,18 +83,14 @@ do
         exit 1
     fi
 
-    for n in $(seq 0 $((NUM_LLMS_PER_MAINER - 1)));
-    do
-        CANISTER_ID_LLM=${CANISTER_ID_LLMS[$i]}
-        echo "registering LLM $i ($CANISTER_ID_LLM) with $MAINER"
-        output=$(dfx canister call $MAINER add_llm_canister "(record { canister_id = \"$CANISTER_ID_LLM\" })" --network $NETWORK_TYPE)
+    CANISTER_ID_LLM=${CANISTER_ID_LLMS[$m]}
+    echo "registering LLM $CANISTER_ID_LLM with $MAINER"
+    output=$(dfx canister call $MAINER add_llm_canister "(record { canister_id = \"$CANISTER_ID_LLM\" })" --network $NETWORK_TYPE)
 
-        if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-            echo "Error calling add_llm_canister for $CANISTER_ID_LLM. Exiting."
-            exit 1
-        fi
-        ((i++)) # next LLM
-    done
+    if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+        echo "Error calling add_llm_canister for $CANISTER_ID_LLM. Exiting."
+        exit 1
+    fi
 
     echo " "
     echo "--------------------------------------------------"
