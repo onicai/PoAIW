@@ -172,23 +172,33 @@ dfx canister call game_state_canister getCurrentChallengesAdmin --output json [-
 
 ```bash
 # from folder: PoAIW/src/mAIner
-# start the timer that generates challenge responses recurringly
-dfx canister call mainer_ctrlb_canister_0 startTimerExecutionAdmin [--ic]
-dfx canister call mainer_ctrlb_canister_1 startTimerExecutionAdmin [--ic]
-# stop the timer that generates challenge responses recurringly
-dfx canister call mainer_ctrlb_canister_0 stopTimerExecutionAdmin [--ic]
-dfx canister call mainer_ctrlb_canister_1 stopTimerExecutionAdmin [--ic]
+# Call for each mainer_ctrlb_canister_#
+
+# ###################################################################
+# Scenario: Own
+
+# start timer 1 - pulls challenges recurringly and puts them in queue
+dfx canister call mainer_ctrlb_canister_0 startTimer1ExecutionAdmin [--ic]
+
+# start timer 2 - process challenges in queue recurringly and submits them
+dfx canister call mainer_ctrlb_canister_0 startTimer2ExecutionAdmin [--ic]
+
+# stop the timers
+dfx canister call mainer_ctrlb_canister_0 stopTimer1ExecutionAdmin [--ic]
+dfx canister call mainer_ctrlb_canister_0 stopTimer2ExecutionAdmin [--ic]
 
 # you can also trigger a single challenge response generation manually
 dfx canister call mainer_ctrlb_canister_0 triggerChallengeResponseAdmin [--ic]
-dfx canister call mainer_ctrlb_canister_1 triggerChallengeResponseAdmin [--ic]
+
+# ###################################################################
+
 ```
 
 The response generation takes a moment. To ensure it worked, call
 ```bash
 # from folder: PoAIW/src/mAIner
+dfx canister call mainer_ctrlb_canister_0 getChallengeQueueAdmin --output json [--ic]
 dfx canister call mainer_ctrlb_canister_0 getSubmittedResponsesAdmin --output json [--ic]
-dfx canister call mainer_ctrlb_canister_1 getSubmittedResponsesAdmin --output json [--ic]
 
 # from folder: PoAIW/src/GameState
 dfx canister call game_state_canister getSubmissionsAdmin --output json [--ic]
