@@ -24,6 +24,8 @@ import Utils "Utils";
 
 actor class MainerAgentCtrlbCanister() = this {
 
+
+    // -------------------------------
     stable var MAINER_CANISTER_TYPE : Types.MainerCanisterType = #Own;
 
     public shared (msg) func setMainerCanisterType(_mainer_canister_type : Types.MainerCanisterType) : async Types.StatusCodeRecordResult {
@@ -48,7 +50,7 @@ actor class MainerAgentCtrlbCanister() = this {
         return #Ok(MAINER_CANISTER_TYPE);
     };
 
-
+    // -------------------------------
     stable var GAME_STATE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // local dev: "bkyz2-fmaaa-aaaaa-qaaaq-cai";
     stable var gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
     
@@ -67,6 +69,27 @@ actor class MainerAgentCtrlbCanister() = this {
         };
 
         return GAME_STATE_CANISTER_ID;
+    };
+
+    // -------------------------------
+    stable var MAINER_SERVICE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // Dummy value; Only used by ShareAgent
+    stable var mainerServiceCanisterActor = actor (MAINER_SERVICE_CANISTER_ID) : Types.GameStateCanister_Actor;
+    
+    public shared (msg) func setMainerServiceCanisterId(_mainer_service_canister_id : Text) : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        MAINER_SERVICE_CANISTER_ID := _mainer_service_canister_id;
+        mainerServiceCanisterActor := actor (MAINER_SERVICE_CANISTER_ID);
+        return #Ok({ status_code = 200 });
+    };
+
+    public query (msg) func getMainerServiceCanisterId() : async Text {
+        if (not Principal.isController(msg.caller)) {
+            return "#Err(#StatusCode(401))";
+        };
+
+        return MAINER_SERVICE_CANISTER_ID;
     };
 
     // Orthogonal Persisted Data storage

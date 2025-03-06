@@ -8,7 +8,7 @@
 # Default network type is local
 NETWORK_TYPE="local"
 
-NUM_MAINERS_DEPLOYED=2
+NUM_MAINERS_DEPLOYED=3
 
 # When deploying local, use canister IDs from .env
 # Use this when deploying from funnAI
@@ -44,6 +44,34 @@ while [ $# -gt 0 ]; do
 done
 
 echo "Using network type: $NETWORK_TYPE"
+
+#######################################################################
+echo " "
+echo "==================================================="
+MAINER="mainer_service_canister"
+echo " "
+echo "--------------------------------------------------"
+echo "Checking health endpoint for $MAINER"
+output=$(dfx canister call $MAINER health --network $NETWORK_TYPE)
+
+if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+    echo "$MAINER is not healthy. Exiting."
+    exit 1
+else
+    echo "$MAINER is healthy."
+fi
+
+echo " "
+echo "--------------------------------------------------"
+echo "Registering GameState with the $MAINER"
+output=$(dfx canister call $MAINER setGameStateCanisterId "(\"$CANISTER_ID_GAME_STATE_CANISTER\")" --network $NETWORK_TYPE)
+
+if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+    echo "Error calling setGameStateCanisterId for GameState $CANISTER_ID_GAME_STATE_CANISTER."
+    exit 1
+else
+    echo "Successfully called setGameStateCanisterId for GameState $CANISTER_ID_GAME_STATE_CANISTER."
+fi
 
 #######################################################################
 echo " "

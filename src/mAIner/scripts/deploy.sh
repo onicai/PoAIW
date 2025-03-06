@@ -53,33 +53,34 @@ echo "Using network type: $NETWORK_TYPE"
 #######################################################################
 echo " "
 echo "==================================================="
-echo "Deploying the protocol's mAIner Service canister"
+MAINER="mainer_service_canister"
+echo "Deploying the protocol's $MAINER"
 if [ "$NETWORK_TYPE" = "ic" ]; then
     if [ "$SUBNET" = "none" ]; then
-        dfx deploy mainer_service_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
+        dfx deploy $MAINER --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
     else
-        dfx deploy mainer_service_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE --subnet $SUBNET
+        dfx deploy $MAINER --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE --subnet $SUBNET
     fi
 else
-    dfx deploy mainer_service_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
+    dfx deploy $MAINER --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
 fi
 
 echo " "
 echo "--------------------------------------------------"
-dfx canister call mainer_service_canister setMainerCanisterType '(variant {ShareService} )' --network $NETWORK_TYPE
+dfx canister call $MAINER setMainerCanisterType '(variant {ShareService} )' --network $NETWORK_TYPE
 echo "verify getMainerCanisterType: "
-dfx canister call mainer_service_canister getMainerCanisterType --network $NETWORK_TYPE
+dfx canister call $MAINER getMainerCanisterType --network $NETWORK_TYPE
 
 echo " "
 echo "--------------------------------------------------"
 echo "Checking health endpoint"
-output=$(dfx canister call mainer_service_canister health --network $NETWORK_TYPE)
+output=$(dfx canister call $MAINER health --network $NETWORK_TYPE)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-    echo "mainer_service_canister is not healthy. Exiting."
+    echo "$MAINER is not healthy. Exiting."
     exit 1
 else
-    echo "mainer_service_canister is healthy."
+    echo "$MAINER is healthy."
 fi
 
 #######################################################################

@@ -7,7 +7,7 @@
 
 # Default network type is local
 NETWORK_TYPE="local"
-NUM_MAINERS_DEPLOYED=2 # Total number of mainers deployed
+NUM_MAINERS_DEPLOYED=3 # Total number of mainers deployed
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -41,7 +41,22 @@ TOPPED_OFF_BALANCE_TARGET_TC=3
 TOPPED_OFF_BALANCE_TARGET=$(echo "$TOPPED_OFF_BALANCE_TARGET_TC * 1000000000000" | bc)
 TOPPED_OFF_BALANCE_TARGET=$(printf "%.0f" $TOPPED_OFF_BALANCE_TARGET)
 
-# top off cycles
+
+# top off cycles for mAIner Service canister
+MAINER="mainer_service_canister"
+CURRENT_BALANCE=$(dfx canister --network $NETWORK_TYPE status $MAINER 2>&1 | grep "Balance:" | awk '{gsub("_", ""); print $2}')
+NEED_CYCLES_THRESHOLD=$(echo "$TOPPED_OFF_BALANCE_TRESHOLD - $CURRENT_BALANCE" | bc)
+NEED_CYCLES_TARGET=$(echo "$TOPPED_OFF_BALANCE_TARGET - $CURRENT_BALANCE" | bc)
+if [ $(echo "$NEED_CYCLES_THRESHOLD > 0" | bc) -eq 1 ]; then
+    CANISTER_ID=$(dfx canister --network $NETWORK_TYPE id $MAINER)
+    echo "Sending $NEED_CYCLES_TARGET cycles to $MAINER"
+    dfx wallet send $CANISTER_ID $NEED_CYCLES_TARGET --network $NETWORK_TYPE
+else
+    echo "No need to send cycles to $MAINER. Balance = $(echo "scale=2; $CURRENT_BALANCE / 1000000000000" | bc) TCycles"
+fi
+
+
+# top off cycles for mAIner Agent canisters
 mainer_id_start=0
 mainer_id_end=$((NUM_MAINERS_DEPLOYED - 1))
 
