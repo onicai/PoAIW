@@ -8,7 +8,7 @@ import Nat "mo:base/Nat";
 import Nat32 "mo:base/Nat32";
 import Nat64 "mo:base/Nat64";
 import Bool "mo:base/Bool";
-// import HashMap "mo:base/HashMap";
+import HashMap "mo:base/HashMap";
 import List "mo:base/List";
 import Int "mo:base/Int";
 import Time "mo:base/Time";
@@ -105,7 +105,8 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // timer ID, so we can stop it after starting
-    stable var recurringTimerId : ?Timer.TimerId = null;
+    stable var recurringTimerId1 : ?Timer.TimerId = null;
+    stable var recurringTimerId2 : ?Timer.TimerId = null;
 
     // Record of settings
     stable var agentSettings : List.List<Types.MainerAgentSettings> = List.nil<Types.MainerAgentSettings>();
@@ -117,6 +118,28 @@ actor class MainerAgentCtrlbCanister() = this {
 
     private func getCurrentAgentSettings() : ?Types.MainerAgentSettings {
         return List.get<Types.MainerAgentSettings>(agentSettings, 0);
+    };
+
+    // FIFO queue of challenges: retrieved from GameState; to be processed
+    stable var challengeQueue : List.List<Types.Challenge> = List.nil<Types.Challenge>();
+
+    private func pushChallengeQueue(challenge : Types.Challenge) : Bool {
+        challengeQueue := List.push<Types.Challenge>(challenge, challengeQueue);
+        return true;
+    };
+
+    private func popChallengeQueue() : ?Types.Challenge {
+        let (head, tail) = List.pop(challengeQueue);
+        challengeQueue := tail;
+        head;
+    };
+
+    public query (msg) func getChallengeQueueAdmin() : async Types.ChallengesResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let challenges : [Types.Challenge] = List.toArray<Types.Challenge>(challengeQueue);
+        return #Ok(challenges);
     };
 
     // Record of generated responses
@@ -666,19 +689,20 @@ actor class MainerAgentCtrlbCanister() = this {
         return #Ok(responseOutput);
     };
 
-    private func respondToNextChallenge() : async () {
-        D.print("mAIner:  respondToNextChallenge - entered");
-
+    // Triggered by timer 1: get next challenge and add it to the queue
+    private func pullNextChallenge() : async () {
+        D.print("mAIner:  pullNextChallenge - entered");
+        
         // -----------------------------------------------------
         // Check if the canister has enough cycles to submit
 
         // Before doing anything, check if the canister has enough cycles
         let availableCycles = Cycles.balance();
         if (availableCycles < SUBMISSION_CYCLES_REQUIRED + CYCLE_BALANCE_MINIMUM) {
-            D.print("mAIner:  respondToNextChallenge- PAUSING RESPONSE GENERATION DUE TO LOW CYCLE BALANCE");
-            D.print("mAIner:  respondToNextChallenge- SUBMISSION_CYCLES_REQUIRED = " # debug_show(SUBMISSION_CYCLES_REQUIRED));
-            D.print("mAIner:  respondToNextChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
-            D.print("mAIner:  respondToNextChallenge- availableCycles          = " # debug_show(availableCycles));
+            D.print("mAIner:  pullNextChallenge- PAUSING RESPONSE GENERATION DUE TO LOW CYCLE BALANCE");
+            D.print("mAIner:  pullNextChallenge- SUBMISSION_CYCLES_REQUIRED = " # debug_show(SUBMISSION_CYCLES_REQUIRED));
+            D.print("mAIner:  pullNextChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
+            D.print("mAIner:  pullNextChallenge- availableCycles          = " # debug_show(availableCycles));
 
             PAUSED_DUE_TO_LOW_CYCLE_BALANCE := true;
             return;
@@ -688,28 +712,88 @@ actor class MainerAgentCtrlbCanister() = this {
         // Ok,the canister has enough cycles to submit
         PAUSED_DUE_TO_LOW_CYCLE_BALANCE := false;
 
-        // Get the next challenge to respond to
-        D.print("mAIner:  respondToNextChallenge - calling getChallengeFromGameStateCanister.");
+        // -----------------------------------------------------
+        // Check if the queue already has enough challenges
+        let MAX_CHALLENGES_IN_QUEUE : Nat = 5;
+        if (List.size(challengeQueue) >= MAX_CHALLENGES_IN_QUEUE) {
+            D.print("mAIner:  pullNextChallenge- Already have enough Challenges in the queue. Not adding more.");
+            return;
+        };
+
+        // -----------------------------------------------------
+        // Get the next challenge from GameState canister
+        D.print("mAIner:  pullNextChallenge - calling getChallengeFromGameStateCanister.");
         let challengeResult : Types.ChallengeResult = await getChallengeFromGameStateCanister();
-        D.print("mAIner:  respondToNextChallenge - received challengeResult from getChallengeFromGameStateCanister: " # debug_show (challengeResult));
+        D.print("mAIner:  pullNextChallenge - received challengeResult from getChallengeFromGameStateCanister: " # debug_show (challengeResult));
         switch (challengeResult) {
             case (#Err(error)) {
-                D.print("mAIner:  respondToNextChallenge - challengeResult error : " # debug_show (error));
+                D.print("mAIner:  pullNextChallenge - challengeResult error : " # debug_show (error));
                 // TODO: error handling
             };
             case (#Ok(nextChallenge : Types.Challenge)) {
-                D.print("mAIner:  respondToNextChallenge challengeResult nextChallenge");
-                D.print(debug_show (nextChallenge));
+                D.print("mAIner:  pullNextChallenge - nextChallenge = " # debug_show (nextChallenge));
+
+                // Do not add this challenge to the queue if the canister does not have enough cycles to submit
+                // Check against the number sent by the GameState for this particular Challenge
+                let submissionCyclesRequired : Nat = nextChallenge.submissionCyclesRequired;
+                let availableCycles = Cycles.balance();
+                if (availableCycles < submissionCyclesRequired + CYCLE_BALANCE_MINIMUM) {
+                    D.print("mAIner:  pullNextChallenge- SKIPPING CHALLENGE; NOT ENOUGH CYCLES TO SUBMIT THIS CHALLENGE");
+                    D.print("mAIner:  pullNextChallenge- submissionCyclesRequired = " # debug_show(submissionCyclesRequired));
+                    D.print("mAIner:  pullNextChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
+                    D.print("mAIner:  pullNextChallenge- availableCycles          = " # debug_show(availableCycles));
+                    // Note: do not set pause flag
+                    return;
+                };
+
+                // Add the challenge to the queue
+                D.print("mAIner:  pullNextChallenge - adding nextChallenge to the queue");
+                let pushResult_ = pushChallengeQueue(nextChallenge);
+                return;
+            };
+        };
+    };
+
+    private func processNextChallenge() : async () {
+        D.print("mAIner:  processNextChallenge - entered");
+
+        // -----------------------------------------------------
+        // Check if the canister has enough cycles to submit
+
+        // Before doing anything, check if the canister has enough cycles
+        let availableCycles = Cycles.balance();
+        if (availableCycles < SUBMISSION_CYCLES_REQUIRED + CYCLE_BALANCE_MINIMUM) {
+            D.print("mAIner:  processNextChallenge- PAUSING RESPONSE GENERATION DUE TO LOW CYCLE BALANCE");
+            D.print("mAIner:  processNextChallenge- SUBMISSION_CYCLES_REQUIRED = " # debug_show(SUBMISSION_CYCLES_REQUIRED));
+            D.print("mAIner:  processNextChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
+            D.print("mAIner:  processNextChallenge- availableCycles          = " # debug_show(availableCycles));
+
+            PAUSED_DUE_TO_LOW_CYCLE_BALANCE := true;
+            return;
+        };
+
+        // -----------------------------------------------------
+        // Ok,the canister has enough cycles to submit
+        PAUSED_DUE_TO_LOW_CYCLE_BALANCE := false;
+
+        // Process the next challenge in the challengeQueue
+        switch (popChallengeQueue()) {
+            case (null) {
+                D.print("mAIner:  processNextChallenge - Queue is empty. Nothing to do.");
+                return;
+            };
+            case (?nextChallenge) {
+                D.print("mAIner:  processNextChallenge - nextChallenge" # debug_show (nextChallenge));
 
                 // Second check if the canister has enough cycles to submit
                 // Check against the number sent by the GameState for this particular Challenge
                 let submissionCyclesRequired : Nat = nextChallenge.submissionCyclesRequired;
                 let availableCycles = Cycles.balance();
                 if (availableCycles < submissionCyclesRequired + CYCLE_BALANCE_MINIMUM) {
-                    D.print("mAIner:  respondToNextChallenge- SKIPPING RESPONSE GENERATION; NOT ENOUGH CYCLES TO SUBMIT THIS CHALLENGE");
-                    D.print("mAIner:  respondToNextChallenge- submissionCyclesRequired = " # debug_show(submissionCyclesRequired));
-                    D.print("mAIner:  respondToNextChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
-                    D.print("mAIner:  respondToNextChallenge- availableCycles          = " # debug_show(availableCycles));
+                    D.print("mAIner:  processNextChallenge- SKIPPING CHALLENGE; NOT ENOUGH CYCLES TO SUBMIT THIS CHALLENGE");
+                    D.print("mAIner:  processNextChallenge- submissionCyclesRequired = " # debug_show(submissionCyclesRequired));
+                    D.print("mAIner:  processNextChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
+                    D.print("mAIner:  processNextChallenge- availableCycles          = " # debug_show(availableCycles));
                     // Note: do not set pause flag
                     return;
                 };
@@ -766,50 +850,101 @@ actor class MainerAgentCtrlbCanister() = this {
         return canister;
     };
 
-// Timer
+// Timers
     stable var actionRegularityInSeconds = 60; // TODO: set based on user setting for cycles burn rate
 
-    private func triggerRecurringAction() : async () {
-        D.print("mAIner:  Recurring action was triggered");
-        //ignore respondToNextChallenge(); TODO
-        let result = await respondToNextChallenge();
-        D.print("mAIner:  Recurring action result");
+    // Timer 1
+
+    private func triggerRecurringAction1() : async () {
+        D.print("mAIner:  Recurring action 1 was triggered");
+        let result = await pullNextChallenge();
+        D.print("mAIner:  Recurring action 1 result");
         D.print(debug_show (result));
-        D.print("mAIner:  Recurring action result");
+        D.print("mAIner:  Recurring action 1 result");
     };
 
-    public shared (msg) func startTimerExecutionAdmin() : async Types.AuthRecordResult {
+    public shared (msg) func startTimer1ExecutionAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
+
         ignore setTimer<system>(#seconds 5,
             func () : async () {
-                D.print("mAIner:  setTimer");
-                let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction);
-                D.print("mAIner: Successfully start timer with id = " # debug_show (id));
-                recurringTimerId := ?id;
-                await triggerRecurringAction();
+                D.print("mAIner:  setTimer 1");
+                let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction1);
+                D.print("mAIner: Successfully start timer 1 with id = " # debug_show (id));
+                recurringTimerId1 := ?id;
+                await triggerRecurringAction1();
         });
-        let authRecord = { auth = "You started the timer." };
+
+        let authRecord = { auth = "You started timer 1." };
         return #Ok(authRecord);
     };
 
-    public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
+    public shared (msg) func stopTimer1ExecutionAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
 
-        switch (recurringTimerId) {
+        switch (recurringTimerId1) {
             case (?id) {
-                D.print("mAIner: Stopping timer with id = " # debug_show (id));
+                D.print("mAIner: Stopping timer 1 with id = " # debug_show (id));
                 Timer.cancelTimer(id);
-                recurringTimerId := null;
-                D.print("mAIner: Timer stopped successfully.");
+                recurringTimerId1 := null;
+                D.print("mAIner: Timer 1 stopped successfully.");
                 
-                return #Ok({ auth = "Timer stopped successfully." });
+                return #Ok({ auth = "Timer 1 stopped successfully." });
             };
             case null {
-                return #Ok({ auth = "There is no active timer. Nothing to do." });
+                return #Ok({ auth = "There is no active timer 1. Nothing to do." });
+            };
+        };
+    };
+
+    // Timer 2
+
+    private func triggerRecurringAction2() : async () {
+        D.print("mAIner:  Recurring action 2 was triggered");
+        let result = await processNextChallenge();
+        D.print("mAIner:  Recurring action 2 result");
+        D.print(debug_show (result));
+        D.print("mAIner:  Recurring action 2 result");
+    };
+
+    public shared (msg) func startTimer2ExecutionAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+
+        ignore setTimer<system>(#seconds 5,
+            func () : async () {
+                D.print("mAIner:  setTimer 2");
+                let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction2);
+                D.print("mAIner: Successfully start timer 2 with id = " # debug_show (id));
+                recurringTimerId2 := ?id;
+                await triggerRecurringAction2();
+        });
+
+        let authRecord = { auth = "You started timer 2." };
+        return #Ok(authRecord);
+    };
+
+    public shared (msg) func stopTimer2ExecutionAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+
+        switch (recurringTimerId2) {
+            case (?id) {
+                D.print("mAIner: Stopping timer 2 with id = " # debug_show (id));
+                Timer.cancelTimer(id);
+                recurringTimerId2 := null;
+                D.print("mAIner: Timer 2 stopped successfully.");
+                
+                return #Ok({ auth = "Timer 2 stopped successfully." });
+            };
+            case null {
+                return #Ok({ auth = "There is no active timer 2. Nothing to do." });
             };
         };
     };
@@ -819,7 +954,8 @@ actor class MainerAgentCtrlbCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
-        let result = await respondToNextChallenge();
+        await pullNextChallenge();
+        await processNextChallenge();
         let authRecord = { auth = "You triggered the response generation." };
         return #Ok(authRecord);
     };

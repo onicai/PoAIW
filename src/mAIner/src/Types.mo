@@ -46,6 +46,7 @@ module Types {
     public type ChallengeAdditionResult = Result<Challenge, ApiError>;
 
     public type ChallengeResult = Result<Challenge, ApiError>;
+    public type ChallengesResult = Result<[Challenge], ApiError>;
 
     // mAIner
     public type ChallengeResponseSubmissionStatus = {
