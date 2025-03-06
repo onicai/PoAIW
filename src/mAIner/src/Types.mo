@@ -49,6 +49,13 @@ module Types {
     public type ChallengesResult = Result<[Challenge], ApiError>;
 
     // mAIner
+    public type MainerCanisterType = {
+        #Own;
+        #ShareAgent;
+        #ShareService;
+    };
+    public type MainerCanisterTypeResult = Result<MainerCanisterType, ApiError>;
+
     public type ChallengeResponseSubmissionStatus = {
         #FailedSubmission;
         #Received;

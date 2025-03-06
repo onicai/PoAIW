@@ -24,6 +24,31 @@ import Utils "Utils";
 
 actor class MainerAgentCtrlbCanister() = this {
 
+    stable var MAINER_CANISTER_TYPE : Types.MainerCanisterType = #Own;
+
+    public shared (msg) func setMainerCanisterType(_mainer_canister_type : Types.MainerCanisterType) : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        MAINER_CANISTER_TYPE := _mainer_canister_type;
+
+        // Avoid wrong timers from running when changing mainer canister type
+        D.print("mAIner:  setMainerCanisterType - Stopping Timers");
+        let result = await stopTimerExecution();
+        D.print("mAIner:  setMainerCanisterType - " # debug_show(result));
+
+        return #Ok({ status_code = 200 });
+    };
+
+    public query (msg) func getMainerCanisterType() : async Types.MainerCanisterTypeResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+
+        return #Ok(MAINER_CANISTER_TYPE);
+    };
+
+
     stable var GAME_STATE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // local dev: "bkyz2-fmaaa-aaaaa-qaaaq-cai";
     stable var gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
     
@@ -853,8 +878,6 @@ actor class MainerAgentCtrlbCanister() = this {
 // Timers
     stable var actionRegularityInSeconds = 60; // TODO: set based on user setting for cycles burn rate
 
-    // Timer 1
-
     private func triggerRecurringAction1() : async () {
         D.print("mAIner:  Recurring action 1 was triggered");
         let result = await pullNextChallenge();
@@ -862,46 +885,6 @@ actor class MainerAgentCtrlbCanister() = this {
         D.print(debug_show (result));
         D.print("mAIner:  Recurring action 1 result");
     };
-
-    public shared (msg) func startTimer1ExecutionAdmin() : async Types.AuthRecordResult {
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-
-        ignore setTimer<system>(#seconds 5,
-            func () : async () {
-                D.print("mAIner:  setTimer 1");
-                let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction1);
-                D.print("mAIner: Successfully start timer 1 with id = " # debug_show (id));
-                recurringTimerId1 := ?id;
-                await triggerRecurringAction1();
-        });
-
-        let authRecord = { auth = "You started timer 1." };
-        return #Ok(authRecord);
-    };
-
-    public shared (msg) func stopTimer1ExecutionAdmin() : async Types.AuthRecordResult {
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-
-        switch (recurringTimerId1) {
-            case (?id) {
-                D.print("mAIner: Stopping timer 1 with id = " # debug_show (id));
-                Timer.cancelTimer(id);
-                recurringTimerId1 := null;
-                D.print("mAIner: Timer 1 stopped successfully.");
-                
-                return #Ok({ auth = "Timer 1 stopped successfully." });
-            };
-            case null {
-                return #Ok({ auth = "There is no active timer 1. Nothing to do." });
-            };
-        };
-    };
-
-    // Timer 2
 
     private func triggerRecurringAction2() : async () {
         D.print("mAIner:  Recurring action 2 was triggered");
@@ -911,27 +894,52 @@ actor class MainerAgentCtrlbCanister() = this {
         D.print("mAIner:  Recurring action 2 result");
     };
 
-    public shared (msg) func startTimer2ExecutionAdmin() : async Types.AuthRecordResult {
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+    
+    private func startTimerExecution() : async Types.AuthRecordResult {
+        var res = "You started the timers: ";
+
+        if (MAINER_CANISTER_TYPE == #Own or MAINER_CANISTER_TYPE == #ShareAgent) {
+            res := res # " 1, ";
+            ignore setTimer<system>(#seconds 5,
+                func () : async () {
+                    D.print("mAIner:  setTimer 1");
+                    let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction1);
+                    D.print("mAIner: Successfully start timer 1 with id = " # debug_show (id));
+                    recurringTimerId1 := ?id;
+                    await triggerRecurringAction1();
+            });
         };
 
-        ignore setTimer<system>(#seconds 5,
-            func () : async () {
-                D.print("mAIner:  setTimer 2");
-                let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction2);
-                D.print("mAIner: Successfully start timer 2 with id = " # debug_show (id));
-                recurringTimerId2 := ?id;
-                await triggerRecurringAction2();
-        });
+        if (MAINER_CANISTER_TYPE == #Own or MAINER_CANISTER_TYPE == #ShareService) {
+            res := res # " 2";
+            ignore setTimer<system>(#seconds 5,
+                func () : async () {
+                    D.print("mAIner:  setTimer 2");
+                    let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction2);
+                    D.print("mAIner: Successfully start timer 2 with id = " # debug_show (id));
+                    recurringTimerId2 := ?id;
+                    await triggerRecurringAction2();
+            });
+        };
 
-        let authRecord = { auth = "You started timer 2." };
+        let authRecord = { auth = res };
         return #Ok(authRecord);
     };
 
-    public shared (msg) func stopTimer2ExecutionAdmin() : async Types.AuthRecordResult {
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+    private func stopTimerExecution() : async Types.AuthRecordResult {
+        var res = "You stopped the timers: ";
+
+        switch (recurringTimerId1) {
+            case (?id) {
+                D.print("mAIner: Stopping timer 1 with id = " # debug_show (id));
+                Timer.cancelTimer(id);
+                recurringTimerId1 := null;
+                res := res # " 1 (id = " # Nat.toText(id) # "), ";
+                D.print("mAIner: Timer 1 stopped successfully.");
+            };
+            case null {
+                D.print("There is no active timer 1.");
+            };
         };
 
         switch (recurringTimerId2) {
@@ -939,14 +947,29 @@ actor class MainerAgentCtrlbCanister() = this {
                 D.print("mAIner: Stopping timer 2 with id = " # debug_show (id));
                 Timer.cancelTimer(id);
                 recurringTimerId2 := null;
+                res := res # " 2 (id = " # Nat.toText(id) # ")";
                 D.print("mAIner: Timer 2 stopped successfully.");
-                
-                return #Ok({ auth = "Timer 2 stopped successfully." });
             };
             case null {
-                return #Ok({ auth = "There is no active timer 2. Nothing to do." });
+                D.print("There is no active timer 2.");
             };
         };
+
+        return #Ok({ auth = res });
+    };
+
+    public shared (msg) func startTimerExecutionAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        await startTimerExecution();
+    };
+
+    public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        await stopTimerExecution();
     };
 
     // TODO: remove; testing function for admin

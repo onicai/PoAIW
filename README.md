@@ -175,17 +175,15 @@ dfx canister call game_state_canister getCurrentChallengesAdmin --output json [-
 # Call for each mainer_ctrlb_canister_#
 
 # ###################################################################
-# Scenario: Own
 
-# start timer 1 - pulls challenges recurringly and puts them in queue
-dfx canister call mainer_ctrlb_canister_0 startTimer1ExecutionAdmin [--ic]
+# Verify the Mainer Canister Type
+dfx canister call mainer_ctrlb_canister_0 getMainerCanisterType [--ic]
 
-# start timer 2 - process challenges in queue recurringly and submits them
-dfx canister call mainer_ctrlb_canister_0 startTimer2ExecutionAdmin [--ic]
+# start timers
+dfx canister call mainer_ctrlb_canister_0 startTimerExecutionAdmin [--ic]
 
 # stop the timers
-dfx canister call mainer_ctrlb_canister_0 stopTimer1ExecutionAdmin [--ic]
-dfx canister call mainer_ctrlb_canister_0 stopTimer2ExecutionAdmin [--ic]
+dfx canister call mainer_ctrlb_canister_0 stopTimerExecutionAdmin [--ic]
 
 # you can also trigger a single challenge response generation manually
 dfx canister call mainer_ctrlb_canister_0 triggerChallengeResponseAdmin [--ic]
