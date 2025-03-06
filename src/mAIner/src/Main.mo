@@ -121,6 +121,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // FIFO queue of challenges: retrieved from GameState; to be processed
+    stable var MAX_CHALLENGES_IN_QUEUE : Nat = 5;
     stable var challengeQueue : List.List<Types.Challenge> = List.nil<Types.Challenge>();
 
     private func pushChallengeQueue(challenge : Types.Challenge) : Bool {
@@ -714,7 +715,6 @@ actor class MainerAgentCtrlbCanister() = this {
 
         // -----------------------------------------------------
         // Check if the queue already has enough challenges
-        let MAX_CHALLENGES_IN_QUEUE : Nat = 5;
         if (List.size(challengeQueue) >= MAX_CHALLENGES_IN_QUEUE) {
             D.print("mAIner:  pullNextChallenge- Already have enough Challenges in the queue. Not adding more.");
             return;
