@@ -2,8 +2,52 @@ import Nat64 "mo:base/Nat64";
 
 module Types {
 
+    //-------------------------------------------------------------------------
+    public type ProtocolCanisterType = {
+        #Challenger;
+        #Judge;
+        #Verifier;
+        #MainerCreator;
+        #MainerAgent;
+    };
+
+    public type MainerAgentCanisterType = {
+        #Own;
+        #ShareAgent;
+        #ShareService;
+    };
+    public type MainerAgentCanisterTypeResult = Result<MainerAgentCanisterType, ApiError>;
+
     public type CanisterAddress = Text;
 
+    public type OfficialProtocolCanister = {
+        address : CanisterAddress;
+        canisterType: ProtocolCanisterType;
+        creationTimestamp : Nat64;
+        createdBy : Principal;
+        ownedBy: Principal;
+    };
+
+    public type CanisterInput = {
+        address : CanisterAddress;
+        canisterType: ProtocolCanisterType;
+    };
+
+    public type MainerAgentCanisterInput = {
+        address : CanisterAddress;
+        canisterType: ProtocolCanisterType;
+        ownedBy: Principal;
+    };
+
+    public type MainerAgentCanisterResult = Result<OfficialProtocolCanister, ApiError>;
+
+    public type MainerAgentCanistersResult = Result<[OfficialProtocolCanister], ApiError>;
+
+    public type CanisterRetrieveInput = {
+        address : CanisterAddress;
+    };
+    
+    //-------------------------------------------------------------------------
     // Challenger
     public type ChallengeTopicStatus = {
         #Open;
@@ -49,13 +93,6 @@ module Types {
     public type ChallengesResult = Result<[Challenge], ApiError>;
 
     // mAIner
-    public type MainerCanisterType = {
-        #Own;
-        #ShareAgent;
-        #ShareService;
-    };
-    public type MainerCanisterTypeResult = Result<MainerCanisterType, ApiError>;
-
     public type ChallengeResponseSubmissionStatus = {
         #FailedSubmission;
         #Received;

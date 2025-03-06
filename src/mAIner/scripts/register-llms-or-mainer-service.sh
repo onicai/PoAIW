@@ -48,6 +48,21 @@ done
 
 echo "Using network type: $NETWORK_TYPE"
 
+CANISTER_ID_MAINER_CTRLB_CANISTERS=(
+    $CANISTER_ID_MAINER_CTRLB_CANISTER_0
+    $CANISTER_ID_MAINER_CTRLB_CANISTER_1
+    $CANISTER_ID_MAINER_CTRLB_CANISTER_2
+    $CANISTER_ID_MAINER_CTRLB_CANISTER_3
+    $CANISTER_ID_MAINER_CTRLB_CANISTER_4
+    $CANISTER_ID_MAINER_CTRLB_CANISTER_5
+    $CANISTER_ID_MAINER_CTRLB_CANISTER_6
+    $CANISTER_ID_MAINER_CTRLB_CANISTER_7
+    $CANISTER_ID_MAINER_CTRLB_CANISTER_8
+    $CANISTER_ID_MAINER_CTRLB_CANISTER_9
+    $CANISTER_ID_MAINER_CTRLB_CANISTER_10
+    $CANISTER_ID_MAINER_CTRLB_CANISTER_11
+)
+
 CANISTER_ID_LLMS=(
     $CANISTER_ID_LLM_0
     $CANISTER_ID_LLM_1
@@ -68,11 +83,11 @@ i=0 # LLM index
 #######################################################################
 echo " "
 MAINER="mainer_service_canister"
-MAINER_CANISTER_TYPE="ShareService"
+MAINER_AGENT_CANISTER_TYPE="ShareService"
 
 echo " "
 echo "--------------------------------------------------"
-echo "$MAINER of type $MAINER_CANISTER_TYPE with id $CANISTER_ID_MAINER_SERVICE_CANISTER"
+echo "$MAINER of type $MAINER_AGENT_CANISTER_TYPE with id $CANISTER_ID_MAINER_SERVICE_CANISTER"
 
 echo " "
 echo "Checking health endpoint for $MAINER"
@@ -127,11 +142,12 @@ mainer_id_end=$((NUM_MAINERS_DEPLOYED - 1))
 for m in $(seq $mainer_id_start $mainer_id_end)
 do
     MAINER="mainer_ctrlb_canister_$m"
-    MAINER_CANISTER_TYPE=${MAINER_CANISTER_TYPES[$m]}
+    MAINER_CANISTER_ID=${CANISTER_ID_MAINER_CTRLB_CANISTERS[$m]}
+    MAINER_AGENT_CANISTER_TYPE=${MAINER_CANISTER_TYPES[$m]}
 
     echo " "
     echo "--------------------------------------------------"
-    echo "$MAINER of type $MAINER_CANISTER_TYPE"
+    echo "$MAINER ($MAINER_CANISTER_ID) of type $MAINER_AGENT_CANISTER_TYPE"
 
     echo " "
     echo "Checking health endpoint for $MAINER"
@@ -144,7 +160,7 @@ do
         echo "$MAINER is healthy."
     fi
 
-    if [ "$MAINER_CANISTER_TYPE" = "Own" ]; then
+    if [ "$MAINER_AGENT_CANISTER_TYPE" = "Own" ]; then
         echo "Calling reset_llm_canisters."
         output=$(dfx canister call $MAINER reset_llm_canisters --network $NETWORK_TYPE)
 
@@ -174,13 +190,28 @@ do
             echo "setRoundRobinLLMs call failed. Exiting."
             exit 1
         fi
-    elif [ "$MAINER_CANISTER_TYPE" = "ShareAgent" ]; then
-        echo "registering mAIner service ($CANISTER_ID_MAINER_SERVICE_CANISTER) with $MAINER"
+    elif [ "$MAINER_AGENT_CANISTER_TYPE" = "ShareAgent" ]; then
+        # ------------
+        echo "Registering mainer_service_canister ($CANISTER_ID_MAINER_SERVICE_CANISTER) with $MAINER"
         output=$(dfx canister call $MAINER setMainerServiceCanisterId "(\"$CANISTER_ID_MAINER_SERVICE_CANISTER\")" --network $NETWORK_TYPE)
 
         if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
             echo "Error calling setMainerServiceCanisterId for $CANISTER_ID_MAINER_SERVICE_CANISTER. Exiting."
             exit 1
         fi
+
+        # ------------
+        echo "Registering $MAINER ($MAINER_CANISTER_ID) with the mainer_service_canister"
+        MYPRINCIPAL=$(dfx identity get-principal | tr -d '\n')
+        output=$(dfx canister call mainer_service_canister addMainerAgentCanisterAdmin "(record { address = \"$MAINER_CANISTER_ID\"; canisterType = variant {MainerAgent}; ownedBy = principal \"$MYPRINCIPAL\" })" --network $NETWORK_TYPE)
+        
+        if [[ "$output" != *"Ok = record"* ]]; then
+            if [[ "$output" != "(variant { Err = variant { Other = \"Canister entry already exists\" } })" ]]; then
+                echo "Error calling addMainerAgentCanisterAdmin for mAIner $MAINER_CANISTER_ID."
+                echo $output
+            else
+                echo "$MAINER ($MAINER_CANISTER_ID) is already registered with the game_state_canister."
+            fi
+        fi 
     fi
 done

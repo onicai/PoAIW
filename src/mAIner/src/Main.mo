@@ -26,13 +26,13 @@ actor class MainerAgentCtrlbCanister() = this {
 
 
     // -------------------------------
-    stable var MAINER_CANISTER_TYPE : Types.MainerCanisterType = #Own;
+    stable var MAINER_AGENT_CANISTER_TYPE : Types.MainerAgentCanisterType = #Own;
 
-    public shared (msg) func setMainerCanisterType(_mainer_canister_type : Types.MainerCanisterType) : async Types.StatusCodeRecordResult {
+    public shared (msg) func setMainerCanisterType(_mainer_agent_canister_type : Types.MainerAgentCanisterType) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
-        MAINER_CANISTER_TYPE := _mainer_canister_type;
+        MAINER_AGENT_CANISTER_TYPE := _mainer_agent_canister_type;
 
         // Avoid wrong timers from running when changing mainer canister type
         D.print("mAIner:  setMainerCanisterType - Stopping Timers");
@@ -42,12 +42,12 @@ actor class MainerAgentCtrlbCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
-    public query (msg) func getMainerCanisterType() : async Types.MainerCanisterTypeResult {
+    public query (msg) func getMainerCanisterType() : async Types.MainerAgentCanisterTypeResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
 
-        return #Ok(MAINER_CANISTER_TYPE);
+        return #Ok(MAINER_AGENT_CANISTER_TYPE);
     };
 
     // -------------------------------
@@ -92,6 +92,130 @@ actor class MainerAgentCtrlbCanister() = this {
         return MAINER_SERVICE_CANISTER_ID;
     };
 
+    // --------------------------------------------------------------------------
+    // Storage & functions used by SharedService mAiner canister to manage SharedAgent mAIner canisters
+
+    // Official mAIner Creator canisters
+    stable var mainerCreatorCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
+    var mainerCreatorCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
+    
+    private func putMainerCreatorCanister(canisterAddress : Text, canisterEntry : Types.OfficialProtocolCanister) : Bool {
+        mainerCreatorCanistersStorage.put(canisterAddress, canisterEntry);
+        return true;
+    };
+
+    private func getMainerCreatorCanister(canisterAddress : Text) : ?Types.OfficialProtocolCanister {
+        switch (mainerCreatorCanistersStorage.get(canisterAddress)) {
+            case (null) { return null; };
+            case (?canisterEntry) { return ?canisterEntry; };
+        };
+    };
+
+    private func removeMainerCreatorCanister(canisterAddress : Text) : Bool {
+        switch (mainerCreatorCanistersStorage.get(canisterAddress)) {
+            case (null) { return false; };
+            case (?canisterEntry) {
+                let removeResult = mainerCreatorCanistersStorage.remove(canisterAddress);
+                return true;
+            };
+        };
+    };
+
+    private func getNextMainerCreatorCanisterEntry() : ?Types.OfficialProtocolCanister {
+        return mainerCreatorCanistersStorage.vals().next();
+    };
+
+    // mAIner Registry: Official mAIner agent canisters (owned by users)
+    stable var mainerAgentCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
+    var mainerAgentCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
+    stable var userToMainerAgentsStorageStable : [(Principal, List.List<Types.OfficialProtocolCanister>)] = [];
+    var userToMainerAgentsStorage : HashMap.HashMap<Principal, List.List<Types.OfficialProtocolCanister>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+
+    private func putMainerAgentCanister(canisterAddress : Text, canisterEntry : Types.OfficialProtocolCanister) : Types.MainerAgentCanisterResult {
+        switch (getMainerAgentCanister(canisterAddress)) {
+            case (null) {
+                mainerAgentCanistersStorage.put(canisterAddress, canisterEntry);
+                switch (putUserMainerAgent(canisterEntry)) {
+                    case (false) {
+                        return #Err(#Other("Error in putUserMainerAgent"));
+                    };
+                    case (true) {
+                        return #Ok(canisterEntry);
+                    };
+                };
+            };
+            case (?canisterEntry) { 
+                //existing entry
+                D.print("GameState: putMainerAgentCanister - canisterEntry already exists -" # debug_show(canisterEntry));
+                return #Err(#Other("Canister entry already exists"));
+            }; 
+        };
+    };
+
+    private func getMainerAgentCanister(canisterAddress : Text) : ?Types.OfficialProtocolCanister {
+        switch (mainerAgentCanistersStorage.get(canisterAddress)) {
+            case (null) { return null; };
+            case (?canisterEntry) { return ?canisterEntry; };
+        };
+    };
+
+    private func removeMainerAgentCanister(canisterAddress : Text) : Bool {
+        switch (mainerAgentCanistersStorage.get(canisterAddress)) {
+            case (null) { return false; };
+            case (?canisterEntry) {
+                let removeResult = mainerAgentCanistersStorage.remove(canisterAddress);
+                // TODO: remove from userToMainerAgentsStorage
+                return true;
+            };
+        };
+    };
+
+    private func putUserMainerAgent(canisterEntry : Types.OfficialProtocolCanister) : Bool {
+        switch (getUserMainerAgents(canisterEntry.ownedBy)) {
+            case (null) {
+                // first entry
+                let userCanistersList : List.List<Types.OfficialProtocolCanister> = List.make<Types.OfficialProtocolCanister>(canisterEntry);
+                userToMainerAgentsStorage.put(canisterEntry.ownedBy, userCanistersList);
+                return true;
+            };
+            case (?userCanistersList) { 
+                //existing list, add entry to it
+                let updatedUserCanistersList : List.List<Types.OfficialProtocolCanister> = List.push<Types.OfficialProtocolCanister>(canisterEntry, userCanistersList);
+                userToMainerAgentsStorage.put(canisterEntry.ownedBy, updatedUserCanistersList);
+                return true;
+            }; 
+        };
+    };
+
+    private func getUserMainerAgents(userId : Principal) : ?List.List<Types.OfficialProtocolCanister> {
+        switch (userToMainerAgentsStorage.get(userId)) {
+            case (null) { return null; };
+            case (?userCanistersList) { return ?userCanistersList; };
+        };
+    };
+
+    // Caution: function that returns all mAIner agents (TODO: decide if needed)
+    private func getMainerAgents() : [Types.OfficialProtocolCanister] {
+        var mainerAgents : List.List<Types.OfficialProtocolCanister> = List.nil<Types.OfficialProtocolCanister>();
+        for (userMainerAgentsList in userToMainerAgentsStorage.vals()) {
+            mainerAgents := List.append<Types.OfficialProtocolCanister>(userMainerAgentsList, mainerAgents);    
+        };
+        return List.toArray(mainerAgents);
+    };
+
+    private func removeUserMainerAgent(canisterEntry : Types.OfficialProtocolCanister) : Bool {
+        switch (getUserMainerAgents(canisterEntry.ownedBy)) {
+            case (null) { return false; };
+            case (?userCanistersList) { 
+                //existing list, remove entry from it
+                let updatedUserCanistersList : List.List<Types.OfficialProtocolCanister> = List.filter(userCanistersList, func(listEntry: Types.OfficialProtocolCanister) : Bool { listEntry.address != canisterEntry.address });
+                userToMainerAgentsStorage.put(canisterEntry.ownedBy, updatedUserCanistersList);
+                return true;
+            }; 
+        };
+    };
+
+    // --------------------------------------------------------------------------
     // Orthogonal Persisted Data storage
     stable let _CYCLES_MILLION = 1_000_000;
     stable let CYCLES_BILLION = 1_000_000_000;
@@ -898,6 +1022,58 @@ actor class MainerAgentCtrlbCanister() = this {
         return canister;
     };
 
+    // Function for mAIner Agent Creator canister to add new mAIner agent for user (SharedAgent)
+    public shared (msg) func addMainerAgentCanister(canisterEntryToAdd : Types.MainerAgentCanisterInput) : async Types.MainerAgentCanisterResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        switch (canisterEntryToAdd.canisterType) {
+            case (#MainerAgent) {
+                // continue
+            };
+            case (_) { return #Err(#Other("Unsupported")); }
+        };
+
+        // Only official mAIner Agent Creator canisters may call this
+        switch (getMainerCreatorCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?mainerCreatorEntry) {
+                let canisterEntry : Types.OfficialProtocolCanister = {
+                    address : Text = canisterEntryToAdd.address;
+                    canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
+                    creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                    createdBy : Principal = msg.caller;
+                    ownedBy : Principal = canisterEntryToAdd.ownedBy;
+                };
+                putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry);           
+            };
+        };
+    };
+
+    // TODO: remove; admin Function to add new mAIner agent for testing (SharedAgent)
+    public shared (msg) func addMainerAgentCanisterAdmin(canisterEntryToAdd : Types.MainerAgentCanisterInput) : async Types.MainerAgentCanisterResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        switch (canisterEntryToAdd.canisterType) {
+            case (#MainerAgent) {
+                // continue
+            };
+            case (_) { return #Err(#Other("Unsupported")); }
+        };
+        let canisterEntry : Types.OfficialProtocolCanister = {
+            address : Text = canisterEntryToAdd.address;
+            canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
+            creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+            createdBy : Principal = msg.caller;
+            ownedBy : Principal = canisterEntryToAdd.ownedBy;
+        }; 
+        putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry); 
+    };
+
 // Timers
     stable var actionRegularityInSeconds = 60; // TODO: set based on user setting for cycles burn rate
 
@@ -921,7 +1097,7 @@ actor class MainerAgentCtrlbCanister() = this {
     private func startTimerExecution() : async Types.AuthRecordResult {
         var res = "You started the timers: ";
 
-        if (MAINER_CANISTER_TYPE == #Own or MAINER_CANISTER_TYPE == #ShareAgent) {
+        if (MAINER_AGENT_CANISTER_TYPE == #Own or MAINER_AGENT_CANISTER_TYPE == #ShareAgent) {
             res := res # " 1, ";
             ignore setTimer<system>(#seconds 5,
                 func () : async () {
@@ -933,7 +1109,7 @@ actor class MainerAgentCtrlbCanister() = this {
             });
         };
 
-        if (MAINER_CANISTER_TYPE == #Own or MAINER_CANISTER_TYPE == #ShareService) {
+        if (MAINER_AGENT_CANISTER_TYPE == #Own or MAINER_AGENT_CANISTER_TYPE == #ShareService) {
             res := res # " 2";
             ignore setTimer<system>(#seconds 5,
                 func () : async () {
@@ -1004,5 +1180,21 @@ actor class MainerAgentCtrlbCanister() = this {
         await processNextChallenge();
         let authRecord = { auth = "You triggered the response generation." };
         return #Ok(authRecord);
+    };
+
+    // Upgrade Hooks
+    system func preupgrade() {
+        mainerCreatorCanistersStorageStable := Iter.toArray(mainerCreatorCanistersStorage.entries());
+        mainerAgentCanistersStorageStable := Iter.toArray(mainerAgentCanistersStorage.entries());
+        userToMainerAgentsStorageStable := Iter.toArray(userToMainerAgentsStorage.entries());
+    };
+
+    system func postupgrade() {
+        mainerCreatorCanistersStorage := HashMap.fromIter(Iter.fromArray(mainerCreatorCanistersStorageStable), mainerCreatorCanistersStorageStable.size(), Text.equal, Text.hash);
+        mainerCreatorCanistersStorageStable := [];
+        mainerAgentCanistersStorage := HashMap.fromIter(Iter.fromArray(mainerAgentCanistersStorageStable), mainerAgentCanistersStorageStable.size(), Text.equal, Text.hash);
+        mainerAgentCanistersStorageStable := [];
+        userToMainerAgentsStorage := HashMap.fromIter(Iter.fromArray(userToMainerAgentsStorageStable), userToMainerAgentsStorageStable.size(), Principal.equal, Principal.hash);
+        userToMainerAgentsStorageStable := [];
     };
 };
