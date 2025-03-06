@@ -93,6 +93,12 @@ module Types {
     public type ChallengesResult = Result<[Challenge], ApiError>;
 
     // mAIner
+    public type ChallengeQueueInput = Challenge and {
+        challengeQueuedBy : Principal;
+    };
+    public type ChallengeQueueInputResult = Result<ChallengeQueueInput, ApiError>;
+    public type ChallengeQueueInputsResult = Result<[ChallengeQueueInput], ApiError>;
+
     public type ChallengeResponseSubmissionStatus = {
         #FailedSubmission;
         #Received;
@@ -212,6 +218,12 @@ module Types {
         addScoredResponse : (ScoredResponseInput) -> async ScoredResponseResult;
         submitChallengeResponse : (ChallengeResponseSubmissionInput) -> async ChallengeResponseSubmissionMetadataResult;
         getRandomOpenChallenge : () -> async ChallengeResult;
+    };
+
+    // Mainer Service canister
+    
+    public type MainerServiceCanister_Actor = actor {
+        addChallengeToQueue : (ChallengeQueueInput) -> async StatusCodeRecordResult;
     };
 
     // Agent Settings

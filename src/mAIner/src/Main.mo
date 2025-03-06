@@ -35,9 +35,9 @@ actor class MainerAgentCtrlbCanister() = this {
         MAINER_AGENT_CANISTER_TYPE := _mainer_agent_canister_type;
 
         // Avoid wrong timers from running when changing mainer canister type
-        D.print("mAIner:  setMainerCanisterType - Stopping Timers");
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setMainerCanisterType - Stopping Timers");
         let result = await stopTimerExecution();
-        D.print("mAIner:  setMainerCanisterType - " # debug_show(result));
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setMainerCanisterType - " # debug_show(result));
 
         return #Ok({ status_code = 200 });
     };
@@ -73,7 +73,7 @@ actor class MainerAgentCtrlbCanister() = this {
 
     // -------------------------------
     stable var MAINER_SERVICE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // Dummy value; Only used by ShareAgent
-    stable var mainerServiceCanisterActor = actor (MAINER_SERVICE_CANISTER_ID) : Types.GameStateCanister_Actor;
+    stable var mainerServiceCanisterActor = actor (MAINER_SERVICE_CANISTER_ID) : Types.MainerServiceCanister_Actor;
     
     public shared (msg) func setMainerServiceCanisterId(_mainer_service_canister_id : Text) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -294,25 +294,25 @@ actor class MainerAgentCtrlbCanister() = this {
 
     // FIFO queue of challenges: retrieved from GameState; to be processed
     stable var MAX_CHALLENGES_IN_QUEUE : Nat = 5;
-    stable var challengeQueue : List.List<Types.Challenge> = List.nil<Types.Challenge>();
+    stable var challengeQueue : List.List<Types.ChallengeQueueInput> = List.nil<Types.ChallengeQueueInput>();
 
-    private func pushChallengeQueue(challenge : Types.Challenge) : Bool {
-        challengeQueue := List.push<Types.Challenge>(challenge, challengeQueue);
+    private func pushChallengeQueue(challengeQueueInput : Types.ChallengeQueueInput) : Bool {
+        challengeQueue := List.push<Types.ChallengeQueueInput>(challengeQueueInput, challengeQueue);
         return true;
     };
 
-    private func popChallengeQueue() : ?Types.Challenge {
+    private func popChallengeQueue() : ?Types.ChallengeQueueInput {
         let (head, tail) = List.pop(challengeQueue);
         challengeQueue := tail;
         head;
     };
 
-    public query (msg) func getChallengeQueueAdmin() : async Types.ChallengesResult {
+    public query (msg) func getChallengeQueueAdmin() : async Types.ChallengeQueueInputsResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        let challenges : [Types.Challenge] = List.toArray<Types.Challenge>(challengeQueue);
-        return #Ok(challenges);
+        let challengeQueueInputs : [Types.ChallengeQueueInput] = List.toArray<Types.ChallengeQueueInput>(challengeQueue);
+        return #Ok(challengeQueueInputs);
     };
 
     // Record of generated responses
@@ -406,15 +406,15 @@ actor class MainerAgentCtrlbCanister() = this {
     };
     private func _add_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : Types.StatusCodeRecordResult {
         let llmCanister = actor (llmCanisterIdRecord.canister_id) : Types.LLMCanister;
-        D.print("mAIner: Inside function _add_llm_canister_id. Adding llm: " # Principal.toText(Principal.fromActor(llmCanister)));
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Inside function _add_llm_canister_id. Adding llm: " # Principal.toText(Principal.fromActor(llmCanister)));
         llmCanisters.add(llmCanister);
 
         // Print content of the llmCanisters Buffer:
-        D.print("mAIner: Content of llmCanisters after addition: ");
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Content of llmCanisters after addition: ");
         Buffer.iterate(
             llmCanisters,
             func(canister : Types.LLMCanister) : () {
-                D.print("mAIner: Canister ID: " # Principal.toText(Principal.fromActor(canister)));
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Canister ID: " # Principal.toText(Principal.fromActor(canister)));
             },
         );
         return #Ok({ status_code = 200 });
@@ -516,37 +516,37 @@ actor class MainerAgentCtrlbCanister() = this {
     // Respond to challenges
 
     private func getChallengeFromGameStateCanister() : async Types.ChallengeResult {
-        D.print("mAIner:  calling getRandomOpenChallenge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): calling getRandomOpenChallenge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let result : Types.ChallengeResult = await gameStateCanisterActor.getRandomOpenChallenge();
-        D.print("mAIner:  getRandomOpenChallenge returned.");
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): getRandomOpenChallenge returned.");
         return result;
     };
 
     private func processRespondingToChallenge(challenge : Types.Challenge) : async () {
-        D.print("mAIner:  processRespondingToChallenge - calling respondToChallengeDoIt_");
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - calling respondToChallengeDoIt_");
         let respondingResult : Types.ChallengeResponseResult = await respondToChallengeDoIt_(challenge);
-        D.print("mAIner:  processRespondingToChallenge - returned from respondToChallengeDoIt_");
-        D.print("mAIner: respondingResult = " # debug_show (respondingResult));
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - returned from respondToChallengeDoIt_");
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondingResult = " # debug_show (respondingResult));
 
         switch (respondingResult) {
             case (#Err(error)) {
-                D.print("mAIner:  processRespondingToChallenge error");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge error");
                 D.print(debug_show (error));
                 // TODO: error handling
             };
             case (#Ok(respondingOutput : Types.ChallengeResponse)) {
-                D.print("mAIner:  processRespondingToChallenge - calling putGeneratedResponse");
-                D.print("mAIner:  respondingOutput = " # debug_show (respondingOutput));
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - calling putGeneratedResponse");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondingOutput = " # debug_show (respondingOutput));
                 // TODO: adapt cycles burnt stats
                 ignore increaseTotalCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
 
                 // Store response
                 let storeResult : Bool = putGeneratedResponse(respondingOutput);
-                D.print("mAIner:  processRespondingToChallenge - returned from putGeneratedResponse");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - returned from putGeneratedResponse");
 
                 switch (storeResult) {
                     case (false) {
-                        D.print("mAIner:  storeResult error");
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeResult error");
                         // TODO: error handling
                     };
                     case (true) {
@@ -575,10 +575,10 @@ actor class MainerAgentCtrlbCanister() = this {
                         let submissionCyclesRequired : Nat = challenge.submissionCyclesRequired;
                         let availableCycles = Cycles.balance();
                         if (availableCycles < submissionCyclesRequired + CYCLE_BALANCE_MINIMUM) {
-                            D.print("mAIner:  processRespondingToChallenge- NOT ENOUGH CYCLES TO SUBMIT THE GENERATED RESPONSE FOR THIS CHALLENGE");
-                            D.print("mAIner:  processRespondingToChallenge- submissionCyclesRequired = " # debug_show(submissionCyclesRequired));
-                            D.print("mAIner:  processRespondingToChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
-                            D.print("mAIner:  processRespondingToChallenge- availableCycles          = " # debug_show(availableCycles));
+                            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge- NOT ENOUGH CYCLES TO SUBMIT THE GENERATED RESPONSE FOR THIS CHALLENGE");
+                            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge- submissionCyclesRequired = " # debug_show(submissionCyclesRequired));
+                            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
+                            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge- availableCycles          = " # debug_show(availableCycles));
                             // Note: do not pause...
                             return;
                         };
@@ -586,12 +586,12 @@ actor class MainerAgentCtrlbCanister() = this {
                         // Add the required amount of cycles
                         Cycles.add<system>(SUBMISSION_CYCLES_REQUIRED);
 
-                        D.print("mAIner:  processRespondingToChallenge- calling submitChallengeResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge- calling submitChallengeResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
                         let submitMetadaResult : Types.ChallengeResponseSubmissionMetadataResult = await gameStateCanisterActor.submitChallengeResponse(challengeResponseSubmissionInput);
-                        D.print("mAIner:  processRespondingToChallenge - returned from gameStateCanisterActor.submitChallengeResponse");
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - returned from gameStateCanisterActor.submitChallengeResponse");
                         switch (submitMetadaResult) {
                             case (#Err(error)) {
-                                D.print("mAIner:  submitMetada error");
+                                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): submitMetada error");
                                 D.print(debug_show (error));
                                 // TODO: error handling
                             };
@@ -617,12 +617,12 @@ actor class MainerAgentCtrlbCanister() = this {
                                     submittedTimestamp : Nat64 = submitMetada.submittedTimestamp;
                                     submissionStatus : Types.ChallengeResponseSubmissionStatus = submitMetada.submissionStatus;
                                 };
-                                D.print("mAIner:  processRespondingToChallenge - calling putSubmittedResponse");
+                                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - calling putSubmittedResponse");
                                 let putResult = putSubmittedResponse(challengeResponseSubmission);
-                                D.print("mAIner:  processRespondingToChallenge - return from putSubmittedResponse");
+                                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - return from putSubmittedResponse");
                                 switch (putResult) {
                                     case (false) {
-                                        D.print("mAIner:  putResult error");
+                                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): putResult error");
                                         // TODO: error handling
                                     };
                                     case (true) {
@@ -652,19 +652,19 @@ actor class MainerAgentCtrlbCanister() = this {
 
         let llmCanister = _getRoundRobinCanister();
 
-        D.print("mAIner:  llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
 
         // Check health of llmCanister
-        // D.print("mAIner:  calling health endpoint of LLM");
+        // D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): calling health endpoint of LLM");
         let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.health();
-        // D.print("mAIner:  returned from health endpoint of LLM with : ");
-        // D.print("mAIner:  statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
+        // D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): returned from health endpoint of LLM with : ");
+        // D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
         switch (statusCodeRecordResult) {
             case (#Err(error)) {
                 return #Err(error);
             };
             case (#Ok(_statusCodeRecord)) {
-                D.print("mAIner:  LLM is healthy");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): LLM is healthy");
             };
         };
 
@@ -700,11 +700,11 @@ actor class MainerAgentCtrlbCanister() = this {
                 promptCache,
             ];
             let inputRecord : Types.InputRecord = { args = args };
-            D.print("mAIner:  calling new_chat...");
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): calling new_chat...");
             // D.print(debug_show (args));
             num_update_calls += 1;
             let outputRecordResult : Types.OutputRecordResult = await llmCanister.new_chat(inputRecord);
-            // D.print("mAIner:  returned from new_chat with outputRecordResult: ");
+            // D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): returned from new_chat with outputRecordResult: ");
             // D.print(debug_show (outputRecordResult));
 
             switch (outputRecordResult) {
@@ -719,18 +719,18 @@ actor class MainerAgentCtrlbCanister() = this {
                     error := outputRecord.error;
                     prompt_remaining := outputRecord.prompt_remaining;
                     generated_eog := outputRecord.generated_eog;
-                    // D.print("mAIner:  status_code      : " # debug_show (status_code));
-                    D.print("mAIner:  output           : " # debug_show (output));
-                    // D.print("mAIner:  conversation     : " # debug_show (conversation));
-                    // D.print("mAIner:  error            : " # debug_show (error));
-                    // D.print("mAIner:  prompt_remaining : " # debug_show (prompt_remaining));
-                    // D.print("mAIner:  generated_eog    : " # debug_show (generated_eog));
+                    // D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): status_code      : " # debug_show (status_code));
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): output           : " # debug_show (output));
+                    // D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): conversation     : " # debug_show (conversation));
+                    // D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): error            : " # debug_show (error));
+                    // D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): prompt_remaining : " # debug_show (prompt_remaining));
+                    // D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): generated_eog    : " # debug_show (generated_eog));
                 };
             };
         } catch (error : Error) {
             // Handle errors, such as llm canister not responding
-            D.print("mAIner:  catch error when calling new_chat : ");
-            D.print("mAIner:  error: " # Error.message(error));
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): catch error when calling new_chat : ");
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): error: " # Error.message(error));
             return #Err(
                 #Other(
                     "Failed call to new_chat of " # Principal.toText(Principal.fromActor(llmCanister)) #
@@ -768,15 +768,15 @@ actor class MainerAgentCtrlbCanister() = this {
                     prompt,
                 ];
                 let inputRecord : Types.InputRecord = { args = args };
-                D.print("mAIner:  calling run_update...");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): calling run_update...");
                 // D.print(debug_show (args));
                 num_update_calls += 1;
                 if (num_update_calls > 30) {
-                    D.print("mAIner:  too many calls run_update - Breaking out of loop...");
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): too many calls run_update - Breaking out of loop...");
                     break continueLoop; // Protective break for endless loop.
                 };
                 let outputRecordResult : Types.OutputRecordResult = await llmCanister.run_update(inputRecord);
-                // D.print("mAIner:  INGESTING PROMPT:returned from run_update with outputRecordResult: ");
+                // D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): INGESTING PROMPT:returned from run_update with outputRecordResult: ");
                 // D.print(debug_show (outputRecordResult));
 
                 switch (outputRecordResult) {
@@ -791,15 +791,15 @@ actor class MainerAgentCtrlbCanister() = this {
                         error := outputRecord.error;
                         prompt_remaining := outputRecord.prompt_remaining;
                         generated_eog := outputRecord.generated_eog;
-                        // D.print("mAIner:  status_code      : " # debug_show (status_code));
-                        D.print("mAIner:  output           : " # debug_show (output));
-                        // D.print("mAIner:  conversation     : " # debug_show (conversation));
-                        // D.print("mAIner:  error            : " # debug_show (error));
-                        // D.print("mAIner:  prompt_remaining : " # debug_show (prompt_remaining));
-                        // D.print("mAIner:  generated_eog    : " # debug_show (generated_eog));
+                        // D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): status_code      : " # debug_show (status_code));
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): output           : " # debug_show (output));
+                        // D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): conversation     : " # debug_show (conversation));
+                        // D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): error            : " # debug_show (error));
+                        // D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): prompt_remaining : " # debug_show (prompt_remaining));
+                        // D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): generated_eog    : " # debug_show (generated_eog));
 
                         generationOutput := generationOutput # output;
-                        // D.print("mAIner:  generationOutput : " # debug_show (generationOutput));
+                        // D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): generationOutput : " # debug_show (generationOutput));
 
                         if (prompt_remaining == "") {
                             prompt := ""; // Send empty prompt - the prompt ingestion is done.
@@ -812,8 +812,8 @@ actor class MainerAgentCtrlbCanister() = this {
                 };
             } catch (error : Error) {
                 // Handle errors, such as llm canister not responding
-                D.print("mAIner:  catch error when calling new_chat : ");
-                D.print("mAIner:  error: " # Error.message(error));
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): catch error when calling new_chat : ");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): error: " # Error.message(error));
                 return #Err(
                     #Other(
                         "Failed call to run_update of " # Principal.toText(Principal.fromActor(llmCanister)) #
@@ -830,17 +830,17 @@ actor class MainerAgentCtrlbCanister() = this {
                 promptCache,
             ];
             let inputRecord : Types.InputRecord = { args = args };
-            // D.print("mAIner:  calling remove_prompt_cache with args: ");
+            // D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): calling remove_prompt_cache with args: ");
             // D.print(debug_show (args));
             num_update_calls += 1;
             let outputRecordResult : Types.OutputRecordResult = await llmCanister.remove_prompt_cache(inputRecord);
-            // D.print("mAIner:  returned from remove_prompt_cache with outputRecordResult: ");
+            // D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): returned from remove_prompt_cache with outputRecordResult: ");
             // D.print(debug_show (outputRecordResult));
 
         } catch (error : Error) {
             // Handle errors, such as llm canister not responding
-            D.print("mAIner:  catch error when calling remove_prompt_cache : ");
-            D.print("mAIner:  error: " # Error.message(error));
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): catch error when calling remove_prompt_cache : ");
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): error: " # Error.message(error));
             return #Err(
                 #Other(
                     "Failed call to remove_prompt_cache of " # Principal.toText(Principal.fromActor(llmCanister)) #
@@ -864,7 +864,7 @@ actor class MainerAgentCtrlbCanister() = this {
 
     // Triggered by timer 1: get next challenge and add it to the queue
     private func pullNextChallenge() : async () {
-        D.print("mAIner:  pullNextChallenge - entered");
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - entered");
         
         // -----------------------------------------------------
         // Check if the canister has enough cycles to submit
@@ -872,10 +872,10 @@ actor class MainerAgentCtrlbCanister() = this {
         // Before doing anything, check if the canister has enough cycles
         let availableCycles = Cycles.balance();
         if (availableCycles < SUBMISSION_CYCLES_REQUIRED + CYCLE_BALANCE_MINIMUM) {
-            D.print("mAIner:  pullNextChallenge- PAUSING RESPONSE GENERATION DUE TO LOW CYCLE BALANCE");
-            D.print("mAIner:  pullNextChallenge- SUBMISSION_CYCLES_REQUIRED = " # debug_show(SUBMISSION_CYCLES_REQUIRED));
-            D.print("mAIner:  pullNextChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
-            D.print("mAIner:  pullNextChallenge- availableCycles          = " # debug_show(availableCycles));
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge- PAUSING RESPONSE GENERATION DUE TO LOW CYCLE BALANCE");
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge- SUBMISSION_CYCLES_REQUIRED = " # debug_show(SUBMISSION_CYCLES_REQUIRED));
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge- availableCycles          = " # debug_show(availableCycles));
 
             PAUSED_DUE_TO_LOW_CYCLE_BALANCE := true;
             return;
@@ -888,46 +888,68 @@ actor class MainerAgentCtrlbCanister() = this {
         // -----------------------------------------------------
         // Check if the queue already has enough challenges
         if (List.size(challengeQueue) >= MAX_CHALLENGES_IN_QUEUE) {
-            D.print("mAIner:  pullNextChallenge- Already have enough Challenges in the queue. Not adding more.");
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge- Already have enough Challenges in the queue. Not adding more.");
             return;
         };
 
         // -----------------------------------------------------
         // Get the next challenge from GameState canister
-        D.print("mAIner:  pullNextChallenge - calling getChallengeFromGameStateCanister.");
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - calling getChallengeFromGameStateCanister.");
         let challengeResult : Types.ChallengeResult = await getChallengeFromGameStateCanister();
-        D.print("mAIner:  pullNextChallenge - received challengeResult from getChallengeFromGameStateCanister: " # debug_show (challengeResult));
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - received challengeResult from getChallengeFromGameStateCanister: " # debug_show (challengeResult));
         switch (challengeResult) {
             case (#Err(error)) {
-                D.print("mAIner:  pullNextChallenge - challengeResult error : " # debug_show (error));
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - challengeResult error : " # debug_show (error));
                 // TODO: error handling
             };
-            case (#Ok(nextChallenge : Types.Challenge)) {
-                D.print("mAIner:  pullNextChallenge - nextChallenge = " # debug_show (nextChallenge));
+            case (#Ok(challenge : Types.Challenge)) {
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - challenge = " # debug_show (challenge));
 
                 // Do not add this challenge to the queue if the canister does not have enough cycles to submit
                 // Check against the number sent by the GameState for this particular Challenge
-                let submissionCyclesRequired : Nat = nextChallenge.submissionCyclesRequired;
+                let submissionCyclesRequired : Nat = challenge.submissionCyclesRequired;
                 let availableCycles = Cycles.balance();
                 if (availableCycles < submissionCyclesRequired + CYCLE_BALANCE_MINIMUM) {
-                    D.print("mAIner:  pullNextChallenge- SKIPPING CHALLENGE; NOT ENOUGH CYCLES TO SUBMIT THIS CHALLENGE");
-                    D.print("mAIner:  pullNextChallenge- submissionCyclesRequired = " # debug_show(submissionCyclesRequired));
-                    D.print("mAIner:  pullNextChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
-                    D.print("mAIner:  pullNextChallenge- availableCycles          = " # debug_show(availableCycles));
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge- SKIPPING CHALLENGE; NOT ENOUGH CYCLES TO SUBMIT THIS CHALLENGE");
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge- submissionCyclesRequired = " # debug_show(submissionCyclesRequired));
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge- availableCycles          = " # debug_show(availableCycles));
                     // Note: do not set pause flag
                     return;
                 };
 
                 // Add the challenge to the queue
-                D.print("mAIner:  pullNextChallenge - adding nextChallenge to the queue");
-                let pushResult_ = pushChallengeQueue(nextChallenge);
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - adding nextChallenge to the queue");
+                let challengeQueuedBy : Principal = Principal.fromActor(this);
+                let challengeQueueInput : Types.ChallengeQueueInput = {
+                    challengeTopic : Text = challenge.challengeTopic;
+                    challengeTopicId : Text = challenge.challengeTopicId;
+                    challengeTopicCreationTimestamp : Nat64 = challenge.challengeTopicCreationTimestamp;
+                    challengeTopicStatus : Types.ChallengeTopicStatus = challenge.challengeTopicStatus;
+                    challengeQuestion : Text = challenge.challengeQuestion;
+                    challengeQuestionSeed : Nat32 = challenge.challengeQuestionSeed;
+                    challengeId : Text = challenge.challengeId;
+                    challengeCreationTimestamp : Nat64 = challenge.challengeCreationTimestamp;
+                    challengeCreatedBy : Types.CanisterAddress = challenge.challengeCreatedBy;
+                    challengeStatus : Types.ChallengeStatus = challenge.challengeStatus;
+                    challengeClosedTimestamp : ?Nat64 = challenge.challengeClosedTimestamp;
+                    submissionCyclesRequired : Nat = challenge.submissionCyclesRequired;
+                    challengeQueuedBy : Principal = challengeQueuedBy;
+                };
+                let _pushResult_ = pushChallengeQueue(challengeQueueInput);
+
+                // When used, send the challenge to the Shared mAIner Service
+                if (MAINER_AGENT_CANISTER_TYPE == #ShareAgent) {
+                    let _addResult_ = await mainerServiceCanisterActor.addChallengeToQueue(challengeQueueInput);
+                };
+
                 return;
             };
         };
     };
 
     private func processNextChallenge() : async () {
-        D.print("mAIner:  processNextChallenge - entered");
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge - entered");
 
         // -----------------------------------------------------
         // Check if the canister has enough cycles to submit
@@ -935,10 +957,10 @@ actor class MainerAgentCtrlbCanister() = this {
         // Before doing anything, check if the canister has enough cycles
         let availableCycles = Cycles.balance();
         if (availableCycles < SUBMISSION_CYCLES_REQUIRED + CYCLE_BALANCE_MINIMUM) {
-            D.print("mAIner:  processNextChallenge- PAUSING RESPONSE GENERATION DUE TO LOW CYCLE BALANCE");
-            D.print("mAIner:  processNextChallenge- SUBMISSION_CYCLES_REQUIRED = " # debug_show(SUBMISSION_CYCLES_REQUIRED));
-            D.print("mAIner:  processNextChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
-            D.print("mAIner:  processNextChallenge- availableCycles          = " # debug_show(availableCycles));
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge- PAUSING RESPONSE GENERATION DUE TO LOW CYCLE BALANCE");
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge- SUBMISSION_CYCLES_REQUIRED = " # debug_show(SUBMISSION_CYCLES_REQUIRED));
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge- availableCycles          = " # debug_show(availableCycles));
 
             PAUSED_DUE_TO_LOW_CYCLE_BALANCE := true;
             return;
@@ -951,21 +973,21 @@ actor class MainerAgentCtrlbCanister() = this {
         // Process the next challenge in the challengeQueue
         switch (popChallengeQueue()) {
             case (null) {
-                D.print("mAIner:  processNextChallenge - Queue is empty. Nothing to do.");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge - Queue is empty. Nothing to do.");
                 return;
             };
             case (?nextChallenge) {
-                D.print("mAIner:  processNextChallenge - nextChallenge" # debug_show (nextChallenge));
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge - nextChallenge" # debug_show (nextChallenge));
 
                 // Second check if the canister has enough cycles to submit
                 // Check against the number sent by the GameState for this particular Challenge
                 let submissionCyclesRequired : Nat = nextChallenge.submissionCyclesRequired;
                 let availableCycles = Cycles.balance();
                 if (availableCycles < submissionCyclesRequired + CYCLE_BALANCE_MINIMUM) {
-                    D.print("mAIner:  processNextChallenge- SKIPPING CHALLENGE; NOT ENOUGH CYCLES TO SUBMIT THIS CHALLENGE");
-                    D.print("mAIner:  processNextChallenge- submissionCyclesRequired = " # debug_show(submissionCyclesRequired));
-                    D.print("mAIner:  processNextChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
-                    D.print("mAIner:  processNextChallenge- availableCycles          = " # debug_show(availableCycles));
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge- SKIPPING CHALLENGE; NOT ENOUGH CYCLES TO SUBMIT THIS CHALLENGE");
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge- submissionCyclesRequired = " # debug_show(submissionCyclesRequired));
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge- CYCLE_BALANCE_MINIMUM    = " # debug_show(CYCLE_BALANCE_MINIMUM));
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge- availableCycles          = " # debug_show(availableCycles));
                     // Note: do not set pause flag
                     return;
                 };
@@ -1006,7 +1028,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     private func _getRoundRobinCanister() : Types.LLMCanister {
-        D.print("mAIner: _getRoundRobinCanister: using roundRobinIndex " # Nat.toText(roundRobinIndex));
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): _getRoundRobinCanister: using roundRobinIndex " # Nat.toText(roundRobinIndex));
         let canister = llmCanisters.get(roundRobinIndex);
         roundRobinIndex += 1;
 
@@ -1078,19 +1100,19 @@ actor class MainerAgentCtrlbCanister() = this {
     stable var actionRegularityInSeconds = 60; // TODO: set based on user setting for cycles burn rate
 
     private func triggerRecurringAction1() : async () {
-        D.print("mAIner:  Recurring action 1 was triggered");
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 1 was triggered");
         let result = await pullNextChallenge();
-        D.print("mAIner:  Recurring action 1 result");
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 1 result");
         D.print(debug_show (result));
-        D.print("mAIner:  Recurring action 1 result");
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 1 result");
     };
 
     private func triggerRecurringAction2() : async () {
-        D.print("mAIner:  Recurring action 2 was triggered");
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 2 was triggered");
         let result = await processNextChallenge();
-        D.print("mAIner:  Recurring action 2 result");
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 2 result");
         D.print(debug_show (result));
-        D.print("mAIner:  Recurring action 2 result");
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 2 result");
     };
 
     
@@ -1101,9 +1123,9 @@ actor class MainerAgentCtrlbCanister() = this {
             res := res # " 1, ";
             ignore setTimer<system>(#seconds 5,
                 func () : async () {
-                    D.print("mAIner:  setTimer 1");
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer 1");
                     let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction1);
-                    D.print("mAIner: Successfully start timer 1 with id = " # debug_show (id));
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Successfully start timer 1 with id = " # debug_show (id));
                     recurringTimerId1 := ?id;
                     await triggerRecurringAction1();
             });
@@ -1113,9 +1135,9 @@ actor class MainerAgentCtrlbCanister() = this {
             res := res # " 2";
             ignore setTimer<system>(#seconds 5,
                 func () : async () {
-                    D.print("mAIner:  setTimer 2");
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer 2");
                     let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction2);
-                    D.print("mAIner: Successfully start timer 2 with id = " # debug_show (id));
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Successfully start timer 2 with id = " # debug_show (id));
                     recurringTimerId2 := ?id;
                     await triggerRecurringAction2();
             });
@@ -1130,27 +1152,27 @@ actor class MainerAgentCtrlbCanister() = this {
 
         switch (recurringTimerId1) {
             case (?id) {
-                D.print("mAIner: Stopping timer 1 with id = " # debug_show (id));
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Stopping timer 1 with id = " # debug_show (id));
                 Timer.cancelTimer(id);
                 recurringTimerId1 := null;
                 res := res # " 1 (id = " # Nat.toText(id) # "), ";
-                D.print("mAIner: Timer 1 stopped successfully.");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Timer 1 stopped successfully.");
             };
             case null {
-                D.print("There is no active timer 1.");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): There is no active timer 1.");
             };
         };
 
         switch (recurringTimerId2) {
             case (?id) {
-                D.print("mAIner: Stopping timer 2 with id = " # debug_show (id));
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Stopping timer 2 with id = " # debug_show (id));
                 Timer.cancelTimer(id);
                 recurringTimerId2 := null;
                 res := res # " 2 (id = " # Nat.toText(id) # ")";
-                D.print("mAIner: Timer 2 stopped successfully.");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Timer 2 stopped successfully.");
             };
             case null {
-                D.print("There is no active timer 2.");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): There is no active timer 2.");
             };
         };
 

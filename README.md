@@ -175,14 +175,18 @@ dfx canister call game_state_canister getCurrentChallengesAdmin --output json [-
 # Call for each mainer_ctrlb_canister_#
 
 # ###################################################################
+# Verify the mAIner Service Canister Type
+dfx canister call mainer_service_canister getMainerCanisterType [--ic]
 
-# Verify the Mainer Canister Type
+# Verify a mAIner agent Canister Type
 dfx canister call mainer_ctrlb_canister_0 getMainerCanisterType [--ic]
 
 # start timers
+dfx canister call mainer_service_canister startTimerExecutionAdmin [--ic]
 dfx canister call mainer_ctrlb_canister_0 startTimerExecutionAdmin [--ic]
 
 # stop the timers
+dfx canister call mainer_service_canister stopTimerExecutionAdmin [--ic]
 dfx canister call mainer_ctrlb_canister_0 stopTimerExecutionAdmin [--ic]
 
 # you can also trigger a single challenge response generation manually
