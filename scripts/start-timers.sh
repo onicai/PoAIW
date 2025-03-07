@@ -50,6 +50,12 @@ dfx canister call challenger_ctrlb_canister startTimerExecutionAdmin --network $
 
 echo "==========================================="
 cd ../mAIner
+
+MAINER="mainer_service_canister"
+echo "Starting timer for $MAINER:"
+dfx canister call $MAINER startTimerExecutionAdmin --network $NETWORK_TYPE
+
+
 mainer_id_start=0
 mainer_id_end=$((NUM_MAINERS_DEPLOYED - 1))
 

@@ -50,6 +50,12 @@ dfx canister call challenger_ctrlb_canister stopTimerExecutionAdmin --network $N
 
 echo "==========================================="
 cd ../mAIner
+
+MAINER="mainer_service_canister"
+echo "Stopping timer for $MAINER:"
+dfx canister call $MAINER stopTimerExecutionAdmin --network $NETWORK_TYPE
+
+
 mainer_id_start=0
 mainer_id_end=$((NUM_MAINERS_DEPLOYED - 1))
 

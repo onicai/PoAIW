@@ -83,11 +83,11 @@ i=0 # LLM index
 #######################################################################
 echo " "
 MAINER="mainer_service_canister"
-MAINER_AGENT_CANISTER_TYPE="ShareService"
+MAINER_CANISTER_TYPE="ShareService"
 
 echo " "
 echo "--------------------------------------------------"
-echo "$MAINER of type $MAINER_AGENT_CANISTER_TYPE with id $CANISTER_ID_MAINER_SERVICE_CANISTER"
+echo "$MAINER of type $MAINER_CANISTER_TYPE with id $CANISTER_ID_MAINER_SERVICE_CANISTER"
 
 echo " "
 echo "Checking health endpoint for $MAINER"
@@ -143,11 +143,11 @@ for m in $(seq $mainer_id_start $mainer_id_end)
 do
     MAINER="mainer_ctrlb_canister_$m"
     MAINER_CANISTER_ID=${CANISTER_ID_MAINER_CTRLB_CANISTERS[$m]}
-    MAINER_AGENT_CANISTER_TYPE=${MAINER_CANISTER_TYPES[$m]}
+    MAINER_CANISTER_TYPE=${MAINER_CANISTER_TYPES[$m]}
 
     echo " "
     echo "--------------------------------------------------"
-    echo "$MAINER ($MAINER_CANISTER_ID) of type $MAINER_AGENT_CANISTER_TYPE"
+    echo "$MAINER ($MAINER_CANISTER_ID) of type $MAINER_CANISTER_TYPE"
 
     echo " "
     echo "Checking health endpoint for $MAINER"
@@ -160,7 +160,7 @@ do
         echo "$MAINER is healthy."
     fi
 
-    if [ "$MAINER_AGENT_CANISTER_TYPE" = "Own" ]; then
+    if [ "$MAINER_CANISTER_TYPE" = "Own" ]; then
         echo "Calling reset_llm_canisters."
         output=$(dfx canister call $MAINER reset_llm_canisters --network $NETWORK_TYPE)
 
@@ -190,13 +190,13 @@ do
             echo "setRoundRobinLLMs call failed. Exiting."
             exit 1
         fi
-    elif [ "$MAINER_AGENT_CANISTER_TYPE" = "ShareAgent" ]; then
+    elif [ "$MAINER_CANISTER_TYPE" = "ShareAgent" ]; then
         # ------------
         echo "Registering mainer_service_canister ($CANISTER_ID_MAINER_SERVICE_CANISTER) with $MAINER"
-        output=$(dfx canister call $MAINER setMainerServiceCanisterId "(\"$CANISTER_ID_MAINER_SERVICE_CANISTER\")" --network $NETWORK_TYPE)
+        output=$(dfx canister call $MAINER setShareServiceCanisterId "(\"$CANISTER_ID_MAINER_SERVICE_CANISTER\")" --network $NETWORK_TYPE)
 
         if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-            echo "Error calling setMainerServiceCanisterId for $CANISTER_ID_MAINER_SERVICE_CANISTER. Exiting."
+            echo "Error calling setShareServiceCanisterId for $CANISTER_ID_MAINER_SERVICE_CANISTER. Exiting."
             exit 1
         fi
 

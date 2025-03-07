@@ -178,16 +178,20 @@ dfx canister call game_state_canister getCurrentChallengesAdmin --output json [-
 # Verify the mAIner Service Canister Type
 dfx canister call mainer_service_canister getMainerCanisterType [--ic]
 
-# Verify a mAIner agent Canister Type
+# Verify a mAIner Agent Canister Type (0, 1, 2)
 dfx canister call mainer_ctrlb_canister_0 getMainerCanisterType [--ic]
 
-# start timers
+# start timers for mAIner Service Canister
 dfx canister call mainer_service_canister startTimerExecutionAdmin [--ic]
+
+# start timers for mAIner Agent Canisters (0, 1, 2)
 dfx canister call mainer_ctrlb_canister_0 startTimerExecutionAdmin [--ic]
 
-# stop the timers
-dfx canister call mainer_service_canister stopTimerExecutionAdmin [--ic]
+# stop timers for mAIner Agent Canisters (0, 1, 2)
 dfx canister call mainer_ctrlb_canister_0 stopTimerExecutionAdmin [--ic]
+
+# stop timers for mAIner Service Canister
+dfx canister call mainer_service_canister stopTimerExecutionAdmin [--ic]
 
 # you can also trigger a single challenge response generation manually
 dfx canister call mainer_ctrlb_canister_0 triggerChallengeResponseAdmin [--ic]
@@ -199,10 +203,11 @@ dfx canister call mainer_ctrlb_canister_0 triggerChallengeResponseAdmin [--ic]
 The response generation takes a moment. To ensure it worked, call
 ```bash
 # from folder: PoAIW/src/mAIner
+dfx canister call mainer_service_canister getChallengeQueueAdmin --output json [--ic]
 dfx canister call mainer_ctrlb_canister_0 getChallengeQueueAdmin --output json [--ic]
 dfx canister call mainer_ctrlb_canister_0 getSubmittedResponsesAdmin --output json [--ic]
 
-# from folder: PoAIW/src/GameState
+# from folder: funnAI
 dfx canister call game_state_canister getSubmissionsAdmin --output json [--ic]
 ```
 

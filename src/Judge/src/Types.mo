@@ -48,6 +48,15 @@ module Types {
     public type ChallengeResult = Result<Challenge, ApiError>;
 
     // mAIner
+    public type ChallengeQueueInput = Challenge and {
+        challengeQueuedId : Text;
+        challengeQueuedBy : Principal;
+        challengeQueuedTo : Principal;
+        challengeQueuedTimestamp : Nat64;
+    };
+    public type ChallengeQueueInputResult = Result<ChallengeQueueInput, ApiError>;
+    public type ChallengeQueueInputsResult = Result<[ChallengeQueueInput], ApiError>;
+
     public type ChallengeResponseSubmissionStatus = {
         #FailedSubmission;
         #Received;
@@ -58,7 +67,7 @@ module Types {
         #Other : Text;
     };
 
-    public type ChallengeResponseSubmissionInput = Challenge and {
+    public type ChallengeResponseSubmissionInput = ChallengeQueueInput and {
         challengeAnswer : Text;
         challengeAnswerSeed : Nat32;
         submittedBy : Principal;
