@@ -164,8 +164,9 @@ The challenge generation takes a moment. To ensure it worked, call
 # from folder: PoAIW/src/Challenger
 dfx canister call challenger_ctrlb_canister getChallengesAdmin --output json [--ic]
 
-# from folder: PoAIW/src/GameState
+# from folder: funnAI
 dfx canister call game_state_canister getCurrentChallengesAdmin --output json [--ic]
+dfx canister call game_state_canister getNumCurrentChallengesAdmin --output json [--ic]
 ```
 
 ## Test mAIners:
@@ -209,6 +210,7 @@ dfx canister call mainer_ctrlb_canister_0 getSubmittedResponsesAdmin --output js
 
 # from folder: funnAI
 dfx canister call game_state_canister getSubmissionsAdmin --output json [--ic]
+dfx canister call game_state_canister getNumSubmissionsAdmin --output json [--ic]
 ```
 
 ## Test Judge
@@ -225,8 +227,9 @@ dfx canister call judge_ctrlb_canister triggerScoreSubmissionAdmin [--ic]
 
 To ensure it worked, call
 ```bash
-# from folder: PoAIW/src/GameState
+# from folder: funnAI
 dfx canister call game_state_canister getScoredChallengesAdmin --output json [--ic]
+dfx canister call game_state_canister getNumScoredChallengesAdmin --output json [--ic]
 ```
 
 ## Top off the LLMs
