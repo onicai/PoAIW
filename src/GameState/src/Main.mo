@@ -16,12 +16,26 @@ import Order "mo:base/Order";
 
 import Types "./Types";
 import Utils "Utils";
+import TokenLedger "./icp-ledger-interface";
 
 actor class GameStateCanister() = this {
 
     // Function to verify that canister is up & running
     public shared query func health() : async Types.StatusCodeRecordResult {
         return #Ok({ status_code = 200 });
+    };
+
+    // Token Ledger
+    stable var TOKEN_LEDGER_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // TODO: update
+
+    // TODO: remove this function before launching
+    public shared (msg) func setTokenLedgerCanisterId(_token_ledger_canister_id : Text) : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        TOKEN_LEDGER_CANISTER_ID := _token_ledger_canister_id;
+        let authRecord = { auth = "You set the token ledger canister id for this canister." };
+        return #Ok(authRecord);
     };
 
     // Game Settings
@@ -630,7 +644,8 @@ actor class GameStateCanister() = this {
     };
 
     private func getRewardAmountForResult(achievedResult : Types.ChallengeParticipationResult, totalNumberParticipants : Nat) : Nat { 
-        let participationReward = DEFAULT_REWARD_PER_CHALLENGE.amountForAllParticipants / totalNumberParticipants;
+        // TODO: is this safe? i.e. what could happen with rounding errors?
+        let participationReward = DEFAULT_REWARD_PER_CHALLENGE.amountForAllParticipants / totalNumberParticipants; 
         switch (achievedResult) {
             case (#Winner) { return DEFAULT_REWARD_PER_CHALLENGE.winnerAmount + participationReward; };
             case (#SecondPlace) { return DEFAULT_REWARD_PER_CHALLENGE.secondPlaceAmount + participationReward; };
@@ -1450,7 +1465,7 @@ actor class GameStateCanister() = this {
                                 case (?challengeWinnerDeclaration) {
                                     D.print("GameState: addScoredResponse - ranked and declared winner: " # debug_show(challengeWinnerDeclaration));
                                     // TODO: Pay reward
-                                    
+                                    let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (TOKEN_LEDGER_CANISTER_ID);
                                 };
                             };
                         };
