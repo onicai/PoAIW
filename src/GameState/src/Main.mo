@@ -619,7 +619,8 @@ actor class GameStateCanister() = this {
     };
 
     // TODO: determine exact reward
-    stable var REWARD_PER_CHALLENGE = {
+        // TODO: define details of sponsored challenges and then add reward per challenge
+    stable var DEFAULT_REWARD_PER_CHALLENGE = {
         rewardType : Types.RewardType = #MainerToken;
         totalAmount : Nat = 100;
         winnerAmount : Nat = 35;
@@ -629,11 +630,11 @@ actor class GameStateCanister() = this {
     };
 
     private func getRewardAmountForResult(achievedResult : Types.ChallengeParticipationResult, totalNumberParticipants : Nat) : Nat { 
-        let participationReward = REWARD_PER_CHALLENGE.amountForAllParticipants / totalNumberParticipants;
+        let participationReward = DEFAULT_REWARD_PER_CHALLENGE.amountForAllParticipants / totalNumberParticipants;
         switch (achievedResult) {
-            case (#Winner) { return REWARD_PER_CHALLENGE.winnerAmount + participationReward; };
-            case (#SecondPlace) { return REWARD_PER_CHALLENGE.secondPlaceAmount + participationReward; };
-            case (#ThirdPlace) { return REWARD_PER_CHALLENGE.thirdPlaceAmount + participationReward; };
+            case (#Winner) { return DEFAULT_REWARD_PER_CHALLENGE.winnerAmount + participationReward; };
+            case (#SecondPlace) { return DEFAULT_REWARD_PER_CHALLENGE.secondPlaceAmount + participationReward; };
+            case (#ThirdPlace) { return DEFAULT_REWARD_PER_CHALLENGE.thirdPlaceAmount + participationReward; };
             case (#Participated) { return participationReward; };
             case (_) { return 0; };
         };
@@ -643,7 +644,7 @@ actor class GameStateCanister() = this {
         var rewardAmount : Nat = getRewardAmountForResult(achievedResult, totalNumberParticipants);
         
         let participantReward : Types.ChallengeWinnerReward = {
-            rewardType : Types.RewardType = REWARD_PER_CHALLENGE.rewardType;
+            rewardType : Types.RewardType = DEFAULT_REWARD_PER_CHALLENGE.rewardType;
             amount : Nat = rewardAmount;
             rewardDetails : Text = "";
             distributed : Bool = false;
@@ -1628,7 +1629,7 @@ actor class GameStateCanister() = this {
             // Winner
             var rewardAmount : Nat = getRewardAmountForResult(#Winner, 3);
             let winnerReward : Types.ChallengeWinnerReward = {
-                rewardType : Types.RewardType = REWARD_PER_CHALLENGE.rewardType;
+                rewardType : Types.RewardType = DEFAULT_REWARD_PER_CHALLENGE.rewardType;
                 amount : Nat = rewardAmount;
                 rewardDetails : Text = "";
                 distributed : Bool = false;
@@ -1646,7 +1647,7 @@ actor class GameStateCanister() = this {
             // Second Place
             rewardAmount := getRewardAmountForResult(#SecondPlace, 3);
             let secondPlaceReward : Types.ChallengeWinnerReward = {
-                rewardType : Types.RewardType = REWARD_PER_CHALLENGE.rewardType;
+                rewardType : Types.RewardType = DEFAULT_REWARD_PER_CHALLENGE.rewardType;
                 amount : Nat = rewardAmount;
                 rewardDetails : Text = "";
                 distributed : Bool = false;
@@ -1664,7 +1665,7 @@ actor class GameStateCanister() = this {
             // Third Place
             rewardAmount := getRewardAmountForResult(#ThirdPlace, 3);
             let thirdPlaceReward : Types.ChallengeWinnerReward = {
-                rewardType : Types.RewardType = REWARD_PER_CHALLENGE.rewardType;
+                rewardType : Types.RewardType = DEFAULT_REWARD_PER_CHALLENGE.rewardType;
                 amount : Nat = rewardAmount;
                 rewardDetails : Text = "";
                 distributed : Bool = false;
