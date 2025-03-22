@@ -1383,6 +1383,83 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Helper function to mint a reward on the token ledger
+    private func mintRewardOnTokenLedger(participantEntryToReward : Types.ChallengeParticipantEntry) : async Bool {
+        let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (TOKEN_LEDGER_CANISTER_ID);
+
+        let args : TokenLedger.TransferArg = {
+            from_subaccount = null;
+            to = {
+                owner = participantEntryToReward.submittedBy;
+                subaccount = null;
+            };
+            amount = participantEntryToReward.reward.amount;
+            fee = null;
+            memo = null;
+            created_at_time = null;
+        };
+
+        try {
+            // Call the ledger's icrc1_transfer function
+            let result = await TokenLedger_Actor.icrc1_transfer(args);
+
+            switch (result) {
+                case (#Ok(blockIndex)) {
+                    D.print("GameState: finalizeOpenChallenge - sending tokens successful: " # debug_show(blockIndex));
+                    return true;
+                };
+                case (#Err(err)) {
+                    D.print("GameState: finalizeOpenChallenge - Transfer error: " # debug_show(err));
+                    // TODO: error handling (e.g. put into queue and try again later)
+                    return false;
+                };
+            };
+        } catch (e) {
+            D.print("GameState: finalizeOpenChallenge - Failed to call ledger: " # Error.message(e));
+            // TODO: error handling (e.g. put into queue and try again later)
+            return false;
+        };
+    };
+
+    // Helper function to distribute rewards to the winners and participants of a challenge
+    private func distributeRewardForChallenge(challengeWinnerDeclaration : Types.ChallengeWinnerDeclaration) : async Bool {
+        /* challengeWinnerDeclaration looks like:
+            public type ChallengeWinnerDeclaration = {
+                challengeId : Text;
+                finalizedTimestamp : Nat64;
+                winner : ChallengeParticipantEntry;
+                secondPlace : ChallengeParticipantEntry;
+                thirdPlace : ChallengeParticipantEntry;
+                participants : List.List<ChallengeParticipantEntry>;
+            };
+            public type ChallengeParticipantEntry = {
+                submissionId : Text;
+                submittedBy : Principal;
+                ownedBy : Principal;
+                result : ChallengeParticipationResult;
+                reward : ChallengeWinnerReward;
+            };
+        */
+        // TODO: send reward to mAIner canister or to owner? Send to mAIner for now, this will allow simplified statistics on rewards per mAIner (frontend then aggregates balances into a total)
+
+        // Reward winner
+        ignore mintRewardOnTokenLedger(challengeWinnerDeclaration.winner);
+
+        // Reward second place
+        ignore mintRewardOnTokenLedger(challengeWinnerDeclaration.secondPlace);
+
+        // Reward third place
+        ignore mintRewardOnTokenLedger(challengeWinnerDeclaration.thirdPlace);
+
+        // Rewards participants
+        let participantsIter : Iter.Iter<Types.ChallengeParticipantEntry> = Iter.fromList(challengeWinnerDeclaration.participants);
+        for (participantEntry in participantsIter) {
+            ignore mintRewardOnTokenLedger(participantEntry);            
+        };
+
+        return true;
+    };
+
     // Helper function to finalize an open challenge (close, declare winner, distribute reward)
     private func finalizeOpenChallenge(challengeId : Text) : async Bool {
         // Close the challenge
@@ -1401,44 +1478,15 @@ actor class GameStateCanister() = this {
                     };
                     case (?challengeWinnerDeclaration) {
                         D.print("GameState: finalizeOpenChallenge - ranked and declared winner: " # debug_show(challengeWinnerDeclaration));
-                        // TODO: Pay reward
-                        let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (TOKEN_LEDGER_CANISTER_ID);
-
-                        // to winners and participants
-
-                        // by minting new tokens on the ledger
-
-                        let args : TokenLedger.TransferArg = {
-                            from_subaccount = null;
-                            to = {
-                                owner = Principal.fromText("be2us-64aaa-aaaaa-qaabq-cai");
-                                subaccount = null;
+                        // Distribute reward to winners and participants
+                        switch (await distributeRewardForChallenge(challengeWinnerDeclaration)) {
+                            case (false) {
+                                // TODO: error handling (e.g. put into queue and try ranking again later)
+                                return false;
                             };
-                            amount = 100;
-                            fee = null;
-                            memo = null;
-                            created_at_time = null;
-                        };
-
-                        try {
-                            // Call the ledger's icrc1_transfer function
-                            let result = await TokenLedger_Actor.icrc1_transfer(args);
-
-                            switch (result) {
-                                case (#Ok(blockIndex)) {
-                                    D.print("GameState: finalizeOpenChallenge - sending tokens successful: " # debug_show(blockIndex));
-                                    return true;
-                                };
-                                case (#Err(err)) {
-                                    D.print("GameState: finalizeOpenChallenge - Transfer error: " # debug_show(err));
-                                    // TODO: error handling (e.g. put into queue and try again later)
-                                    return false;
-                                };
+                            case (true) {
+                                return true;
                             };
-                        } catch (e) {
-                            D.print("GameState: finalizeOpenChallenge - Failed to call ledger: " # Error.message(e));
-                            // TODO: error handling (e.g. put into queue and try again later)
-                            return false;
                         };
                     };
                 };
