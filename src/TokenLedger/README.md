@@ -87,7 +87,7 @@ dfx canister call funnAI_ledger_canister icrc1_minting_account
 dfx canister call funnAI_ledger_canister icrc1_total_supply
 
 Checks on Game State:
-dfx canister call game_state_canister --network local setTokenLedgerCanisterId '("be2us-64aaa-aaaaa-qaabq-cai")'
+dfx canister call game_state_canister --network local setTokenLedgerCanisterId '("cinef-v4aaa-aaaaa-qaalq-cai")'
  
 dfx canister call game_state_canister --network local testTokenMintingAdmin 
 
