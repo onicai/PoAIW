@@ -2,8 +2,52 @@ import Nat64 "mo:base/Nat64";
 
 module Types {
 
+    //-------------------------------------------------------------------------
+    public type ProtocolCanisterType = {
+        #Challenger;
+        #Judge;
+        #Verifier;
+        #MainerCreator;
+        #MainerAgent;
+    };
+
+    public type MainerAgentCanisterType = {
+        #Own;
+        #ShareAgent;
+        #ShareService;
+    };
+    public type MainerAgentCanisterTypeResult = Result<MainerAgentCanisterType, ApiError>;
+
     public type CanisterAddress = Text;
 
+    public type OfficialProtocolCanister = {
+        address : CanisterAddress;
+        canisterType: ProtocolCanisterType;
+        creationTimestamp : Nat64;
+        createdBy : Principal;
+        ownedBy: Principal;
+    };
+
+    public type CanisterInput = {
+        address : CanisterAddress;
+        canisterType: ProtocolCanisterType;
+    };
+
+    public type MainerAgentCanisterInput = {
+        address : CanisterAddress;
+        canisterType: ProtocolCanisterType;
+        ownedBy: Principal;
+    };
+
+    public type MainerAgentCanisterResult = Result<OfficialProtocolCanister, ApiError>;
+
+    public type MainerAgentCanistersResult = Result<[OfficialProtocolCanister], ApiError>;
+
+    public type CanisterRetrieveInput = {
+        address : CanisterAddress;
+    };
+    
+    //-------------------------------------------------------------------------
     // Challenger
     public type ChallengeTopicStatus = {
         #Open;
@@ -49,6 +93,15 @@ module Types {
     public type ChallengesResult = Result<[Challenge], ApiError>;
 
     // mAIner
+    public type ChallengeQueueInput = Challenge and {
+        challengeQueuedId : Text;
+        challengeQueuedBy : Principal;
+        challengeQueuedTo : Principal;
+        challengeQueuedTimestamp : Nat64;
+    };
+    public type ChallengeQueueInputResult = Result<ChallengeQueueInput, ApiError>;
+    public type ChallengeQueueInputsResult = Result<[ChallengeQueueInput], ApiError>;
+
     public type ChallengeResponseSubmissionStatus = {
         #FailedSubmission;
         #Received;
@@ -59,7 +112,7 @@ module Types {
         #Other : Text;
     };
 
-    public type ChallengeResponseSubmissionInput = Challenge and {
+    public type ChallengeResponseSubmissionInput = ChallengeQueueInput and {
         challengeAnswer : Text;
         challengeAnswerSeed : Nat32;
         submittedBy : Principal;
@@ -168,6 +221,12 @@ module Types {
         addScoredResponse : (ScoredResponseInput) -> async ScoredResponseResult;
         submitChallengeResponse : (ChallengeResponseSubmissionInput) -> async ChallengeResponseSubmissionMetadataResult;
         getRandomOpenChallenge : () -> async ChallengeResult;
+    };
+
+    // mAIner ShareAgent canister
+    public type MainerCanister_Actor = actor {
+        addChallengeToShareServiceQueue : (ChallengeQueueInput) -> async ChallengeQueueInputResult;
+        addChallengeResponseToShareAgent : (ChallengeResponseSubmissionInput) -> async StatusCodeRecordResult;
     };
 
     // Agent Settings

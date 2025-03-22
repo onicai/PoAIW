@@ -63,12 +63,12 @@ scripts/5-set-max-tokens.sh --network $NETWORK_TYPE
 cd ../../src/mAIner
 echo "-src/mAIner: deploy.sh"
 scripts/deploy.sh --network $NETWORK_TYPE --mode $DEPLOY_MODE
-echo "-src/mAIner: register-llms.sh"
-scripts/register-llms.sh --network $NETWORK_TYPE
+echo "-src/mAIner: register-llms-or-mainer-service.sh"
+scripts/register-llms-or-mainer-service.sh --network $NETWORK_TYPE
 
 cd ../../llms/mAIner
-echo "-llms/mAIner: 6-register-ctrlb-canister.sh"
-scripts/6-register-ctrlb-canister.sh --network $NETWORK_TYPE
+echo "-llms/mAIner: 6-register-ctrlb-and-service-canister.sh"
+scripts/6-register-ctrlb-and-service-canister.sh --network $NETWORK_TYPE
 
 echo "-llms/mAIner: 7-log-pause.sh"
 scripts/7-log-pause.sh --network $NETWORK_TYPE

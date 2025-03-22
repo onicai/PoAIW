@@ -2,12 +2,12 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/start-all-timers.sh --network [local/ic]
+# scripts/start-timers.sh --network [local/ic]
 #######################################################################
 
 # Default network type is local
 NETWORK_TYPE="local"
-NUM_MAINERS_DEPLOYED=2
+NUM_MAINERS_DEPLOYED=3
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -50,6 +50,12 @@ dfx canister call challenger_ctrlb_canister startTimerExecutionAdmin --network $
 
 echo "==========================================="
 cd ../mAIner
+
+MAINER="mainer_service_canister"
+echo "Starting timer for $MAINER:"
+dfx canister call $MAINER startTimerExecutionAdmin --network $NETWORK_TYPE
+
+
 mainer_id_start=0
 mainer_id_end=$((NUM_MAINERS_DEPLOYED - 1))
 
