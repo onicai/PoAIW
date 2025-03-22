@@ -2,7 +2,7 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/2-deploy-reinstall.sh --network [local|ic]
+# scripts/2-deploy.sh --network [local|ic]
 #######################################################################
 
 # Default network type is local

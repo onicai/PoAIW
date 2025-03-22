@@ -2,7 +2,7 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/start-all-timers.sh --network [local/ic]
+# scripts/start-timers.sh --network [local/ic]
 #######################################################################
 
 # Default network type is local
