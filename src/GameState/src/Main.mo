@@ -13,6 +13,7 @@ import Iter "mo:base/Iter";
 import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Order "mo:base/Order";
+import Error "mo:base/Error";
 
 import Types "./Types";
 import Utils "Utils";
@@ -36,6 +37,44 @@ actor class GameStateCanister() = this {
         TOKEN_LEDGER_CANISTER_ID := _token_ledger_canister_id;
         let authRecord = { auth = "You set the token ledger canister id for this canister." };
         return #Ok(authRecord);
+    };
+
+    // TODO: remove this function before launching
+    public shared (msg) func testTokenMintingAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (TOKEN_LEDGER_CANISTER_ID);
+
+        let args : TokenLedger.TransferArg = {
+            from_subaccount = null;
+            to = {
+                owner = Principal.fromText("be2us-64aaa-aaaaa-qaabq-cai");
+                subaccount = null;
+            };
+            amount = 100;
+            fee = null;
+            memo = null;
+            created_at_time = null;
+        };
+
+        try {
+            // Call the ledger's icrc1_transfer function
+            let result = await TokenLedger_Actor.icrc1_transfer(args);
+
+            switch (result) {
+                case (#Ok(blockIndex)) {
+                    let authRecord = { auth = "Your test was successful. Block index: "  # debug_show(blockIndex)};
+                    return #Ok(authRecord);
+                };
+                case (#Err(err)) {
+                    return #Err(#Other("Transfer error: " # debug_show(err)));
+                };
+            };
+        } catch (e) {
+            return #Err(#Other("Failed to call ledger: " # Error.message(e)));
+        };
     };
 
     // Game Settings
@@ -1344,8 +1383,70 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Helper function to finalize an open challenge (close, declare winner, distribute reward)
+    private func finalizeOpenChallenge(challengeId : Text) : async Bool {
+        // Close the challenge
+        switch (closeChallenge(challengeId)) {
+            case (false) {
+                // TODO: error handling (e.g. put into queue and try ranking again later)
+                return false;
+            };
+            case (true) {
+                // Rank scored responses and declare winner
+                let rankResult : ?Types.ChallengeWinnerDeclaration = rankScoredResponsesForChallenge(challengeId);
+                switch (rankResult) {
+                    case (null) {
+                        // TODO: error handling (e.g. put into queue and try ranking again later)
+                        return false;
+                    };
+                    case (?challengeWinnerDeclaration) {
+                        D.print("GameState: finalizeOpenChallenge - ranked and declared winner: " # debug_show(challengeWinnerDeclaration));
+                        // TODO: Pay reward
+                        let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (TOKEN_LEDGER_CANISTER_ID);
+
+                        // to winners and participants
+
+                        // by minting new tokens on the ledger
+
+                        let args : TokenLedger.TransferArg = {
+                            from_subaccount = null;
+                            to = {
+                                owner = Principal.fromText("be2us-64aaa-aaaaa-qaabq-cai");
+                                subaccount = null;
+                            };
+                            amount = 100;
+                            fee = null;
+                            memo = null;
+                            created_at_time = null;
+                        };
+
+                        try {
+                            // Call the ledger's icrc1_transfer function
+                            let result = await TokenLedger_Actor.icrc1_transfer(args);
+
+                            switch (result) {
+                                case (#Ok(blockIndex)) {
+                                    D.print("GameState: finalizeOpenChallenge - sending tokens successful: " # debug_show(blockIndex));
+                                    return true;
+                                };
+                                case (#Err(err)) {
+                                    D.print("GameState: finalizeOpenChallenge - Transfer error: " # debug_show(err));
+                                    // TODO: error handling (e.g. put into queue and try again later)
+                                    return false;
+                                };
+                            };
+                        } catch (e) {
+                            D.print("GameState: finalizeOpenChallenge - Failed to call ledger: " # Error.message(e));
+                            // TODO: error handling (e.g. put into queue and try again later)
+                            return false;
+                        };
+                    };
+                };
+            };
+        };
+    };
+
     // Function for Judge canister to add a new scored response
-        
     public shared (msg) func addScoredResponse(scoredResponseInput : Types.ScoredResponseInput) : async Types.ScoredResponseResult {
         D.print("GameState: addScoredResponse - entered");
         if (Principal.isAnonymous(msg.caller)) {
@@ -1451,23 +1552,12 @@ actor class GameStateCanister() = this {
                     //       FOR NOW - JUST CLOSE IT AND RANK IT...
                     // Close challenge
                     D.print("GameState: addScoredResponse - reached threshold & closing the challenge: " # debug_show(scoredResponseInput.challengeQuestion));
-                    switch (closeChallenge(scoredResponseInput.challengeId)) {
+                    switch (await finalizeOpenChallenge(scoredResponseInput.challengeId)) {
                         case (false) {
-                            // TODO: error handling (e.g. put into queue and try ranking again later)
+                            // TODO: error handling (e.g. put into queue and try again later)
                         };
                         case (true) {
-                            // Rank scored responses and declare winner
-                            let rankResult : ?Types.ChallengeWinnerDeclaration = rankScoredResponsesForChallenge(scoredResponseInput.challengeId);
-                            switch (rankResult) {
-                                case (null) {
-                                    // TODO: error handling (e.g. put into queue and try ranking again later)
-                                };
-                                case (?challengeWinnerDeclaration) {
-                                    D.print("GameState: addScoredResponse - ranked and declared winner: " # debug_show(challengeWinnerDeclaration));
-                                    // TODO: Pay reward
-                                    let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (TOKEN_LEDGER_CANISTER_ID);
-                                };
-                            };
+                            // continue
                         };
                     };
                 };
