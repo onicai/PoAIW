@@ -81,6 +81,11 @@ actor class GameStateCanister() = this {
 
     // Code Verification for all mAIner agents
         // Users should not be able to tamper with the mAIner code
+
+    // mAIner agent wasm module hash that must match
+        // TODO: implement way to manage this
+    stable var officialMainerAgentCanisterWasmHash : Blob = "\FD\A5\4F\A3\52\4A\26\10\80\E1\27\F0\54\67\14\59\E2\30\AF\B1\F9\87\12\49\1A\8C\B1\A4\DE\08\65\53";
+    
     public shared (msg) func testMainerCodeIntegrityAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -92,9 +97,6 @@ actor class GameStateCanister() = this {
         let mainerAgentsIter : Iter.Iter<Types.OfficialProtocolCanister> = Iter.fromArray(allMainerAgents);
         
         try {
-            // mAIner agent wasm module hash that must match
-            // TODO: implement way to manage this
-            let officialMainerAgentCanisterWasmHash : Blob = "\FD\A5\4F\A3\52\4A\26\10\80\E1\27\F0\54\67\14\59\E2\30\AF\B1\F9\87\12\49\1A\8C\B1\A4\DE\08\65\53";
             // Retrieve each mAIner agent canister's info
             for (agentEntry in mainerAgentsIter) {
                 try {
@@ -1300,6 +1302,41 @@ actor class GameStateCanister() = this {
                     let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
                     D.print("GameState: submitChallengeResponse - 05");
                     return #Err(#InvalidId);
+                };
+
+                // Verify that the mAIner is running the official wasm code (untampered)
+                let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
+                // Retrieve mAIner agent canister's info
+                D.print("GameState: submitChallengeResponse - Verify agent canister's wasm module hash#####################################################################################################################################################################################");
+                try {
+                    let agentCanisterInfo = await IC_Management_Actor.canister_info({
+                        canister_id = challengeResponseSubmissionInput.submittedBy;
+                        num_requested_changes = ?0;
+                    });   
+                    // Verify agent canister's wasm module hash
+                    switch (agentCanisterInfo.module_hash) {
+                        case (null) {
+                            let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                            D.print("GameState: submitChallengeResponse - agentCanisterInfo with null as module hash: " # debug_show(agentCanisterInfo)); 
+                            // TODO: further measurements?
+                            return #Err(#Unauthorized);
+                        };
+                        case (?agentModuleHash) {
+                            if (Blob.equal(agentModuleHash, officialMainerAgentCanisterWasmHash)) {
+                                D.print("GameState: testMainerCodeIntegrityAdmin - agentCanisterInfo with official module hash: " # debug_show(agentCanisterInfo));
+                                // continue as check passed
+                            } else {
+                                let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                                D.print("GameState: submitChallengeResponse - agentCanisterInfo didn't pass verification: " # debug_show(agentCanisterInfo)); 
+                                // TODO: further measurements?
+                                return #Err(#Unauthorized);
+                            };
+                        };
+                    };
+                } catch (e) {
+                    let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                    D.print("GameState: submitChallengeResponse - Failed to retrieve info for mAIner: " # debug_show(challengeResponseSubmissionInput) # Error.message(e));      
+                    return #Err(#Other("GameState: testMainerCodeIntegrityAdmin - Failed to retrieve info for mAIner: " # debug_show(challengeResponseSubmissionInput) # Error.message(e)));
                 };
 
                 // Accept required cycles for submission
