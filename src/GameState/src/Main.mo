@@ -14,8 +14,10 @@ import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Order "mo:base/Order";
 import Error "mo:base/Error";
+import Blob "mo:base/Blob";
 
 import Types "./Types";
+import ICManagementCanister "./ICManagementCanister";
 import Utils "Utils";
 import TokenLedger "./icp-ledger-interface";
 
@@ -74,6 +76,58 @@ actor class GameStateCanister() = this {
             };
         } catch (e) {
             return #Err(#Other("Failed to call ledger: " # Error.message(e)));
+        };
+    };
+
+    // Code Verification for all mAIner agents
+        // Users should not be able to tamper with the mAIner code
+    public shared (msg) func testMainerCodeIntegrityAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
+
+        let allMainerAgents : [Types.OfficialProtocolCanister] = getMainerAgents();
+        let mainerAgentsIter : Iter.Iter<Types.OfficialProtocolCanister> = Iter.fromArray(allMainerAgents);
+        
+        try {
+            // mAIner agent wasm module hash that must match
+            // TODO: implement way to manage this
+            let officialMainerAgentCanisterWasmHash : Blob = "\FD\A5\4F\A3\52\4A\26\10\80\E1\27\F0\54\67\14\59\E2\30\AF\B1\F9\87\12\49\1A\8C\B1\A4\DE\08\65\53";
+            // Retrieve each mAIner agent canister's info
+            for (agentEntry in mainerAgentsIter) {
+                try {
+                    let agentCanisterInfo = await IC_Management_Actor.canister_info({
+                        canister_id = Principal.fromText(agentEntry.address);
+                        num_requested_changes = ?0;
+                    });   
+                    // Verify agent canister's wasm module hash
+                    switch (agentCanisterInfo.module_hash) {
+                        case (null) {
+                            D.print("GameState: testMainerCodeIntegrityAdmin - agentEntry has null as module hash: " # debug_show(agentEntry));  
+                            D.print("GameState: testMainerCodeIntegrityAdmin - agentCanisterInfo with null as module hash: " # debug_show(agentCanisterInfo)); 
+                        };
+                        case (?agentModuleHash) {
+                            if (Blob.equal(agentModuleHash, officialMainerAgentCanisterWasmHash)) {
+                                D.print("GameState: testMainerCodeIntegrityAdmin - agentEntry has official module hash: " # debug_show(agentEntry));  
+                                D.print("GameState: testMainerCodeIntegrityAdmin - agentCanisterInfo with official module hash: " # debug_show(agentCanisterInfo));
+                            } else {
+                                D.print("GameState: testMainerCodeIntegrityAdmin - agentEntry didn't pass verification: " # debug_show(agentEntry));  
+                                D.print("GameState: testMainerCodeIntegrityAdmin - agentCanisterInfo didn't pass verification: " # debug_show(agentCanisterInfo));
+                            };
+                        };
+                    };
+                } catch (e) {
+                    D.print("GameState: testMainerCodeIntegrityAdmin - Failed to retrieve info for mAIner: " # debug_show(agentEntry) # Error.message(e));      
+                    return #Err(#Other("GameState: testMainerCodeIntegrityAdmin - Failed to retrieve info for mAIner: " # debug_show(agentEntry) # Error.message(e)));
+                };
+            };
+            let authRecord = { auth = "Your test was successful."};
+            return #Ok(authRecord);
+        } catch (e) {
+            D.print("GameState: testMainerCodeIntegrityAdmin - Failed to loop over mAIners: " # Error.message(e));      
+            return #Err(#Other("GameState: testMainerCodeIntegrityAdmin - Failed to loop over mAIners: " # Error.message(e)));
         };
     };
 
