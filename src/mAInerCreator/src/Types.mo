@@ -94,7 +94,7 @@ module Types {
     };
 
     public type MainerAgentCtrlbCanister = actor {
-        add_llm_canister_id: (CanisterIDRecord) -> async StatusCodeRecordResult;
+        add_llm_canister: (CanisterIDRecord) -> async StatusCodeRecordResult;
         health: query () -> async StatusCodeRecordResult;
         setGameStateCanisterId: (Text) -> async StatusCodeRecordResult;
         setRoundRobinLLMs: (Nat) -> async StatusCodeRecordResult;
@@ -135,6 +135,28 @@ module Types {
         load_model : (InputRecord) -> async OutputRecordResult;
         set_max_tokens : (MaxTokensRecord) -> async StatusCodeRecordResult;
         file_upload_chunk : (FileUploadInputRecord) -> async FileUploadRecordResult;
+    };
+
+    // Game State canister
+
+    public type MainerAgentCanisterInput = {
+        address : CanisterAddress;
+        canisterType: ProtocolCanisterType;
+        ownedBy: Principal;
+    };
+
+    public type OfficialProtocolCanister = {
+        address : CanisterAddress;
+        canisterType: ProtocolCanisterType;
+        creationTimestamp : Nat64;
+        createdBy : Principal;
+        ownedBy: Principal;
+    };
+
+    public type MainerAgentCanisterResult = Result<OfficialProtocolCanister, ApiError>;
+    
+    public type GameStateCanister_Actor = actor {
+        addMainerAgentCanister : (MainerAgentCanisterInput) -> async MainerAgentCanisterResult;
     };
 
     // IC Management Canister types

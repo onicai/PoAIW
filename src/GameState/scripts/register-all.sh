@@ -10,6 +10,7 @@ NETWORK_TYPE="local"
 NUM_MAINERS_DEPLOYED=3 # Total number of mainers deployed
 
 # When deploying local, use canister IDs from .env
+source ../mAInerCreator/.env
 source ../Challenger/.env
 source ../Judge/.env
 source ../mAIner/.env
@@ -58,6 +59,18 @@ if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; t
     exit 1
 else
     echo "game_state_canister is healthy."
+fi
+
+echo " "
+echo "--------------------------------------------------"
+echo "Registering mAInerCreator with the game_state_canister"
+output=$(dfx canister call game_state_canister addOfficialCanister "(record { address = \"$CANISTER_ID_MAINER_CREATOR_CANISTER\"; canisterType = variant {MainerCreator} })" --network $NETWORK_TYPE)
+
+if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+    echo "Error calling addOfficialCanister for mAInerCreator $CANISTER_ID_MAINER_CREATOR_CANISTER."
+    exit 1
+else
+    echo "Successfully called mAInerCreator for Challenger $CANISTER_ID_MAINER_CREATOR_CANISTER."
 fi
 
 echo " "

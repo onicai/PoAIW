@@ -29,6 +29,7 @@ module Types {
 
     //-------------------------------------------------------------------------
     public type NatResult = Result<Nat, ApiError>;
+    public type TextResult = Result<Text, ApiError>;
 
     //-------------------------------------------------------------------------
     public type GameStateTresholds = {

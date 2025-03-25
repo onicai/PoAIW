@@ -1,6 +1,19 @@
 # mAIner Creator Canister
 
-### Setup
+# The files folder
+
+It contains checked in files, created with:
+
+- Files from https://github.com/onicai/llama_cpp_canister/releases/tag/v0.0.1
+- did & wasm of the mAIner ctrlb canister
+
+You must manually download:
+
+- [qwen2.5-0.5b-instruct-q8_0.gguf](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF)
+
+# Setup
+
+## Motoko
 
 Install mops (https://mops.one/docs/install)
 Install motoko dependencies:
@@ -9,8 +22,85 @@ Install motoko dependencies:
 mops install
 ```
 
-### Deploy
+## Python
 
+Setup python environment:
+
+```bash
+conda create --name mainercreator python=3.11
+conda activate mainercreator
+
+pip install -r requirements.txt
+```
+
+# Deploy
+
+## Using scripts
+
+Run the scripts from funnAI --> See the README in that folder
+
+Note: See Appendix A below for manual deploy steps.
+
+After that initial deployment, to update the code for the mAIner Creator canister:
+```bash
+scripts/deploy.sh --mode upgrade --network [local/ic]
+scripts/register-game-state.sh --network [local/ic]
+```
+
+### Create a mAIner
+
+```bash
+dfx canister call mainer_creator_canister health
+dfx canister call mainer_creator_canister whoami
+dfx canister call mainer_creator_canister amiController
+
+# Create a mAIner controller canister creation
+dfx canister call mainer_creator_canister testCreateMainerControllerCanister
+NEW_MAINER_CTRLB_CANISTER="cinef-v4aaa-aaaaa-qaalq-cai"   # copy value from printout
+
+# Create llm canister for use by the just created mAIner controller canister
+dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_CTRLB_CANISTER\")"
+
+# ----be carefull with these START ---
+## In case the canister wasm has to be reset (use with caution):
+dfx canister call mainer_creator_canister reset_mainer_controller_canister_wasm
+
+## Might come in handy during local testing
+dfx ledger fabricate-cycles --canister mainer_creator_canister
+# ----be carefull with these END ---
+```
+
+### Test newly created mAIner
+
+```bash
+# Test the newly created mAIner
+dfx canister call $NEW_MAINER_CTRLB_CANISTER amiController [--ic]
+dfx canister call $NEW_MAINER_CTRLB_CANISTER health [--ic]
+dfx canister call $NEW_MAINER_CTRLB_CANISTER ready [--ic]
+dfx canister call $NEW_MAINER_CTRLB_CANISTER checkAccessToLLMs [--ic]
+dfx canister call $NEW_MAINER_CTRLB_CANISTER getMainerCanisterType [--ic]
+
+# Follow instructions of PoAIW README to generate challenges.
+# Then, once they're available in the Game State, call this endpoint.
+# This will pull a challenge and create a response.
+dfx canister call $NEW_MAINER_CTRLB_CANISTER triggerChallengeResponseAdmin [--ic]
+
+# The response generation takes a moment. To ensure it worked, call
+dfx canister call $NEW_MAINER_CTRLB_CANISTER getChallengeQueueAdmin --output json [--ic]
+dfx canister call $NEW_MAINER_CTRLB_CANISTER getSubmittedResponsesAdmin --output json [--ic]
+
+# or from folder: funnAI
+dfx canister call game_state_canister getSubmissionsAdmin --output json [--ic]
+dfx canister call game_state_canister getNumSubmissionsAdmin --output json [--ic]
+```
+
+---
+
+# Appendix A: Manual deploy steps
+
+The deploy scripts for mAIner Creator automate the following steps:
+
+## Manual Deploy
 ```bash
 # Generate the bindings for the upload scripts and the frontend
 dfx generate mainer_creator_canister
@@ -38,15 +128,7 @@ dfx canister call --ic mainer_creator_canister setMasterCanisterId '("")'
 
 ```
 
-### Upload files
-
-Setup python environment:
-
-```
-pip install -r requirements.txt
-```
-
-#### mAIner Controller Canister
+## Manual files upload for mAIner Controller Canister
 
 Run upload script - local:
 
@@ -97,7 +179,8 @@ python -m scripts.upload_mainer_controller_canister --network development --cani
 python -m scripts.upload_mainer_controller_canister --network ic --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 ```
 
-#### mAIner LLM Canister
+### Manual files upload for mAIner LLM Canister
+
 Run upload script - local:
 
 ```bash
@@ -119,32 +202,4 @@ python -m scripts.upload_mainer_llm_canister_wasm --network development --canist
 ## production
 ### Upload the mainer LLM canister wasm
 python -m scripts.upload_mainer_llm_canister_wasm --network ic --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
-```
-
-### Test canister creation
-
-```bash
-dfx canister call mainer_creator_canister whoami
-dfx canister call mainer_creator_canister amiController
-
-# To test mainer controller canister creation
-dfx canister call mainer_creator_canister testCreateMainerControllerCanister
-
-## Call endpoints on created canister
-## Note: use newCanisterId printed by testCreateMainerCanister
-dfx canister call cgpjn-omaaa-aaaaa-qaakq-cai amiController
-dfx canister call cgpjn-omaaa-aaaaa-qaakq-cai health
-dfx canister call cgpjn-omaaa-aaaaa-qaakq-cai ready
-dfx canister call cgpjn-omaaa-aaaaa-qaakq-cai checkAccessToLLMs
-
-# use canister address of created mainer controller canister, e.g. cgpjn-omaaa-aaaaa-qaakq-cai
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister "cgpjn-omaaa-aaaaa-qaakq-cai"
-
-# ----be carefull with these START ---
-## In case the canister wasm has to be reset (use with caution):
-dfx canister call mainer_creator_canister reset_mainer_controller_canister_wasm
-
-## Might come in handy during local testing
-dfx ledger fabricate-cycles --canister mainer_creator_canister
-# ----be carefull with these END ---
 ```

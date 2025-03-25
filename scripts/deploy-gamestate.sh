@@ -68,4 +68,9 @@ cd ../mAIner
 echo "-src/mAIner: register-game-state.sh"
 scripts/register-game-state.sh --network $NETWORK_TYPE
 
+echo "-------------------------------------------------"
+cd ../mAInerCreator
+echo "-src/mAInerCreator: register-game-state.sh"
+scripts/register-game-state.sh --network $NETWORK_TYPE
+
 #######################################################################

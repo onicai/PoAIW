@@ -149,6 +149,9 @@ actor class GameStateCanister() = this {
     };
 
     private func getMainerCreatorCanister(canisterAddress : Text) : ?Types.OfficialProtocolCanister {
+        D.print("GameState: getMainerCreatorCanister - canisterAddress: " # debug_show(canisterAddress));
+        let mainerCreatorCanistersEntries = Iter.toArray(mainerCreatorCanistersStorage.entries());
+        D.print("GameState: getMainerCreatorCanister - mainerCreatorCanistersStorage: " # debug_show(mainerCreatorCanistersEntries));
         switch (mainerCreatorCanistersStorage.get(canisterAddress)) {
             case (null) { return null; };
             case (?canisterEntry) { return ?canisterEntry; };
@@ -1051,6 +1054,7 @@ actor class GameStateCanister() = this {
         };
 
         // Only official mAIner Agent Creator canisters may call this
+        D.print("GameState: addMainerAgentCanister - calling getMAinerCreatorCanister for caller: " # debug_show(Principal.toText(msg.caller)));
         switch (getMainerCreatorCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
             case (?mainerCreatorEntry) {

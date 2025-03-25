@@ -43,6 +43,7 @@ done
 echo "Using network type: $NETWORK_TYPE"
 
 #######################################################################
+scripts/deploy-mainer-creator.sh     --network $NETWORK_TYPE --mode $DEPLOY_MODE
 scripts/deploy-challenger.sh --network $NETWORK_TYPE --mode $DEPLOY_MODE
 scripts/deploy-judge.sh      --network $NETWORK_TYPE --mode $DEPLOY_MODE
 scripts/deploy-mainer.sh     --network $NETWORK_TYPE --mode $DEPLOY_MODE
