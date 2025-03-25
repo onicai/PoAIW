@@ -31,3 +31,5 @@ dist/
 **/.env
 
 src/mAInerCreator/files/qwen2.5-0.5b-instruct-q8_0.gguf
+
+*.pyc
