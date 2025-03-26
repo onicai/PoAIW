@@ -23,6 +23,7 @@ type ProtocolCanisterType =
    Judge;
    MainerAgent;
    MainerCreator;
+   MainerLlm;
    Verifier;
  };
 type OfficialProtocolCanister = 
@@ -40,9 +41,9 @@ type MainerAgentCtrlbCanister =
     (StatusCodeRecordResult);
    addChallengeToShareServiceQueue: (ChallengeQueueInput) ->
     (ChallengeQueueInputResult);
-   addMainerAgentCanister: (MainerAgentCanisterInput) ->
+   addMainerShareAgentCanister: (MainerAgentCanisterInput) ->
     (MainerAgentCanisterResult);
-   addMainerAgentCanisterAdmin: (MainerAgentCanisterInput) ->
+   addMainerShareAgentCanisterAdmin: (MainerAgentCanisterInput) ->
     (MainerAgentCanisterResult);
    add_llm_canister: (CanisterIDRecord) -> (StatusCodeRecordResult);
    amiController: () -> (StatusCodeRecordResult) query;
@@ -80,6 +81,7 @@ type MainerAgentCanisterTypeResult =
  };
 type MainerAgentCanisterType = 
  variant {
+   NA;
    Own;
    ShareAgent;
    ShareService;
@@ -93,6 +95,7 @@ type MainerAgentCanisterInput =
  record {
    address: CanisterAddress;
    canisterType: ProtocolCanisterType;
+   mainerAgentCanisterType: MainerAgentCanisterType;
    ownedBy: principal;
  };
 type IssueFlagsRetrievalResult = 

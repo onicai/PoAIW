@@ -74,20 +74,22 @@ else
     echo "mainer_creator_canister is healthy."
 fi
 
+echo " "
+echo "Generate the bindings for the upload scripts"
+dfx generate
+
+echo " "
+echo "Upload the mAIner CONTROLLER canister wasm "
+python -m scripts.upload_mainer_controller_canister --network $NETWORK_TYPE --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+
+echo " "
+echo "Upload the mAIner LLM canister wasm "
+python -m scripts.upload_mainer_llm_canister_wasm --network $NETWORK_TYPE --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+
+# Skip this time-consuming step when when upgrading the code
 if [ "$DEPLOY_MODE" != "upgrade" ]; then
-    echo " "
-    echo "Upload the mAIner CONTROLLER canister wasm "
-    python -m scripts.upload_mainer_controller_canister --network $NETWORK_TYPE --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
-
-    echo " "
-    echo "Upload the mAIner LLM canister wasm "
-    python -m scripts.upload_mainer_llm_canister_wasm --network $NETWORK_TYPE --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
-
+    
     echo " "
     echo "Upload the mainer LLM model file (gguf) "
     python -m scripts.upload_mainer_llm_canister_modelfile --network $NETWORK_TYPE --canister mainer_creator_canister --wasm files/qwen2.5-0.5b-instruct-q8_0.gguf --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 fi
-
-echo " "
-echo "Generating bindings for a frontend"
-dfx generate

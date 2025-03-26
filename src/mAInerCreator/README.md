@@ -54,40 +54,93 @@ dfx canister call mainer_creator_canister health
 dfx canister call mainer_creator_canister whoami
 dfx canister call mainer_creator_canister amiController
 
-# Create a mAIner controller canister creation
-dfx canister call mainer_creator_canister testCreateMainerControllerCanister
-NEW_MAINER_CTRLB_CANISTER="cinef-v4aaa-aaaaa-qaalq-cai"   # copy value from printout
+# ================================================================
+# Type: #Own
 
-# Create llm canister for use by the just created mAIner controller canister
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_CTRLB_CANISTER\")"
+# Create a mAIner controller canister of type #Own
+dfx canister call mainer_creator_canister testCreateMainerControllerCanister '(variant {Own}, null)'
+NEW_MAINER_OWN_CANISTER="xxxxx-...-cai"   # copy newCanisterId from printout
 
-# ----be carefull with these START ---
-## In case the canister wasm has to be reset (use with caution):
-dfx canister call mainer_creator_canister reset_mainer_controller_canister_wasm
+# Create one or more llm canister for the just created mAIner controller canister of type #Own
+dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"
+dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  # To add another LLM
+dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  # Etc..
+# -> No need to save the canister id of the LLM, it is all saved internally...
+
+# ================================================================
+# Type: #ShareService & #ShareAgent
+
+# Create a mAIner controller canister of type #ShareService
+dfx canister call mainer_creator_canister testCreateMainerControllerCanister '(variant {ShareService}, null)'
+NEW_MAINER_SHARE_SERVICE_CANISTER="yyyyy-...-cai"   # copy newCanisterId from printout
+
+# Create one or more llm canisters for use by the just created mAIner ShareService canister
+dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")"
+dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")" # To add another LLM
+dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")" # Etc.
+
+# Create mAIner controller canisters of type #ShareAgent
+# -> A ShareAgent canister uses the ShareService and not its own LLMs,
+#    so pass the ShareService canister id
+dfx canister call mainer_creator_canister testCreateMainerControllerCanister "(variant {ShareAgent}, opt \"$NEW_MAINER_SHARE_SERVICE_CANISTER\")"
+NEW_MAINER_SHARE_AGENT_CANISTER="zzzzz-...-cai"   # copy newCanisterId from printout
+
+# You can create more ShareAgent canisters that use the same ShareService
+dfx canister call mainer_creator_canister testCreateMainerControllerCanister "(variant {ShareAgent}, opt \"$NEW_MAINER_SHARE_SERVICE_CANISTER\")" 
+ANOTHER_MAINER_SHARE_AGENT_CANISTER="zzzzz-...-cai"   # copy newCanisterId from printout
+# etc.
+
+# You can verify that a ShareAgent is not allowed to have it's own LLMs
+# This will give an error
+dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_AGENT_CANISTER\")"
+
+###################################################
+# TODO:
+# We need a mechanism to remove LLM canisters
+# We need a mechanism to upgrade the source code of all the canisters, without reinstalling the LLM models
+###################################################
 
 ## Might come in handy during local testing
 dfx ledger fabricate-cycles --canister mainer_creator_canister
-# ----be carefull with these END ---
 ```
 
-### Test newly created mAIner
+### Test newly created mAIners
 
 ```bash
-# Test the newly created mAIner
-dfx canister call $NEW_MAINER_CTRLB_CANISTER amiController [--ic]
-dfx canister call $NEW_MAINER_CTRLB_CANISTER health [--ic]
-dfx canister call $NEW_MAINER_CTRLB_CANISTER ready [--ic]
-dfx canister call $NEW_MAINER_CTRLB_CANISTER checkAccessToLLMs [--ic]
-dfx canister call $NEW_MAINER_CTRLB_CANISTER getMainerCanisterType [--ic]
+# Use one of these statements:
+# -> To test the mAIner of type #Own
+MAINER=$NEW_MAINER_OWN_CANISTER
+# -> To test the mAIner of type #ShareAgent, pick one of these
+MAINER=$NEW_MAINER_SHARE_AGENT_CANISTER
+MAINER=$ANOTHER_MAINER_SHARE_AGENT_CANISTER
+
+# Then run the tests:
+# NOTE that these are the manual tests.
+# In production, timers will be running, and things will happen automatic.
+
+# Test some helper endpoints
+dfx canister call $MAINER amiController [--ic]
+dfx canister call $MAINER health [--ic]
+dfx canister call $MAINER ready [--ic]
+dfx canister call $MAINER checkAccessToLLMs [--ic]
+dfx canister call $MAINER getMainerCanisterType [--ic]
 
 # Follow instructions of PoAIW README to generate challenges.
 # Then, once they're available in the Game State, call this endpoint.
-# This will pull a challenge and create a response.
-dfx canister call $NEW_MAINER_CTRLB_CANISTER triggerChallengeResponseAdmin [--ic]
+# (-) A #Own mAIner will pull a challenge, create a response & submit it
+# (-) A #ShareAgent mAIner will pull a challenge and send the Challenge to the #ShareService.
+#     In the #ShareService canister, it will now sit in the queue
+dfx canister call $MAINER triggerChallengeResponseAdmin [--ic]
 
-# The response generation takes a moment. To ensure it worked, call
-dfx canister call $NEW_MAINER_CTRLB_CANISTER getChallengeQueueAdmin --output json [--ic]
-dfx canister call $NEW_MAINER_CTRLB_CANISTER getSubmittedResponsesAdmin --output json [--ic]
+# For a #ShareAgent mAIner, you must now also trigger the #ShareService canister
+# to process an item in the queue to generate a response, and send it to the ShareAgent
+# who submits it with the GameState
+dfx canister call $NEW_MAINER_SHARE_SERVICE_CANISTER triggerChallengeResponseAdmin [--ic]
+
+# To ensure it all worked, call
+dfx canister call $MAINER getSubmittedResponsesAdmin --output json [--ic]
+dfx canister call $MAINER getChallengeQueueAdmin --output json [--ic]
+dfx canister call $NEW_MAINER_SHARE_SERVICE_CANISTER getChallengeQueueAdmin --output json [--ic]
 
 # or from folder: funnAI
 dfx canister call game_state_canister getSubmissionsAdmin --output json [--ic]

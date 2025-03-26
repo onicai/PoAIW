@@ -71,6 +71,17 @@ def main() -> int:
     canister_creator = get_canister(canister_name, candid_path, network, canister_id)
 
     # ---------------------------------------------------------------------------
+    # Start the upload process -> this results in replacing an existing model file
+    print("--\nCalling start_upload_mainer_llm")
+    response = canister_creator.start_upload_mainer_llm()  # pylint: disable=no-member
+    if "Ok" in response[0].keys():
+        print("OK!")
+    else:
+        print("Something went wrong:")
+        print(response)
+        sys.exit(1)
+
+    # ---------------------------------------------------------------------------
     # THE WASM FILE
 
     # Read the wasm from disk

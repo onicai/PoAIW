@@ -47,6 +47,7 @@ module Types {
         canisterType : ProtocolCanisterType;
         selectedModel : AvailableModels;
         associatedCanisterAddress : ?CanisterAddress;
+        mainerAgentCanisterType: MainerAgentCanisterType;
     };
 
     public type CanisterCreationConfiguration = CanisterCreationConfigurationInput and {
@@ -99,6 +100,10 @@ module Types {
         setGameStateCanisterId: (Text) -> async StatusCodeRecordResult;
         setRoundRobinLLMs: (Nat) -> async StatusCodeRecordResult;
         set_llm_canister_id: (CanisterIDRecord) -> async StatusCodeRecordResult;
+        setMainerCanisterType: (MainerAgentCanisterType) -> async StatusCodeRecordResult;
+        getMainerCanisterType: () -> async MainerAgentCanisterTypeResult;
+        setShareServiceCanisterId: (Text) -> async StatusCodeRecordResult;
+        addMainerShareAgentCanister: (MainerAgentCanisterInput) -> async MainerAgentCanisterResult;
     };
 
     public type MaxTokensRecord = {
@@ -135,14 +140,25 @@ module Types {
         load_model : (InputRecord) -> async OutputRecordResult;
         set_max_tokens : (MaxTokensRecord) -> async StatusCodeRecordResult;
         file_upload_chunk : (FileUploadInputRecord) -> async FileUploadRecordResult;
+        log_pause : () -> async StatusCodeRecordResult;
+        log_resume : () -> async StatusCodeRecordResult;
     };
 
     // Game State canister
+
+    public type MainerAgentCanisterType = {
+        #NA; // Not Applicable for this canister
+        #Own;
+        #ShareAgent;
+        #ShareService;
+    };
+    public type MainerAgentCanisterTypeResult = Result<MainerAgentCanisterType, ApiError>;
 
     public type MainerAgentCanisterInput = {
         address : CanisterAddress;
         canisterType: ProtocolCanisterType;
         ownedBy: Principal;
+        mainerAgentCanisterType: MainerAgentCanisterType;
     };
 
     public type OfficialProtocolCanister = {
