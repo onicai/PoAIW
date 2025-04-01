@@ -52,4 +52,6 @@ cd src/mAInerCreator
 echo "-src/mAInerCreator: deploy.sh"
 scripts/deploy.sh --network $NETWORK_TYPE --mode $DEPLOY_MODE
 
+echo "-src/mAInerCreator: register-game-state.sh"
+scripts/register-game-state.sh --network $NETWORK_TYPE
 #######################################################################

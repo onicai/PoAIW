@@ -386,7 +386,7 @@ actor class CanisterCreationCanister() = this {
                     let shareServiceCanisterActor = actor (shareServiceCanisterAddress) : Types.MainerAgentCtrlbCanister;
                     D.print("mAInerCreator: createCanister - calling shareServiceCanisterActor.addMainerShareAgentCanister with mainerAgentCanisterInput = " # debug_show (mainerAgentCanisterInput));
                     let mainerAgentCanisterResult = await shareServiceCanisterActor.addMainerShareAgentCanister(mainerAgentCanisterInput);
-                    D.print("mAInerCreator: createCanister mainerAgentCanisterResult" # debug_show (mainerAgentCanisterResult));
+                    D.print("mAInerCreator: createCanister mainerAgentCanisterResult " # debug_show (mainerAgentCanisterResult));
                     switch (mainerAgentCanisterResult) {
                         case (#Err(error)) {
                             return #Err(error);
@@ -479,8 +479,14 @@ actor class CanisterCreationCanister() = this {
                                 var offset : Nat = 0;
                                 var nextChunk : [Nat8] = [];
                                 
+                                D.print("mAInerCreator: createCanister start upload of LLM model");
+                                var chunkCount : Nat = 0;
                                 for (chunk in modelCreationArtefacts.modelFile.vals()) {
-                                    D.print("mAInerCreator: Uploading another chunk of the model file...");
+                                    if (chunkCount % 10 == 0) {
+                                        D.print("mAInerCreator: createCanister uploading file chunk " # debug_show (chunkCount));
+                                    };
+                                    chunkCount := chunkCount + 1;
+                                    
                                     nextChunk := Blob.toArray(chunk);
                                     chunkSize := nextChunk.size();
                                     let uploadChunk = {
@@ -490,8 +496,16 @@ actor class CanisterCreationCanister() = this {
                                         offset = Nat64.fromNat(offset);
                                     };
                                     let uploadModelFileResult = await llmCanisterActor.file_upload_chunk(uploadChunk);
-                                    D.print("mAInerCreator: createCanister uploadModelFileResult");
-                                    D.print(debug_show (uploadModelFileResult));
+                                    switch (uploadModelFileResult) {
+                                        case (#Err(error)) {
+                                            D.print("mAInerCreator: createCanister ERROR - uploadModelFileResult:");
+                                            D.print(debug_show (uploadModelFileResult));
+                                            return #Err(error);
+                                        };
+                                        case (#Ok(_)) {
+                                            // all good, continue
+                                        };
+                                    };
                                     offset := offset + chunkSize;
                                 };
 

@@ -104,6 +104,7 @@ module Types {
         getMainerCanisterType: () -> async MainerAgentCanisterTypeResult;
         setShareServiceCanisterId: (Text) -> async StatusCodeRecordResult;
         addMainerShareAgentCanister: (MainerAgentCanisterInput) -> async MainerAgentCanisterResult;
+        startTimerExecutionAdmin: () -> async AuthRecordResult;
     };
 
     public type MaxTokensRecord = {

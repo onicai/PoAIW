@@ -65,6 +65,8 @@ echo "-src/Challenger: deploy.sh"
 scripts/deploy.sh --network $NETWORK_TYPE --mode $DEPLOY_MODE
 echo "-src/Challenger: register-llms.sh"
 scripts/register-llms.sh --network $NETWORK_TYPE
+echo "-src/Challenger: register-game-state.sh"
+scripts/register-game-state.sh --network $NETWORK_TYPE
 
 cd ../../llms/Challenger
 echo "-llms/Challenger: 6-register-ctrlb-canister.sh"
@@ -72,6 +74,5 @@ scripts/6-register-ctrlb-canister.sh --network $NETWORK_TYPE
 
 echo "-llms/Challenger: 7-log-pause.sh"
 scripts/7-log-pause.sh --network $NETWORK_TYPE
-
 
 #######################################################################

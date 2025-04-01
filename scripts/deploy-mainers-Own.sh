@@ -43,12 +43,15 @@ done
 echo "Using network type: $NETWORK_TYPE"
 
 #######################################################################
-echo " "
-echo "***********************************"
-echo "* deploy: mAIner via mAInerCreator*"
-echo "***********************************"
-
 cd src/mAInerCreator
+
+
+if [ "$NETWORK_TYPE" = "local" ]; then
+    echo " "
+    echo "--------------------------------------------------"
+    echo "Adding 20 TCycles to the mAInerCreator canister"
+    dfx ledger fabricate-cycles --all --t 20
+fi
 
 # ================================================================
 # Type: #Own
@@ -66,9 +69,12 @@ else
 fi
 
 echo " "
-echo "--------------------------------------------------"
 echo "Deploy LLM for the mAInerController $NEW_MAINER_OWN_CANISTER of type #Own"
 dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"
 # dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  # To add another LLM
 # dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  # Etc..
 # -> No need to save the canister id of the LLM, it is all saved internally...
+
+echo " "
+echo "Starting timers for the mAInerController $NEW_MAINER_OWN_CANISTER of type #Own"
+dfx canister call $NEW_MAINER_OWN_CANISTER startTimerExecutionAdmin --network $NETWORK_TYPE

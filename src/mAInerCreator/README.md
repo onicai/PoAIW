@@ -43,8 +43,8 @@ Note: See Appendix A below for manual deploy steps.
 
 After that initial deployment, to update the code for the mAIner Creator canister:
 ```bash
-scripts/deploy.sh --mode upgrade --network [local/ic]
-scripts/register-game-state.sh --network [local/ic]
+scripts/deploy.sh --mode upgrade [--network ic]
+scripts/register-game-state.sh [--network ic]
 ```
 
 ### Create a mAIner

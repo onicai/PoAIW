@@ -48,23 +48,24 @@ cd src/Challenger
 echo "Starting timer for Challenger:"
 dfx canister call challenger_ctrlb_canister startTimerExecutionAdmin --network $NETWORK_TYPE
 
-echo "==========================================="
-cd ../mAIner
+# the timers for the mAIners are already running as part of the deploy process
+# echo "==========================================="
+# cd ../mAIner
 
-MAINER="mainer_service_canister"
-echo "Starting timer for $MAINER:"
-dfx canister call $MAINER startTimerExecutionAdmin --network $NETWORK_TYPE
+# MAINER="mainer_service_canister"
+# echo "Starting timer for $MAINER:"
+# dfx canister call $MAINER startTimerExecutionAdmin --network $NETWORK_TYPE
 
 
-mainer_id_start=0
-mainer_id_end=$((NUM_MAINERS_DEPLOYED - 1))
+# mainer_id_start=0
+# mainer_id_end=$((NUM_MAINERS_DEPLOYED - 1))
 
-for m in $(seq $mainer_id_start $mainer_id_end)
-do
-    MAINER="mainer_ctrlb_canister_$m"
-    echo "Starting timer for $MAINER:"
-    dfx canister call $MAINER startTimerExecutionAdmin --network $NETWORK_TYPE
-done
+# for m in $(seq $mainer_id_start $mainer_id_end)
+# do
+#     MAINER="mainer_ctrlb_canister_$m"
+#     echo "Starting timer for $MAINER:"
+#     dfx canister call $MAINER startTimerExecutionAdmin --network $NETWORK_TYPE
+# done
 
 echo "==========================================="
 cd ../Judge
