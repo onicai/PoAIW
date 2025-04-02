@@ -17,5 +17,6 @@
       ],
       "type": "persistent"
     }
-  }
+  },
+  "output_env_file": ".env"
 }

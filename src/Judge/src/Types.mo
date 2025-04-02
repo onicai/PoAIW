@@ -48,6 +48,15 @@ module Types {
     public type ChallengeResult = Result<Challenge, ApiError>;
 
     // mAIner
+    public type ChallengeQueueInput = Challenge and {
+        challengeQueuedId : Text;
+        challengeQueuedBy : Principal;
+        challengeQueuedTo : Principal;
+        challengeQueuedTimestamp : Nat64;
+    };
+    public type ChallengeQueueInputResult = Result<ChallengeQueueInput, ApiError>;
+    public type ChallengeQueueInputsResult = Result<[ChallengeQueueInput], ApiError>;
+
     public type ChallengeResponseSubmissionStatus = {
         #FailedSubmission;
         #Received;
@@ -58,7 +67,7 @@ module Types {
         #Other : Text;
     };
 
-    public type ChallengeResponseSubmissionInput = Challenge and {
+    public type ChallengeResponseSubmissionInput = ChallengeQueueInput and {
         challengeAnswer : Text;
         challengeAnswerSeed : Nat32;
         submittedBy : Principal;
@@ -139,6 +148,11 @@ module Types {
         generated_eog : Bool;
     };
 
+    public type CopyPromptCacheInputRecord = {
+        from : Text;
+        to : Text;
+    };
+
     public type LLMCanister = actor {
         health : () -> async StatusCodeRecordResult;
         ready : () -> async StatusCodeRecordResult;
@@ -146,6 +160,7 @@ module Types {
         new_chat : (InputRecord) -> async OutputRecordResult;
         run_update : (InputRecord) -> async OutputRecordResult;
         remove_prompt_cache : (InputRecord) -> async OutputRecordResult;
+        copy_prompt_cache : (CopyPromptCacheInputRecord) -> async StatusCodeRecordResult;
     };
 
     // Game State canister

@@ -2,7 +2,7 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/top-off-llms.sh --network [local/ic]
+# scripts/top-off-all.sh --network [local/ic]
 #######################################################################
 
 # Default network type is local

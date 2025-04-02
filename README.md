@@ -97,13 +97,13 @@ dfx start --clean
 #       The canisters are re-build and re-deployed, but the LLM models are still in the canister's stable memory.
 # (-) When we deployed to ic, the initial installation of each component was done manually
 #     to ensure the LLMs ended up on the correct subnet
-scripts/deploy-all.sh --mode [install/reinstall/upgrade] --network [local/ic]
+scripts/deploy-all.sh --mode [install/reinstall/upgrade] [--network ic]
 
 # Step-by-step:
-scripts/deploy-challenger.sh --mode [install/reinstall/upgrade] --network [local/ic]
-scripts/deploy-judge.sh      --mode [install/reinstall/upgrade] --network [local/ic]
-scripts/deploy-mainer.sh     --mode [install/reinstall/upgrade] --network [local/ic]
-scripts/deploy-gamestate.sh  --mode [install/reinstall/upgrade] --network [local/ic]
+scripts/deploy-challenger.sh --mode [install/reinstall/upgrade] [--network ic]
+scripts/deploy-judge.sh      --mode [install/reinstall/upgrade] [--network ic]
+scripts/deploy-mainer.sh     --mode [install/reinstall/upgrade] [--network ic]
+scripts/deploy-gamestate.sh  --mode [install/reinstall/upgrade] [--network ic]
 ```
 
 Note: on WSL, you might first have to run 
@@ -116,22 +116,28 @@ to successfully load the models in the LLM canisters.
 
 ```bash
 # from folder: PoAIW
-scripts/start-timers.sh --network [local/ic]
+scripts/start-timers.sh [--network ic]
 
-# from folder: PoAIW/src/GameState
+# from folder: funnAI  (We now deploy gamestate from there...)
 
 # Verify Challenger challenge generations
 dfx canister call game_state_canister getCurrentChallengesAdmin --output json [--ic]
+dfx canister call game_state_canister getNumCurrentChallengesAdmin --output json [--ic]
 
 # Verify mAIner response generations
-# Note: status changes from #Submitted > #Judging > #Judged
+# Note: submissionStatus changes from #Submitted > #Judging > #Judged
 dfx canister call game_state_canister getSubmissionsAdmin --output json [--ic]
+dfx canister call game_state_canister getNumSubmissionsAdmin --output json [--ic]
+
+dfx canister call game_state_canister getOpenSubmissionsAdmin --output json [--ic]
+dfx canister call game_state_canister getNumOpenSubmissionsAdmin --output json [--ic]
 
 # Verify Judge score generations
 dfx canister call game_state_canister getScoredChallengesAdmin --output json [--ic]
+dfx canister call game_state_canister getNumScoredChallengesAdmin --output json [--ic]
 
 # from folder: PoAIW
-scripts/stop-timers.sh --network [local/ic]
+scripts/stop-timers.sh [--network ic]
 ```
 
 NOTE: when working locally, you easily add cycles to the canisters with:
@@ -158,34 +164,53 @@ The challenge generation takes a moment. To ensure it worked, call
 # from folder: PoAIW/src/Challenger
 dfx canister call challenger_ctrlb_canister getChallengesAdmin --output json [--ic]
 
-# from folder: PoAIW/src/GameState
+# from folder: funnAI
 dfx canister call game_state_canister getCurrentChallengesAdmin --output json [--ic]
+dfx canister call game_state_canister getNumCurrentChallengesAdmin --output json [--ic]
 ```
 
 ## Test mAIners:
 
 ```bash
 # from folder: PoAIW/src/mAIner
-# start the timer that generates challenge responses recurringly
+# Call for each mainer_ctrlb_canister_#
+
+# ###################################################################
+# Verify the mAIner Service Canister Type
+dfx canister call mainer_service_canister getMainerCanisterType [--ic]
+
+# Verify a mAIner Agent Canister Type (0, 1, 2)
+dfx canister call mainer_ctrlb_canister_0 getMainerCanisterType [--ic]
+
+# start timers for mAIner Service Canister
+dfx canister call mainer_service_canister startTimerExecutionAdmin [--ic]
+
+# start timers for mAIner Agent Canisters (0, 1, 2)
 dfx canister call mainer_ctrlb_canister_0 startTimerExecutionAdmin [--ic]
-dfx canister call mainer_ctrlb_canister_1 startTimerExecutionAdmin [--ic]
-# stop the timer that generates challenge responses recurringly
+
+# stop timers for mAIner Agent Canisters (0, 1, 2)
 dfx canister call mainer_ctrlb_canister_0 stopTimerExecutionAdmin [--ic]
-dfx canister call mainer_ctrlb_canister_1 stopTimerExecutionAdmin [--ic]
+
+# stop timers for mAIner Service Canister
+dfx canister call mainer_service_canister stopTimerExecutionAdmin [--ic]
 
 # you can also trigger a single challenge response generation manually
 dfx canister call mainer_ctrlb_canister_0 triggerChallengeResponseAdmin [--ic]
-dfx canister call mainer_ctrlb_canister_1 triggerChallengeResponseAdmin [--ic]
+
+# ###################################################################
+
 ```
 
 The response generation takes a moment. To ensure it worked, call
 ```bash
 # from folder: PoAIW/src/mAIner
+dfx canister call mainer_service_canister getChallengeQueueAdmin --output json [--ic]
+dfx canister call mainer_ctrlb_canister_0 getChallengeQueueAdmin --output json [--ic]
 dfx canister call mainer_ctrlb_canister_0 getSubmittedResponsesAdmin --output json [--ic]
-dfx canister call mainer_ctrlb_canister_1 getSubmittedResponsesAdmin --output json [--ic]
 
-# from folder: PoAIW/src/GameState
+# from folder: funnAI
 dfx canister call game_state_canister getSubmissionsAdmin --output json [--ic]
+dfx canister call game_state_canister getNumSubmissionsAdmin --output json [--ic]
 ```
 
 ## Test Judge
@@ -202,8 +227,9 @@ dfx canister call judge_ctrlb_canister triggerScoreSubmissionAdmin [--ic]
 
 To ensure it worked, call
 ```bash
-# from folder: PoAIW/src/GameState
+# from folder: funnAI
 dfx canister call game_state_canister getScoredChallengesAdmin --output json [--ic]
+dfx canister call game_state_canister getNumScoredChallengesAdmin --output json [--ic]
 ```
 
 ## Top off the LLMs
@@ -214,7 +240,7 @@ This script will top-off ALL the canisters:
 
 ```bash
 # from folder: PoAIW
-scripts/top-off-all.sh --network [local/ic]
+scripts/top-off-all.sh [--network ic]
 ```
 
 NOTE: 

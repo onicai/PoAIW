@@ -24,6 +24,60 @@ actor class GameStateCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
+    // Game Settings
+    stable var THRESHOLD_ARCHIVE_CLOSED_CHALLENGES : Nat = 30;
+    stable var THRESHOLD_MAX_OPEN_CHALLENGES : Nat = 2; // When above, Challengers will not be given a topic able to generate new challenges
+    stable var THRESHOLD_MAX_OPEN_SUBMISSIONS : Nat = 5; // When above, mAIner agents will not be given a challenge to generate new responses
+    stable var THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE : Nat = 3; // When reached, ranking and winner declaration; challenge is closed
+    
+    public shared (msg) func setGameStateThresholdsAdmin(thresholds : Types.GameStateTresholds) : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        THRESHOLD_ARCHIVE_CLOSED_CHALLENGES := thresholds.thresholdArchiveClosedChallenges;
+        THRESHOLD_MAX_OPEN_CHALLENGES := thresholds.thresholdMaxOpenChallenges;
+        THRESHOLD_MAX_OPEN_SUBMISSIONS := thresholds.thresholdMaxOpenSubmissions;
+        THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE := thresholds.thresholdScoredResponsesPerChallenge;
+        return #Ok({ status_code = 200 });
+    };
+
+    public shared query (msg) func getGameStateThresholdsAdmin() : async Types.GameStateTresholdsResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let thresholds : Types.GameStateTresholds = {
+            thresholdArchiveClosedChallenges = THRESHOLD_ARCHIVE_CLOSED_CHALLENGES;
+            thresholdMaxOpenChallenges = THRESHOLD_MAX_OPEN_CHALLENGES;
+            thresholdMaxOpenSubmissions = THRESHOLD_MAX_OPEN_SUBMISSIONS;
+            thresholdScoredResponsesPerChallenge = THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE;
+        };
+        return #Ok(thresholds);
+    };  
+
+
+    // Statistics
+    stable var TOTAL_PROTOCOL_CYCLES_BURNT : Nat = 0;
+
+    private func increaseTotalProtocolCyclesBurnt(cyclesBurntToAdd : Nat) : Bool {
+        TOTAL_PROTOCOL_CYCLES_BURNT := TOTAL_PROTOCOL_CYCLES_BURNT + cyclesBurntToAdd;
+        return true;
+    };
+
+    // TODO: Cycles burnt per operation    
+    stable let _CYCLES_MILLION = 1_000_000;
+    stable let CYCLES_BILLION = 1_000_000_000;
+    stable let _CYCLES_TRILLION = 1_000_000_000_000;
+    // TODO: Keep in sync with SUBMISSION_CYCLES_REQUIRED in mAIner
+    stable let SUBMISSION_CYCLES_REQUIRED : Nat = 100 * CYCLES_BILLION; // TODO: determine how many cycles are needed to process one submission (incl. judge)
+    
+    stable let FAILED_SUBMISSION_CYCLES_CUT : Nat = SUBMISSION_CYCLES_REQUIRED / 5;
+    stable let _JUDGE_CYCLES_PROVISION_PER_SUBMISSION : Nat = 80 * CYCLES_BILLION; // TODO: determine how many cycles should be forwarded to judge per submission
+
+    // TODO: llama_cpp_canister must return these values
+    stable var CYCLES_BURNT_CHALLENGE_CREATION : Nat = 110 * CYCLES_BILLION;
+    stable var CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * CYCLES_BILLION;
+    stable var CYCLES_BURNT_JUDGE_SCORING : Nat = 300 * CYCLES_BILLION;
+
     // Official Challenger canisters
     stable var challengerCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
     var challengerCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -95,6 +149,9 @@ actor class GameStateCanister() = this {
     };
 
     private func getMainerCreatorCanister(canisterAddress : Text) : ?Types.OfficialProtocolCanister {
+        D.print("GameState: getMainerCreatorCanister - canisterAddress: " # debug_show(canisterAddress));
+        let mainerCreatorCanistersEntries = Iter.toArray(mainerCreatorCanistersStorage.entries());
+        D.print("GameState: getMainerCreatorCanister - mainerCreatorCanistersStorage: " # debug_show(mainerCreatorCanistersEntries));
         switch (mainerCreatorCanistersStorage.get(canisterAddress)) {
             case (null) { return null; };
             case (?canisterEntry) { return ?canisterEntry; };
@@ -125,13 +182,19 @@ actor class GameStateCanister() = this {
         switch (getMainerAgentCanister(canisterAddress)) {
             case (null) {
                 mainerAgentCanistersStorage.put(canisterAddress, canisterEntry);
-                // TODO: add to userToMainerAgentsStorage
-                #Ok(canisterEntry)
+                switch (putUserMainerAgent(canisterEntry)) {
+                    case (false) {
+                        return #Err(#Other("Error in putUserMainerAgent"));
+                    };
+                    case (true) {
+                        return #Ok(canisterEntry);
+                    };
+                };
             };
             case (?canisterEntry) { 
                 //existing entry
                 D.print("GameState: putMainerAgentCanister - canisterEntry already exists -" # debug_show(canisterEntry));
-                #Err(#Other("Canister entry already exists"));
+                return #Err(#Other("Canister entry already exists"));
             }; 
         };
     };
@@ -154,7 +217,50 @@ actor class GameStateCanister() = this {
         };
     };
 
-    // TODO: put, get, remove for userToMainerAgentsStorage
+    private func putUserMainerAgent(canisterEntry : Types.OfficialProtocolCanister) : Bool {
+        switch (getUserMainerAgents(canisterEntry.ownedBy)) {
+            case (null) {
+                // first entry
+                let userCanistersList : List.List<Types.OfficialProtocolCanister> = List.make<Types.OfficialProtocolCanister>(canisterEntry);
+                userToMainerAgentsStorage.put(canisterEntry.ownedBy, userCanistersList);
+                return true;
+            };
+            case (?userCanistersList) { 
+                //existing list, add entry to it
+                let updatedUserCanistersList : List.List<Types.OfficialProtocolCanister> = List.push<Types.OfficialProtocolCanister>(canisterEntry, userCanistersList);
+                userToMainerAgentsStorage.put(canisterEntry.ownedBy, updatedUserCanistersList);
+                return true;
+            }; 
+        };
+    };
+
+    private func getUserMainerAgents(userId : Principal) : ?List.List<Types.OfficialProtocolCanister> {
+        switch (userToMainerAgentsStorage.get(userId)) {
+            case (null) { return null; };
+            case (?userCanistersList) { return ?userCanistersList; };
+        };
+    };
+
+    // Caution: function that returns all mAIner agents (TODO: decide if needed)
+    private func getMainerAgents() : [Types.OfficialProtocolCanister] {
+        var mainerAgents : List.List<Types.OfficialProtocolCanister> = List.nil<Types.OfficialProtocolCanister>();
+        for (userMainerAgentsList in userToMainerAgentsStorage.vals()) {
+            mainerAgents := List.append<Types.OfficialProtocolCanister>(userMainerAgentsList, mainerAgents);    
+        };
+        return List.toArray(mainerAgents);
+    };
+
+    private func removeUserMainerAgent(canisterEntry : Types.OfficialProtocolCanister) : Bool {
+        switch (getUserMainerAgents(canisterEntry.ownedBy)) {
+            case (null) { return false; };
+            case (?userCanistersList) { 
+                //existing list, remove entry from it
+                let updatedUserCanistersList : List.List<Types.OfficialProtocolCanister> = List.filter(userCanistersList, func(listEntry: Types.OfficialProtocolCanister) : Bool { listEntry.address != canisterEntry.address });
+                userToMainerAgentsStorage.put(canisterEntry.ownedBy, updatedUserCanistersList);
+                return true;
+            }; 
+        };
+    };
 
     // Open topics for Challenges to be generated
     stable var openChallengeTopicsStorageStable : [(Text, Types.ChallengeTopic)] = [];
@@ -247,8 +353,6 @@ actor class GameStateCanister() = this {
         closedChallenges := newClosedChallenges;
         return true;
     };
-
-    stable var THRESHOLD_ARCHIVE_CLOSED_CHALLENGES : Nat = 30;
 
     private func archiveClosedChallenges() : Bool {
         let numberOfClosedChallenges = List.size<Types.Challenge>(closedChallenges);
@@ -399,6 +503,15 @@ actor class GameStateCanister() = this {
         return Iter.toArray(submissionsStorage.vals());
     };
 
+    private func getOpenSubmissions() : [Types.ChallengeResponseSubmission] {
+        return Iter.toArray(Iter.filter(submissionsStorage.vals(), func(submission: Types.ChallengeResponseSubmission) : Bool {
+            switch (submission.submissionStatus) {
+            case (#Submitted) { true };
+            case (_) { false };
+            }
+        }));
+    };
+
     private func removeSubmission(submissionId : Text) : Bool {
         switch (submissionsStorage.get(submissionId)) {
             case (null) { return false; };
@@ -407,6 +520,23 @@ actor class GameStateCanister() = this {
                 return true;
             };
         };
+    };
+
+    // Admin functions to get all open submissions
+    public shared query (msg) func getOpenSubmissionsAdmin() : async Types.ChallengeResponseSubmissionsResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let openSubmissions : [Types.ChallengeResponseSubmission] = getOpenSubmissions();
+        return #Ok(openSubmissions);
+    };
+
+    public shared query (msg) func getNumOpenSubmissionsAdmin() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let openSubmissions : [Types.ChallengeResponseSubmission] = getOpenSubmissions();
+        return #Ok(openSubmissions.size());
     };
 
     // Winner declaration per challenge id
@@ -470,7 +600,7 @@ actor class GameStateCanister() = this {
         return challengeId;
     };
 
-    // Admin function to get all scored responses
+    // Admin functions to get all scored responses
     public shared query (msg) func getScoredChallengesAdmin() : async Types.ScoredChallengesResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -479,6 +609,16 @@ actor class GameStateCanister() = this {
         let scoredChallengesArray : [(Text, List.List<Types.ScoredResponse>)] = Iter.toArray(scoredResponsesPerChallenge.entries());
 
         return #Ok(scoredChallengesArray);
+    };
+
+    public shared query (msg) func getNumScoredChallengesAdmin() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let scoredChallengesArray : [(Text, List.List<Types.ScoredResponse>)] = Iter.toArray(scoredResponsesPerChallenge.entries());
+
+        return #Ok(scoredChallengesArray.size());
     };
 
     // TODO: determine exact reward
@@ -771,13 +911,21 @@ actor class GameStateCanister() = this {
         };
     };
 
-    // Function for Admin to retrieve current challenges
+    // Functions for Admin to retrieve current challenges
     public shared query (msg) func getCurrentChallengesAdmin() : async Types.ChallengesResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
         let challenges : [Types.Challenge] = getOpenChallenges();
         return #Ok(challenges);
+    };
+
+    public shared query (msg) func getNumCurrentChallengesAdmin() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let challenges : [Types.Challenge] = getOpenChallenges();
+        return #Ok(challenges.size());
     };
 
     // Function for Challenger agent canister to retrieve a random challenge topic
@@ -789,6 +937,11 @@ actor class GameStateCanister() = this {
         switch (getChallengerCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
             case (?_challengerEntry) {
+                // Do we already have enough open challenges?
+                let openChallenges : [Types.Challenge] = getOpenChallenges();
+                if (openChallenges.size() >= THRESHOLD_MAX_OPEN_CHALLENGES) {
+                    return #Err(#Other("We already have sufficient open challenges."));
+                };
                 let challengeTopicResult : ?Types.ChallengeTopic = await getRandomChallengeTopic(#Open);
                 switch (challengeTopicResult) {
                     case (?challengeTopic) {
@@ -806,11 +959,17 @@ actor class GameStateCanister() = this {
             return #Err(#Unauthorized);
         };
         // TODO: require cycles for adding new challenge
+        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_CHALLENGE_CREATION);
 
         // Only official Challenger canisters may call this
         switch (getChallengerCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
             case (?challengerEntry) {
+                // Verify consistency of the caller
+                if (challengerEntry.address != Principal.toText(msg.caller)) {
+                    return #Err(#Unauthorized);
+                };
+
                 let challengeId : Text = await Utils.newRandomUniqueId();
 
                 let challengeAdded : Types.Challenge = {
@@ -895,6 +1054,7 @@ actor class GameStateCanister() = this {
         };
 
         // Only official mAIner Agent Creator canisters may call this
+        D.print("GameState: addMainerAgentCanister - calling getMAinerCreatorCanister for caller: " # debug_show(Principal.toText(msg.caller)));
         switch (getMainerCreatorCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
             case (?mainerCreatorEntry) {
@@ -934,6 +1094,24 @@ actor class GameStateCanister() = this {
         putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry); 
     };
 
+    // Function for user to get their mAIner agent canisters
+    public shared query (msg) func getMainerAgentCanistersForUser() : async Types.MainerAgentCanistersResult {
+        // TODO: only for demo: allow open access
+        return #Ok(getMainerAgents()); 
+        
+        // TODO: put access checks into place again 
+        /* if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Only official Challenger canisters may call this
+        switch (getUserMainerAgents(msg.caller)) {
+            case (null) { return #Err(#Other("No canisters for this caller")); };
+            case (?userCanistersList) {
+                return #Ok(List.toArray<Types.OfficialProtocolCanister>(userCanistersList));                              
+            };
+        }; */
+    };
+
     // Function to retrieve info on a mAIner agent canister
     public shared query (msg) func getMainerAgentCanisterInfo(canisterEntryToRetrieve : Types.CanisterRetrieveInput) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -963,6 +1141,11 @@ actor class GameStateCanister() = this {
         switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
             case (?mainerAgentEntry) {
+                // Do we already have enough open responses?
+                let openSubmissions : [Types.ChallengeResponseSubmission] = getOpenSubmissions();
+                if (openSubmissions.size() >= THRESHOLD_MAX_OPEN_SUBMISSIONS) {
+                    return #Err(#Other("We have a judging backlog & currently do not distribute open challenges to mAIners."));
+                };
                 let challengeResult : ?Types.Challenge = await getRandomChallenge(#Open);
                 switch (challengeResult) {
                     case (?challenge) {
@@ -975,16 +1158,6 @@ actor class GameStateCanister() = this {
     };
 
     // Function for mAIner agent canister to submit a response to an open challenge
-
-    // Keep in sync with SUBMISSION_CYCLES_REQUIRED in mAIner 
-    stable let _CYCLES_MILLION = 1_000_000;
-    stable let CYCLES_BILLION = 1_000_000_000;
-    stable let _CYCLES_TRILLION = 1_000_000_000_000;
-    stable let SUBMISSION_CYCLES_REQUIRED : Nat = 100 * CYCLES_BILLION; // TODO: determine how many cycles are needed to process one submission (incl. judge)
-    
-    stable let FAILED_SUBMISSION_CYCLES_CUT : Nat = SUBMISSION_CYCLES_REQUIRED / 5;
-    stable let _JUDGE_CYCLES_PROVISION_PER_SUBMISSION : Nat = 80 * CYCLES_BILLION; // TODO: determine how many cycles should be forwarded to judge per submission
-
     public shared (msg) func submitChallengeResponse(challengeResponseSubmissionInput : Types.ChallengeResponseSubmissionInput) : async Types.ChallengeResponseSubmissionMetadataResult {
         D.print("GameState: submitChallengeResponse - entered");
         if (Principal.isAnonymous(msg.caller)) {
@@ -1000,6 +1173,8 @@ actor class GameStateCanister() = this {
             D.print("GameState: submitChallengeResponse - cycles required : " # debug_show(SUBMISSION_CYCLES_REQUIRED));
             return #Err(#InsuffientCycles(SUBMISSION_CYCLES_REQUIRED));                    
         };
+        // TODO: adapt cycles burnt stats
+        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
         // Only official mAIner agent canisters may call this
         switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
             case (null) {
@@ -1045,6 +1220,10 @@ actor class GameStateCanister() = this {
                     challengeStatus : Types.ChallengeStatus = challengeResponseSubmissionInput.challengeStatus;
                     challengeClosedTimestamp : ?Nat64 = challengeResponseSubmissionInput.challengeClosedTimestamp;
                     submissionCyclesRequired : Nat = challengeResponseSubmissionInput.submissionCyclesRequired;
+                    challengeQueuedId : Text = challengeResponseSubmissionInput.challengeQueuedId;
+                    challengeQueuedBy : Principal = challengeResponseSubmissionInput.challengeQueuedBy;
+                    challengeQueuedTo : Principal = challengeResponseSubmissionInput.challengeQueuedTo;
+                    challengeQueuedTimestamp : Nat64 = challengeResponseSubmissionInput.challengeQueuedTimestamp;
                     challengeAnswer : Text = challengeResponseSubmissionInput.challengeAnswer;
                     challengeAnswerSeed : Nat32 = challengeResponseSubmissionInput.challengeAnswerSeed;
                     submittedBy : Principal = challengeResponseSubmissionInput.submittedBy;
@@ -1065,13 +1244,21 @@ actor class GameStateCanister() = this {
         };
     };
 
-    // Function for Admin to retrieve submissions
+    // Functions for Admin to retrieve submissions
     public shared query (msg) func getSubmissionsAdmin() : async Types.ChallengeResponseSubmissionsResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
         let submissions : [Types.ChallengeResponseSubmission] = getSubmissions();
         return #Ok(submissions);
+    };
+
+    public shared query (msg) func getNumSubmissionsAdmin() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let submissions : [Types.ChallengeResponseSubmission] = getSubmissions();
+        return #Ok(submissions.size());
     };
 
     // Function for Judge canister to retrieve the next submission to score
@@ -1116,6 +1303,10 @@ actor class GameStateCanister() = this {
                                         challengeStatus : Types.ChallengeStatus = submission.challengeStatus;
                                         challengeClosedTimestamp : ?Nat64 = submission.challengeClosedTimestamp;
                                         submissionCyclesRequired : Nat = submission.submissionCyclesRequired;
+                                        challengeQueuedId : Text = submission.challengeQueuedId;
+                                        challengeQueuedBy : Principal = submission.challengeQueuedBy;
+                                        challengeQueuedTo : Principal = submission.challengeQueuedTo;
+                                        challengeQueuedTimestamp : Nat64 = submission.challengeQueuedTimestamp;
                                         challengeAnswer : Text = submission.challengeAnswer;
                                         challengeAnswerSeed : Nat32 = submission.challengeAnswerSeed;
                                         submittedBy : Principal = submission.submittedBy;
@@ -1142,13 +1333,14 @@ actor class GameStateCanister() = this {
     };
 
     // Function for Judge canister to add a new scored response
-    stable let THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE = 20; // TODO: determine threshold how many scored responses are needed before challenge is closed (for ranking and winner declaration)
-    
+        
     public shared (msg) func addScoredResponse(scoredResponseInput : Types.ScoredResponseInput) : async Types.ScoredResponseResult {
         D.print("GameState: addScoredResponse - entered");
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        // TODO: adapt cycles burnt stats
+        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_JUDGE_SCORING);
         // Only official Judge canisters may call this
         switch (getJudgeCanister(Principal.toText(msg.caller))) {
             case (null) { 
@@ -1186,6 +1378,10 @@ actor class GameStateCanister() = this {
                     challengeStatus : Types.ChallengeStatus = scoredResponseInput.challengeStatus;
                     challengeClosedTimestamp : ?Nat64 = scoredResponseInput.challengeClosedTimestamp;
                     submissionCyclesRequired : Nat = scoredResponseInput.submissionCyclesRequired;
+                    challengeQueuedId : Text = scoredResponseInput.challengeQueuedId;
+                    challengeQueuedBy : Principal = scoredResponseInput.challengeQueuedBy;
+                    challengeQueuedTo : Principal = scoredResponseInput.challengeQueuedTo;
+                    challengeQueuedTimestamp : Nat64 = scoredResponseInput.challengeQueuedTimestamp;
                     challengeAnswer : Text = scoredResponseInput.challengeAnswer;
                     challengeAnswerSeed : Nat32 = scoredResponseInput.challengeAnswerSeed;
                     submittedBy : Principal = scoredResponseInput.submittedBy;
@@ -1214,6 +1410,10 @@ actor class GameStateCanister() = this {
                     challengeStatus : Types.ChallengeStatus = scoredResponseInput.challengeStatus;
                     challengeClosedTimestamp : ?Nat64 = scoredResponseInput.challengeClosedTimestamp;
                     submissionCyclesRequired : Nat = scoredResponseInput.submissionCyclesRequired;
+                    challengeQueuedId : Text = scoredResponseInput.challengeQueuedId;
+                    challengeQueuedBy : Principal = scoredResponseInput.challengeQueuedBy;
+                    challengeQueuedTo : Principal = scoredResponseInput.challengeQueuedTo;
+                    challengeQueuedTimestamp : Nat64 = scoredResponseInput.challengeQueuedTimestamp;
                     challengeAnswer : Text = scoredResponseInput.challengeAnswer;
                     challengeAnswerSeed : Nat32 = scoredResponseInput.challengeAnswerSeed;
                     submittedBy : Principal = scoredResponseInput.submittedBy;
@@ -1228,10 +1428,17 @@ actor class GameStateCanister() = this {
                 D.print("GameState: addScoredResponse - All Good - calling putScoredResponseForChallenge");
                 D.print("GameState: addScoredResponse - scoredResponseEntry = " # debug_show(scoredResponseEntry));
                 let numberOfScoredResponsesForChallenge : Nat = putScoredResponseForChallenge(scoredResponseEntry);
+                D.print("GameState: addScoredResponse - numberOfScoredResponsesForChallenge = " # debug_show(numberOfScoredResponsesForChallenge));
+                D.print("GameState: addScoredResponse - THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE = " # debug_show(THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE));
 
                 // Determine if ranking of scored responses can be triggered
                 if (numberOfScoredResponsesForChallenge >= THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE) {
+                    // TODO: we should close the challenge for handing out to mAIners, but we need to:
+                    //       (-) accept mAIner submissions that have already received this challenge
+                    //       (-) score those submissions
+                    //       FOR NOW - JUST CLOSE IT AND RANK IT...
                     // Close challenge
+                    D.print("GameState: addScoredResponse - reached threshold & closing the challenge: " # debug_show(scoredResponseInput.challengeQuestion));
                     switch (closeChallenge(scoredResponseInput.challengeId)) {
                         case (false) {
                             // TODO: error handling (e.g. put into queue and try ranking again later)
@@ -1244,6 +1451,7 @@ actor class GameStateCanister() = this {
                                     // TODO: error handling (e.g. put into queue and try ranking again later)
                                 };
                                 case (?challengeWinnerDeclaration) {
+                                    D.print("GameState: addScoredResponse - ranked and declared winner: " # debug_show(challengeWinnerDeclaration));
                                     // TODO: Pay reward
                                     
                                 };
@@ -1267,6 +1475,232 @@ actor class GameStateCanister() = this {
             return #Err(#Unauthorized);
         };
         return #Ok(getWinnersForRecentChallenges());
+    };
+
+    // Function to get recent protocol activity (TODO: decide if access should remain public)
+    public query func getRecentProtocolActivity() : async Types.ProtocolActivityResult {
+        let winnersForRecentChallenges : [Types.ChallengeWinnerDeclaration] = getWinnersForRecentChallenges();
+        let openChallenges : [Types.Challenge] = getOpenChallenges();
+        let result : Types.ProtocolActivityRecord = {
+            winners = winnersForRecentChallenges;
+            challenges = openChallenges;
+        };
+        return #Ok(result);
+    };
+
+    // Function for user to get the score of a submission by one of their mAIners
+    public query (msg) func getScoreForSubmission(submissionInput : Types.SubmissionRetrievalInput) : async Types.ScoredResponseRetrievalResult {
+        // TODO: put access checks in place
+        /* if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        }; */
+
+        let result : ?Types.ScoredResponse = getScoredResponse(submissionInput.challengeId, submissionInput.submissionId);
+        switch (result) {
+            case (null) {
+                return #Err(#InvalidId);
+            };
+            case (?scoredResponse) {
+                // TODO: decide if only owner of mAIner should be allowed to retrieve this
+                return #Ok(scoredResponse);
+            };
+        };
+    };
+
+    public query func getProtocolTotalCyclesBurnt() : async Types.CyclesBurntResult {
+        return #Ok(TOTAL_PROTOCOL_CYCLES_BURNT);
+    };
+
+// Mockup functions
+    // Function for frontend integration testing that returns mockup data
+    public query (msg) func getScoreForSubmission_mockup(submissionInput : Types.SubmissionRetrievalInput) : async Types.ScoredResponseRetrievalResult {
+        switch (getOpenChallenge(submissionInput.challengeId)) {
+            case (?openChallenge) {
+                let scoredResponseEntry : Types.ScoredResponse = {
+                    challengeTopic : Text = openChallenge.challengeTopic;
+                    challengeTopicId : Text = openChallenge.challengeTopicId;
+                    challengeTopicCreationTimestamp : Nat64 = openChallenge.challengeTopicCreationTimestamp;
+                    challengeTopicStatus : Types.ChallengeTopicStatus = openChallenge.challengeTopicStatus;
+                    challengeQuestion : Text = openChallenge.challengeQuestion;
+                    challengeQuestionSeed : Nat32 = openChallenge.challengeQuestionSeed;
+                    challengeId : Text = openChallenge.challengeId;
+                    challengeCreationTimestamp : Nat64 = openChallenge.challengeCreationTimestamp;
+                    challengeCreatedBy : Types.CanisterAddress = openChallenge.challengeCreatedBy;
+                    challengeStatus : Types.ChallengeStatus = openChallenge.challengeStatus;
+                    challengeClosedTimestamp : ?Nat64 = openChallenge.challengeClosedTimestamp;
+                    submissionCyclesRequired : Nat = openChallenge.submissionCyclesRequired;
+                    challengeQueuedId : Text = submissionInput.submissionId;
+                    challengeQueuedBy : Principal = msg.caller;
+                    challengeQueuedTo : Principal = msg.caller;
+                    challengeQueuedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                    challengeAnswer : Text = "";
+                    challengeAnswerSeed : Nat32 = 0;
+                    submittedBy : Principal = msg.caller;
+                    submissionId : Text = submissionInput.submissionId;
+                    submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                    submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                    judgedBy: Principal = msg.caller;
+                    score: Nat = 5;
+                    scoreSeed: Nat32 = 0;
+                    judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                };
+                return #Ok(scoredResponseEntry);              
+            };
+            case (null) {
+                switch (getClosedChallenge(submissionInput.challengeId)) {
+                    case (?closedChallenge) {
+                        let scoredResponseEntry : Types.ScoredResponse = {
+                            challengeTopic : Text = closedChallenge.challengeTopic;
+                            challengeTopicId : Text = closedChallenge.challengeTopicId;
+                            challengeTopicCreationTimestamp : Nat64 = closedChallenge.challengeTopicCreationTimestamp;
+                            challengeTopicStatus : Types.ChallengeTopicStatus = closedChallenge.challengeTopicStatus;
+                            challengeQuestion : Text = closedChallenge.challengeQuestion;
+                            challengeQuestionSeed : Nat32 = closedChallenge.challengeQuestionSeed;
+                            challengeId : Text = closedChallenge.challengeId;
+                            challengeCreationTimestamp : Nat64 = closedChallenge.challengeCreationTimestamp;
+                            challengeCreatedBy : Types.CanisterAddress = closedChallenge.challengeCreatedBy;
+                            challengeStatus : Types.ChallengeStatus = closedChallenge.challengeStatus;
+                            challengeClosedTimestamp : ?Nat64 = closedChallenge.challengeClosedTimestamp;
+                            submissionCyclesRequired : Nat = closedChallenge.submissionCyclesRequired;
+                            challengeQueuedId : Text = submissionInput.submissionId;
+                            challengeQueuedBy : Principal = msg.caller;
+                            challengeQueuedTo : Principal = msg.caller;
+                            challengeQueuedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            challengeAnswer : Text = "";
+                            challengeAnswerSeed : Nat32 = 0;
+                            submittedBy : Principal = msg.caller;
+                            submissionId : Text = submissionInput.submissionId;
+                            submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                            judgedBy: Principal = msg.caller;
+                            score: Nat = 5;
+                            scoreSeed: Nat32 = 0;
+                            judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                        };
+                        return #Ok(scoredResponseEntry);                       
+                    };
+                    case (null) {
+                        let scoredResponseEntry : Types.ScoredResponse = {
+                            challengeTopic : Text = "";
+                            challengeTopicId : Text = "";
+                            challengeTopicCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            challengeTopicStatus : Types.ChallengeTopicStatus = #Archived;
+                            challengeQuestion : Text = "";
+                            challengeQuestionSeed : Nat32 = 0;
+                            challengeId : Text = submissionInput.challengeId;
+                            challengeCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            challengeCreatedBy : Types.CanisterAddress = "";
+                            challengeStatus : Types.ChallengeStatus = #Archived;
+                            challengeClosedTimestamp : ?Nat64 = ?Nat64.fromNat(Int.abs(Time.now()));
+                            submissionCyclesRequired : Nat = SUBMISSION_CYCLES_REQUIRED;
+                            challengeQueuedId : Text = submissionInput.submissionId;
+                            challengeQueuedBy : Principal = msg.caller;
+                            challengeQueuedTo : Principal = msg.caller;
+                            challengeQueuedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            challengeAnswer : Text = "";
+                            challengeAnswerSeed : Nat32 = 0;
+                            submittedBy : Principal = msg.caller;
+                            submissionId : Text = submissionInput.submissionId;
+                            submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                            judgedBy: Principal = msg.caller;
+                            score: Nat = 5;
+                            scoreSeed: Nat32 = 0;
+                            judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                        };
+                        return #Ok(scoredResponseEntry);                        
+                    };
+                };  
+            };
+        };
+    };
+
+    public query func getRecentProtocolActivity_mockup() : async Types.ProtocolActivityResult {
+        let mainerAgents : [Types.OfficialProtocolCanister] = getMainerAgents();
+
+        if (mainerAgents.size() > 0) {
+            var winnerAgent = mainerAgents[0];
+            var secondPlaceAgent = mainerAgents[0];
+            var thirdPlaceAgent = mainerAgents[0];
+            if (mainerAgents.size() > 1) {
+                secondPlaceAgent := mainerAgents[1];
+            } else if (mainerAgents.size() > 2) {
+                secondPlaceAgent := mainerAgents[1];
+                thirdPlaceAgent := mainerAgents[2];
+            };
+            var participantsList : List.List<Types.ChallengeParticipantEntry> = List.nil<Types.ChallengeParticipantEntry>();
+            // Winner
+            var rewardAmount : Nat = getRewardAmountForResult(#Winner, 3);
+            let winnerReward : Types.ChallengeWinnerReward = {
+                rewardType : Types.RewardType = REWARD_PER_CHALLENGE.rewardType;
+                amount : Nat = rewardAmount;
+                rewardDetails : Text = "";
+                distributed : Bool = false;
+                distributedTimestamp : ?Nat64 = null;
+            };
+            let winnerParticipant : Types.ChallengeParticipantEntry = {
+                submissionId : Text = "";
+                submittedBy : Principal = Principal.fromText(winnerAgent.address);
+                ownedBy: Principal = winnerAgent.ownedBy;
+                result : Types.ChallengeParticipationResult = #Winner;
+                reward : Types.ChallengeWinnerReward = winnerReward;
+            };
+            participantsList := List.push<Types.ChallengeParticipantEntry>(winnerParticipant, participantsList);
+            
+            // Second Place
+            rewardAmount := getRewardAmountForResult(#SecondPlace, 3);
+            let secondPlaceReward : Types.ChallengeWinnerReward = {
+                rewardType : Types.RewardType = REWARD_PER_CHALLENGE.rewardType;
+                amount : Nat = rewardAmount;
+                rewardDetails : Text = "";
+                distributed : Bool = false;
+                distributedTimestamp : ?Nat64 = null;
+            };
+            let secondPlaceParticipant : Types.ChallengeParticipantEntry = {
+                submissionId : Text = "";
+                submittedBy : Principal = Principal.fromText(secondPlaceAgent.address);
+                ownedBy: Principal = secondPlaceAgent.ownedBy;
+                result : Types.ChallengeParticipationResult = #SecondPlace;
+                reward : Types.ChallengeWinnerReward = secondPlaceReward;
+            };
+            participantsList := List.push<Types.ChallengeParticipantEntry>(secondPlaceParticipant, participantsList);
+            
+            // Third Place
+            rewardAmount := getRewardAmountForResult(#ThirdPlace, 3);
+            let thirdPlaceReward : Types.ChallengeWinnerReward = {
+                rewardType : Types.RewardType = REWARD_PER_CHALLENGE.rewardType;
+                amount : Nat = rewardAmount;
+                rewardDetails : Text = "";
+                distributed : Bool = false;
+                distributedTimestamp : ?Nat64 = null;
+            };
+            let thirdPlaceParticipant : Types.ChallengeParticipantEntry = {
+                submissionId : Text = "";
+                submittedBy : Principal = Principal.fromText(thirdPlaceAgent.address);
+                ownedBy: Principal = thirdPlaceAgent.ownedBy;
+                result : Types.ChallengeParticipationResult = #ThirdPlace;
+                reward : Types.ChallengeWinnerReward = thirdPlaceReward;
+            };
+            participantsList := List.push<Types.ChallengeParticipantEntry>(thirdPlaceParticipant, participantsList);
+            
+            let challengeWinnerDeclaration : Types.ChallengeWinnerDeclaration = {
+                challengeId : Text = "";
+                finalizedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                winner : Types.ChallengeParticipantEntry = winnerParticipant;
+                secondPlace : Types.ChallengeParticipantEntry = secondPlaceParticipant;
+                thirdPlace : Types.ChallengeParticipantEntry = thirdPlaceParticipant;
+                participants : List.List<Types.ChallengeParticipantEntry> = participantsList;
+            };
+            let winnersForRecentChallenges : [Types.ChallengeWinnerDeclaration] = [challengeWinnerDeclaration];
+            let openChallenges : [Types.Challenge] = getOpenChallenges();
+            let result : Types.ProtocolActivityRecord = {
+                winners = winnersForRecentChallenges;
+                challenges = openChallenges;
+            };
+            return #Ok(result);
+        } else {
+            return #Err(#InvalidId);
+        };
     };
 
 // Upgrade Hooks

@@ -2,12 +2,12 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/start-all-timers.sh --network [local/ic]
+# scripts/start-timers.sh --network [local/ic]
 #######################################################################
 
 # Default network type is local
 NETWORK_TYPE="local"
-NUM_MAINERS_DEPLOYED=2
+NUM_MAINERS_DEPLOYED=3
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -48,17 +48,24 @@ cd src/Challenger
 echo "Starting timer for Challenger:"
 dfx canister call challenger_ctrlb_canister startTimerExecutionAdmin --network $NETWORK_TYPE
 
-echo "==========================================="
-cd ../mAIner
-mainer_id_start=0
-mainer_id_end=$((NUM_MAINERS_DEPLOYED - 1))
+# the timers for the mAIners are already running as part of the deploy process
+# echo "==========================================="
+# cd ../mAIner
 
-for m in $(seq $mainer_id_start $mainer_id_end)
-do
-    MAINER="mainer_ctrlb_canister_$m"
-    echo "Starting timer for $MAINER:"
-    dfx canister call $MAINER startTimerExecutionAdmin --network $NETWORK_TYPE
-done
+# MAINER="mainer_service_canister"
+# echo "Starting timer for $MAINER:"
+# dfx canister call $MAINER startTimerExecutionAdmin --network $NETWORK_TYPE
+
+
+# mainer_id_start=0
+# mainer_id_end=$((NUM_MAINERS_DEPLOYED - 1))
+
+# for m in $(seq $mainer_id_start $mainer_id_end)
+# do
+#     MAINER="mainer_ctrlb_canister_$m"
+#     echo "Starting timer for $MAINER:"
+#     dfx canister call $MAINER startTimerExecutionAdmin --network $NETWORK_TYPE
+# done
 
 echo "==========================================="
 cd ../Judge

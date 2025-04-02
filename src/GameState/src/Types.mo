@@ -28,12 +28,27 @@ module Types {
     public type AuthRecordResult = Result<AuthRecord, ApiError>;
 
     //-------------------------------------------------------------------------
+    public type NatResult = Result<Nat, ApiError>;
+    public type TextResult = Result<Text, ApiError>;
+
+    //-------------------------------------------------------------------------
+    public type GameStateTresholds = {
+        thresholdArchiveClosedChallenges : Nat;
+        thresholdMaxOpenChallenges : Nat;
+        thresholdMaxOpenSubmissions : Nat;
+        thresholdScoredResponsesPerChallenge : Nat;
+    };
+
+    public type GameStateTresholdsResult = Result<GameStateTresholds, ApiError>;
+
+    //-------------------------------------------------------------------------
     public type ProtocolCanisterType = {
         #Challenger;
         #Judge;
         #Verifier;
         #MainerCreator;
         #MainerAgent;
+        #MainerLlm;
     };
 
     public type CanisterAddress = Text;
@@ -51,13 +66,24 @@ module Types {
         canisterType: ProtocolCanisterType;
     };
 
+    public type MainerAgentCanisterType = {
+        #NA; // Not Applicable for this canister
+        #Own;
+        #ShareAgent;
+        #ShareService;
+    };
+    public type MainerAgentCanisterTypeResult = Result<MainerAgentCanisterType, ApiError>;
+
     public type MainerAgentCanisterInput = {
         address : CanisterAddress;
         canisterType: ProtocolCanisterType;
         ownedBy: Principal;
+        mainerAgentCanisterType: MainerAgentCanisterType;
     };
 
     public type MainerAgentCanisterResult = Result<OfficialProtocolCanister, ApiError>;
+
+    public type MainerAgentCanistersResult = Result<[OfficialProtocolCanister], ApiError>;
 
     public type CanisterRetrieveInput = {
         address : CanisterAddress;
@@ -130,6 +156,16 @@ module Types {
 
     public type ChallengesResult = Result<[Challenge], ApiError>;
 
+    // mAIner
+    public type ChallengeQueueInput = Challenge and {
+        challengeQueuedId : Text;
+        challengeQueuedBy : Principal;
+        challengeQueuedTo : Principal;
+        challengeQueuedTimestamp : Nat64;
+    };
+    public type ChallengeQueueInputResult = Result<ChallengeQueueInput, ApiError>;
+    public type ChallengeQueueInputsResult = Result<[ChallengeQueueInput], ApiError>;
+
     public type ChallengeResponseSubmissionStatus = {
         #FailedSubmission;
         #Received;
@@ -140,7 +176,7 @@ module Types {
         #Other : Text;
     };
 
-    public type ChallengeResponseSubmissionInput = Challenge and {
+    public type ChallengeResponseSubmissionInput = ChallengeQueueInput and {
         challengeAnswer : Text;
         challengeAnswerSeed : Nat32;
         submittedBy : Principal;
@@ -177,6 +213,12 @@ module Types {
 
     public type ScoredChallengesResult = Result<[(Text, List.List<ScoredResponse>)], ApiError>;
 
+    public type SubmissionRetrievalInput = {
+        challengeId : Text;
+        submissionId : Text;
+    };
+
+    public type ScoredResponseRetrievalResult = Result<ScoredResponse, ApiError>;
 
     //-------------------------------------------------------------------------
     public type ChallengeWinnerDeclaration = {
@@ -222,8 +264,17 @@ module Types {
 
     public type ChallengeWinnersResult = Result<[ChallengeWinnerDeclaration], ApiError>;
 
-    //-------------------------------------------------------------------------
+    public type ProtocolActivityRecord = {
+        winners : [ChallengeWinnerDeclaration];
+        challenges : [Challenge];
+    };
 
+    public type ProtocolActivityResult = Result<ProtocolActivityRecord, ApiError>;
+
+    //-------------------------------------------------------------------------
+    public type CyclesBurntResult = Result<Nat, ApiError>;
+
+    //-------------------------------------------------------------------------
     public type FileUploadRecord = {
         creationResult : Text;
     };
