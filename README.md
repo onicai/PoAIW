@@ -125,7 +125,7 @@ dfx canister call game_state_canister getCurrentChallengesAdmin --output json [-
 dfx canister call game_state_canister getNumCurrentChallengesAdmin --output json [--ic]
 
 # Verify mAIner response generations
-# Note: status changes from #Submitted > #Judging > #Judged
+# Note: submissionStatus changes from #Submitted > #Judging > #Judged
 dfx canister call game_state_canister getSubmissionsAdmin --output json [--ic]
 dfx canister call game_state_canister getNumSubmissionsAdmin --output json [--ic]
 
