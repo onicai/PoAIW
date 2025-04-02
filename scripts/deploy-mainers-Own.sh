@@ -70,9 +70,9 @@ fi
 
 echo " "
 echo "Deploy LLM for the mAInerController $NEW_MAINER_OWN_CANISTER of type #Own"
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"
-# dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  # To add another LLM
-# dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  # Etc..
+dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  --network $NETWORK_TYPE
+# dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"   --network $NETWORK_TYPE
+# dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  --network $NETWORK_TYPE
 # -> No need to save the canister id of the LLM, it is all saved internally...
 
 echo " "

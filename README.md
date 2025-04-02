@@ -118,8 +118,18 @@ to successfully load the models in the LLM canisters.
 # from folder: PoAIW
 scripts/start-timers.sh [--network ic]
 
-# from folder: funnAI  (We now deploy gamestate from there...)
+# ----
+# To see the logs for a canister:
+dfx canister logs game_state_canister [--ic] # from folder funnAI
+dfx canister logs challenger_ctrlb_canister [--ic] # from folder PoAIW/src/Challenger
+dfx canister logs judge_ctrlb_canister [--ic] # from folder PoAIW/src/Judge
+dfx canister logs mainer_creator_canister [--ic] # from folder PoAIW/src/mainerCreator
 
+# See funnAI/notes/NotesOnInitialDeployment.md for the canister ids on main net
+dfx canister logs <canister-id-of-mAIner> [--ic] # from anywhere
+
+# ----
+# from folder: funnAI  (We now deploy gamestate from there...)
 # Verify Challenger challenge generations
 dfx canister call game_state_canister getCurrentChallengesAdmin --output json [--ic]
 dfx canister call game_state_canister getNumCurrentChallengesAdmin --output json [--ic]

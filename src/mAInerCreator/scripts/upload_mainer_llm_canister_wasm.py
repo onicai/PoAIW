@@ -8,6 +8,7 @@ Run with:
 # pylint: disable=invalid-name, too-few-public-methods, no-member, too-many-statements
 
 import sys
+import time
 from pathlib import Path
 from typing import Generator
 from .ic_py_canister import get_canister
@@ -116,10 +117,29 @@ def main() -> int:
             print(f"- chunk[0]  = {chunk[0]}")
             print(f"- chunk[-1] = {chunk[-1]}")
 
-        response = canister_creator.upload_mainer_llm_canister_wasm_bytes_chunk(
-            selectedModel,
-            chunk
-        )  # pylint: disable=no-member
+        # Handle exceptions in case the Ingress is busy and it throws this message:
+        # Ingress message ... timed out waiting to start executing.
+
+        max_retries = 5
+        retry_delay = 2  # seconds
+        for attempt in range(1, max_retries + 1):
+            try:
+                response = canister_creator.upload_mainer_llm_canister_wasm_bytes_chunk(
+                    selectedModel,
+                    chunk
+                )  # pylint: disable=no-member
+                break  # Exit the loop if the request is successful
+            except Exception as e:
+                print(f"Attempt {attempt} failed: {e}")
+                if attempt == max_retries:
+                    print("Max retries reached. Failing.")
+                    # Re-raise the exception if max retries are reached,
+                    # which will exit the program
+                    raise
+
+                print(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)  # Wait before retrying
+
         if "Ok" in response[0].keys():
             print("OK!")
         else:

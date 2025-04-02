@@ -267,7 +267,7 @@ actor class CanisterCreationCanister() = this {
         switch (configurationInput.canisterType) {
             case (#MainerAgent) {
                 // Create mAIner controller canister for new mAIner agent
-                Cycles.add(700_000_000_000); // TODO: determine exact cycles amount
+                Cycles.add(1_000_000_000_000);  // 1T cycles (800B was the minimum required)
 
                 let mainerAgentCanisterType = configurationInput.mainerAgentCanisterType;
                 D.print("mAInerCreator: createCanister - mainerAgentCanisterType = " # debug_show (mainerAgentCanisterType));
@@ -422,7 +422,7 @@ actor class CanisterCreationCanister() = this {
                             case (?modelCreationArtefacts) {
                                 D.print("mAInerCreator: createCanister modelCreationArtefacts");
                                 // Create mAIner LLM (and add it to a mAIner controller)
-                                Cycles.add(700_000_000_000); // TODO: determine exact cycles amount
+                                Cycles.add(3_000_000_000_000);  // 3T cycles  (TODO: what is the minimum?)
 
                                 let createdLlmCanister = await IC0.create_canister({
                                     settings = ?{
