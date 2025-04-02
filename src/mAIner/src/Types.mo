@@ -9,9 +9,11 @@ module Types {
         #Verifier;
         #MainerCreator;
         #MainerAgent;
+        #MainerLlm;
     };
 
     public type MainerAgentCanisterType = {
+        #NA; // Not Applicable for this canister
         #Own;
         #ShareAgent;
         #ShareService;
@@ -37,6 +39,7 @@ module Types {
         address : CanisterAddress;
         canisterType: ProtocolCanisterType;
         ownedBy: Principal;
+        mainerAgentCanisterType: MainerAgentCanisterType;
     };
 
     public type MainerAgentCanisterResult = Result<OfficialProtocolCanister, ApiError>;

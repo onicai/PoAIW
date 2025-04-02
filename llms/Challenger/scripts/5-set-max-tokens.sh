@@ -7,7 +7,7 @@
 
 # Default network type is local
 NETWORK_TYPE="local"
-NUM_LLMS_DEPLOYED=2
+NUM_LLMS_DEPLOYED=1
 
 # MAX_TOKENS=128 # stories260Ktok512.gguf
 # MAX_TOKENS=60 # stories15Mtok4096.gguf

@@ -7,8 +7,8 @@
 
 # Default network type is local
 NETWORK_TYPE="local"
-NUM_LLMS_DEPLOYED=2
-NUM_LLMS_ROUND_ROBIN=2 # how many LLMs we actually use
+NUM_LLMS_DEPLOYED=1
+NUM_LLMS_ROUND_ROBIN=1 # how many LLMs we actually use
 # When deploying local, use canister IDs from .env
 source ../../llms/Judge/.env
 

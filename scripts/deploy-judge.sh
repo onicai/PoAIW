@@ -65,6 +65,8 @@ echo "-src/Judge: deploy.sh"
 scripts/deploy.sh --network $NETWORK_TYPE --mode $DEPLOY_MODE
 echo "-src/Judge: register-llms.sh"
 scripts/register-llms.sh --network $NETWORK_TYPE
+echo "-src/Judge: register-game-state.sh"
+scripts/register-game-state.sh --network $NETWORK_TYPE
 
 cd ../../llms/Judge
 echo "-llms/Judge: 6-register-ctrlb-canister.sh"

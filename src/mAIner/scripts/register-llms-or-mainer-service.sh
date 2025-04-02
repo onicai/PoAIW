@@ -203,11 +203,11 @@ do
         # ------------
         echo "Registering $MAINER ($MAINER_CANISTER_ID) with the mainer_service_canister"
         MYPRINCIPAL=$(dfx identity get-principal | tr -d '\n')
-        output=$(dfx canister call mainer_service_canister addMainerAgentCanisterAdmin "(record { address = \"$MAINER_CANISTER_ID\"; canisterType = variant {MainerAgent}; ownedBy = principal \"$MYPRINCIPAL\" })" --network $NETWORK_TYPE)
+        output=$(dfx canister call mainer_service_canister addMainerShareAgentCanisterAdmin "(record { address = \"$MAINER_CANISTER_ID\"; canisterType = variant {MainerAgent}; ownedBy = principal \"$MYPRINCIPAL\" })" --network $NETWORK_TYPE)
         
         if [[ "$output" != *"Ok = record"* ]]; then
             if [[ "$output" != "(variant { Err = variant { Other = \"Canister entry already exists\" } })" ]]; then
-                echo "Error calling addMainerAgentCanisterAdmin for mAIner $MAINER_CANISTER_ID."
+                echo "Error calling addMainerShareAgentCanisterAdmin for mAIner $MAINER_CANISTER_ID."
                 echo $output
             else
                 echo "$MAINER ($MAINER_CANISTER_ID) is already registered with the game_state_canister."

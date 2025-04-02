@@ -7,7 +7,7 @@
 
 # Default network type is local
 NETWORK_TYPE="local"
-NUM_LLMS_DEPLOYED=2
+NUM_LLMS_DEPLOYED=1
 DEPLOY_MODE="install"
 
 # When deploying to IC, we deploy to a specific subnet

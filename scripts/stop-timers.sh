@@ -2,12 +2,12 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/start-timers.sh --network [local/ic]
+# scripts/stop-timers.sh --network [local/ic]
 #######################################################################
 
 # Default network type is local
 NETWORK_TYPE="local"
-NUM_MAINERS_DEPLOYED=3
+# NUM_MAINERS_DEPLOYED=3
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -48,23 +48,23 @@ cd src/Challenger
 echo "Stopping timer for Challenger:"
 dfx canister call challenger_ctrlb_canister stopTimerExecutionAdmin --network $NETWORK_TYPE
 
-echo "==========================================="
-cd ../mAIner
+# echo "==========================================="
+# cd ../mAIner
 
-MAINER="mainer_service_canister"
-echo "Stopping timer for $MAINER:"
-dfx canister call $MAINER stopTimerExecutionAdmin --network $NETWORK_TYPE
+# MAINER="mainer_service_canister"
+# echo "Stopping timer for $MAINER:"
+# dfx canister call $MAINER stopTimerExecutionAdmin --network $NETWORK_TYPE
 
 
-mainer_id_start=0
-mainer_id_end=$((NUM_MAINERS_DEPLOYED - 1))
+# mainer_id_start=0
+# mainer_id_end=$((NUM_MAINERS_DEPLOYED - 1))
 
-for m in $(seq $mainer_id_start $mainer_id_end)
-do
-    MAINER="mainer_ctrlb_canister_$m"
-    echo "Stopping timer for $MAINER:"
-    dfx canister call $MAINER stopTimerExecutionAdmin --network $NETWORK_TYPE
-done
+# for m in $(seq $mainer_id_start $mainer_id_end)
+# do
+#     MAINER="mainer_ctrlb_canister_$m"
+#     echo "Stopping timer for $MAINER:"
+#     dfx canister call $MAINER stopTimerExecutionAdmin --network $NETWORK_TYPE
+# done
 
 echo "==========================================="
 cd ../Judge

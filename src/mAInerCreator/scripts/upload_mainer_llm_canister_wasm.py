@@ -45,6 +45,8 @@ def generate_chunks(data: bytes, chunk_size: int) -> Generator[bytes, None, None
 def main() -> int:
     """Uploads the canister wasm."""
 
+    selectedModel = { "Qwen2_5_500M": None}
+
     args = parse_args()
 
     network = args.network
@@ -71,6 +73,17 @@ def main() -> int:
     canister_creator = get_canister(canister_name, candid_path, network, canister_id)
 
     # ---------------------------------------------------------------------------
+    # reset existing storage, we will overwrite with new wasm file
+    print("--\nResetting the canister wasm storage")
+    response = canister_creator.start_upload_mainer_llm_canister_wasm(selectedModel)  # pylint: disable=no-member
+    if "Ok" in response[0].keys():  # pylint: disable=no-member
+        print("OK!")
+    else:
+        print("Something went wrong:")
+        print(response)
+        sys.exit(1)
+
+    # ---------------------------------------------------------------------------
     # THE WASM FILE
 
     # Read the wasm from disk
@@ -83,8 +96,6 @@ def main() -> int:
     # converting MB to bytes
     chunk_size = int(chunk_size_mb * 1024 * 1024)
 
-    selectedModel = { "Qwen2_5_500M": None}
-
     # Iterate over all chunks
     count_bytes = 0
     for i, chunk in enumerate(generate_chunks(wasm_bytes, chunk_size)):
@@ -92,10 +103,11 @@ def main() -> int:
         if DEBUG_VERBOSE == 0:
             pass
         elif DEBUG_VERBOSE == 1:
-            print(
-                f"chunk size = {len(chunk)} bytes "
-                f"({count_bytes / len(wasm_bytes) * 100:.1f}%)"
-            )
+            if i % 10 == 0:
+                print(
+                    f"chunk size = {len(chunk)} bytes "
+                    f"({count_bytes / len(wasm_bytes) * 100:.1f}%)"
+                )
         else:
             print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
             print(f"Sending candid for {len(chunk)} bytes :")
