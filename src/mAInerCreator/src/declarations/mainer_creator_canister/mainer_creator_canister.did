@@ -19,6 +19,7 @@ type ModelCreationArtefacts =
  record {
    canisterWasm: vec nat8;
    modelFile: vec blob;
+   modelFileSha256: text;
  };
 type MainerAgentCanisterType = 
  variant {
@@ -62,7 +63,7 @@ type CanisterCreationCanister =
    amiController: () -> (AuthRecordResult) query;
    createCanister: (CanisterCreationConfiguration) ->
     (CanisterCreationResult);
-   finish_upload_mainer_llm: (AvailableModels) -> (FileUploadResult);
+   finish_upload_mainer_llm: (AvailableModels, text) -> (FileUploadResult);
    health: () -> (StatusCodeRecordResult) query;
    setMasterCanisterId: (text) -> (AuthRecordResult);
    start_upload_mainer_controller_canister_wasm: () ->

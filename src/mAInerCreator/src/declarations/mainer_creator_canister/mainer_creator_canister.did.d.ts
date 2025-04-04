@@ -24,7 +24,10 @@ export interface CanisterCreationCanister {
     [CanisterCreationConfiguration],
     CanisterCreationResult
   >,
-  'finish_upload_mainer_llm' : ActorMethod<[AvailableModels], FileUploadResult>,
+  'finish_upload_mainer_llm' : ActorMethod<
+    [AvailableModels, string],
+    FileUploadResult
+  >,
   'health' : ActorMethod<[], StatusCodeRecordResult>,
   'setMasterCanisterId' : ActorMethod<[string], AuthRecordResult>,
   'start_upload_mainer_controller_canister_wasm' : ActorMethod<
@@ -78,6 +81,7 @@ export type MainerAgentCanisterType = { 'NA' : null } |
   { 'ShareService' : null };
 export interface ModelCreationArtefacts {
   'canisterWasm' : Uint8Array | number[],
+  'modelFileSha256' : string,
   'modelFile' : Array<Uint8Array | number[]>,
 }
 export type ProtocolCanisterType = { 'MainerAgent' : null } |

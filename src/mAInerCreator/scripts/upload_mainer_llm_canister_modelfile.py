@@ -11,6 +11,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Generator
+from .calculate_sha256 import calculate_sha256
 from .ic_py_canister import get_canister
 from .parse_args_upload import parse_args
 
@@ -53,6 +54,7 @@ def main() -> int:
     canister_id = args.canister_id
     candid_path = ROOT_PATH / args.candid
     chunksize = args.chunksize
+    hf_sha256 = args.hf_sha256
     wasm_path = ROOT_PATH / args.wasm
 
     dfx_json_path = ROOT_PATH / "dfx.json"
@@ -66,6 +68,7 @@ def main() -> int:
         f"\n - candid_path     = {candid_path}"
         f"\n - wasm_path       = {wasm_path}",
         f"\n - chunksize       = {chunksize} ({chunksize/1024/1024:.3f} Mb)"
+        f"\n - hf_sha256       = {hf_sha256}"
     )
 
     # ---------------------------------------------------------------------------
@@ -84,16 +87,37 @@ def main() -> int:
         sys.exit(1)
 
     # ---------------------------------------------------------------------------
-    # THE WASM FILE
+    # THE LLM FILE
+    local_model_sha256 = calculate_sha256(wasm_path)
+    local_model_filesize = wasm_path.stat().st_size
 
-    # Read the wasm from disk
-    print(f"--\nReading the wasm file into a bytes object: {wasm_path}")
+    print(f"--\nUploading the file     : {wasm_path}")
+    print(f"Calculated filesize : {local_model_filesize}")
+    print(f"Calculated SHA256 hash : {local_model_sha256}")
+    if hf_sha256 is not None:
+        if local_model_sha256 != hf_sha256:
+            print(" ")
+            print("ERROR - local file does not match the --hf-sha256:")
+            print(f"- local_model_sha256: {local_model_sha256}")
+            print(f"- hf_sha256         : {hf_sha256}")
+            sys.exit(1)
+        else:
+            print("SHA256 of the local file is correct.")
+    else:
+        print(
+            "You did not specify --hf-sha256, "
+            "so can't check the hash against HuggingFace reference."
+        )
+
+    # Read the wasm from disk (this is actually the LLM model file...)
+    print(f"--\nReading the LLM file into a bytes object: {wasm_path}")
     wasm_bytes = read_file_bytes(wasm_path)
 
     # Upload wasm_bytes to the canister
     print("--\nUploading the wasm bytes")
 
     selectedModel = { "Qwen2_5_500M": None}
+    modelFileSha256 = local_model_sha256
 
     # Iterate over all chunks
     count_bytes = 0
@@ -145,8 +169,10 @@ def main() -> int:
             sys.exit(1)
 
     # ---------------------------------------------------------------------------
+    # Store the expected sha256 hash of the model file
     finishResponse = canister_creator.finish_upload_mainer_llm(
-        selectedModel
+        selectedModel,
+        modelFileSha256
     )  # pylint: disable=no-member
     print(finishResponse)
     return 0

@@ -2,6 +2,7 @@ export const idlFactory = ({ IDL }) => {
   const AvailableModels = IDL.Variant({ 'Qwen2_5_500M' : IDL.Null });
   const ModelCreationArtefacts = IDL.Record({
     'canisterWasm' : IDL.Vec(IDL.Nat8),
+    'modelFileSha256' : IDL.Text,
     'modelFile' : IDL.Vec(IDL.Vec(IDL.Nat8)),
   });
   const StatusCode = IDL.Nat16;
@@ -73,7 +74,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'finish_upload_mainer_llm' : IDL.Func(
-        [AvailableModels],
+        [AvailableModels, IDL.Text],
         [FileUploadResult],
         [],
       ),

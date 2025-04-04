@@ -35,6 +35,7 @@ module Types {
     public type ModelCreationArtefacts = {
         canisterWasm : [Nat8];
         modelFile : [Blob];
+        modelFileSha256 : Text;
     };
 
     public type AvailableModels = {

@@ -49,6 +49,12 @@ def parse_args() -> argparse.Namespace:
         help="Chunk Size used during file download, in bytes",
     )
     parser.add_argument(
+        "--hf-sha256",
+        type=str,
+        default=None,
+        help="Optional - provides the HuggingFace Hash, to check against.",
+    )
+    parser.add_argument(
         "--temperature",
         type=float,
         default=0.9,

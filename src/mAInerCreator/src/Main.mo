@@ -133,6 +133,7 @@ actor class CanisterCreationCanister() = this {
                 let updatedArtefacts : Types.ModelCreationArtefacts = {
                     canisterWasm = []; // Resetting the wasm storage array
                     modelFile : [Blob] = existingArtefacts.modelFile; // Leave the llm model file as is
+                    modelFileSha256 : Text = existingArtefacts.modelFileSha256;
                 };
 
                 let updateArtefactsResult = putModelCreationArtefacts(selectedModel, updatedArtefacts);
@@ -161,6 +162,7 @@ actor class CanisterCreationCanister() = this {
                 let updatedArtefacts : Types.ModelCreationArtefacts = {
                     canisterWasm = Array.append(existingArtefacts.canisterWasm, bytesChunk);
                     modelFile : [Blob] = existingArtefacts.modelFile;
+                    modelFileSha256 : Text = existingArtefacts.modelFileSha256;
                 };
 
                 let updateArtefactsResult = putModelCreationArtefacts(selectedModel, updatedArtefacts);
@@ -172,6 +174,7 @@ actor class CanisterCreationCanister() = this {
                 let newArtefacts : Types.ModelCreationArtefacts = {
                     canisterWasm : [Nat8] = bytesChunk;
                     modelFile : [Blob] = [];
+                    modelFileSha256 : Text = "";
                 };
 
                 let updateArtefactsResult = putModelCreationArtefacts(selectedModel, newArtefacts);
@@ -218,7 +221,7 @@ actor class CanisterCreationCanister() = this {
     };
 
     // Admin function to finish the upload of a model file
-    public shared (msg) func finish_upload_mainer_llm(selectedModel : Types.AvailableModels) : async Types.FileUploadResult {
+    public shared (msg) func finish_upload_mainer_llm(selectedModel : Types.AvailableModels, modelFileSha256 : Text) : async Types.FileUploadResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -231,6 +234,7 @@ actor class CanisterCreationCanister() = this {
                 let updatedArtefacts : Types.ModelCreationArtefacts = {
                     canisterWasm = existingArtefacts.canisterWasm;
                     modelFile : [Blob] = Array.subArray<Blob>(Array.freeze<Blob>(modelFileChunks), 0, nextChunkID);
+                    modelFileSha256 : Text = modelFileSha256;
                 };
 
                 let updateArtefactsResult = putModelCreationArtefacts(selectedModel, updatedArtefacts);
@@ -490,6 +494,7 @@ actor class CanisterCreationCanister() = this {
                                 
                                 D.print("mAInerCreator: createCanister start upload of LLM model");
                                 var chunkCount : Nat = 0;
+                                var uploadModelFileResult : Types.FileUploadRecordResult = #Ok({ filename = "models/model.gguf"; filesha256 = ""; filesize = 0 }); // Placeholder
                                 for (chunk in modelCreationArtefacts.modelFile.vals()) {
                                     if (chunkCount % 10 == 0) {
                                         D.print("mAInerCreator: createCanister uploading file chunk " # debug_show (chunkCount));
@@ -508,7 +513,7 @@ actor class CanisterCreationCanister() = this {
                                     // var attempts : Nat = 0;
                                     var delay : Nat = 2_000_000_000; // 2 seconds
                                     let maxAttempts : Nat = 8;
-                                    let uploadModelFileResult : Types.FileUploadRecordResult = await retryLlmChunkUploadWithDelay(llmCanisterActor, uploadChunk, maxAttempts, delay);
+                                    uploadModelFileResult := await retryLlmChunkUploadWithDelay(llmCanisterActor, uploadChunk, maxAttempts, delay);
                                     switch (uploadModelFileResult) {
                                         case (#Err(error)) {
                                             D.print("mAInerCreator: createCanister ERROR - uploadModelFileResult:");
@@ -516,14 +521,37 @@ actor class CanisterCreationCanister() = this {
                                             return #Err(error);
                                         };
                                         case (#Ok(_)) {
-                                            // all good, continue
+                                            // all good, continue with next chunk
+                                            D.print("mAInerCreator: createCanister uploadModelFileResult = " # debug_show (uploadModelFileResult));
+                                            offset := offset + chunkSize;
                                         };
                                     };
-                                    D.print("mAInerCreator: createCanister uploadModelFileResult = " # debug_show (uploadModelFileResult));
-                                    offset := offset + chunkSize;     
                                 };
 
-                                D.print("mAInerCreator: createCanister after upload");
+                                D.print("mAInerCreator: createCanister after upload -- checking filesha256.");
+                                // This is how uploadModelFileResult looks like for Qwen2.5-05B-instruct model:
+                                // #Ok({filename = "models/model.gguf"; filesha256 = "ca59ca7f13d0e15a8cfa77bd17e65d24f6844b554a7b6c12e07a5f89ff76844e"; filesize = 675_710_816})
+                                switch (uploadModelFileResult) {
+                                    case (#Err(error)) {
+                                        D.print("mAInerCreator: createCanister ERROR - uploadModelFileResult:");
+                                        D.print(debug_show (uploadModelFileResult));
+                                        return #Err(error);
+                                    };
+                                    case (#Ok(uploadModelFileRecord)) {
+                                        D.print("mAInerCreator: createCanister uploadModelFileRecord");
+                                        D.print(debug_show (uploadModelFileRecord));
+                                        // Check the sha256
+                                        let filesha256 : Text = uploadModelFileRecord.filesha256;
+                                        let expectedSha256 : Text = modelCreationArtefacts.modelFileSha256;
+                                        
+                                        if (not (filesha256 == expectedSha256)) {
+                                            D.print("mAInerCreator: createCanister - ERROR: filesha256 = " # debug_show (filesha256) # "does not match expectedSha256 = " # debug_show (expectedSha256));
+                                            return #Err(#Other("The sha256 of the uploaded llm file is " # filesha256 # ", which does not match the expected value of " # expectedSha256));
+                                        } else {
+                                            D.print("mAInerCreator: createCanister - filesha256 matches expectedSha256 = " # debug_show (expectedSha256));
+                                        };
+                                    };
+                                };
 
                                 // load model file in LLM
                                 let inputRecord : Types.InputRecord = {
