@@ -44,9 +44,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--chunksize",
-        type=float,
-        default=1.9,
-        help="Chunk Size for upload, in Mb",
+        type=int,
+        default=2000000,
+        help="Chunk Size used during file download, in bytes",
     )
     parser.add_argument(
         "--temperature",

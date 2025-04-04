@@ -119,10 +119,12 @@ module Types {
         offset : Nat64; // the offset where to write the chunk
     };
 
-    type FileUploadRecordResult = Result<FileUploadRecord, ApiError>;
+    public type FileUploadRecordResult = Result<FileUploadRecord, ApiError>;
     
     public type FileUploadRecord = {
+        filename : Text; // the total filesize in bytes
         filesize : Nat64; // the total filesize in bytes after writing chunk at offset
+        filesha256 : Text; // the total filesize in bytes after writing chunk at offset
     };
 
     public type UploadResult = {

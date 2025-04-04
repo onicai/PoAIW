@@ -52,7 +52,7 @@ def main() -> int:
     canister_name = args.canister
     canister_id = args.canister_id
     candid_path = ROOT_PATH / args.candid
-    chunk_size_mb = args.chunksize
+    chunksize = args.chunksize
     wasm_path = ROOT_PATH / args.wasm
 
     dfx_json_path = ROOT_PATH / "dfx.json"
@@ -64,7 +64,8 @@ def main() -> int:
         f"\n - canister_id     = {canister_id}"
         f"\n - dfx_json_path   = {dfx_json_path}"
         f"\n - candid_path     = {candid_path}"
-        f"\n - wasm_path  = {wasm_path}"
+        f"\n - wasm_path       = {wasm_path}",
+        f"\n - chunksize       = {chunksize} ({chunksize/1024/1024:.3f} Mb)"
     )
 
     # ---------------------------------------------------------------------------
@@ -92,15 +93,11 @@ def main() -> int:
     # Upload wasm_bytes to the canister
     print("--\nUploading the wasm bytes")
 
-    # converting MB to bytes
-    chunk_size = int(chunk_size_mb * 1024 * 1024)
-    #chunk_size = int(1024*64)
-
     selectedModel = { "Qwen2_5_500M": None}
 
     # Iterate over all chunks
     count_bytes = 0
-    for i, chunk in enumerate(generate_chunks(wasm_bytes, chunk_size)):
+    for i, chunk in enumerate(generate_chunks(wasm_bytes, chunksize)):
         count_bytes += len(chunk)
         if DEBUG_VERBOSE == 0:
             pass

@@ -11,6 +11,8 @@ import Buffer "mo:base/Buffer";
 import Nat64 "mo:base/Nat64";
 import Nat "mo:base/Nat";
 import Hash "mo:base/Hash";
+import Time "mo:base/Time";
+import Error "mo:base/Error";
 
 import Types "./Types";
 
@@ -248,6 +250,26 @@ actor class CanisterCreationCanister() = this {
         };
     };
 
+    private func retryLlmChunkUploadWithDelay(llmCanisterActor : Types.LLMCanister, uploadChunk : Types.FileUploadInputRecord, attempts : Nat, delay : Nat) : async Types.FileUploadRecordResult {
+        if (attempts > 0) {
+            try {
+                D.print("mAInerCreator: retryLlmChunkUploadWithDelay calling file_upload_chunk for chunksize, offset = " # debug_show (uploadChunk.chunksize) # ", " # debug_show (uploadChunk.offset));
+                let uploadModelFileResult : Types.FileUploadRecordResult = await llmCanisterActor.file_upload_chunk(uploadChunk);
+                return uploadModelFileResult;
+                
+            } catch (e) {
+                D.print("LLM file_upload_chunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
+                
+                // TODO: introduce a delay using a timer...
+                // Just retry immediately with decremented attempts
+                return await retryLlmChunkUploadWithDelay(llmCanisterActor, uploadChunk, attempts - 1, delay);
+            };
+        } else {
+            D.print("Max retry attempts reached");
+            return #Err(#Other("Max retry attempts reached"));
+        };
+    };
+
     // Spin up a new canister as specified by the input parameters
     public shared (msg) func createCanister(configurationInput : Types.CanisterCreationConfiguration) : async Types.CanisterCreationResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -458,19 +480,6 @@ actor class CanisterCreationCanister() = this {
                                     };
                                 };
 
-                                // Pause the logging of the LLM to avoid excessive debug prints
-                                D.print("mAInerCreator: createCanister calling LLMs log_pause");
-                                let logPauseResult = await llmCanisterActor.log_pause();
-                                D.print("mAInerCreator: createCanister logPauseResult = "# debug_show (logPauseResult));
-                                switch (logPauseResult) {
-                                    case (#Err(error)) {
-                                        return #Err(error);
-                                    };
-                                    case _ {
-                                        // all good, continue
-                                    };
-                                };
-
                                 // Make LLM functional
                                 // Upload model file
                                 // let chunkSize = 42000; // ~0.01 MB for testing
@@ -489,13 +498,17 @@ actor class CanisterCreationCanister() = this {
                                     
                                     nextChunk := Blob.toArray(chunk);
                                     chunkSize := nextChunk.size();
-                                    let uploadChunk = {
+                                    let uploadChunk : Types.FileUploadInputRecord = {
                                         filename = "models/model.gguf";
                                         chunk = nextChunk;
                                         chunksize = Nat64.fromNat(chunkSize);
                                         offset = Nat64.fromNat(offset);
                                     };
-                                    let uploadModelFileResult = await llmCanisterActor.file_upload_chunk(uploadChunk);
+
+                                    // var attempts : Nat = 0;
+                                    var delay : Nat = 2_000_000_000; // 2 seconds
+                                    let maxAttempts : Nat = 8;
+                                    let uploadModelFileResult : Types.FileUploadRecordResult = await retryLlmChunkUploadWithDelay(llmCanisterActor, uploadChunk, maxAttempts, delay);
                                     switch (uploadModelFileResult) {
                                         case (#Err(error)) {
                                             D.print("mAInerCreator: createCanister ERROR - uploadModelFileResult:");
@@ -506,7 +519,8 @@ actor class CanisterCreationCanister() = this {
                                             // all good, continue
                                         };
                                     };
-                                    offset := offset + chunkSize;
+                                    D.print("mAInerCreator: createCanister uploadModelFileResult = " # debug_show (uploadModelFileResult));
+                                    offset := offset + chunkSize;     
                                 };
 
                                 D.print("mAInerCreator: createCanister after upload");
@@ -574,6 +588,20 @@ actor class CanisterCreationCanister() = this {
                                 //         // all good, continue
                                 //     };
                                 // };
+
+                                 // Pause the logging of the LLM to avoid excessive debug prints
+                                D.print("mAInerCreator: createCanister calling LLMs log_pause");
+                                let logPauseResult = await llmCanisterActor.log_pause();
+                                D.print("mAInerCreator: createCanister logPauseResult = "# debug_show (logPauseResult));
+                                switch (logPauseResult) {
+                                    case (#Err(error)) {
+                                        return #Err(error);
+                                    };
+                                    case _ {
+                                        // all good, continue
+                                    };
+                                };
+
                                 // --------------------------------------------------------------------
                                 let creationRecord = {
                                     creationResult = "Success";
