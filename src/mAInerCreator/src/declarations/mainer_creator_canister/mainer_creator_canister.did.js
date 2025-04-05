@@ -107,7 +107,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'upload_mainer_llm_bytes_chunk' : IDL.Func(
-        [IDL.Vec(IDL.Nat8)],
+        [IDL.Vec(IDL.Nat8), IDL.Nat],
         [FileUploadResult],
         [],
       ),

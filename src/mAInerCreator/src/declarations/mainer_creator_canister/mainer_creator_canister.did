@@ -76,7 +76,7 @@ type CanisterCreationCanister =
    testCreateMainerLlmCanister: (text) -> (CanisterCreationResult);
    upload_mainer_controller_canister_wasm_bytes_chunk: (vec nat8) ->
     (FileUploadResult);
-   upload_mainer_llm_bytes_chunk: (blob) -> (FileUploadResult);
+   upload_mainer_llm_bytes_chunk: (blob, nat) -> (FileUploadResult);
    upload_mainer_llm_canister_wasm_bytes_chunk: (AvailableModels,
     vec nat8) -> (FileUploadResult);
    whoami: () -> (principal) query;

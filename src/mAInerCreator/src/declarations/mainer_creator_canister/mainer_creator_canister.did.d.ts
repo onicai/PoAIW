@@ -49,7 +49,7 @@ export interface CanisterCreationCanister {
     FileUploadResult
   >,
   'upload_mainer_llm_bytes_chunk' : ActorMethod<
-    [Uint8Array | number[]],
+    [Uint8Array | number[], bigint],
     FileUploadResult
   >,
   'upload_mainer_llm_canister_wasm_bytes_chunk' : ActorMethod<

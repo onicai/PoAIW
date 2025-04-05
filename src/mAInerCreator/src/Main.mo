@@ -203,21 +203,31 @@ actor class CanisterCreationCanister() = this {
     };
 
     // Admin function to upload a model file chunk
-    public shared (msg) func upload_mainer_llm_bytes_chunk(bytesChunk : Blob) : async Types.FileUploadResult {
+    public shared (msg) func upload_mainer_llm_bytes_chunk(bytesChunk : Blob, chunkID : Nat) : async Types.FileUploadResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        if (nextChunkID == 0) {
-            // initialize data structure
+        if (chunkID == 0 and nextChunkID == 0) {
+            // initialize data structure only on the first chunk
             modelFileChunks := Array.init<Blob>(400, initBlob);
         };
 
-        ignore modelFileChunks[nextChunkID] := bytesChunk;
-        nextChunkID := nextChunkID + 1;
-        return #Ok({ creationResult = "Success" });
+        // Only process if this is the expected next chunk or a retry of a previous chunk
+        if (chunkID < nextChunkID) {
+            // This is a retry of a chunk we've already processed
+            return #Ok({ creationResult = "Success" });
+        } else if (chunkID == nextChunkID) {
+            // This is the expected next chunk, so process it
+            ignore modelFileChunks[chunkID] := bytesChunk;
+            nextChunkID := nextChunkID + 1;
+            return #Ok({ creationResult = "Success" });
+        } else {
+            // This is a chunk ahead of what we expect (gap in sequence)
+            return #Err(#Other("Chunk ID " # Nat.toText(chunkID) # " is ahead of the expected chunk ID " # Nat.toText(nextChunkID)));
+        };
     };
 
     // Admin function to finish the upload of a model file
