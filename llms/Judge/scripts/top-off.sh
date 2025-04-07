@@ -30,6 +30,10 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+if [ "$NETWORK_TYPE" = "ic" ]; then
+    NUM_LLMS_DEPLOYED=2
+fi
+
 #######################################################################
 llm_id_start=0
 llm_id_end=$((NUM_LLMS_DEPLOYED - 1))

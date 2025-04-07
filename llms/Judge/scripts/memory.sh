@@ -34,6 +34,10 @@ while [ $# -gt 0 ]; do
 done
 
 echo "Using network type: $NETWORK_TYPE"
+if [ "$NETWORK_TYPE" = "ic" ]; then
+    NUM_LLMS_DEPLOYED=2
+fi
+
 echo "NUM_LLMS_DEPLOYED : $NUM_LLMS_DEPLOYED"
 echo " "
 

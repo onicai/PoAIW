@@ -79,17 +79,22 @@ echo "Generate the bindings for the upload scripts"
 dfx generate
 
 echo " "
-echo "Upload the mAIner CONTROLLER canister wasm "
+echo "Upload the mAIner CONTROLLER canister wasm with scripts.upload_mainer_controller_canister"
 python -m scripts.upload_mainer_controller_canister --network $NETWORK_TYPE --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 
 echo " "
-echo "Upload the mAIner LLM canister wasm "
+echo "Upload the mAIner LLM canister wasm with scripts.upload_mainer_llm_canister_wasm"
 python -m scripts.upload_mainer_llm_canister_wasm --network $NETWORK_TYPE --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 
 # Skip this time-consuming step when when upgrading the code
 if [ "$DEPLOY_MODE" != "upgrade" ]; then
-    
+    # Note:
+    # The --hf-sha256 can be found at https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/blob/main/qwen2.5-0.5b-instruct-q8_0.gguf
     echo " "
     echo "Upload the mainer LLM model file (gguf) "
-    python -m scripts.upload_mainer_llm_canister_modelfile --network $NETWORK_TYPE --canister mainer_creator_canister --wasm files/qwen2.5-0.5b-instruct-q8_0.gguf --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+    python -m scripts.upload_mainer_llm_canister_modelfile --network $NETWORK_TYPE \
+        --canister mainer_creator_canister \
+        --wasm files/qwen2.5-0.5b-instruct-q8_0.gguf  \
+        --hf-sha256 "ca59ca7f13d0e15a8cfa77bd17e65d24f6844b554a7b6c12e07a5f89ff76844e" \
+        --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 fi

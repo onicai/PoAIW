@@ -11,6 +11,8 @@ import Buffer "mo:base/Buffer";
 import Nat64 "mo:base/Nat64";
 import Nat "mo:base/Nat";
 import Hash "mo:base/Hash";
+import Time "mo:base/Time";
+import Error "mo:base/Error";
 
 import Types "./Types";
 
@@ -131,6 +133,7 @@ actor class CanisterCreationCanister() = this {
                 let updatedArtefacts : Types.ModelCreationArtefacts = {
                     canisterWasm = []; // Resetting the wasm storage array
                     modelFile : [Blob] = existingArtefacts.modelFile; // Leave the llm model file as is
+                    modelFileSha256 : Text = existingArtefacts.modelFileSha256;
                 };
 
                 let updateArtefactsResult = putModelCreationArtefacts(selectedModel, updatedArtefacts);
@@ -159,6 +162,7 @@ actor class CanisterCreationCanister() = this {
                 let updatedArtefacts : Types.ModelCreationArtefacts = {
                     canisterWasm = Array.append(existingArtefacts.canisterWasm, bytesChunk);
                     modelFile : [Blob] = existingArtefacts.modelFile;
+                    modelFileSha256 : Text = existingArtefacts.modelFileSha256;
                 };
 
                 let updateArtefactsResult = putModelCreationArtefacts(selectedModel, updatedArtefacts);
@@ -170,6 +174,7 @@ actor class CanisterCreationCanister() = this {
                 let newArtefacts : Types.ModelCreationArtefacts = {
                     canisterWasm : [Nat8] = bytesChunk;
                     modelFile : [Blob] = [];
+                    modelFileSha256 : Text = "";
                 };
 
                 let updateArtefactsResult = putModelCreationArtefacts(selectedModel, newArtefacts);
@@ -198,25 +203,35 @@ actor class CanisterCreationCanister() = this {
     };
 
     // Admin function to upload a model file chunk
-    public shared (msg) func upload_mainer_llm_bytes_chunk(bytesChunk : Blob) : async Types.FileUploadResult {
+    public shared (msg) func upload_mainer_llm_bytes_chunk(bytesChunk : Blob, chunkID : Nat) : async Types.FileUploadResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        if (nextChunkID == 0) {
-            // initialize data structure
+        if (chunkID == 0 and nextChunkID == 0) {
+            // initialize data structure only on the first chunk
             modelFileChunks := Array.init<Blob>(400, initBlob);
         };
 
-        ignore modelFileChunks[nextChunkID] := bytesChunk;
-        nextChunkID := nextChunkID + 1;
-        return #Ok({ creationResult = "Success" });
+        // Only process if this is the expected next chunk or a retry of a previous chunk
+        if (chunkID < nextChunkID) {
+            // This is a retry of a chunk we've already processed
+            return #Ok({ creationResult = "Success" });
+        } else if (chunkID == nextChunkID) {
+            // This is the expected next chunk, so process it
+            ignore modelFileChunks[chunkID] := bytesChunk;
+            nextChunkID := nextChunkID + 1;
+            return #Ok({ creationResult = "Success" });
+        } else {
+            // This is a chunk ahead of what we expect (gap in sequence)
+            return #Err(#Other("Chunk ID " # Nat.toText(chunkID) # " is ahead of the expected chunk ID " # Nat.toText(nextChunkID)));
+        };
     };
 
     // Admin function to finish the upload of a model file
-    public shared (msg) func finish_upload_mainer_llm(selectedModel : Types.AvailableModels) : async Types.FileUploadResult {
+    public shared (msg) func finish_upload_mainer_llm(selectedModel : Types.AvailableModels, modelFileSha256 : Text) : async Types.FileUploadResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -229,6 +244,7 @@ actor class CanisterCreationCanister() = this {
                 let updatedArtefacts : Types.ModelCreationArtefacts = {
                     canisterWasm = existingArtefacts.canisterWasm;
                     modelFile : [Blob] = Array.subArray<Blob>(Array.freeze<Blob>(modelFileChunks), 0, nextChunkID);
+                    modelFileSha256 : Text = modelFileSha256;
                 };
 
                 let updateArtefactsResult = putModelCreationArtefacts(selectedModel, updatedArtefacts);
@@ -245,6 +261,26 @@ actor class CanisterCreationCanister() = this {
                 };                
             };
             case _ { return #Err(#Other("Add the canisterWasm first.")) };
+        };
+    };
+
+    private func retryLlmChunkUploadWithDelay(llmCanisterActor : Types.LLMCanister, uploadChunk : Types.FileUploadInputRecord, attempts : Nat, delay : Nat) : async Types.FileUploadRecordResult {
+        if (attempts > 0) {
+            try {
+                D.print("mAInerCreator: retryLlmChunkUploadWithDelay calling file_upload_chunk for chunksize, offset = " # debug_show (uploadChunk.chunksize) # ", " # debug_show (uploadChunk.offset));
+                let uploadModelFileResult : Types.FileUploadRecordResult = await llmCanisterActor.file_upload_chunk(uploadChunk);
+                return uploadModelFileResult;
+                
+            } catch (e) {
+                D.print("LLM file_upload_chunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
+                
+                // TODO: introduce a delay using a timer...
+                // Just retry immediately with decremented attempts
+                return await retryLlmChunkUploadWithDelay(llmCanisterActor, uploadChunk, attempts - 1, delay);
+            };
+        } else {
+            D.print("Max retry attempts reached");
+            return #Err(#Other("Max retry attempts reached"));
         };
     };
 
@@ -267,7 +303,7 @@ actor class CanisterCreationCanister() = this {
         switch (configurationInput.canisterType) {
             case (#MainerAgent) {
                 // Create mAIner controller canister for new mAIner agent
-                Cycles.add(700_000_000_000); // TODO: determine exact cycles amount
+                Cycles.add(1_000_000_000_000);  // 1T cycles (800B was the minimum required)
 
                 let mainerAgentCanisterType = configurationInput.mainerAgentCanisterType;
                 D.print("mAInerCreator: createCanister - mainerAgentCanisterType = " # debug_show (mainerAgentCanisterType));
@@ -422,7 +458,7 @@ actor class CanisterCreationCanister() = this {
                             case (?modelCreationArtefacts) {
                                 D.print("mAInerCreator: createCanister modelCreationArtefacts");
                                 // Create mAIner LLM (and add it to a mAIner controller)
-                                Cycles.add(700_000_000_000); // TODO: determine exact cycles amount
+                                Cycles.add(3_000_000_000_000);  // 3T cycles  (TODO: what is the minimum?)
 
                                 let createdLlmCanister = await IC0.create_canister({
                                     settings = ?{
@@ -458,19 +494,6 @@ actor class CanisterCreationCanister() = this {
                                     };
                                 };
 
-                                // Pause the logging of the LLM to avoid excessive debug prints
-                                D.print("mAInerCreator: createCanister calling LLMs log_pause");
-                                let logPauseResult = await llmCanisterActor.log_pause();
-                                D.print("mAInerCreator: createCanister logPauseResult = "# debug_show (logPauseResult));
-                                switch (logPauseResult) {
-                                    case (#Err(error)) {
-                                        return #Err(error);
-                                    };
-                                    case _ {
-                                        // all good, continue
-                                    };
-                                };
-
                                 // Make LLM functional
                                 // Upload model file
                                 // let chunkSize = 42000; // ~0.01 MB for testing
@@ -481,6 +504,7 @@ actor class CanisterCreationCanister() = this {
                                 
                                 D.print("mAInerCreator: createCanister start upload of LLM model");
                                 var chunkCount : Nat = 0;
+                                var uploadModelFileResult : Types.FileUploadRecordResult = #Ok({ filename = "models/model.gguf"; filesha256 = ""; filesize = 0 }); // Placeholder
                                 for (chunk in modelCreationArtefacts.modelFile.vals()) {
                                     if (chunkCount % 10 == 0) {
                                         D.print("mAInerCreator: createCanister uploading file chunk " # debug_show (chunkCount));
@@ -489,13 +513,17 @@ actor class CanisterCreationCanister() = this {
                                     
                                     nextChunk := Blob.toArray(chunk);
                                     chunkSize := nextChunk.size();
-                                    let uploadChunk = {
+                                    let uploadChunk : Types.FileUploadInputRecord = {
                                         filename = "models/model.gguf";
                                         chunk = nextChunk;
                                         chunksize = Nat64.fromNat(chunkSize);
                                         offset = Nat64.fromNat(offset);
                                     };
-                                    let uploadModelFileResult = await llmCanisterActor.file_upload_chunk(uploadChunk);
+
+                                    // var attempts : Nat = 0;
+                                    var delay : Nat = 2_000_000_000; // 2 seconds
+                                    let maxAttempts : Nat = 8;
+                                    uploadModelFileResult := await retryLlmChunkUploadWithDelay(llmCanisterActor, uploadChunk, maxAttempts, delay);
                                     switch (uploadModelFileResult) {
                                         case (#Err(error)) {
                                             D.print("mAInerCreator: createCanister ERROR - uploadModelFileResult:");
@@ -503,13 +531,37 @@ actor class CanisterCreationCanister() = this {
                                             return #Err(error);
                                         };
                                         case (#Ok(_)) {
-                                            // all good, continue
+                                            // all good, continue with next chunk
+                                            D.print("mAInerCreator: createCanister uploadModelFileResult = " # debug_show (uploadModelFileResult));
+                                            offset := offset + chunkSize;
                                         };
                                     };
-                                    offset := offset + chunkSize;
                                 };
 
-                                D.print("mAInerCreator: createCanister after upload");
+                                D.print("mAInerCreator: createCanister after upload -- checking filesha256.");
+                                // This is how uploadModelFileResult looks like for Qwen2.5-05B-instruct model:
+                                // #Ok({filename = "models/model.gguf"; filesha256 = "ca59ca7f13d0e15a8cfa77bd17e65d24f6844b554a7b6c12e07a5f89ff76844e"; filesize = 675_710_816})
+                                switch (uploadModelFileResult) {
+                                    case (#Err(error)) {
+                                        D.print("mAInerCreator: createCanister ERROR - uploadModelFileResult:");
+                                        D.print(debug_show (uploadModelFileResult));
+                                        return #Err(error);
+                                    };
+                                    case (#Ok(uploadModelFileRecord)) {
+                                        D.print("mAInerCreator: createCanister uploadModelFileRecord");
+                                        D.print(debug_show (uploadModelFileRecord));
+                                        // Check the sha256
+                                        let filesha256 : Text = uploadModelFileRecord.filesha256;
+                                        let expectedSha256 : Text = modelCreationArtefacts.modelFileSha256;
+                                        
+                                        if (not (filesha256 == expectedSha256)) {
+                                            D.print("mAInerCreator: createCanister - ERROR: filesha256 = " # debug_show (filesha256) # "does not match expectedSha256 = " # debug_show (expectedSha256));
+                                            return #Err(#Other("The sha256 of the uploaded llm file is " # filesha256 # ", which does not match the expected value of " # expectedSha256));
+                                        } else {
+                                            D.print("mAInerCreator: createCanister - filesha256 matches expectedSha256 = " # debug_show (expectedSha256));
+                                        };
+                                    };
+                                };
 
                                 // load model file in LLM
                                 let inputRecord : Types.InputRecord = {
@@ -574,6 +626,20 @@ actor class CanisterCreationCanister() = this {
                                 //         // all good, continue
                                 //     };
                                 // };
+
+                                 // Pause the logging of the LLM to avoid excessive debug prints
+                                D.print("mAInerCreator: createCanister calling LLMs log_pause");
+                                let logPauseResult = await llmCanisterActor.log_pause();
+                                D.print("mAInerCreator: createCanister logPauseResult = "# debug_show (logPauseResult));
+                                switch (logPauseResult) {
+                                    case (#Err(error)) {
+                                        return #Err(error);
+                                    };
+                                    case _ {
+                                        // all good, continue
+                                    };
+                                };
+
                                 // --------------------------------------------------------------------
                                 let creationRecord = {
                                     creationResult = "Success";
