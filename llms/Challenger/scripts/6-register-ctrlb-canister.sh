@@ -7,7 +7,7 @@
 
 # Default network type is local
 NETWORK_TYPE="local"
-NUM_LLMS_DEPLOYED=2
+NUM_LLMS_DEPLOYED=1
 # When deploying local, use CANISTER_ID_CHALLENGER_CTRLB_CANISTER ID from .env
 source ../../src/Challenger/.env
 
@@ -36,6 +36,10 @@ while [ $# -gt 0 ]; do
 done
 
 echo "Using network type: $NETWORK_TYPE"
+if [ "$NETWORK_TYPE" = "ic" ]; then
+    NUM_LLMS_DEPLOYED=2
+fi
+
 echo "NUM_LLMS_DEPLOYED : $NUM_LLMS_DEPLOYED"
 echo " "
 echo "CANISTER_ID_CHALLENGER_CTRLB_CANISTER: $CANISTER_ID_CHALLENGER_CTRLB_CANISTER"

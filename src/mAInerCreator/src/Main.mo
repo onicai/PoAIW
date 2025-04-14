@@ -11,6 +11,8 @@ import Buffer "mo:base/Buffer";
 import Nat64 "mo:base/Nat64";
 import Nat "mo:base/Nat";
 import Hash "mo:base/Hash";
+import Time "mo:base/Time";
+import Error "mo:base/Error";
 
 import Types "./Types";
 
@@ -34,6 +36,11 @@ actor class CanisterCreationCanister() = this {
         return msg.caller;
     };
 
+    // Function to verify that canister is up & running
+    public shared query func health() : async Types.StatusCodeRecordResult {
+        return #Ok({ status_code = 200 });
+    };
+
     public shared query (msg) func amiController() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -49,6 +56,14 @@ actor class CanisterCreationCanister() = this {
 
     // Admin function to upload mainer agent controller canister wasm
     private stable var mainerControllerCanisterWasm : [Nat8] = [];
+
+    public shared (msg) func start_upload_mainer_controller_canister_wasm() : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        mainerControllerCanisterWasm := [];
+        return #Ok({ status_code = 200 });
+    };
 
     public shared (msg) func upload_mainer_controller_canister_wasm_bytes_chunk(bytesChunk : [Nat8]) : async Types.FileUploadResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -106,9 +121,35 @@ actor class CanisterCreationCanister() = this {
         };
     };
 
+    // Admin function to start upload of the mainer LLM canister wasm
+    public shared (msg) func start_upload_mainer_llm_canister_wasm(selectedModel : Types.AvailableModels) : async Types.StatusCodeRecordResult {
+        D.print("mAInerCreator: start_upload_mainer_llm_canister_wasm");
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        switch (getModelCreationArtefacts(selectedModel)) {
+            case (?existingArtefacts) {
+                let updatedArtefacts : Types.ModelCreationArtefacts = {
+                    canisterWasm = []; // Resetting the wasm storage array
+                    modelFile : [Blob] = existingArtefacts.modelFile; // Leave the llm model file as is
+                    modelFileSha256 : Text = existingArtefacts.modelFileSha256;
+                };
+
+                let updateArtefactsResult = putModelCreationArtefacts(selectedModel, updatedArtefacts);
+
+                return #Ok({ status_code = 200 });
+            };
+            case _ {
+                // new entry - nothing to reset
+                return #Ok({ status_code = 200 });
+            };
+        };
+    };
+
     // Admin function to upload an LLM canister wasm file
     public shared (msg) func upload_mainer_llm_canister_wasm_bytes_chunk(selectedModel : Types.AvailableModels, bytesChunk : [Nat8]) : async Types.FileUploadResult {
-        D.print("upload_mainer_llm_canister_wasm_bytes_chunk");
+        D.print("mAInerCreator: upload_mainer_llm_canister_wasm_bytes_chunk");
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -121,6 +162,7 @@ actor class CanisterCreationCanister() = this {
                 let updatedArtefacts : Types.ModelCreationArtefacts = {
                     canisterWasm = Array.append(existingArtefacts.canisterWasm, bytesChunk);
                     modelFile : [Blob] = existingArtefacts.modelFile;
+                    modelFileSha256 : Text = existingArtefacts.modelFileSha256;
                 };
 
                 let updateArtefactsResult = putModelCreationArtefacts(selectedModel, updatedArtefacts);
@@ -132,6 +174,7 @@ actor class CanisterCreationCanister() = this {
                 let newArtefacts : Types.ModelCreationArtefacts = {
                     canisterWasm : [Nat8] = bytesChunk;
                     modelFile : [Blob] = [];
+                    modelFileSha256 : Text = "";
                 };
 
                 let updateArtefactsResult = putModelCreationArtefacts(selectedModel, newArtefacts);
@@ -140,31 +183,55 @@ actor class CanisterCreationCanister() = this {
         };
     };
 
-    // Admin function to upload a model file
+    // Data structure for the model file
     stable var nextChunkID : Nat = 0;
     stable let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(1, 1));
     stable let initBlob : Blob = Blob.fromArray(innerInitArray);
     stable var modelFileChunks : [var Blob] = Array.init<Blob>(1, initBlob);
 
-    public shared (msg) func upload_mainer_llm_bytes_chunk(bytesChunk : Blob) : async Types.FileUploadResult {
+    // Admin function to start upload of the mainer LLM model file
+    public shared (msg) func start_upload_mainer_llm() : async Types.StatusCodeRecordResult {
+        D.print("mAInerCreator: reset_mainer_llm_model_file");
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // By setting nextChunkID to zero, we effectively reset the model file upload process
+        // The first call to upload_mainer_llm_bytes_chunk will initialize the data structure
+        nextChunkID := 0;
+        return #Ok({ status_code = 200 });
+    };
+
+    // Admin function to upload a model file chunk
+    public shared (msg) func upload_mainer_llm_bytes_chunk(bytesChunk : Blob, chunkID : Nat) : async Types.FileUploadResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        if (nextChunkID == 0) {
-            // initialize data structure
+        if (chunkID == 0 and nextChunkID == 0) {
+            // initialize data structure only on the first chunk
             modelFileChunks := Array.init<Blob>(400, initBlob);
         };
 
-        ignore modelFileChunks[nextChunkID] := bytesChunk;
-        nextChunkID := nextChunkID + 1;
-        return #Ok({ creationResult = "Success" });
+        // Only process if this is the expected next chunk or a retry of a previous chunk
+        if (chunkID < nextChunkID) {
+            // This is a retry of a chunk we've already processed
+            return #Ok({ creationResult = "Success" });
+        } else if (chunkID == nextChunkID) {
+            // This is the expected next chunk, so process it
+            ignore modelFileChunks[chunkID] := bytesChunk;
+            nextChunkID := nextChunkID + 1;
+            return #Ok({ creationResult = "Success" });
+        } else {
+            // This is a chunk ahead of what we expect (gap in sequence)
+            return #Err(#Other("Chunk ID " # Nat.toText(chunkID) # " is ahead of the expected chunk ID " # Nat.toText(nextChunkID)));
+        };
     };
 
     // Admin function to finish the upload of a model file
-    public shared (msg) func finish_upload_mainer_llm(selectedModel : Types.AvailableModels) : async Types.FileUploadResult {
+    public shared (msg) func finish_upload_mainer_llm(selectedModel : Types.AvailableModels, modelFileSha256 : Text) : async Types.FileUploadResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -177,6 +244,7 @@ actor class CanisterCreationCanister() = this {
                 let updatedArtefacts : Types.ModelCreationArtefacts = {
                     canisterWasm = existingArtefacts.canisterWasm;
                     modelFile : [Blob] = Array.subArray<Blob>(Array.freeze<Blob>(modelFileChunks), 0, nextChunkID);
+                    modelFileSha256 : Text = modelFileSha256;
                 };
 
                 let updateArtefactsResult = putModelCreationArtefacts(selectedModel, updatedArtefacts);
@@ -196,23 +264,63 @@ actor class CanisterCreationCanister() = this {
         };
     };
 
+    private func retryLlmChunkUploadWithDelay(llmCanisterActor : Types.LLMCanister, uploadChunk : Types.FileUploadInputRecord, attempts : Nat, delay : Nat) : async Types.FileUploadRecordResult {
+        if (attempts > 0) {
+            try {
+                D.print("mAInerCreator: retryLlmChunkUploadWithDelay calling file_upload_chunk for chunksize, offset = " # debug_show (uploadChunk.chunksize) # ", " # debug_show (uploadChunk.offset));
+                let uploadModelFileResult : Types.FileUploadRecordResult = await llmCanisterActor.file_upload_chunk(uploadChunk);
+                return uploadModelFileResult;
+                
+            } catch (e) {
+                D.print("LLM file_upload_chunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
+                
+                // TODO: introduce a delay using a timer...
+                // Just retry immediately with decremented attempts
+                return await retryLlmChunkUploadWithDelay(llmCanisterActor, uploadChunk, attempts - 1, delay);
+            };
+        } else {
+            D.print("Max retry attempts reached");
+            return #Err(#Other("Max retry attempts reached"));
+        };
+    };
+
     // Spin up a new canister as specified by the input parameters
     public shared (msg) func createCanister(configurationInput : Types.CanisterCreationConfiguration) : async Types.CanisterCreationResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        // Only Controllers and the Master canister may call this (plus the cansiter itself for testing functionality)
+        // Only Controllers and the Master canister may call this (plus the canister itself for testing functionality)
+        D.print("mAInerCreator: createCanister - msg.caller = " # debug_show(msg.caller));
+        D.print("mAInerCreator: createCanister - MASTER_CANISTER_ID = " # debug_show(MASTER_CANISTER_ID));
+        D.print("mAInerCreator: createCanister - Principal.isController(msg.caller) = " # debug_show(Principal.isController(msg.caller)));
+        D.print("mAInerCreator: createCanister - Principal.fromText(MASTER_CANISTER_ID) = " # debug_show(Principal.fromText(MASTER_CANISTER_ID)));
+        D.print("mAInerCreator: createCanister - Principal.fromActor(this) = " # debug_show(Principal.fromActor(this)));
         if (not (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID)) or Principal.equal(msg.caller, Principal.fromActor(this)))) {
             return #Err(#Unauthorized);
         };
-        D.print("in createCanister configurationInput");
-        D.print(debug_show (configurationInput));
+        D.print("mAInerCreator: createCanister - configurationInput = " # debug_show (configurationInput));
 
         switch (configurationInput.canisterType) {
             case (#MainerAgent) {
-                D.print("in createCanister MainerAgent");
                 // Create mAIner controller canister for new mAIner agent
-                Cycles.add(700_000_000_000); // TODO: determine exact cycles amount
+                Cycles.add(1_000_000_000_000);  // 1T cycles (800B was the minimum required)
+
+                let mainerAgentCanisterType = configurationInput.mainerAgentCanisterType;
+                D.print("mAInerCreator: createCanister - mainerAgentCanisterType = " # debug_show (mainerAgentCanisterType));
+                var shareServiceCanisterAddress : Types.CanisterAddress = "";
+                if (mainerAgentCanisterType == #ShareAgent) {
+                    switch (configurationInput.associatedCanisterAddress) {
+                        case (null) {
+                            return #Err(#Other("mAInerCreator: createCanister - a #ShareAgent canister requires the shareServiceCanisterAddress to be provided in the onfigurationInput.associatedCanisterAddress."));
+                        };
+                        case (?associatedCanisterAddress) {
+                            shareServiceCanisterAddress := associatedCanisterAddress;
+                            D.print("mAInerCreator: createCanister shareServiceCanisterAddress = " # debug_show (shareServiceCanisterAddress));
+                            let isValidPrincipal = Principal.fromText(associatedCanisterAddress); // this will throw an error if it's not a valid canister address
+                            D.print("mAInerCreator: createCanister isValidPrincipal " # debug_show (isValidPrincipal));
+                        };
+                    };
+                };
 
                 let createdControllerCanister = await IC0.create_canister({
                     settings = ?{
@@ -223,8 +331,7 @@ actor class CanisterCreationCanister() = this {
                     };
                 });
 
-                D.print("in createCanister createdControllerCanister");
-                D.print(debug_show (createdControllerCanister));
+                D.print("mAInerCreator: createCanister - createdControllerCanister = " # debug_show (createdControllerCanister));
 
                 let installControllerWasm = await IC0.install_code({
                     arg = "";
@@ -232,15 +339,13 @@ actor class CanisterCreationCanister() = this {
                     mode = #install;
                     canister_id = createdControllerCanister.canister_id;
                 });
-                D.print("in createCanister installControllerWasm");
-                D.print(debug_show (installControllerWasm));
+                D.print("mAInerCreator: createCanister - installControllerWasm "# debug_show (installControllerWasm));
 
                 // Verify new canister is working
                 let controllerCanisterActor = actor (Principal.toText(createdControllerCanister.canister_id)) : Types.MainerAgentCtrlbCanister;
-                D.print("in createCanister controllerCanisterActor");
+                D.print("mAInerCreator: createCanister - calling createdControllerCanister.health()");
                 let readyControllerResult = await controllerCanisterActor.health();
-                D.print("in createCanister readyControllerResult");
-                D.print(debug_show (readyControllerResult));
+                D.print("mAInerCreator: createCanister - readyControllerResult " # debug_show (readyControllerResult));
                 switch (readyControllerResult) {
                     case (#Err(error)) {
                         return #Err(error);
@@ -251,15 +356,80 @@ actor class CanisterCreationCanister() = this {
                 };
 
                 // Set Game State canister address
+                D.print("mAInerCreator: createCanister - calling createdControllerCanister.setGameStateCanisterId(MASTER_CANISTER_ID)");
                 let setControllerGameStateResult = await controllerCanisterActor.setGameStateCanisterId(MASTER_CANISTER_ID);
-                D.print("in createCanister setControllerGameStateResult");
-                D.print(debug_show (setControllerGameStateResult));
+                D.print("mAInerCreator: createCanister setControllerGameStateResult " # debug_show (setControllerGameStateResult));
                 switch (setControllerGameStateResult) {
                     case (#Err(error)) {
                         return #Err(error);
                     };
                     case _ {
                         // all good, continue
+                    };
+                };
+                
+
+                // Set the setMainerCanisterType
+                D.print("mAInerCreator: createCanister - calling createdControllerCanister.setMainerCanisterType(mainerAgentCanisterType)");
+                let statusCodeRecordResult = await controllerCanisterActor.setMainerCanisterType(mainerAgentCanisterType);
+                D.print("mAInerCreator: createCanister setControllerGameStateResult " # debug_show (setControllerGameStateResult));
+                switch (statusCodeRecordResult) {
+                    case (#Err(error)) {
+                        return #Err(error);
+                    };
+                    case _ {
+                        // all good, continue
+                    };
+                };
+
+
+                // Register the mAIner Agent with the GameState canister
+                let gameStateCanisterActor = actor (MASTER_CANISTER_ID) : Types.GameStateCanister_Actor;
+                let mainerAgentCanisterInput : Types.MainerAgentCanisterInput = {
+                    address = Principal.toText(createdControllerCanister.canister_id);
+                    canisterType = configurationInput.canisterType;
+                    ownedBy = configurationInput.owner;
+                    mainerAgentCanisterType = configurationInput.mainerAgentCanisterType;
+                };
+                D.print("mAInerCreator: createCanister - calling gameStateCanisterActor.addMainerAgentCanister with mainerAgentCanisterInput = " # debug_show (mainerAgentCanisterInput));
+                let addMainerAgentCanisterResult = await gameStateCanisterActor.addMainerAgentCanister(mainerAgentCanisterInput);
+                D.print("mAInerCreator: createCanister addMainerAgentCanisterResult" # debug_show (addMainerAgentCanisterResult));
+                switch (addMainerAgentCanisterResult) {
+                    case (#Err(error)) {
+                        return #Err(error);
+                    };
+                    case _ {
+                        // all good, continue
+                    };
+                };
+
+                // Link up the ShareAgent & ShareService canisters 
+                if (mainerAgentCanisterType == #ShareAgent) {
+                    // Set the Share Service canister id for the Share Agent canister
+                    D.print("mAInerCreator: createCanister - calling controllerCanisterActor.setShareServiceCanisterId(shareServiceCanisterAddress)");
+                    let statusCodeRecordResult = await controllerCanisterActor.setShareServiceCanisterId(shareServiceCanisterAddress);
+                    D.print("mAInerCreator: createCanister statusCodeRecordResult " # debug_show (statusCodeRecordResult));
+                    switch (statusCodeRecordResult) {
+                        case (#Err(error)) {
+                            return #Err(error);
+                        };
+                        case _ {
+                            // all good, continue
+                        };
+                    };
+
+                    // Register the Share Agent canister with the Share Service canister, so it is allowed to call it
+                    let shareServiceCanisterActor = actor (shareServiceCanisterAddress) : Types.MainerAgentCtrlbCanister;
+                    D.print("mAInerCreator: createCanister - calling shareServiceCanisterActor.addMainerShareAgentCanister with mainerAgentCanisterInput = " # debug_show (mainerAgentCanisterInput));
+                    let mainerAgentCanisterResult = await shareServiceCanisterActor.addMainerShareAgentCanister(mainerAgentCanisterInput);
+                    D.print("mAInerCreator: createCanister mainerAgentCanisterResult " # debug_show (mainerAgentCanisterResult));
+                    switch (mainerAgentCanisterResult) {
+                        case (#Err(error)) {
+                            return #Err(error);
+                        };
+                        case _ {
+                            // all good, continue
+                        };
                     };
                 };
 
@@ -271,27 +441,24 @@ actor class CanisterCreationCanister() = this {
                 return #Ok(creationRecord);
             };
             case (#MainerLlm) {
-                D.print("in createCanister MainerLlm");
+                D.print("mAInerCreator: createCanister MainerLlm");
                 // Sanity check
                 switch (configurationInput.associatedCanisterAddress) {
                     case (null) {
                         return #Err(#Other("Please provide the canister address of the associated mAIner controller canister"));
                     };
                     case (?associatedCanisterAddress) {
-                        D.print("in createCanister associatedCanisterAddress");
-                        D.print(debug_show (associatedCanisterAddress));
+                        D.print("mAInerCreator: createCanister associatedCanisterAddress = " # debug_show (associatedCanisterAddress));
                         let isValidPrincipal = Principal.fromText(associatedCanisterAddress); // this will throw an error if it's not a valid canister address
-                        D.print("in createCanister isValidPrincipal");
-                        D.print(debug_show (isValidPrincipal));
-                        // all good, continue
+                        D.print("mAInerCreator: createCanister isValidPrincipal " # debug_show (isValidPrincipal));
                         switch (getModelCreationArtefacts(configurationInput.selectedModel)) {
                             case (null) {
                                 return #Err(#Other("Cannot find creation artefacts for the selected model"));
                             };
                             case (?modelCreationArtefacts) {
-                                D.print("in createCanister modelCreationArtefacts");
+                                D.print("mAInerCreator: createCanister modelCreationArtefacts");
                                 // Create mAIner LLM (and add it to a mAIner controller)
-                                Cycles.add(700_000_000_000); // TODO: determine exact cycles amount
+                                Cycles.add(3_000_000_000_000);  // 3T cycles  (TODO: what is the minimum?)
 
                                 let createdLlmCanister = await IC0.create_canister({
                                     settings = ?{
@@ -301,7 +468,7 @@ actor class CanisterCreationCanister() = this {
                                         compute_allocation = null;
                                     };
                                 });
-                                D.print("in createCanister createdLlmCanister");
+                                D.print("mAInerCreator: createCanister createdLlmCanister");
                                 D.print(debug_show (createdLlmCanister));
 
                                 let installLlmWasm = await IC0.install_code({
@@ -310,15 +477,14 @@ actor class CanisterCreationCanister() = this {
                                     mode = #install;
                                     canister_id = createdLlmCanister.canister_id;
                                 });
-                                D.print("in createCanister installLlmWasm");
+                                D.print("mAInerCreator: createCanister installLlmWasm");
                                 D.print(debug_show (installLlmWasm));
 
                                 // Verify new canister is working
                                 let llmCanisterActor = actor (Principal.toText(createdLlmCanister.canister_id)) : Types.LLMCanister;
-                                D.print("in createCanister llmCanisterActor");
+                                D.print("mAInerCreator: createCanister llmCanisterActor");
                                 let readyLlmResult = await llmCanisterActor.health();
-                                D.print("in createCanister readyLlmResult");
-                                D.print(debug_show (readyLlmResult));
+                                D.print("mAInerCreator: createCanister readyLlmResult = " # debug_show (readyLlmResult));
                                 switch (readyLlmResult) {
                                     case (#Err(error)) {
                                         return #Err(error);
@@ -336,30 +502,73 @@ actor class CanisterCreationCanister() = this {
                                 var offset : Nat = 0;
                                 var nextChunk : [Nat8] = [];
                                 
+                                D.print("mAInerCreator: createCanister start upload of LLM model");
+                                var chunkCount : Nat = 0;
+                                var uploadModelFileResult : Types.FileUploadRecordResult = #Ok({ filename = "models/model.gguf"; filesha256 = ""; filesize = 0 }); // Placeholder
                                 for (chunk in modelCreationArtefacts.modelFile.vals()) {
-                                    D.print("Uploading another chunk of the model file...");
+                                    if (chunkCount % 10 == 0) {
+                                        D.print("mAInerCreator: createCanister uploading file chunk " # debug_show (chunkCount));
+                                    };
+                                    chunkCount := chunkCount + 1;
+                                    
                                     nextChunk := Blob.toArray(chunk);
                                     chunkSize := nextChunk.size();
-                                    let uploadChunk = {
+                                    let uploadChunk : Types.FileUploadInputRecord = {
                                         filename = "models/model.gguf";
                                         chunk = nextChunk;
                                         chunksize = Nat64.fromNat(chunkSize);
                                         offset = Nat64.fromNat(offset);
                                     };
-                                    let uploadModelFileResult = await llmCanisterActor.file_upload_chunk(uploadChunk);
-                                    D.print("in createCanister uploadModelFileResult");
-                                    D.print(debug_show (uploadModelFileResult));
-                                    offset := offset + chunkSize;
+
+                                    // var attempts : Nat = 0;
+                                    var delay : Nat = 2_000_000_000; // 2 seconds
+                                    let maxAttempts : Nat = 8;
+                                    uploadModelFileResult := await retryLlmChunkUploadWithDelay(llmCanisterActor, uploadChunk, maxAttempts, delay);
+                                    switch (uploadModelFileResult) {
+                                        case (#Err(error)) {
+                                            D.print("mAInerCreator: createCanister ERROR - uploadModelFileResult:");
+                                            D.print(debug_show (uploadModelFileResult));
+                                            return #Err(error);
+                                        };
+                                        case (#Ok(_)) {
+                                            // all good, continue with next chunk
+                                            D.print("mAInerCreator: createCanister uploadModelFileResult = " # debug_show (uploadModelFileResult));
+                                            offset := offset + chunkSize;
+                                        };
+                                    };
                                 };
 
-                                D.print("in createCanister after upload");
+                                D.print("mAInerCreator: createCanister after upload -- checking filesha256.");
+                                // This is how uploadModelFileResult looks like for Qwen2.5-05B-instruct model:
+                                // #Ok({filename = "models/model.gguf"; filesha256 = "ca59ca7f13d0e15a8cfa77bd17e65d24f6844b554a7b6c12e07a5f89ff76844e"; filesize = 675_710_816})
+                                switch (uploadModelFileResult) {
+                                    case (#Err(error)) {
+                                        D.print("mAInerCreator: createCanister ERROR - uploadModelFileResult:");
+                                        D.print(debug_show (uploadModelFileResult));
+                                        return #Err(error);
+                                    };
+                                    case (#Ok(uploadModelFileRecord)) {
+                                        D.print("mAInerCreator: createCanister uploadModelFileRecord");
+                                        D.print(debug_show (uploadModelFileRecord));
+                                        // Check the sha256
+                                        let filesha256 : Text = uploadModelFileRecord.filesha256;
+                                        let expectedSha256 : Text = modelCreationArtefacts.modelFileSha256;
+                                        
+                                        if (not (filesha256 == expectedSha256)) {
+                                            D.print("mAInerCreator: createCanister - ERROR: filesha256 = " # debug_show (filesha256) # "does not match expectedSha256 = " # debug_show (expectedSha256));
+                                            return #Err(#Other("The sha256 of the uploaded llm file is " # filesha256 # ", which does not match the expected value of " # expectedSha256));
+                                        } else {
+                                            D.print("mAInerCreator: createCanister - filesha256 matches expectedSha256 = " # debug_show (expectedSha256));
+                                        };
+                                    };
+                                };
 
                                 // load model file in LLM
                                 let inputRecord : Types.InputRecord = {
                                     args : [Text] = ["--model", "models/model.gguf"];
                                 };
                                 let loadModelResult = await llmCanisterActor.load_model(inputRecord);
-                                D.print("in createCanister loadModelResult");
+                                D.print("mAInerCreator: createCanister loadModelResult");
                                 D.print(debug_show (loadModelResult));
                                 switch (loadModelResult) {
                                     case (#Err(error)) {
@@ -371,13 +580,14 @@ actor class CanisterCreationCanister() = this {
                                 };
 
                                 // set max tokens
-                                let MAX_TOKENS : Nat64 = 10;
+                                // TODO: This is for the Qwen 2.5-0.5B model, need to make it dynamic
+                                let MAX_TOKENS : Nat64 = 13;
                                 let maxTokensRecord : Types.MaxTokensRecord = {
                                     max_tokens_update : Nat64 = MAX_TOKENS;
                                     max_tokens_query : Nat64 = MAX_TOKENS;
                                 };
                                 let setMaxTokensResult = await llmCanisterActor.set_max_tokens(maxTokensRecord);
-                                D.print("in createCanister setMaxTokensResult");
+                                D.print("mAInerCreator: createCanister setMaxTokensResult");
                                 D.print(debug_show (setMaxTokensResult));
                                 switch (setMaxTokensResult) {
                                     case (#Err(error)) {
@@ -386,14 +596,14 @@ actor class CanisterCreationCanister() = this {
                                     case _ {
                                         // all good, continue
                                     };
-                                };                                
+                                };    
 
                                 // connect LLM and controller canisters
                                 // Register LLM with controller
                                 let associatedControllerCanisterActor = actor (associatedCanisterAddress) : Types.MainerAgentCtrlbCanister;
-                                D.print("in createCanister associatedControllerCanisterActor");
-                                let addLlmToControllerResult = await associatedControllerCanisterActor.add_llm_canister_id({ canister_id = Principal.toText(createdLlmCanister.canister_id); });
-                                D.print("in createCanister addLlmToControllerResult");
+                                D.print("mAInerCreator: createCanister associatedControllerCanisterActor");
+                                let addLlmToControllerResult = await associatedControllerCanisterActor.add_llm_canister({ canister_id = Principal.toText(createdLlmCanister.canister_id); });
+                                D.print("mAInerCreator: createCanister addLlmToControllerResult");
                                 D.print(debug_show (addLlmToControllerResult));
                                 switch (addLlmToControllerResult) {
                                     case (#Err(error)) {
@@ -403,12 +613,25 @@ actor class CanisterCreationCanister() = this {
                                         // all good, continue
                                     };
                                 };
-                                // TODO: which number? Should this be done here or via an additional call?
-                                let roundRobinSetting : Nat = 1;
-                                let setControllerRoundRobinResult = await associatedControllerCanisterActor.setRoundRobinLLMs(roundRobinSetting);
-                                D.print("in createCanister setControllerRoundRobinResult");
-                                D.print(debug_show (setControllerRoundRobinResult));
-                                switch (setControllerRoundRobinResult) {
+                                // Don't call this, so all the LLMs will be used by default in a round robbin fashion
+                                // let roundRobinSetting : Nat = 1;
+                                // let setControllerRoundRobinResult = await associatedControllerCanisterActor.setRoundRobinLLMs(roundRobinSetting);
+                                // D.print("mAInerCreator: createCanister setControllerRoundRobinResult");
+                                // D.print(debug_show (setControllerRoundRobinResult));
+                                // switch (setControllerRoundRobinResult) {
+                                //     case (#Err(error)) {
+                                //         return #Err(error);
+                                //     };
+                                //     case _ {
+                                //         // all good, continue
+                                //     };
+                                // };
+
+                                 // Pause the logging of the LLM to avoid excessive debug prints
+                                D.print("mAInerCreator: createCanister calling LLMs log_pause");
+                                let logPauseResult = await llmCanisterActor.log_pause();
+                                D.print("mAInerCreator: createCanister logPauseResult = "# debug_show (logPauseResult));
+                                switch (logPauseResult) {
                                     case (#Err(error)) {
                                         return #Err(error);
                                     };
@@ -416,12 +639,13 @@ actor class CanisterCreationCanister() = this {
                                         // all good, continue
                                     };
                                 };
+
                                 // --------------------------------------------------------------------
                                 let creationRecord = {
                                     creationResult = "Success";
                                     newCanisterId = Principal.toText(createdLlmCanister.canister_id);
                                 };
-                                D.print("in createCanister creationRecord");
+                                D.print("mAInerCreator: createCanister creationRecord");
                                 D.print(debug_show (creationRecord));
                                 return #Ok(creationRecord);
                             };
@@ -436,7 +660,8 @@ actor class CanisterCreationCanister() = this {
     };
 
 // Admin 
-    public shared (msg) func testCreateMainerControllerCanister() : async Types.CanisterCreationResult {
+    public shared (msg) func testCreateMainerControllerCanister(mainerAgentCanisterType : Types.MainerAgentCanisterType, shareServiceCanisterAddress : ?Types.CanisterAddress) : async Types.CanisterCreationResult {
+        D.print("mAInerCreator: entered testCreateMainerControllerCanister");
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -446,9 +671,11 @@ actor class CanisterCreationCanister() = this {
         let config : Types.CanisterCreationConfiguration = {
             canisterType : Types.ProtocolCanisterType = #MainerAgent;
             selectedModel : Types.AvailableModels = #Qwen2_5_500M;
-            associatedCanisterAddress : ?Types.CanisterAddress = null;
+            associatedCanisterAddress : ?Types.CanisterAddress = shareServiceCanisterAddress;
             owner : Principal = msg.caller;
+            mainerAgentCanisterType: Types.MainerAgentCanisterType = mainerAgentCanisterType; 
         };
+        D.print("mAInerCreator: testCreateMainerControllerCanister - calling createCanister with config" # debug_show(config));
         let result = await createCanister(config);
         return result;
     };
@@ -460,43 +687,59 @@ actor class CanisterCreationCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
+
+        // Sanity checks for controllerCanisterAddress
+        try {
+            // Check if the controller canister address exists and is functioning
+            let controllerActor = actor (controllerCanisterAddress) : Types.MainerAgentCtrlbCanister;
+            let healthResult = await controllerActor.health();
+            
+            switch (healthResult) {
+            case (#Err(_)) {
+                return #Err(#Other("Controller canister " # controllerCanisterAddress # " is not healthy"));
+            };
+            case (#Ok(_)) {
+                // Controller is healthy, now check its type
+                let canisterTypeResult = await controllerActor.getMainerCanisterType();
+                
+                switch (canisterTypeResult) {
+                case (#Err(_)) {
+                    return #Err(#Other("Failed to get controller canister type"));
+                };
+                case (#Ok(canisterType)) {
+                    // Verify this is an allowed controller type
+                    switch (canisterType) {
+                    case (#Own) {
+                        // This is allowed
+                    };
+                    case (#ShareService) {
+                        // This is allowed
+                    };
+                    case (#ShareAgent) {
+                        return #Err(#Other("ShareAgent type canister is not allowed to control an LLM canister"));
+                    };
+                    case _ {
+                        return #Err(#Other("Invalid controller canister type " # debug_show(canisterType)));
+                    };
+                    };
+                };
+                };
+            };
+            };
+        } catch (_) {
+            D.print("mAInerCreator: testCreateMainerLlmCanister - Error accessing controller canister: ");
+            return #Err(#Other("Controller canister does not exist or is not accessible"));
+        };
+
         let config : Types.CanisterCreationConfiguration = {
             canisterType : Types.ProtocolCanisterType = #MainerLlm;
             selectedModel : Types.AvailableModels = #Qwen2_5_500M;
             associatedCanisterAddress : ?Types.CanisterAddress = ?controllerCanisterAddress;
             owner : Principal = msg.caller;
+            mainerAgentCanisterType: Types.MainerAgentCanisterType = #NA;
         };
         let result = await createCanister(config);
         return result;
-    };
-
-    // Use with caution: Admin functions to reset the canister wasm
-    public shared (msg) func reset_mainer_controller_canister_wasm() : async Types.FileUploadResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-
-        mainerControllerCanisterWasm := [];
-
-        return #Ok({ creationResult = "Success" });
-    };
-
-    // Use with caution: Admin functions to reset the model file data structure
-    public shared (msg) func reset_mainer_llm_model_file_upload_data() : async Types.FileUploadResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-
-        modelFileChunks := Array.init<Blob>(1, initBlob);
-        nextChunkID := 0;
-
-        return #Ok({ creationResult = "Success" });
     };
 
     // -------------------------------------------------------------------------------

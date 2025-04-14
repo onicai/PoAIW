@@ -1196,36 +1196,39 @@ actor class MainerAgentCtrlbCanister() = this {
         return canister;
     };
 
-    // Function for mAIner Agent Creator canister to add new mAIner agent for user (SharedAgent)
-    public shared (msg) func addMainerAgentCanister(canisterEntryToAdd : Types.MainerAgentCanisterInput) : async Types.MainerAgentCanisterResult {
-        if (Principal.isAnonymous(msg.caller)) {
+    // Function for mAIner Agent Creator canister to add new mAIner ShareAgent canister to a mAIner ShareService canister
+    public shared (msg) func addMainerShareAgentCanister(canisterEntryToAdd : Types.MainerAgentCanisterInput) : async Types.MainerAgentCanisterResult {
+        if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
         switch (canisterEntryToAdd.canisterType) {
             case (#MainerAgent) {
                 // continue
             };
-            case (_) { return #Err(#Other("Unsupported")); }
+            case (_) { return #Err(#Other("Unsupported canisterType")); }
         };
 
-        // Only official mAIner Agent Creator canisters may call this
-        switch (getMainerCreatorCanister(Principal.toText(msg.caller))) {
-            case (null) { return #Err(#Unauthorized); };
-            case (?mainerCreatorEntry) {
-                let canisterEntry : Types.OfficialProtocolCanister = {
-                    address : Text = canisterEntryToAdd.address;
-                    canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
-                    creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                    createdBy : Principal = msg.caller;
-                    ownedBy : Principal = canisterEntryToAdd.ownedBy;
-                };
-                putShareAgentCanister(canisterEntryToAdd.address, canisterEntry);           
-            };
+        // This check does not apply because the mAIner Creator creates the ShareService canister
+        // Just verifying that only a controller can call this is enough, and also all we can do.
+
+        // Only official mAIner Creator canisters may call this
+        // switch (getMainerCreatorCanister(Principal.toText(msg.caller))) {
+        //     case (null) { return #Err(#Unauthorized); };
+        //     case (?mainerCreatorEntry) {
+        let canisterEntry : Types.OfficialProtocolCanister = {
+            address : Text = canisterEntryToAdd.address;
+            canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
+            creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+            createdBy : Principal = msg.caller;
+            ownedBy : Principal = canisterEntryToAdd.ownedBy;
         };
+        putShareAgentCanister(canisterEntryToAdd.address, canisterEntry);           
+            // };
+        // };
     };
 
-    // TODO: remove; admin Function to add new mAIner agent for testing (SharedAgent)
-    public shared (msg) func addMainerAgentCanisterAdmin(canisterEntryToAdd : Types.MainerAgentCanisterInput) : async Types.MainerAgentCanisterResult {
+    // TODO: remove; admin Function to add new mAIner ShareAgent for testing
+    public shared (msg) func addMainerShareAgentCanisterAdmin(canisterEntryToAdd : Types.MainerAgentCanisterInput) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };

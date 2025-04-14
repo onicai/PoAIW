@@ -1,11 +1,43 @@
+type UploadResult = record {creationResult: text;};
+type StatusCodeRecordResult = 
+ variant {
+   Err: ApiError;
+   Ok: StatusCodeRecord;
+ };
+type StatusCodeRecord = record {status_code: StatusCode;};
 type StatusCode = nat16;
+type ProtocolCanisterType = 
+ variant {
+   Challenger;
+   Judge;
+   MainerAgent;
+   MainerCreator;
+   MainerLlm;
+   Verifier;
+ };
+type ModelCreationArtefacts = 
+ record {
+   canisterWasm: vec nat8;
+   modelFile: vec blob;
+   modelFileSha256: text;
+ };
+type MainerAgentCanisterType = 
+ variant {
+   NA;
+   Own;
+   ShareAgent;
+   ShareService;
+ };
+type InsertArtefactsResult = 
+ variant {
+   Err: ApiError;
+   Ok: ModelCreationArtefacts;
+ };
 type FileUploadResult = 
  variant {
    Err: ApiError;
-   Ok: FileUploadRecord;
+   Ok: UploadResult;
  };
-type FileUploadRecord = record {creationResult: text;};
-type CanisterType = variant {Mainer;};
 type CanisterCreationResult = 
  variant {
    Err: ApiError;
@@ -18,20 +50,39 @@ type CanisterCreationRecord =
  };
 type CanisterCreationConfiguration = 
  record {
-   canisterType: CanisterType;
+   associatedCanisterAddress: opt CanisterAddress;
+   canisterType: ProtocolCanisterType;
+   mainerAgentCanisterType: MainerAgentCanisterType;
    owner: principal;
+   selectedModel: AvailableModels;
  };
 type CanisterCreationCanister = 
  service {
+   addModelCreationArtefactsEntry: (AvailableModels,
+    ModelCreationArtefacts) -> (InsertArtefactsResult);
    amiController: () -> (AuthRecordResult) query;
    createCanister: (CanisterCreationConfiguration) ->
     (CanisterCreationResult);
-   reset_mainer_canister_wasm: () -> (FileUploadResult);
+   finish_upload_mainer_llm: (AvailableModels, text) -> (FileUploadResult);
+   health: () -> (StatusCodeRecordResult) query;
    setMasterCanisterId: (text) -> (AuthRecordResult);
-   testCreateMainerCanister: () -> (CanisterCreationResult);
-   upload_mainer_canister_wasm_bytes_chunk: (vec nat8) -> (FileUploadResult);
+   start_upload_mainer_controller_canister_wasm: () ->
+    (StatusCodeRecordResult);
+   start_upload_mainer_llm: () -> (StatusCodeRecordResult);
+   start_upload_mainer_llm_canister_wasm: (AvailableModels) ->
+    (StatusCodeRecordResult);
+   testCreateMainerControllerCanister: (MainerAgentCanisterType,
+    opt CanisterAddress) -> (CanisterCreationResult);
+   testCreateMainerLlmCanister: (text) -> (CanisterCreationResult);
+   upload_mainer_controller_canister_wasm_bytes_chunk: (vec nat8) ->
+    (FileUploadResult);
+   upload_mainer_llm_bytes_chunk: (blob, nat) -> (FileUploadResult);
+   upload_mainer_llm_canister_wasm_bytes_chunk: (AvailableModels,
+    vec nat8) -> (FileUploadResult);
    whoami: () -> (principal) query;
  };
+type CanisterAddress = text;
+type AvailableModels = variant {Qwen2_5_500M;};
 type AuthRecordResult = 
  variant {
    Err: ApiError;
@@ -40,6 +91,8 @@ type AuthRecordResult =
 type AuthRecord = record {auth: text;};
 type ApiError = 
  variant {
+   FailedOperation;
+   InsuffientCycles: nat;
    InvalidId;
    Other: text;
    StatusCode: StatusCode;

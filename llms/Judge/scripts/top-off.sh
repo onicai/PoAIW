@@ -7,7 +7,7 @@
 
 # Default network type is local
 NETWORK_TYPE="local"
-NUM_LLMS_DEPLOYED=2
+NUM_LLMS_DEPLOYED=1
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -29,6 +29,10 @@ while [ $# -gt 0 ]; do
             ;;
     esac
 done
+
+if [ "$NETWORK_TYPE" = "ic" ]; then
+    NUM_LLMS_DEPLOYED=2
+fi
 
 #######################################################################
 llm_id_start=0

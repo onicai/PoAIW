@@ -29,6 +29,7 @@ module Types {
 
     //-------------------------------------------------------------------------
     public type NatResult = Result<Nat, ApiError>;
+    public type TextResult = Result<Text, ApiError>;
 
     //-------------------------------------------------------------------------
     public type GameStateTresholds = {
@@ -47,6 +48,7 @@ module Types {
         #Verifier;
         #MainerCreator;
         #MainerAgent;
+        #MainerLlm;
     };
 
     public type CanisterAddress = Text;
@@ -64,10 +66,19 @@ module Types {
         canisterType: ProtocolCanisterType;
     };
 
+    public type MainerAgentCanisterType = {
+        #NA; // Not Applicable for this canister
+        #Own;
+        #ShareAgent;
+        #ShareService;
+    };
+    public type MainerAgentCanisterTypeResult = Result<MainerAgentCanisterType, ApiError>;
+
     public type MainerAgentCanisterInput = {
         address : CanisterAddress;
         canisterType: ProtocolCanisterType;
         ownedBy: Principal;
+        mainerAgentCanisterType: MainerAgentCanisterType;
     };
 
     public type MainerAgentCanisterResult = Result<OfficialProtocolCanister, ApiError>;

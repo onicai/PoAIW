@@ -2,7 +2,7 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/top-off-llms.sh --network [local/ic]
+# scripts/top-off-all.sh --network [local/ic]
 #######################################################################
 
 # Default network type is local
@@ -69,11 +69,6 @@ echo "Topping off Judge LLMs:"
 scripts/top-off.sh --network $NETWORK_TYPE
 
 echo "==========================================="
-cd ../mAIner
-echo "Topping off mAIner LLMs:"
-scripts/top-off.sh --network $NETWORK_TYPE
-
-echo "==========================================="
 cd ../../src/GameState
 echo "Topping off GameState ctrlb:"
 scripts/top-off.sh --network $NETWORK_TYPE
@@ -89,8 +84,8 @@ echo "Topping off Judge ctrlb:"
 scripts/top-off.sh --network $NETWORK_TYPE
 
 echo "==========================================="
-cd ../mAIner
-echo "Topping off mAIner ctrlb:"
+cd ../mAInerCreator
+echo "Topping off mAInerCreator ctrlb:"
 scripts/top-off.sh --network $NETWORK_TYPE
 
 echo "==========================================="
