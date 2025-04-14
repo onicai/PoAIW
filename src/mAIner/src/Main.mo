@@ -51,6 +51,33 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // -------------------------------
+
+    // -------------------------------
+    stable var MAINER_AGENT_CANISTER_TYPE : Types.MainerAgentCanisterType = #Own;
+
+    public shared (msg) func setMainerCanisterType(_mainer_agent_canister_type : Types.MainerAgentCanisterType) : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        MAINER_AGENT_CANISTER_TYPE := _mainer_agent_canister_type;
+
+        // Avoid wrong timers from running when changing mainer canister type
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setMainerCanisterType - Stopping Timers");
+        let result = await stopTimerExecution();
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setMainerCanisterType - " # debug_show(result));
+
+        return #Ok({ status_code = 200 });
+    };
+
+    public query (msg) func getMainerCanisterType() : async Types.MainerAgentCanisterTypeResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+
+        return #Ok(MAINER_AGENT_CANISTER_TYPE);
+    };
+
+    // -------------------------------
     stable var GAME_STATE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // local dev: "bkyz2-fmaaa-aaaaa-qaaaq-cai";
     stable var gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
     

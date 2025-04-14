@@ -13,15 +13,124 @@ import Iter "mo:base/Iter";
 import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Order "mo:base/Order";
+import Error "mo:base/Error";
+import Blob "mo:base/Blob";
 
 import Types "./Types";
+import ICManagementCanister "./ICManagementCanister";
 import Utils "Utils";
+import TokenLedger "./icp-ledger-interface";
 
 actor class GameStateCanister() = this {
 
     // Function to verify that canister is up & running
     public shared query func health() : async Types.StatusCodeRecordResult {
         return #Ok({ status_code = 200 });
+    };
+
+    // Token Ledger
+    stable var TOKEN_LEDGER_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // TODO: update
+
+    // TODO: remove this function before launching
+    public shared (msg) func setTokenLedgerCanisterId(_token_ledger_canister_id : Text) : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        TOKEN_LEDGER_CANISTER_ID := _token_ledger_canister_id;
+        let authRecord = { auth = "You set the token ledger canister id for this canister." };
+        return #Ok(authRecord);
+    };
+
+    // TODO: remove this function before launching
+    public shared (msg) func testTokenMintingAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (TOKEN_LEDGER_CANISTER_ID);
+
+        let args : TokenLedger.TransferArg = {
+            from_subaccount = null;
+            to = {
+                owner = Principal.fromText("be2us-64aaa-aaaaa-qaabq-cai");
+                subaccount = null;
+            };
+            amount = 100;
+            fee = null;
+            memo = null;
+            created_at_time = null;
+        };
+
+        try {
+            // Call the ledger's icrc1_transfer function
+            let result = await TokenLedger_Actor.icrc1_transfer(args);
+
+            switch (result) {
+                case (#Ok(blockIndex)) {
+                    let authRecord = { auth = "Your test was successful. Block index: "  # debug_show(blockIndex)};
+                    return #Ok(authRecord);
+                };
+                case (#Err(err)) {
+                    return #Err(#Other("Transfer error: " # debug_show(err)));
+                };
+            };
+        } catch (e) {
+            return #Err(#Other("Failed to call ledger: " # Error.message(e)));
+        };
+    };
+
+    // Code Verification for all mAIner agents
+        // Users should not be able to tamper with the mAIner code
+
+    // mAIner agent wasm module hash that must match
+        // TODO: implement way to manage this
+    stable var officialMainerAgentCanisterWasmHash : Blob = "\FD\A5\4F\A3\52\4A\26\10\80\E1\27\F0\54\67\14\59\E2\30\AF\B1\F9\87\12\49\1A\8C\B1\A4\DE\08\65\53";
+    
+    public shared (msg) func testMainerCodeIntegrityAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
+
+        let allMainerAgents : [Types.OfficialProtocolCanister] = getMainerAgents();
+        let mainerAgentsIter : Iter.Iter<Types.OfficialProtocolCanister> = Iter.fromArray(allMainerAgents);
+        
+        try {
+            // Retrieve each mAIner agent canister's info
+            for (agentEntry in mainerAgentsIter) {
+                try {
+                    let agentCanisterInfo = await IC_Management_Actor.canister_info({
+                        canister_id = Principal.fromText(agentEntry.address);
+                        num_requested_changes = ?0;
+                    });   
+                    // Verify agent canister's wasm module hash
+                    switch (agentCanisterInfo.module_hash) {
+                        case (null) {
+                            D.print("GameState: testMainerCodeIntegrityAdmin - agentEntry has null as module hash: " # debug_show(agentEntry));  
+                            D.print("GameState: testMainerCodeIntegrityAdmin - agentCanisterInfo with null as module hash: " # debug_show(agentCanisterInfo)); 
+                        };
+                        case (?agentModuleHash) {
+                            if (Blob.equal(agentModuleHash, officialMainerAgentCanisterWasmHash)) {
+                                D.print("GameState: testMainerCodeIntegrityAdmin - agentEntry has official module hash: " # debug_show(agentEntry));  
+                                D.print("GameState: testMainerCodeIntegrityAdmin - agentCanisterInfo with official module hash: " # debug_show(agentCanisterInfo));
+                            } else {
+                                D.print("GameState: testMainerCodeIntegrityAdmin - agentEntry didn't pass verification: " # debug_show(agentEntry));  
+                                D.print("GameState: testMainerCodeIntegrityAdmin - agentCanisterInfo didn't pass verification: " # debug_show(agentCanisterInfo));
+                            };
+                        };
+                    };
+                } catch (e) {
+                    D.print("GameState: testMainerCodeIntegrityAdmin - Failed to retrieve info for mAIner: " # debug_show(agentEntry) # Error.message(e));      
+                    return #Err(#Other("GameState: testMainerCodeIntegrityAdmin - Failed to retrieve info for mAIner: " # debug_show(agentEntry) # Error.message(e)));
+                };
+            };
+            let authRecord = { auth = "Your test was successful."};
+            return #Ok(authRecord);
+        } catch (e) {
+            D.print("GameState: testMainerCodeIntegrityAdmin - Failed to loop over mAIners: " # Error.message(e));      
+            return #Err(#Other("GameState: testMainerCodeIntegrityAdmin - Failed to loop over mAIners: " # Error.message(e)));
+        };
     };
 
     // Game Settings
@@ -622,7 +731,8 @@ actor class GameStateCanister() = this {
     };
 
     // TODO: determine exact reward
-    stable var REWARD_PER_CHALLENGE = {
+        // TODO: define details of sponsored challenges and then add reward per challenge
+    stable var DEFAULT_REWARD_PER_CHALLENGE = {
         rewardType : Types.RewardType = #MainerToken;
         totalAmount : Nat = 100;
         winnerAmount : Nat = 35;
@@ -632,11 +742,12 @@ actor class GameStateCanister() = this {
     };
 
     private func getRewardAmountForResult(achievedResult : Types.ChallengeParticipationResult, totalNumberParticipants : Nat) : Nat { 
-        let participationReward = REWARD_PER_CHALLENGE.amountForAllParticipants / totalNumberParticipants;
+        // TODO: is this safe? i.e. what could happen with rounding errors?
+        let participationReward = DEFAULT_REWARD_PER_CHALLENGE.amountForAllParticipants / totalNumberParticipants; 
         switch (achievedResult) {
-            case (#Winner) { return REWARD_PER_CHALLENGE.winnerAmount + participationReward; };
-            case (#SecondPlace) { return REWARD_PER_CHALLENGE.secondPlaceAmount + participationReward; };
-            case (#ThirdPlace) { return REWARD_PER_CHALLENGE.thirdPlaceAmount + participationReward; };
+            case (#Winner) { return DEFAULT_REWARD_PER_CHALLENGE.winnerAmount + participationReward; };
+            case (#SecondPlace) { return DEFAULT_REWARD_PER_CHALLENGE.secondPlaceAmount + participationReward; };
+            case (#ThirdPlace) { return DEFAULT_REWARD_PER_CHALLENGE.thirdPlaceAmount + participationReward; };
             case (#Participated) { return participationReward; };
             case (_) { return 0; };
         };
@@ -646,7 +757,7 @@ actor class GameStateCanister() = this {
         var rewardAmount : Nat = getRewardAmountForResult(achievedResult, totalNumberParticipants);
         
         let participantReward : Types.ChallengeWinnerReward = {
-            rewardType : Types.RewardType = REWARD_PER_CHALLENGE.rewardType;
+            rewardType : Types.RewardType = DEFAULT_REWARD_PER_CHALLENGE.rewardType;
             amount : Nat = rewardAmount;
             rewardDetails : Text = "";
             distributed : Bool = false;
@@ -1197,6 +1308,41 @@ actor class GameStateCanister() = this {
                     return #Err(#InvalidId);
                 };
 
+                // Verify that the mAIner is running the official wasm code (untampered)
+                let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
+                // Retrieve mAIner agent canister's info
+                D.print("GameState: submitChallengeResponse - Verify agent canister's wasm module hash#####################################################################################################################################################################################");
+                try {
+                    let agentCanisterInfo = await IC_Management_Actor.canister_info({
+                        canister_id = challengeResponseSubmissionInput.submittedBy;
+                        num_requested_changes = ?0;
+                    });   
+                    // Verify agent canister's wasm module hash
+                    switch (agentCanisterInfo.module_hash) {
+                        case (null) {
+                            let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                            D.print("GameState: submitChallengeResponse - agentCanisterInfo with null as module hash: " # debug_show(agentCanisterInfo)); 
+                            // TODO: further measurements?
+                            return #Err(#Unauthorized);
+                        };
+                        case (?agentModuleHash) {
+                            if (Blob.equal(agentModuleHash, officialMainerAgentCanisterWasmHash)) {
+                                D.print("GameState: testMainerCodeIntegrityAdmin - agentCanisterInfo with official module hash: " # debug_show(agentCanisterInfo));
+                                // continue as check passed
+                            } else {
+                                let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                                D.print("GameState: submitChallengeResponse - agentCanisterInfo didn't pass verification: " # debug_show(agentCanisterInfo)); 
+                                // TODO: further measurements?
+                                return #Err(#Unauthorized);
+                            };
+                        };
+                    };
+                } catch (e) {
+                    let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                    D.print("GameState: submitChallengeResponse - Failed to retrieve info for mAIner: " # debug_show(challengeResponseSubmissionInput) # Error.message(e));      
+                    return #Err(#Other("GameState: testMainerCodeIntegrityAdmin - Failed to retrieve info for mAIner: " # debug_show(challengeResponseSubmissionInput) # Error.message(e)));
+                };
+
                 // Accept required cycles for submission
                 let cyclesAcceptedForSubmission = Cycles.accept<system>(SUBMISSION_CYCLES_REQUIRED);
                 if (cyclesAcceptedForSubmission != SUBMISSION_CYCLES_REQUIRED) {
@@ -1332,8 +1478,118 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Helper function to mint a reward on the token ledger
+    private func mintRewardOnTokenLedger(participantEntryToReward : Types.ChallengeParticipantEntry) : async Bool {
+        let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (TOKEN_LEDGER_CANISTER_ID);
+
+        let args : TokenLedger.TransferArg = {
+            from_subaccount = null;
+            to = {
+                owner = participantEntryToReward.submittedBy;
+                subaccount = null;
+            };
+            amount = participantEntryToReward.reward.amount;
+            fee = null;
+            memo = null;
+            created_at_time = null;
+        };
+
+        try {
+            // Call the ledger's icrc1_transfer function
+            let result = await TokenLedger_Actor.icrc1_transfer(args);
+
+            switch (result) {
+                case (#Ok(blockIndex)) {
+                    D.print("GameState: finalizeOpenChallenge - sending tokens successful: " # debug_show(blockIndex));
+                    return true;
+                };
+                case (#Err(err)) {
+                    D.print("GameState: finalizeOpenChallenge - Transfer error: " # debug_show(err));
+                    // TODO: error handling (e.g. put into queue and try again later)
+                    return false;
+                };
+            };
+        } catch (e) {
+            D.print("GameState: finalizeOpenChallenge - Failed to call ledger: " # Error.message(e));
+            // TODO: error handling (e.g. put into queue and try again later)
+            return false;
+        };
+    };
+
+    // Helper function to distribute rewards to the winners and participants of a challenge
+    private func distributeRewardForChallenge(challengeWinnerDeclaration : Types.ChallengeWinnerDeclaration) : async Bool {
+        /* challengeWinnerDeclaration looks like:
+            public type ChallengeWinnerDeclaration = {
+                challengeId : Text;
+                finalizedTimestamp : Nat64;
+                winner : ChallengeParticipantEntry;
+                secondPlace : ChallengeParticipantEntry;
+                thirdPlace : ChallengeParticipantEntry;
+                participants : List.List<ChallengeParticipantEntry>;
+            };
+            public type ChallengeParticipantEntry = {
+                submissionId : Text;
+                submittedBy : Principal;
+                ownedBy : Principal;
+                result : ChallengeParticipationResult;
+                reward : ChallengeWinnerReward;
+            };
+        */
+        // TODO: send reward to mAIner canister or to owner? Send to mAIner for now, this will allow simplified statistics on rewards per mAIner (frontend then aggregates balances into a total)
+
+        // Reward winner
+        ignore mintRewardOnTokenLedger(challengeWinnerDeclaration.winner);
+
+        // Reward second place
+        ignore mintRewardOnTokenLedger(challengeWinnerDeclaration.secondPlace);
+
+        // Reward third place
+        ignore mintRewardOnTokenLedger(challengeWinnerDeclaration.thirdPlace);
+
+        // Rewards participants
+        let participantsIter : Iter.Iter<Types.ChallengeParticipantEntry> = Iter.fromList(challengeWinnerDeclaration.participants);
+        for (participantEntry in participantsIter) {
+            ignore mintRewardOnTokenLedger(participantEntry);            
+        };
+
+        return true;
+    };
+
+    // Helper function to finalize an open challenge (close, declare winner, distribute reward)
+    private func finalizeOpenChallenge(challengeId : Text) : async Bool {
+        // Close the challenge
+        switch (closeChallenge(challengeId)) {
+            case (false) {
+                // TODO: error handling (e.g. put into queue and try ranking again later)
+                return false;
+            };
+            case (true) {
+                // Rank scored responses and declare winner
+                let rankResult : ?Types.ChallengeWinnerDeclaration = rankScoredResponsesForChallenge(challengeId);
+                switch (rankResult) {
+                    case (null) {
+                        // TODO: error handling (e.g. put into queue and try ranking again later)
+                        return false;
+                    };
+                    case (?challengeWinnerDeclaration) {
+                        D.print("GameState: finalizeOpenChallenge - ranked and declared winner: " # debug_show(challengeWinnerDeclaration));
+                        // Distribute reward to winners and participants
+                        switch (await distributeRewardForChallenge(challengeWinnerDeclaration)) {
+                            case (false) {
+                                // TODO: error handling (e.g. put into queue and try ranking again later)
+                                return false;
+                            };
+                            case (true) {
+                                return true;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+    };
+
     // Function for Judge canister to add a new scored response
-        
     public shared (msg) func addScoredResponse(scoredResponseInput : Types.ScoredResponseInput) : async Types.ScoredResponseResult {
         D.print("GameState: addScoredResponse - entered");
         if (Principal.isAnonymous(msg.caller)) {
@@ -1439,23 +1695,12 @@ actor class GameStateCanister() = this {
                     //       FOR NOW - JUST CLOSE IT AND RANK IT...
                     // Close challenge
                     D.print("GameState: addScoredResponse - reached threshold & closing the challenge: " # debug_show(scoredResponseInput.challengeQuestion));
-                    switch (closeChallenge(scoredResponseInput.challengeId)) {
+                    switch (await finalizeOpenChallenge(scoredResponseInput.challengeId)) {
                         case (false) {
-                            // TODO: error handling (e.g. put into queue and try ranking again later)
+                            // TODO: error handling (e.g. put into queue and try again later)
                         };
                         case (true) {
-                            // Rank scored responses and declare winner
-                            let rankResult : ?Types.ChallengeWinnerDeclaration = rankScoredResponsesForChallenge(scoredResponseInput.challengeId);
-                            switch (rankResult) {
-                                case (null) {
-                                    // TODO: error handling (e.g. put into queue and try ranking again later)
-                                };
-                                case (?challengeWinnerDeclaration) {
-                                    D.print("GameState: addScoredResponse - ranked and declared winner: " # debug_show(challengeWinnerDeclaration));
-                                    // TODO: Pay reward
-                                    
-                                };
-                            };
+                            // continue
                         };
                     };
                 };
@@ -1632,7 +1877,7 @@ actor class GameStateCanister() = this {
             // Winner
             var rewardAmount : Nat = getRewardAmountForResult(#Winner, 3);
             let winnerReward : Types.ChallengeWinnerReward = {
-                rewardType : Types.RewardType = REWARD_PER_CHALLENGE.rewardType;
+                rewardType : Types.RewardType = DEFAULT_REWARD_PER_CHALLENGE.rewardType;
                 amount : Nat = rewardAmount;
                 rewardDetails : Text = "";
                 distributed : Bool = false;
@@ -1650,7 +1895,7 @@ actor class GameStateCanister() = this {
             // Second Place
             rewardAmount := getRewardAmountForResult(#SecondPlace, 3);
             let secondPlaceReward : Types.ChallengeWinnerReward = {
-                rewardType : Types.RewardType = REWARD_PER_CHALLENGE.rewardType;
+                rewardType : Types.RewardType = DEFAULT_REWARD_PER_CHALLENGE.rewardType;
                 amount : Nat = rewardAmount;
                 rewardDetails : Text = "";
                 distributed : Bool = false;
@@ -1668,7 +1913,7 @@ actor class GameStateCanister() = this {
             // Third Place
             rewardAmount := getRewardAmountForResult(#ThirdPlace, 3);
             let thirdPlaceReward : Types.ChallengeWinnerReward = {
-                rewardType : Types.RewardType = REWARD_PER_CHALLENGE.rewardType;
+                rewardType : Types.RewardType = DEFAULT_REWARD_PER_CHALLENGE.rewardType;
                 amount : Nat = rewardAmount;
                 rewardDetails : Text = "";
                 distributed : Bool = false;

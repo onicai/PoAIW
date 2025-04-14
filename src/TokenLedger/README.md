@@ -76,3 +76,22 @@ NUM_OF_BLOCK_TO_ARCHIVE = 1000000 // 1M
 TRIGGER_THRESHOLD = 1000000 // 1M
 ARCHIVE_CONTROLLER = bkyz2-fmaaa-aaaaa-qaaaq-cai // Game State canister
 cycles_for_archive_creation = 10000000000000 // 10T
+
+
+Deploy:
+dfx deploy
+
+Sanity checks:
+dfx canister call funnAI_ledger_canister is_ledger_ready
+dfx canister call funnAI_ledger_canister icrc1_minting_account
+dfx canister call funnAI_ledger_canister icrc1_total_supply
+
+Checks on Game State:
+dfx canister call game_state_canister --network local setTokenLedgerCanisterId '("cinef-v4aaa-aaaaa-qaalq-cai")'
+ 
+dfx canister call game_state_canister --network local testTokenMintingAdmin 
+
+dfx canister call funnAI_ledger_canister icrc1_total_supply
+
+For production:
+update minting_account (to production Game State)
