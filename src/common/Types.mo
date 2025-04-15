@@ -278,6 +278,28 @@ module Types {
 
     public type ScoredResponseRetrievalResult = Result<ScoredResponse, ApiError>;
 
+    // local for Judge interacting with LLM
+    public type JudgeScore = {
+        generationId : Text;
+        generationSeed : Nat32;
+        generatedTimestamp : Nat64;
+        generatedByLlmId : Text;
+        generationPrompt : Text;
+        generatedScoreText : Text;
+        generatedScore : Nat;
+    };
+
+    public type ScoredResponseByJudge = ScoredResponse and {
+        judgeScoreRecord : JudgeScore;
+    };
+
+    public type JudgeChallengeResponseResult = Result<JudgeScore, ApiError>;
+
+    public type CopyPromptCacheInputRecord = {
+        from : Text;
+        to : Text;
+    };
+
     //-------------------------------------------------------------------------
     public type ChallengeWinnerDeclaration = {
         challengeId : Text;
@@ -352,6 +374,8 @@ module Types {
     public type GameStateCanister_Actor = actor {
         getRandomOpenChallengeTopic : () -> async ChallengeTopicResult;
         addChallenge : (NewChallengeInput) -> async ChallengeAdditionResult;
+        getNextSubmissionToJudge : () -> async ChallengeResponseSubmissionResult;
+        addScoredResponse : (ScoredResponseInput) -> async ScoredResponseResult;
     };
 
     public type MainerCreator_Actor = actor {
@@ -365,6 +389,7 @@ module Types {
         new_chat : (InputRecord) -> async OutputRecordResult;
         run_update : (InputRecord) -> async OutputRecordResult;
         remove_prompt_cache : (InputRecord) -> async OutputRecordResult;
+        copy_prompt_cache : (CopyPromptCacheInputRecord) -> async StatusCodeRecordResult;
     };
 
     // IC Management Canister types

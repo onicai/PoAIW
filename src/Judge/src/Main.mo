@@ -16,7 +16,7 @@ import Time "mo:base/Time";
 import { setTimer; recurringTimer } = "mo:base/Timer";
 import Timer "mo:base/Timer";
 
-import Types "Types";
+import Types "../../common/Types";
 import Utils "Utils";
 
 actor class JudgeCtrlbCanister() = this {
