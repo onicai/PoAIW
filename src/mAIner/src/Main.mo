@@ -1,4 +1,3 @@
-import Array "mo:base/Array";
 import Buffer "mo:base/Buffer";
 import D "mo:base/Debug";
 import Error "mo:base/Error";
@@ -13,7 +12,6 @@ import List "mo:base/List";
 import Int "mo:base/Int";
 import Time "mo:base/Time";
 import Iter "mo:base/Iter";
-import Char "mo:base/Char";
 import Float "mo:base/Float";
 import Cycles "mo:base/ExperimentalCycles";
 import { setTimer; recurringTimer } = "mo:base/Timer";
@@ -23,7 +21,6 @@ import Types "../../common/Types";
 import Utils "Utils";
 
 actor class MainerAgentCtrlbCanister() = this {
-
 
     // -------------------------------
     stable var MAINER_AGENT_CANISTER_TYPE : Types.MainerAgentCanisterType = #Own;
@@ -93,7 +90,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // --------------------------------------------------------------------------
-    // Storage & functions used by SharedService mAiner canister to manage SharedAgent mAIner canisters
+// Storage & functions used by SharedService mAiner canister to manage SharedAgent mAIner canisters
 
     // Official mAIner Creator canisters
     stable var mainerCreatorCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
@@ -164,7 +161,7 @@ actor class MainerAgentCtrlbCanister() = this {
             case (null) { return false; };
             case (?canisterEntry) {
                 let removeResult = shareAgentCanistersStorage.remove(canisterAddress);
-                // TODO: remove from userToShareAgentsStorage
+                // TODO - Implementation: remove from userToShareAgentsStorage
                 return true;
             };
         };
@@ -179,7 +176,7 @@ actor class MainerAgentCtrlbCanister() = this {
                 return true;
             };
             case (?userCanistersList) { 
-                //existing list, add entry to it
+                // existing list, add entry to it
                 let updatedUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.push<Types.OfficialMainerAgentCanister>(canisterEntry, userCanistersList);
                 userToShareAgentsStorage.put(canisterEntry.ownedBy, updatedUserCanistersList);
                 return true;
@@ -194,7 +191,7 @@ actor class MainerAgentCtrlbCanister() = this {
         };
     };
 
-    // Caution: function that returns all ShareAgent canisters (TODO: decide if needed)
+    // Caution: function that returns all ShareAgent canisters (TODO - Security: decide if needed)
     private func getShareAgents() : [Types.OfficialMainerAgentCanister] {
         var shareAgents : List.List<Types.OfficialMainerAgentCanister> = List.nil<Types.OfficialMainerAgentCanister>();
         for (userShareAgentsList in userToShareAgentsStorage.vals()) {
@@ -220,10 +217,10 @@ actor class MainerAgentCtrlbCanister() = this {
     stable let _CYCLES_MILLION = 1_000_000;
     stable let CYCLES_BILLION = 1_000_000_000;
     stable let CYCLES_TRILLION = 1_000_000_000_000;
-    // Keep in sync with SUBMISSION_CYCLES_REQUIRED in GameState
-    stable let SUBMISSION_CYCLES_REQUIRED : Nat = 100 * CYCLES_BILLION; // TODO: determine how many cycles are needed to process one submission (incl. judge)
+    // TODO - Implementation: Keep in sync with SUBMISSION_CYCLES_REQUIRED in GameState
+    stable let SUBMISSION_CYCLES_REQUIRED : Nat = 100 * CYCLES_BILLION; // TODO - Design: determine how many cycles are needed to process one submission (incl. judge)
 
-    stable let SHARE_SERVICE_QUEUE_CYCLES_REQUIRED : Nat = 100 * CYCLES_BILLION; // TODO: determine how many cycles are needed to process a ShareService queue item
+    stable let SHARE_SERVICE_QUEUE_CYCLES_REQUIRED : Nat = 100 * CYCLES_BILLION; // TODO - Design: determine how many cycles are needed to process a ShareService queue item
 
     // The minimum cycle balance we want to maintain
     stable let CYCLE_BALANCE_MINIMUM = 250 * CYCLES_BILLION;
@@ -251,6 +248,7 @@ actor class MainerAgentCtrlbCanister() = this {
         };
         return true;
     };
+
     private func sufficientCyclesToSubmit(submissionCyclesRequired : Nat) : Bool {
         // The ShareService canister does not submit
         if (MAINER_AGENT_CANISTER_TYPE == #ShareService) {
@@ -269,7 +267,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getIssueFlagsAdmin() : async Types.IssueFlagsRetrievalResult {
-        // TODO: put access checks in place
+        // TODO - Security: put access checks in place
         /* if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         }; */
@@ -287,7 +285,7 @@ actor class MainerAgentCtrlbCanister() = this {
         return true;
     };
 
-    // TODO: llama_cpp_canister must return this number
+    // TODO - Implementation: llama_cpp_canister must return this number
     stable var CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * CYCLES_BILLION;
 
     stable let CYCLES_BURN_RATE_DEFAULT : Types.CyclesBurnRate = {
@@ -296,7 +294,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getMainerStatisticsAdmin() : async Types.StatisticsRetrievalResult {
-        // TODO: put access checks in place
+        // TODO - Security: put access checks in place
         /* if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         }; */
@@ -418,7 +416,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getRecentSubmittedResponsesAdmin() : async Types.ChallengeResponseSubmissionsResult {
-        // TODO: put access checks in place
+        // TODO - Security: put access checks in place
         /* if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         }; */
@@ -584,13 +582,13 @@ actor class MainerAgentCtrlbCanister() = this {
             case (#Err(error)) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge error");
                 D.print(debug_show (error));
-                // TODO: error handling
-                // TODO: in case of ShareService, do we refund the cycles to the ShareAgent?
+                // TODO - Error Handling
+                // TODO - Design: in case of ShareService, do we refund the cycles to the ShareAgent?
             };
             case (#Ok(respondingOutput : Types.ChallengeResponse)) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - calling putGeneratedResponse");
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondingOutput = " # debug_show (respondingOutput));
-                // TODO: adapt cycles burnt stats
+                // TODO - Implementation: adapt cycles burnt stats
                 ignore increaseTotalCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
                 
                 var submittedBy : Principal = Principal.fromActor(this);
@@ -690,7 +688,7 @@ actor class MainerAgentCtrlbCanister() = this {
         switch (storeResult) {
             case (false) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeResult error");
-                // TODO: error handling
+                // TODO - Error Handling
             };
             case (true) {
                 // Check if the canister still has enough cycles to submit it
@@ -710,7 +708,7 @@ actor class MainerAgentCtrlbCanister() = this {
                     case (#Err(error)) {
                         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): submitMetada error");
                         D.print(debug_show (error));
-                        // TODO: error handling
+                        // TODO - Error Handling
                     };
                     case (#Ok(submitMetada : Types.ChallengeResponseSubmissionMetadata)) {
                         // Successfully submitted to Game State
@@ -744,10 +742,10 @@ actor class MainerAgentCtrlbCanister() = this {
                         switch (putResult) {
                             case (false) {
                                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): putResult error");
-                                // TODO: error handling
+                                // TODO - Error Handling
                             };
                             case (true) {
-                                // TODO: adapt cycles burnt stats
+                                // TODO - Implementation: adapt cycles burnt stats
                                 ignore increaseTotalCyclesBurnt(SUBMISSION_CYCLES_REQUIRED);
                             };
                         };
@@ -758,7 +756,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     private func respondToChallengeDoIt_(challengeQueueInput : Types.ChallengeQueueInput) : async Types.ChallengeResponseResult {
-        // TODO: probably need to improve the seed generation variability
+        // TODO - Implementation: probably need to improve the seed generation variability
         let maxContinueLoopCount : Nat = 6; // After this many calls to run_update, we stop.
         let num_tokens : Nat64 = 1024;
         let temp : Float = 0.8;
@@ -1018,7 +1016,7 @@ actor class MainerAgentCtrlbCanister() = this {
         switch (challengeResult) {
             case (#Err(error)) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - challengeResult error : " # debug_show (error));
-                // TODO: error handling
+                // TODO - Error Handling
             };
             case (#Ok(challenge : Types.Challenge)) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - challenge = " # debug_show (challenge));
@@ -1105,9 +1103,7 @@ actor class MainerAgentCtrlbCanister() = this {
                 return #Ok(challengeQueueInput);                        
             };             
         };
-    };
-
-    
+    };    
 
     private func processNextChallenge() : async () {
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge - entered");
@@ -1211,7 +1207,7 @@ actor class MainerAgentCtrlbCanister() = this {
         // This check does not apply because the mAIner Creator creates the ShareService canister
         // Just verifying that only a controller can call this is enough, and also all we can do.
 
-        // Only official mAIner Creator canisters may call this
+        // TODO - Security: Only official mAIner Creator canisters may call this
         // switch (getMainerCreatorCanister(Principal.toText(msg.caller))) {
         //     case (null) { return #Err(#Unauthorized); };
         //     case (?mainerCreatorEntry) {
@@ -1229,7 +1225,7 @@ actor class MainerAgentCtrlbCanister() = this {
         // };
     };
 
-    // TODO: remove; admin Function to add new mAIner ShareAgent for testing
+    // TODO - Testing: remove; admin Function to add new mAIner ShareAgent for testing
     public shared (msg) func addMainerShareAgentCanisterAdmin(canisterEntryToAdd : Types.MainerAgentCanisterInput) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -1256,7 +1252,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
 // Timers
-    stable var actionRegularityInSeconds = 60; // TODO: set based on user setting for cycles burn rate
+    stable var actionRegularityInSeconds = 60; // TODO - Implementation: set based on user setting for cycles burn rate
 
     private func triggerRecurringAction1() : async () {
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 1 was triggered");
@@ -1352,7 +1348,7 @@ actor class MainerAgentCtrlbCanister() = this {
         await stopTimerExecution();
     };
 
-    // TODO: remove; testing function for admin
+    // TODO - Testing: remove; testing function for admin
     public shared (msg) func triggerChallengeResponseAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
