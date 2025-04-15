@@ -94,7 +94,7 @@ module TokenLedger {
   };
 
   public type TOKEN_LEDGER = actor {
-    // TODO: update to final API
+    // TODO: update to final API, incl. query blocks
     icrc1_balance_of : shared query Account -> async Nat;
 
     icrc1_decimals : shared query () -> async Nat8;

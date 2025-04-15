@@ -83,7 +83,7 @@ actor class CanisterCreationCanister() = this {
     private var creationArtefactsByModel = HashMap.HashMap<Text, Types.ModelCreationArtefacts>(0, Text.equal, Text.hash);
     stable var creationArtefactsByModelStable : [(Text, Types.ModelCreationArtefacts)] = [];
 
-    private func getModelCreationArtefacts(selectedModel : Types.AvailableModels) : ?Types.ModelCreationArtefacts {
+    private func getModelCreationArtefacts(selectedModel : Types.SelectableMainerLLMs) : ?Types.ModelCreationArtefacts {
         switch (selectedModel) {
             case (#Qwen2_5_500M) {
                 let creationArtefacts : ?Types.ModelCreationArtefacts = creationArtefactsByModel.get("Qwen2_5_500M");
@@ -93,7 +93,7 @@ actor class CanisterCreationCanister() = this {
         };
     };
 
-    private func putModelCreationArtefacts(selectedModel : Types.AvailableModels, creationArtefacts : Types.ModelCreationArtefacts) : Bool {
+    private func putModelCreationArtefacts(selectedModel : Types.SelectableMainerLLMs, creationArtefacts : Types.ModelCreationArtefacts) : Bool {
         switch (selectedModel) {
             case (#Qwen2_5_500M) {
                 let putArtefacts = creationArtefactsByModel.put("Qwen2_5_500M", creationArtefacts);
@@ -104,7 +104,7 @@ actor class CanisterCreationCanister() = this {
     };
 
     // Admin function to insert needed artefacts to create canisters for a new model type
-    public shared (msg) func addModelCreationArtefactsEntry(selectedModel : Types.AvailableModels, creationArtefacts : Types.ModelCreationArtefacts) : async Types.InsertArtefactsResult {
+    public shared (msg) func addModelCreationArtefactsEntry(selectedModel : Types.SelectableMainerLLMs, creationArtefacts : Types.ModelCreationArtefacts) : async Types.InsertArtefactsResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -122,7 +122,7 @@ actor class CanisterCreationCanister() = this {
     };
 
     // Admin function to start upload of the mainer LLM canister wasm
-    public shared (msg) func start_upload_mainer_llm_canister_wasm(selectedModel : Types.AvailableModels) : async Types.StatusCodeRecordResult {
+    public shared (msg) func start_upload_mainer_llm_canister_wasm(selectedModel : Types.SelectableMainerLLMs) : async Types.StatusCodeRecordResult {
         D.print("mAInerCreator: start_upload_mainer_llm_canister_wasm");
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -148,7 +148,7 @@ actor class CanisterCreationCanister() = this {
     };
 
     // Admin function to upload an LLM canister wasm file
-    public shared (msg) func upload_mainer_llm_canister_wasm_bytes_chunk(selectedModel : Types.AvailableModels, bytesChunk : [Nat8]) : async Types.FileUploadResult {
+    public shared (msg) func upload_mainer_llm_canister_wasm_bytes_chunk(selectedModel : Types.SelectableMainerLLMs, bytesChunk : [Nat8]) : async Types.FileUploadResult {
         D.print("mAInerCreator: upload_mainer_llm_canister_wasm_bytes_chunk");
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -231,7 +231,7 @@ actor class CanisterCreationCanister() = this {
     };
 
     // Admin function to finish the upload of a model file
-    public shared (msg) func finish_upload_mainer_llm(selectedModel : Types.AvailableModels, modelFileSha256 : Text) : async Types.FileUploadResult {
+    public shared (msg) func finish_upload_mainer_llm(selectedModel : Types.SelectableMainerLLMs, modelFileSha256 : Text) : async Types.FileUploadResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -303,11 +303,11 @@ actor class CanisterCreationCanister() = this {
         switch (configurationInput.canisterType) {
             case (#MainerAgent) {
                 // Create mAIner controller canister for new mAIner agent
-                Cycles.add(1_000_000_000_000);  // 1T cycles (800B was the minimum required)
+                Cycles.add(1_000_000_000_000);  // 1T cycles (800B was the minimum required) TODO: adjust based on actual cycles user paid for during creation
 
                 let mainerAgentCanisterType = configurationInput.mainerAgentCanisterType;
                 D.print("mAInerCreator: createCanister - mainerAgentCanisterType = " # debug_show (mainerAgentCanisterType));
-                var shareServiceCanisterAddress : Types.CanisterAddress = "";
+                var shareServiceCanisterAddress : Types.CanisterAddress = ""; // TODO: determine if this should be provided or whether Creator stores this info and fills it in here
                 if (mainerAgentCanisterType == #ShareAgent) {
                     switch (configurationInput.associatedCanisterAddress) {
                         case (null) {
@@ -382,24 +382,26 @@ actor class CanisterCreationCanister() = this {
                     };
                 };
 
-
-                // Register the mAIner Agent with the GameState canister
-                let gameStateCanisterActor = actor (MASTER_CANISTER_ID) : Types.GameStateCanister_Actor;
                 let mainerAgentCanisterInput : Types.MainerAgentCanisterInput = {
                     address = Principal.toText(createdControllerCanister.canister_id);
                     canisterType = configurationInput.canisterType;
                     ownedBy = configurationInput.owner;
                     mainerAgentCanisterType = configurationInput.mainerAgentCanisterType;
                 };
-                D.print("mAInerCreator: createCanister - calling gameStateCanisterActor.addMainerAgentCanister with mainerAgentCanisterInput = " # debug_show (mainerAgentCanisterInput));
-                let addMainerAgentCanisterResult = await gameStateCanisterActor.addMainerAgentCanister(mainerAgentCanisterInput);
-                D.print("mAInerCreator: createCanister addMainerAgentCanisterResult" # debug_show (addMainerAgentCanisterResult));
-                switch (addMainerAgentCanisterResult) {
-                    case (#Err(error)) {
-                        return #Err(error);
-                    };
-                    case _ {
-                        // all good, continue
+                // This should not be needed as the Game State makes this call to the Creator and thus the returned response will be used to Register the mAIner Agent with the GameState canister
+                if (MASTER_CANISTER_ID != Principal.toText(msg.caller)) {
+                    // TODO: decide whether this block should be kept in production
+                    let gameStateCanisterActor = actor (MASTER_CANISTER_ID) : Types.GameStateCanister_Actor;
+                    D.print("mAInerCreator: createCanister - calling gameStateCanisterActor.addMainerAgentCanister with mainerAgentCanisterInput = " # debug_show (mainerAgentCanisterInput));
+                    let addMainerAgentCanisterResult = await gameStateCanisterActor.addMainerAgentCanister(mainerAgentCanisterInput);
+                    D.print("mAInerCreator: createCanister addMainerAgentCanisterResult" # debug_show (addMainerAgentCanisterResult));
+                    switch (addMainerAgentCanisterResult) {
+                        case (#Err(error)) {
+                            return #Err(error);
+                        };
+                        case _ {
+                            // all good, continue
+                        };
                     };
                 };
 
@@ -458,7 +460,7 @@ actor class CanisterCreationCanister() = this {
                             case (?modelCreationArtefacts) {
                                 D.print("mAInerCreator: createCanister modelCreationArtefacts");
                                 // Create mAIner LLM (and add it to a mAIner controller)
-                                Cycles.add(3_000_000_000_000);  // 3T cycles  (TODO: what is the minimum?)
+                                Cycles.add(3_000_000_000_000);  // 3T cycles  (TODO: what is the minimum?) adjust based on cycles user paid for (and are being sent from Game State)
 
                                 let createdLlmCanister = await IC0.create_canister({
                                     settings = ?{
@@ -670,7 +672,7 @@ actor class CanisterCreationCanister() = this {
         };
         let config : Types.CanisterCreationConfiguration = {
             canisterType : Types.ProtocolCanisterType = #MainerAgent;
-            selectedModel : Types.AvailableModels = #Qwen2_5_500M;
+            selectedModel : Types.SelectableMainerLLMs = #Qwen2_5_500M;
             associatedCanisterAddress : ?Types.CanisterAddress = shareServiceCanisterAddress;
             owner : Principal = msg.caller;
             mainerAgentCanisterType: Types.MainerAgentCanisterType = mainerAgentCanisterType; 
@@ -733,7 +735,7 @@ actor class CanisterCreationCanister() = this {
 
         let config : Types.CanisterCreationConfiguration = {
             canisterType : Types.ProtocolCanisterType = #MainerLlm;
-            selectedModel : Types.AvailableModels = #Qwen2_5_500M;
+            selectedModel : Types.SelectableMainerLLMs = #Qwen2_5_500M;
             associatedCanisterAddress : ?Types.CanisterAddress = ?controllerCanisterAddress;
             owner : Principal = msg.caller;
             mainerAgentCanisterType: Types.MainerAgentCanisterType = #NA;

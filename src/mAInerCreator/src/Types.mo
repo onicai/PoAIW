@@ -38,7 +38,7 @@ module Types {
         modelFileSha256 : Text;
     };
 
-    public type AvailableModels = {
+    public type SelectableMainerLLMs = {
         #Qwen2_5_500M;
     };
     
@@ -46,7 +46,7 @@ module Types {
 
     public type CanisterCreationConfigurationInput = {
         canisterType : ProtocolCanisterType;
-        selectedModel : AvailableModels;
+        selectedModel : SelectableMainerLLMs;
         associatedCanisterAddress : ?CanisterAddress;
         mainerAgentCanisterType: MainerAgentCanisterType;
     };

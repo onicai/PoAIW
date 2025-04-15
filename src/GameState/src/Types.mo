@@ -47,18 +47,34 @@ module Types {
         #Judge;
         #Verifier;
         #MainerCreator;
-        #MainerAgent;
+        #MainerAgent : MainerAgentCanisterType;
         #MainerLlm;
     };
 
     public type CanisterAddress = Text;
+
+    public type CanisterStatus = {
+        #Paid;
+        #ControllerCreationInProgress;
+        #ControllerCreated;
+        #LlmSetupInProgress;
+        #LlmSetupFinished;
+        #Running;
+        #Paused;
+        #Other : Text;
+    };
 
     public type OfficialProtocolCanister = {
         address : CanisterAddress;
         canisterType: ProtocolCanisterType;
         creationTimestamp : Nat64;
         createdBy : Principal;
-        ownedBy: Principal;
+        ownedBy : Principal;
+        status : CanisterStatus;
+    };
+
+    public type OfficialMainerAgentCanister = OfficialProtocolCanister and {
+        mainerConfig : MainerConfigurationInput;
     };
 
     public type CanisterInput = {
@@ -79,27 +95,41 @@ module Types {
         canisterType: ProtocolCanisterType;
         ownedBy: Principal;
         mainerAgentCanisterType: MainerAgentCanisterType;
+        status : CanisterStatus;
+        mainerConfig : MainerConfigurationInput;
     };
 
-    public type MainerAgentCanisterResult = Result<OfficialProtocolCanister, ApiError>;
+    public type MainerAgentCanisterResult = Result<OfficialMainerAgentCanister, ApiError>;
 
-    public type MainerAgentCanistersResult = Result<[OfficialProtocolCanister], ApiError>;
+    public type MainerAgentCanistersResult = Result<[OfficialMainerAgentCanister], ApiError>;
 
     public type CanisterRetrieveInput = {
         address : CanisterAddress;
     };
     
     //-------------------------------------------------------------------------
-    public type SelectableMainerLLM = {
-        #Qwen2_5_0_5_B;
+    public type SelectableMainerLLMs = {
+        #Qwen2_5_500M;
     };
 
     public type MainerConfigurationInput = {
-        aiModel : ?SelectableMainerLLM;
+        mainerAgentCanisterType: MainerAgentCanisterType;
+        selectedLLM : ?SelectableMainerLLMs;
     };
 
-    public type CanisterCreationConfiguration = {
+    public type MainerCreationInput = {
+        paymentTransactionBlockId : Nat64;
+        mainerConfig : MainerConfigurationInput;
+    };
+
+    public type CanisterCreationConfigurationInput = {
         canisterType : ProtocolCanisterType;
+        selectedModel : ?SelectableMainerLLMs;
+        associatedCanisterAddress : ?CanisterAddress;
+        mainerAgentCanisterType: MainerAgentCanisterType;
+    };
+
+    public type CanisterCreationConfiguration = CanisterCreationConfigurationInput and {
         owner: Principal;
     };
 
