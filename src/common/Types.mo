@@ -124,9 +124,8 @@ module Types {
 
     public type CanisterCreationConfigurationInput = {
         canisterType : ProtocolCanisterType;
-        selectedModel : ?SelectableMainerLLMs;
         associatedCanisterAddress : ?CanisterAddress;
-        mainerAgentCanisterType: MainerAgentCanisterType;
+        mainerConfig : MainerConfigurationInput;
     };
 
     public type CanisterCreationConfiguration = CanisterCreationConfigurationInput and {
@@ -346,6 +345,55 @@ module Types {
         to : Text;
     };
 
+    // mAIner Creator
+    public type InsertArtefactsResult = Result<ModelCreationArtefacts, ApiError>;
+
+    // data needed to create a new canister with the model
+    public type ModelCreationArtefacts = {
+        canisterWasm : [Nat8];
+        modelFile : [Blob];
+        modelFileSha256 : Text;
+    };
+
+    public type FileUploadInputRecord = {
+        filename : Text;
+        chunk : [Nat8]; // the chunk being uploaded, as a vec of bytes
+        chunksize : Nat64; // the chunksize (allowing sanity check)
+        offset : Nat64; // the offset where to write the chunk
+    };
+
+    public type FileUploadRecordResult = Result<FileUploadRecord, ApiError>;
+    
+    public type FileUploadRecord = {
+        filename : Text; // the total filesize in bytes
+        filesize : Nat64; // the total filesize in bytes after writing chunk at offset
+        filesha256 : Text; // the total filesize in bytes after writing chunk at offset
+    };
+
+    public type UploadResult = {
+        creationResult : Text;
+    };
+
+    public type FileUploadResult = Result<UploadResult, ApiError>;
+
+    public type MaxTokensRecord = {
+        max_tokens_update : Nat64;
+        max_tokens_query : Nat64;
+    };
+
+    public type MainerAgentCtrlbCanister = actor {
+        add_llm_canister: (CanisterIDRecord) -> async StatusCodeRecordResult;
+        health: query () -> async StatusCodeRecordResult;
+        setGameStateCanisterId: (Text) -> async StatusCodeRecordResult;
+        setRoundRobinLLMs: (Nat) -> async StatusCodeRecordResult;
+        set_llm_canister_id: (CanisterIDRecord) -> async StatusCodeRecordResult;
+        setMainerCanisterType: (MainerAgentCanisterType) -> async StatusCodeRecordResult;
+        getMainerCanisterType: () -> async MainerAgentCanisterTypeResult;
+        setShareServiceCanisterId: (Text) -> async StatusCodeRecordResult;
+        addMainerShareAgentCanister: (MainerAgentCanisterInput) -> async MainerAgentCanisterResult;
+        startTimerExecutionAdmin: () -> async AuthRecordResult;
+    };
+
     //-------------------------------------------------------------------------
     public type ChallengeWinnerDeclaration = {
         challengeId : Text;
@@ -401,11 +449,6 @@ module Types {
     public type CyclesBurntResult = Result<Nat, ApiError>;
 
     //-------------------------------------------------------------------------
-    public type FileUploadRecord = {
-        creationResult : Text;
-    };
-
-    public type FileUploadResult = Result<FileUploadRecord, ApiError>;
 
     public type StatusCode = Nat16;
 
@@ -424,6 +467,7 @@ module Types {
         addScoredResponse : (ScoredResponseInput) -> async ScoredResponseResult;
         submitChallengeResponse : (ChallengeResponseSubmissionInput) -> async ChallengeResponseSubmissionMetadataResult;
         getRandomOpenChallenge : () -> async ChallengeResult;
+        addMainerAgentCanister : (MainerAgentCanisterInput) -> async MainerAgentCanisterResult;
     };
 
     public type MainerCreator_Actor = actor {
@@ -438,6 +482,11 @@ module Types {
         run_update : (InputRecord) -> async OutputRecordResult;
         remove_prompt_cache : (InputRecord) -> async OutputRecordResult;
         copy_prompt_cache : (CopyPromptCacheInputRecord) -> async StatusCodeRecordResult;
+        load_model : (InputRecord) -> async OutputRecordResult;
+        set_max_tokens : (MaxTokensRecord) -> async StatusCodeRecordResult;
+        file_upload_chunk : (FileUploadInputRecord) -> async FileUploadRecordResult;
+        log_pause : () -> async StatusCodeRecordResult;
+        log_resume : () -> async StatusCodeRecordResult;
     };
 
     // mAIner ShareAgent canister

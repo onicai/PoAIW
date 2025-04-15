@@ -14,7 +14,7 @@ import Hash "mo:base/Hash";
 import Time "mo:base/Time";
 import Error "mo:base/Error";
 
-import Types "./Types";
+import Types "../../common/Types";
 
 actor class CanisterCreationCanister() = this {
 
@@ -301,11 +301,11 @@ actor class CanisterCreationCanister() = this {
         D.print("mAInerCreator: createCanister - configurationInput = " # debug_show (configurationInput));
 
         switch (configurationInput.canisterType) {
-            case (#MainerAgent) {
+            case (#MainerAgent(_)) {
                 // Create mAIner controller canister for new mAIner agent
                 Cycles.add(1_000_000_000_000);  // 1T cycles (800B was the minimum required) TODO: adjust based on actual cycles user paid for during creation
 
-                let mainerAgentCanisterType = configurationInput.mainerAgentCanisterType;
+                let mainerAgentCanisterType = configurationInput.mainerConfig.mainerAgentCanisterType;
                 D.print("mAInerCreator: createCanister - mainerAgentCanisterType = " # debug_show (mainerAgentCanisterType));
                 var shareServiceCanisterAddress : Types.CanisterAddress = ""; // TODO: determine if this should be provided or whether Creator stores this info and fills it in here
                 if (mainerAgentCanisterType == #ShareAgent) {
@@ -386,7 +386,9 @@ actor class CanisterCreationCanister() = this {
                     address = Principal.toText(createdControllerCanister.canister_id);
                     canisterType = configurationInput.canisterType;
                     ownedBy = configurationInput.owner;
-                    mainerAgentCanisterType = configurationInput.mainerAgentCanisterType;
+                    mainerAgentCanisterType = mainerAgentCanisterType; 
+                    status = #ControllerCreated;
+                    mainerConfig = configurationInput.mainerConfig;
                 };
                 // This should not be needed as the Game State makes this call to the Creator and thus the returned response will be used to Register the mAIner Agent with the GameState canister
                 if (MASTER_CANISTER_ID != Principal.toText(msg.caller)) {
@@ -453,7 +455,17 @@ actor class CanisterCreationCanister() = this {
                         D.print("mAInerCreator: createCanister associatedCanisterAddress = " # debug_show (associatedCanisterAddress));
                         let isValidPrincipal = Principal.fromText(associatedCanisterAddress); // this will throw an error if it's not a valid canister address
                         D.print("mAInerCreator: createCanister isValidPrincipal " # debug_show (isValidPrincipal));
-                        switch (getModelCreationArtefacts(configurationInput.selectedModel)) {
+                        var selectedModel = #Qwen2_5_500M;
+                        switch (configurationInput.mainerConfig.selectedLLM) {
+                            case (null) {
+                                // use default
+                                selectedModel := #Qwen2_5_500M; // TODO: retrieve default via function
+                            };
+                            case (?selectedLLM) {
+                                selectedModel := selectedLLM;                                
+                            };
+                        };
+                        switch (getModelCreationArtefacts(selectedModel)) {
                             case (null) {
                                 return #Err(#Other("Cannot find creation artefacts for the selected model"));
                             };
@@ -670,12 +682,15 @@ actor class CanisterCreationCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        let mainerConfig : Types.MainerConfigurationInput = {
+            mainerAgentCanisterType: Types.MainerAgentCanisterType = mainerAgentCanisterType;
+            selectedLLM : ?Types.SelectableMainerLLMs = ?#Qwen2_5_500M;
+        };
         let config : Types.CanisterCreationConfiguration = {
-            canisterType : Types.ProtocolCanisterType = #MainerAgent;
-            selectedModel : Types.SelectableMainerLLMs = #Qwen2_5_500M;
+            canisterType : Types.ProtocolCanisterType = #MainerAgent(#Own);
             associatedCanisterAddress : ?Types.CanisterAddress = shareServiceCanisterAddress;
-            owner : Principal = msg.caller;
-            mainerAgentCanisterType: Types.MainerAgentCanisterType = mainerAgentCanisterType; 
+            owner : Principal = msg.caller; 
+            mainerConfig : Types.MainerConfigurationInput = mainerConfig;
         };
         D.print("mAInerCreator: testCreateMainerControllerCanister - calling createCanister with config" # debug_show(config));
         let result = await createCanister(config);
@@ -732,13 +747,16 @@ actor class CanisterCreationCanister() = this {
             D.print("mAInerCreator: testCreateMainerLlmCanister - Error accessing controller canister: ");
             return #Err(#Other("Controller canister does not exist or is not accessible"));
         };
+        let mainerConfig : Types.MainerConfigurationInput = {
+            mainerAgentCanisterType: Types.MainerAgentCanisterType = #Own;
+            selectedLLM : ?Types.SelectableMainerLLMs = ?#Qwen2_5_500M;
+        };
 
         let config : Types.CanisterCreationConfiguration = {
             canisterType : Types.ProtocolCanisterType = #MainerLlm;
-            selectedModel : Types.SelectableMainerLLMs = #Qwen2_5_500M;
             associatedCanisterAddress : ?Types.CanisterAddress = ?controllerCanisterAddress;
             owner : Principal = msg.caller;
-            mainerAgentCanisterType: Types.MainerAgentCanisterType = #NA;
+            mainerConfig : Types.MainerConfigurationInput = mainerConfig;
         };
         let result = await createCanister(config);
         return result;

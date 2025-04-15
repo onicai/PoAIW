@@ -1309,9 +1309,8 @@ actor class GameStateCanister() = this {
                                 let canisterCreationInput : Types.CanisterCreationConfiguration = {
                                     canisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType;
                                     owner: Principal = userMainerEntry.ownedBy; // User
-                                    selectedModel : ?Types.SelectableMainerLLMs = userMainerEntry.mainerConfig.selectedLLM;
                                     associatedCanisterAddress : ?Types.CanisterAddress = null;
-                                    mainerAgentCanisterType: Types.MainerAgentCanisterType = userMainerEntry.mainerConfig.mainerAgentCanisterType;
+                                    mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                 };
                                 // TODO: charge with cycles (the user paid for)
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
@@ -1428,9 +1427,8 @@ actor class GameStateCanister() = this {
                                 let canisterCreationInput : Types.CanisterCreationConfiguration = {
                                     canisterType : Types.ProtocolCanisterType = #MainerLlm;
                                     owner: Principal = userMainerEntry.ownedBy; // User
-                                    selectedModel : ?Types.SelectableMainerLLMs = userMainerEntry.mainerConfig.selectedLLM;
                                     associatedCanisterAddress : ?Types.CanisterAddress = ?userMainerEntry.address; // Controller address
-                                    mainerAgentCanisterType: Types.MainerAgentCanisterType = userMainerEntry.mainerConfig.mainerAgentCanisterType;
+                                    mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                 };
                                 // TODO: charge with cycles (the user paid for)
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
@@ -1534,9 +1532,8 @@ actor class GameStateCanister() = this {
                                 let canisterCreationInput : Types.CanisterCreationConfiguration = {
                                     canisterType : Types.ProtocolCanisterType = #MainerLlm;
                                     owner: Principal = userMainerEntry.ownedBy; // User
-                                    selectedModel : ?Types.SelectableMainerLLMs = userMainerEntry.mainerConfig.selectedLLM;
                                     associatedCanisterAddress : ?Types.CanisterAddress = ?userMainerEntry.address; // Controller address
-                                    mainerAgentCanisterType: Types.MainerAgentCanisterType = userMainerEntry.mainerConfig.mainerAgentCanisterType;
+                                    mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                 };
                                 // TODO: charge with cycles (the user paid for)
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
