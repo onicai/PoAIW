@@ -17,7 +17,7 @@ import Order "mo:base/Order";
 import Error "mo:base/Error";
 import Blob "mo:base/Blob";
 
-import Types "./Types";
+import Types "../../common/Types";
 import ICManagementCanister "./ICManagementCanister";
 import Utils "Utils";
 import TokenLedger "./icp-ledger-interface";
