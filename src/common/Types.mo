@@ -140,7 +140,7 @@ module Types {
     public type CanisterCreationResult = Result<CanisterCreationRecord, ApiError>;
 
     //-------------------------------------------------------------------------
-    // Challenger
+// Challenger
     public type ChallengeTopicStatus = {
         #Open;
         #Closed;
@@ -213,7 +213,7 @@ module Types {
 
     public type CanisterIDRecordResult = Result<CanisterIDRecord, ApiError>;
 
-    // mAIner
+// mAIner
     public type ChallengeQueueInput = Challenge and {
         challengeQueuedId : Text;
         challengeQueuedBy : Principal;
@@ -297,7 +297,7 @@ module Types {
 
     public type ChallengeResponseResult = Result<ChallengeResponse, ApiError>;
 
-    // Judge
+// Judge
     public type ScoredResponseInput = ChallengeResponseSubmission and {
         judgedBy: Principal;
         score: Nat;
@@ -345,7 +345,7 @@ module Types {
         to : Text;
     };
 
-    // mAIner Creator
+// mAIner Creator
     public type InsertArtefactsResult = Result<ModelCreationArtefacts, ApiError>;
 
     // data needed to create a new canister with the model
