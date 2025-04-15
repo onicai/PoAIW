@@ -19,7 +19,7 @@ import Cycles "mo:base/ExperimentalCycles";
 import { setTimer; recurringTimer } = "mo:base/Timer";
 import Timer "mo:base/Timer";
 
-import Types "Types";
+import Types "../../common/Types";
 import Utils "Utils";
 
 actor class MainerAgentCtrlbCanister() = this {
@@ -126,12 +126,12 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // ShareAgent Registry: Official ShareAgent canisters (owned by users)
-    stable var shareAgentCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
-    var shareAgentCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
-    stable var userToShareAgentsStorageStable : [(Principal, List.List<Types.OfficialProtocolCanister>)] = [];
-    var userToShareAgentsStorage : HashMap.HashMap<Principal, List.List<Types.OfficialProtocolCanister>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+    stable var shareAgentCanistersStorageStable : [(Text, Types.OfficialMainerAgentCanister)] = [];
+    var shareAgentCanistersStorage : HashMap.HashMap<Text, Types.OfficialMainerAgentCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
+    stable var userToShareAgentsStorageStable : [(Principal, List.List<Types.OfficialMainerAgentCanister>)] = [];
+    var userToShareAgentsStorage : HashMap.HashMap<Principal, List.List<Types.OfficialMainerAgentCanister>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
 
-    private func putShareAgentCanister(canisterAddress : Text, canisterEntry : Types.OfficialProtocolCanister) : Types.MainerAgentCanisterResult {
+    private func putShareAgentCanister(canisterAddress : Text, canisterEntry : Types.OfficialMainerAgentCanister) : Types.MainerAgentCanisterResult {
         switch (getShareAgentCanister(canisterAddress)) {
             case (null) {
                 shareAgentCanistersStorage.put(canisterAddress, canisterEntry);
@@ -152,7 +152,7 @@ actor class MainerAgentCtrlbCanister() = this {
         };
     };
 
-    private func getShareAgentCanister(canisterAddress : Text) : ?Types.OfficialProtocolCanister {
+    private func getShareAgentCanister(canisterAddress : Text) : ?Types.OfficialMainerAgentCanister {
         switch (shareAgentCanistersStorage.get(canisterAddress)) {
             case (null) { return null; };
             case (?canisterEntry) { return ?canisterEntry; };
@@ -170,24 +170,24 @@ actor class MainerAgentCtrlbCanister() = this {
         };
     };
 
-    private func putUserShareAgent(canisterEntry : Types.OfficialProtocolCanister) : Bool {
+    private func putUserShareAgent(canisterEntry : Types.OfficialMainerAgentCanister) : Bool {
         switch (getUserShareAgents(canisterEntry.ownedBy)) {
             case (null) {
                 // first entry
-                let userCanistersList : List.List<Types.OfficialProtocolCanister> = List.make<Types.OfficialProtocolCanister>(canisterEntry);
+                let userCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.make<Types.OfficialMainerAgentCanister>(canisterEntry);
                 userToShareAgentsStorage.put(canisterEntry.ownedBy, userCanistersList);
                 return true;
             };
             case (?userCanistersList) { 
                 //existing list, add entry to it
-                let updatedUserCanistersList : List.List<Types.OfficialProtocolCanister> = List.push<Types.OfficialProtocolCanister>(canisterEntry, userCanistersList);
+                let updatedUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.push<Types.OfficialMainerAgentCanister>(canisterEntry, userCanistersList);
                 userToShareAgentsStorage.put(canisterEntry.ownedBy, updatedUserCanistersList);
                 return true;
             }; 
         };
     };
 
-    private func getUserShareAgents(userId : Principal) : ?List.List<Types.OfficialProtocolCanister> {
+    private func getUserShareAgents(userId : Principal) : ?List.List<Types.OfficialMainerAgentCanister> {
         switch (userToShareAgentsStorage.get(userId)) {
             case (null) { return null; };
             case (?userCanistersList) { return ?userCanistersList; };
@@ -195,20 +195,20 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Caution: function that returns all ShareAgent canisters (TODO: decide if needed)
-    private func getShareAgents() : [Types.OfficialProtocolCanister] {
-        var shareAgents : List.List<Types.OfficialProtocolCanister> = List.nil<Types.OfficialProtocolCanister>();
+    private func getShareAgents() : [Types.OfficialMainerAgentCanister] {
+        var shareAgents : List.List<Types.OfficialMainerAgentCanister> = List.nil<Types.OfficialMainerAgentCanister>();
         for (userShareAgentsList in userToShareAgentsStorage.vals()) {
-            shareAgents := List.append<Types.OfficialProtocolCanister>(userShareAgentsList, shareAgents);    
+            shareAgents := List.append<Types.OfficialMainerAgentCanister>(userShareAgentsList, shareAgents);    
         };
         return List.toArray(shareAgents);
     };
 
-    private func removeUserShareAgent(canisterEntry : Types.OfficialProtocolCanister) : Bool {
+    private func removeUserShareAgent(canisterEntry : Types.OfficialMainerAgentCanister) : Bool {
         switch (getUserShareAgents(canisterEntry.ownedBy)) {
             case (null) { return false; };
             case (?userCanistersList) { 
                 //existing list, remove entry from it
-                let updatedUserCanistersList : List.List<Types.OfficialProtocolCanister> = List.filter(userCanistersList, func(listEntry: Types.OfficialProtocolCanister) : Bool { listEntry.address != canisterEntry.address });
+                let updatedUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.filter(userCanistersList, func(listEntry: Types.OfficialMainerAgentCanister) : Bool { listEntry.address != canisterEntry.address });
                 userToShareAgentsStorage.put(canisterEntry.ownedBy, updatedUserCanistersList);
                 return true;
             }; 
@@ -1202,7 +1202,7 @@ actor class MainerAgentCtrlbCanister() = this {
             return #Err(#Unauthorized);
         };
         switch (canisterEntryToAdd.canisterType) {
-            case (#MainerAgent) {
+            case (#MainerAgent(_)) {
                 // continue
             };
             case (_) { return #Err(#Other("Unsupported canisterType")); }
@@ -1215,12 +1215,14 @@ actor class MainerAgentCtrlbCanister() = this {
         // switch (getMainerCreatorCanister(Principal.toText(msg.caller))) {
         //     case (null) { return #Err(#Unauthorized); };
         //     case (?mainerCreatorEntry) {
-        let canisterEntry : Types.OfficialProtocolCanister = {
+        let canisterEntry : Types.OfficialMainerAgentCanister = {
             address : Text = canisterEntryToAdd.address;
             canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
             creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
             createdBy : Principal = msg.caller;
             ownedBy : Principal = canisterEntryToAdd.ownedBy;
+            status : Types.CanisterStatus = canisterEntryToAdd.status;
+            mainerConfig : Types.MainerConfigurationInput = canisterEntryToAdd.mainerConfig;
         };
         putShareAgentCanister(canisterEntryToAdd.address, canisterEntry);           
             // };
@@ -1236,17 +1238,19 @@ actor class MainerAgentCtrlbCanister() = this {
             return #Err(#Unauthorized);
         };
         switch (canisterEntryToAdd.canisterType) {
-            case (#MainerAgent) {
+            case (#MainerAgent(_)) {
                 // continue
             };
             case (_) { return #Err(#Other("Unsupported")); }
         };
-        let canisterEntry : Types.OfficialProtocolCanister = {
+        let canisterEntry : Types.OfficialMainerAgentCanister = {
             address : Text = canisterEntryToAdd.address;
             canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
             creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
             createdBy : Principal = msg.caller;
             ownedBy : Principal = canisterEntryToAdd.ownedBy;
+            status : Types.CanisterStatus = canisterEntryToAdd.status;
+            mainerConfig : Types.MainerConfigurationInput = canisterEntryToAdd.mainerConfig;
         }; 
         putShareAgentCanister(canisterEntryToAdd.address, canisterEntry); 
     };

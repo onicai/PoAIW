@@ -252,6 +252,52 @@ module Types {
     public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmission, ApiError>;
     public type ChallengeResponseSubmissionsResult = Result<[ChallengeResponseSubmission], ApiError>;
 
+    // Agent Settings
+    public type TimeInterval = {
+        #Daily;
+    };
+
+    public type CyclesBurnRate = {
+        cycles : Nat;
+        timeInterval : TimeInterval;
+    };
+
+    public type MainerAgentSettingsInput = {
+        cyclesBurnRate : CyclesBurnRate;
+    };
+
+    public type MainerAgentSettings = MainerAgentSettingsInput and {
+        creationTimestamp : Nat64;
+        createdBy : Principal;
+    };
+
+    public type IssueFlagsRecord = {
+        lowCycleBalance : Bool;
+    };
+
+    public type IssueFlagsRetrievalResult = Result<IssueFlagsRecord, ApiError>;
+
+    public type StatisticsRecord = {
+        totalCyclesBurnt : Nat;
+        cycleBalance : Nat;
+        cyclesBurnRate : CyclesBurnRate;
+    };
+
+    public type StatisticsRetrievalResult = Result<StatisticsRecord, ApiError>;
+
+    // local for mAIner interacting with LLM
+    public type ChallengeResponse = {
+        challengeId : Text;
+        generationId : Text;
+        generationSeed : Nat32;
+        generatedTimestamp : Nat64;
+        generatedByLlmId : Text;
+        generationPrompt : Text;
+        generatedResponseText : Text;
+    };
+
+    public type ChallengeResponseResult = Result<ChallengeResponse, ApiError>;
+
     // Judge
     public type ScoredResponseInput = ChallengeResponseSubmission and {
         judgedBy: Principal;
@@ -376,6 +422,8 @@ module Types {
         addChallenge : (NewChallengeInput) -> async ChallengeAdditionResult;
         getNextSubmissionToJudge : () -> async ChallengeResponseSubmissionResult;
         addScoredResponse : (ScoredResponseInput) -> async ScoredResponseResult;
+        submitChallengeResponse : (ChallengeResponseSubmissionInput) -> async ChallengeResponseSubmissionMetadataResult;
+        getRandomOpenChallenge : () -> async ChallengeResult;
     };
 
     public type MainerCreator_Actor = actor {
@@ -390,6 +438,12 @@ module Types {
         run_update : (InputRecord) -> async OutputRecordResult;
         remove_prompt_cache : (InputRecord) -> async OutputRecordResult;
         copy_prompt_cache : (CopyPromptCacheInputRecord) -> async StatusCodeRecordResult;
+    };
+
+    // mAIner ShareAgent canister
+    public type MainerCanister_Actor = actor {
+        addChallengeToShareServiceQueue : (ChallengeQueueInput) -> async ChallengeQueueInputResult;
+        addChallengeResponseToShareAgent : (ChallengeResponseSubmissionInput) -> async StatusCodeRecordResult;
     };
 
     // IC Management Canister types
