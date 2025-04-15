@@ -186,6 +186,34 @@ module Types {
 
     public type ChallengesResult = Result<[Challenge], ApiError>;
 
+    public type GeneratedChallenge = {
+        generationId : Text;
+        generationSeed : Nat32;
+        generatedTimestamp : Nat64;
+        generatedByLlmId : Text;
+        generationPrompt : Text;
+        generatedChallengeText : Text;
+    };
+
+    public type GeneratedChallengeResult = Result<GeneratedChallenge, ApiError>;
+    public type GeneratedChallengesResult = Result<[GeneratedChallenge], ApiError>;
+
+    public type InputRecord = {
+        args : [Text]; // the CLI args of llama.cpp/examples/main, as a list of strings
+    };
+
+    public type OutputRecordResult = Result<OutputRecord, ApiError>;
+    public type OutputRecord = {
+        status_code : Nat16;
+        output : Text;
+        conversation : Text;
+        error : Text;
+        prompt_remaining : Text;
+        generated_eog : Bool;
+    };
+
+    public type CanisterIDRecordResult = Result<CanisterIDRecord, ApiError>;
+
     // mAIner
     public type ChallengeQueueInput = Challenge and {
         challengeQueuedId : Text;
@@ -321,8 +349,22 @@ module Types {
 
     //-------------------------------------------------------------------------
 // Canister Actors
+    public type GameStateCanister_Actor = actor {
+        getRandomOpenChallengeTopic : () -> async ChallengeTopicResult;
+        addChallenge : (NewChallengeInput) -> async ChallengeAdditionResult;
+    };
+
     public type MainerCreator_Actor = actor {
         createCanister: shared CanisterCreationConfiguration -> async CanisterCreationResult;
+    };
+
+    public type LLMCanister = actor {
+        health : () -> async StatusCodeRecordResult;
+        ready : () -> async StatusCodeRecordResult;
+        check_access : () -> async StatusCodeRecordResult;
+        new_chat : (InputRecord) -> async OutputRecordResult;
+        run_update : (InputRecord) -> async OutputRecordResult;
+        remove_prompt_cache : (InputRecord) -> async OutputRecordResult;
     };
 
     // IC Management Canister types
