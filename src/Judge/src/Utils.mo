@@ -10,8 +10,6 @@ import Blob "mo:base/Blob";
 import Array "mo:base/Array";
 import HashMap "mo:base/HashMap";
 
-import Types "Types";
-
 module {
     type Result<Ok, Err> = Result.Result<Ok, Err>;
 
