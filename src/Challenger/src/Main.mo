@@ -1,4 +1,3 @@
-import Array "mo:base/Array";
 import Buffer "mo:base/Buffer";
 import D "mo:base/Debug";
 import Error "mo:base/Error";
@@ -8,7 +7,6 @@ import Nat "mo:base/Nat";
 import Nat32 "mo:base/Nat32";
 import Nat64 "mo:base/Nat64";
 import Bool "mo:base/Bool";
-// import HashMap "mo:base/HashMap";
 import List "mo:base/List";
 import Int "mo:base/Int";
 import Float "mo:base/Float";
@@ -21,6 +19,47 @@ import Types "../../common/Types";
 import Utils "Utils";
 
 actor class ChallengerCtrlbCanister() {
+
+    public shared query (msg) func whoami() : async Principal {
+        return msg.caller;
+    };
+
+    // Function to verify that canister is up & running
+    public shared query func health() : async Types.StatusCodeRecordResult {
+        return #Ok({ status_code = 200 });
+    };
+
+    // Function to verify that canister is ready for inference
+    public shared (msg) func ready() : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        for (llmCanister in llmCanisters.vals()) {
+            try {
+                let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.ready();
+                switch (statusCodeRecordResult) {
+                    case (#Err(_)) { return statusCodeRecordResult };
+                    case (_) {
+                        // If it's not an error, do nothing and continue the loop
+                    };
+                };
+            } catch (_) {
+                // Handle errors, such as llm canister not responding
+                return #Err(#Other("Failed to call ready endpoint of llm canister = " # Principal.toText(Principal.fromActor(llmCanister))));
+            };
+        };
+        return #Ok({ status_code = 200 });
+    };
+
+    // Admin function to verify that caller is a controller of this canister
+    public shared query (msg) func amiController() : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        return #Ok({ status_code = 200 });
+    };
+
+    // Orthogonal Persisted Data storage
 
     stable var GAME_STATE_CANISTER_ID : Text = "b77ix-eeaaa-aaaaa-qaada-cai"; // local dev: "b77ix-eeaaa-aaaaa-qaada-cai";
     
@@ -42,8 +81,6 @@ actor class ChallengerCtrlbCanister() {
 
         return GAME_STATE_CANISTER_ID;
     };
-
-    // Orthogonal Persisted Data storage
 
     // timer ID, so we can stop it after starting
     stable var recurringTimerId : ?Timer.TimerId = null;
@@ -111,6 +148,7 @@ actor class ChallengerCtrlbCanister() {
         };
         _add_llm_canister_id(llmCanisterIdRecord);
     };
+
     private func _add_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : Types.StatusCodeRecordResult {
         let llmCanister = actor (llmCanisterIdRecord.canister_id) : Types.LLMCanister;
         D.print("Challenger: Inside function _add_llm_canister_id. Adding llm: " # Principal.toText(Principal.fromActor(llmCanister)));
@@ -124,45 +162,6 @@ actor class ChallengerCtrlbCanister() {
                 D.print("Challenger: Canister ID: " # Principal.toText(Principal.fromActor(canister)));
             },
         );
-        return #Ok({ status_code = 200 });
-    };
-
-    public shared query (msg) func whoami() : async Principal {
-        return msg.caller;
-    };
-
-    // Function to verify that canister is up & running
-    public shared query func health() : async Types.StatusCodeRecordResult {
-        return #Ok({ status_code = 200 });
-    };
-
-    // Function to verify that canister is ready for inference
-    public shared (msg) func ready() : async Types.StatusCodeRecordResult {
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-        for (llmCanister in llmCanisters.vals()) {
-            try {
-                let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.ready();
-                switch (statusCodeRecordResult) {
-                    case (#Err(_)) { return statusCodeRecordResult };
-                    case (_) {
-                        // If it's not an error, do nothing and continue the loop
-                    };
-                };
-            } catch (_) {
-                // Handle errors, such as llm canister not responding
-                return #Err(#Other("Failed to call ready endpoint of llm canister = " # Principal.toText(Principal.fromActor(llmCanister))));
-            };
-        };
-        return #Ok({ status_code = 200 });
-    };
-
-    // Admin function to verify that caller is a controller of this canister
-    public shared query (msg) func amiController() : async Types.StatusCodeRecordResult {
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
         return #Ok({ status_code = 200 });
     };
 
@@ -263,10 +262,10 @@ actor class ChallengerCtrlbCanister() {
                         print(debug_show (additionResult));
                         switch (additionResult) {
                             case (#Err(error)) {
-                                // TODO: error handling (e.g. put into queue and try again later)
+                                // TODO - Error Handling (e.g. put into queue and try again later)
                             };
                             case (#Ok(addedChallenge)) {
-                                // TODO: decide if returned challenge entry should be stored as well
+                                // TODO - Design: decide if returned challenge entry should be stored as well
                             };
                         };
                         return generatedChallengeOutput;
@@ -553,7 +552,7 @@ actor class ChallengerCtrlbCanister() {
 
     private func triggerRecurringAction() : async () {
         D.print("Challenger: Recurring action was triggered");
-        //ignore generateChallenge(); TODO
+        //ignore generateChallenge(); TODO - Testing
         let result = await generateChallenge();
         D.print("Challenger: Recurring action result");
         D.print(debug_show (result));
