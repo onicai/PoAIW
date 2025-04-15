@@ -7,11 +7,8 @@ import Cycles "mo:base/ExperimentalCycles";
 import HashMap "mo:base/HashMap";
 import Iter "mo:base/Iter";
 import D "mo:base/Debug";
-import Buffer "mo:base/Buffer";
 import Nat64 "mo:base/Nat64";
 import Nat "mo:base/Nat";
-import Hash "mo:base/Hash";
-import Time "mo:base/Time";
 import Error "mo:base/Error";
 
 import Types "../../common/Types";
@@ -29,6 +26,8 @@ actor class CanisterCreationCanister() = this {
         let authRecord = { auth = "You set the master canister for this canister." };
         return #Ok(authRecord);
     };
+
+    let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
 
     // -------------------------------------------------------------------------------
     // Canister Endpoints
@@ -52,8 +51,6 @@ actor class CanisterCreationCanister() = this {
         let authRecord = { auth = "You are a controller of this canister." };
         return #Ok(authRecord);
     };
-
-    let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
 
     // Admin function to upload mainer agent controller canister wasm
     private stable var mainerControllerCanisterWasm : [Nat8] = [];
@@ -275,7 +272,7 @@ actor class CanisterCreationCanister() = this {
             } catch (e) {
                 D.print("LLM file_upload_chunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
                 
-                // TODO: introduce a delay using a timer...
+                // TODO - Implementation: introduce a delay using a timer...
                 // Just retry immediately with decremented attempts
                 return await retryLlmChunkUploadWithDelay(llmCanisterActor, uploadChunk, attempts - 1, delay);
             };
@@ -304,11 +301,11 @@ actor class CanisterCreationCanister() = this {
         switch (configurationInput.canisterType) {
             case (#MainerAgent(_)) {
                 // Create mAIner controller canister for new mAIner agent
-                Cycles.add(1_000_000_000_000);  // 1T cycles (800B was the minimum required) TODO: adjust based on actual cycles user paid for during creation
+                Cycles.add(1_000_000_000_000);  // 1T cycles (800B was the minimum required) TODO - Implementation: adjust based on actual cycles user paid for during creation
 
                 let mainerAgentCanisterType = configurationInput.mainerConfig.mainerAgentCanisterType;
                 D.print("mAInerCreator: createCanister - mainerAgentCanisterType = " # debug_show (mainerAgentCanisterType));
-                var shareServiceCanisterAddress : Types.CanisterAddress = ""; // TODO: determine if this should be provided or whether Creator stores this info and fills it in here
+                var shareServiceCanisterAddress : Types.CanisterAddress = ""; // TODO - Design: determine if this should be provided or whether Creator stores this info and fills it in here
                 if (mainerAgentCanisterType == #ShareAgent) {
                     switch (configurationInput.associatedCanisterAddress) {
                         case (null) {
@@ -398,7 +395,7 @@ actor class CanisterCreationCanister() = this {
                 };
                 // This should not be needed as the Game State makes this call to the Creator and thus the returned response will be used to Register the mAIner Agent with the GameState canister
                 if (MASTER_CANISTER_ID != Principal.toText(msg.caller)) {
-                    // TODO: decide whether this block should be kept in production
+                    // TODO - Testing: decide whether this block should be kept in production
                     let gameStateCanisterActor = actor (MASTER_CANISTER_ID) : Types.GameStateCanister_Actor;
                     D.print("mAInerCreator: createCanister - calling gameStateCanisterActor.addMainerAgentCanister with mainerAgentCanisterInput = " # debug_show (mainerAgentCanisterInput));
                     let addMainerAgentCanisterResult = await gameStateCanisterActor.addMainerAgentCanister(mainerAgentCanisterInput);
@@ -465,7 +462,7 @@ actor class CanisterCreationCanister() = this {
                         switch (configurationInput.mainerConfig.selectedLLM) {
                             case (null) {
                                 // use default
-                                selectedModel := #Qwen2_5_500M; // TODO: retrieve default via function
+                                selectedModel := #Qwen2_5_500M; // TODO - Implementation: retrieve default via function
                             };
                             case (?selectedLLM) {
                                 selectedModel := selectedLLM;                                
@@ -478,7 +475,7 @@ actor class CanisterCreationCanister() = this {
                             case (?modelCreationArtefacts) {
                                 D.print("mAInerCreator: createCanister modelCreationArtefacts");
                                 // Create mAIner LLM (and add it to a mAIner controller)
-                                Cycles.add(3_000_000_000_000);  // 3T cycles  (TODO: what is the minimum?) adjust based on cycles user paid for (and are being sent from Game State)
+                                Cycles.add(3_000_000_000_000);  // 3T cycles  (TODO - Implementation: what is the minimum?) adjust based on cycles user paid for (and are being sent from Game State)
 
                                 let createdLlmCanister = await IC0.create_canister({
                                     sender_canister_version = null;
@@ -521,7 +518,7 @@ actor class CanisterCreationCanister() = this {
 
                                 // Make LLM functional
                                 // Upload model file
-                                // let chunkSize = 42000; // ~0.01 MB for testing
+                                // let chunkSize = 42000; // ~0.01 MB for testing TODO - Testing
                                 //var chunkSize : Nat = 9 * 1024 * 1024; // 9 MB
                                 var chunkSize : Nat = 0;
                                 var offset : Nat = 0;
@@ -545,7 +542,6 @@ actor class CanisterCreationCanister() = this {
                                         offset = Nat64.fromNat(offset);
                                     };
 
-                                    // var attempts : Nat = 0;
                                     var delay : Nat = 2_000_000_000; // 2 seconds
                                     let maxAttempts : Nat = 8;
                                     uploadModelFileResult := await retryLlmChunkUploadWithDelay(llmCanisterActor, uploadChunk, maxAttempts, delay);
@@ -605,7 +601,7 @@ actor class CanisterCreationCanister() = this {
                                 };
 
                                 // set max tokens
-                                // TODO: This is for the Qwen 2.5-0.5B model, need to make it dynamic
+                                // TODO - Implementation: This is for the Qwen 2.5-0.5B model, need to make it dynamic
                                 let MAX_TOKENS : Nat64 = 13;
                                 let maxTokensRecord : Types.MaxTokensRecord = {
                                     max_tokens_update : Nat64 = MAX_TOKENS;
@@ -638,7 +634,7 @@ actor class CanisterCreationCanister() = this {
                                         // all good, continue
                                     };
                                 };
-                                // Don't call this, so all the LLMs will be used by default in a round robbin fashion
+                                // TODO - Testing: Don't call this, so all the LLMs will be used by default in a round robbin fashion
                                 // let roundRobinSetting : Nat = 1;
                                 // let setControllerRoundRobinResult = await associatedControllerCanisterActor.setRoundRobinLLMs(roundRobinSetting);
                                 // D.print("mAInerCreator: createCanister setControllerRoundRobinResult");
