@@ -18,9 +18,9 @@ import Error "mo:base/Error";
 import Blob "mo:base/Blob";
 
 import Types "../../common/Types";
-import ICManagementCanister "./ICManagementCanister";
+import ICManagementCanister "../../common/ICManagementCanister";
+import TokenLedger "../../common/icp-ledger-interface";
 import Utils "Utils";
-import TokenLedger "./icp-ledger-interface";
 
 actor class GameStateCanister() = this {
 
@@ -197,6 +197,7 @@ actor class GameStateCanister() = this {
     };
 
     // Game Settings
+    // TODO - Design: determine settings to use
     stable var THRESHOLD_ARCHIVE_CLOSED_CHALLENGES : Nat = 30;
     stable var THRESHOLD_MAX_OPEN_CHALLENGES : Nat = 2; // When above, Challengers will not be given a topic able to generate new challenges
     stable var THRESHOLD_MAX_OPEN_SUBMISSIONS : Nat = 5; // When above, mAIner agents will not be given a challenge to generate new responses
@@ -795,8 +796,8 @@ actor class GameStateCanister() = this {
         return #Ok(scoredChallengesArray.size());
     };
 
-    // TODO: determine exact reward
-        // TODO: define details of sponsored challenges and then add reward per challenge
+    // TODO - Design: determine exact reward
+        // TODO - Design: define details of sponsored challenges and then add reward per challenge
     stable var DEFAULT_REWARD_PER_CHALLENGE = {
         rewardType : Types.RewardType = #MainerToken;
         totalAmount : Nat = 100;
@@ -807,7 +808,7 @@ actor class GameStateCanister() = this {
     };
 
     private func getRewardAmountForResult(achievedResult : Types.ChallengeParticipationResult, totalNumberParticipants : Nat) : Nat { 
-        // TODO: is this safe? i.e. what could happen with rounding errors?
+        // TODO - Implementation: is this safe? i.e. what could happen with rounding errors?
         let participationReward = DEFAULT_REWARD_PER_CHALLENGE.amountForAllParticipants / totalNumberParticipants; 
         switch (achievedResult) {
             case (#Winner) { return DEFAULT_REWARD_PER_CHALLENGE.winnerAmount + participationReward; };
@@ -942,23 +943,11 @@ actor class GameStateCanister() = this {
     };
     
 
-    // TODO: settings
+    // TODO - Implementation: settings
     
 
     // -------------------------------------------------------------------------------
     // Canister Endpoints
-
-    /* public shared (msg) func whoami() : async Principal {
-        return msg.caller;
-    };
-
-    public shared (msg) func amiController() : async Types.AuthRecordResult {
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        let authRecord = { auth = "You are a controller of this canister." };
-        return #Ok(authRecord);
-    }; */
 
     public shared (msg) func setInitialChallengeTopics() : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -1066,7 +1055,9 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        // TODO: require cycles for adding new challenge
+
+        // TODO - Implementation: require cycles for adding new challenge
+
         ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_CHALLENGE_CREATION);
 
         // Only official Challenger canisters may call this
@@ -1198,7 +1189,7 @@ actor class GameStateCanister() = this {
             case (_) { return #Err(#Other("Unsupported")); }
         };
 
-        // TODO: verify user's payment for this agent via mainerCreationInput.paymentTransactionBlockId https://github.com/bob-robert-ai/bob/blob/3c1d19c4f8ce7de5c74654855e7be44117973d19/minter-v2/src/main.rs#L134
+        // TODO - Implementation: verify user's payment for this agent via mainerCreationInput.paymentTransactionBlockId https://github.com/bob-robert-ai/bob/blob/3c1d19c4f8ce7de5c74654855e7be44117973d19/minter-v2/src/main.rs#L134
         let transactionToVerify = mainerCreationInput.paymentTransactionBlockId;
 
         let canisterEntry : Types.OfficialMainerAgentCanister = {
@@ -1312,7 +1303,7 @@ actor class GameStateCanister() = this {
                                     associatedCanisterAddress : ?Types.CanisterAddress = null;
                                     mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                 };
-                                // TODO: charge with cycles (the user paid for)
+                                // TODO - Implementation: charge with cycles (the user paid for)
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
                                 switch (result) {
                                     case (#Ok(canisterCreationRecord)) {
@@ -1430,11 +1421,11 @@ actor class GameStateCanister() = this {
                                     associatedCanisterAddress : ?Types.CanisterAddress = ?userMainerEntry.address; // Controller address
                                     mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                 };
-                                // TODO: charge with cycles (the user paid for)
+                                // TODO - Implementation: charge with cycles (the user paid for)
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
                                 switch (result) {
                                     case (#Ok(canisterCreationRecord)) {
-                                        //TODO: decide what to do with canisterCreationRecord.newCanisterId; of new LLM canister, e.g. attach to OfficialMainerAgentCanister type and entry
+                                        //TODO - Design: decide what to do with canisterCreationRecord.newCanisterId; of new LLM canister, e.g. attach to OfficialMainerAgentCanister type and entry
                                         let canisterEntry : Types.OfficialMainerAgentCanister = {
                                             address : Text = userMainerEntry.address; // Controller 
                                             canisterType: Types.ProtocolCanisterType = userMainerEntry.canisterType;
@@ -1535,11 +1526,11 @@ actor class GameStateCanister() = this {
                                     associatedCanisterAddress : ?Types.CanisterAddress = ?userMainerEntry.address; // Controller address
                                     mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                 };
-                                // TODO: charge with cycles (the user paid for)
+                                // TODO - Implementation: charge with cycles (the user paid for)
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
                                 switch (result) {
                                     case (#Ok(canisterCreationRecord)) {
-                                        //TODO: decide what to do with canisterCreationRecord.newCanisterId; of new LLM canister, e.g. attach to OfficialMainerAgentCanister type and entry
+                                        //TODO - Design: decide what to do with canisterCreationRecord.newCanisterId; of new LLM canister, e.g. attach to OfficialMainerAgentCanister type and entry
                                         /* let canisterEntry : Types.OfficialMainerAgentCanister = {
                                             address : Text = userMainerEntry.address; // Controller 
                                             canisterType: Types.ProtocolCanisterType = userMainerEntry.canisterType;
@@ -1593,7 +1584,7 @@ actor class GameStateCanister() = this {
         };
     };
 
-    // TODO: remove; admin Function to add new mAIner agent for testing
+    // TODO - Testing: remove; admin Function to add new mAIner agent for testing
     public shared (msg) func addMainerAgentCanisterAdmin(canisterEntryToAdd : Types.MainerAgentCanisterInput) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -1621,14 +1612,14 @@ actor class GameStateCanister() = this {
 
     // Function for user to get their mAIner agent canisters
     public shared query (msg) func getMainerAgentCanistersForUser() : async Types.MainerAgentCanistersResult {
-        // TODO: only for demo: allow open access
+        // TODO - Testing: only for demo: allow open access
         return #Ok(getMainerAgents()); 
         
-        // TODO: put access checks into place again 
+        // TODO - Testing: put access checks into place again 
         /* if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        // Only official Challenger canisters may call this
+
         switch (getUserMainerAgents(msg.caller)) {
             case (null) { return #Err(#Other("No canisters for this caller")); };
             case (?userCanistersList) {
@@ -1642,7 +1633,7 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        // Only official Challenger canisters may call this
+
         switch (getMainerAgentCanister(canisterEntryToRetrieve.address)) {
             case (null) { return #Err(#Unauthorized); };
             case (?mainerAgentEntry) {
@@ -1698,7 +1689,7 @@ actor class GameStateCanister() = this {
             D.print("GameState: submitChallengeResponse - cycles required : " # debug_show(SUBMISSION_CYCLES_REQUIRED));
             return #Err(#InsuffientCycles(SUBMISSION_CYCLES_REQUIRED));                    
         };
-        // TODO: adapt cycles burnt stats
+        // TODO - Implementation: adapt cycles burnt stats
         ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
         // Only official mAIner agent canisters may call this
         switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
@@ -1736,7 +1727,7 @@ actor class GameStateCanister() = this {
                         case (null) {
                             let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
                             D.print("GameState: submitChallengeResponse - agentCanisterInfo with null as module hash: " # debug_show(agentCanisterInfo)); 
-                            // TODO: further measurements?
+                            // TODO - Design: further measurements?
                             return #Err(#Unauthorized);
                         };
                         case (?agentModuleHash) {
@@ -1746,7 +1737,7 @@ actor class GameStateCanister() = this {
                             } else {
                                 let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
                                 D.print("GameState: submitChallengeResponse - agentCanisterInfo didn't pass verification: " # debug_show(agentCanisterInfo)); 
-                                // TODO: further measurements?
+                                // TODO - Design: further measurements?
                                 return #Err(#Unauthorized);
                             };
                         };
@@ -1919,13 +1910,13 @@ actor class GameStateCanister() = this {
                 };
                 case (#Err(err)) {
                     D.print("GameState: finalizeOpenChallenge - Transfer error: " # debug_show(err));
-                    // TODO: error handling (e.g. put into queue and try again later)
+                    // TODO - Error Handling (e.g. put into queue and try again later)
                     return false;
                 };
             };
         } catch (e) {
             D.print("GameState: finalizeOpenChallenge - Failed to call ledger: " # Error.message(e));
-            // TODO: error handling (e.g. put into queue and try again later)
+            // TTODO - Error Handling (e.g. put into queue and try again later)
             return false;
         };
     };
@@ -1949,8 +1940,7 @@ actor class GameStateCanister() = this {
                 reward : ChallengeWinnerReward;
             };
         */
-        // TODO: send reward to mAIner canister or to owner? Send to mAIner for now, this will allow simplified statistics on rewards per mAIner (frontend then aggregates balances into a total)
-
+        // Send rewards to mAIners
         // Reward winner
         ignore mintRewardOnTokenLedger(challengeWinnerDeclaration.winner);
 
@@ -1974,7 +1964,7 @@ actor class GameStateCanister() = this {
         // Close the challenge
         switch (closeChallenge(challengeId)) {
             case (false) {
-                // TODO: error handling (e.g. put into queue and try ranking again later)
+                // TODO - Error Handling (e.g. put into queue and try ranking again later)
                 return false;
             };
             case (true) {
@@ -1982,7 +1972,7 @@ actor class GameStateCanister() = this {
                 let rankResult : ?Types.ChallengeWinnerDeclaration = rankScoredResponsesForChallenge(challengeId);
                 switch (rankResult) {
                     case (null) {
-                        // TODO: error handling (e.g. put into queue and try ranking again later)
+                        // TODO - Error Handling (e.g. put into queue and try ranking again later)
                         return false;
                     };
                     case (?challengeWinnerDeclaration) {
@@ -1990,7 +1980,7 @@ actor class GameStateCanister() = this {
                         // Distribute reward to winners and participants
                         switch (await distributeRewardForChallenge(challengeWinnerDeclaration)) {
                             case (false) {
-                                // TODO: error handling (e.g. put into queue and try ranking again later)
+                                // TODO - Error Handling (e.g. put into queue and try ranking again later)
                                 return false;
                             };
                             case (true) {
@@ -2009,7 +1999,7 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        // TODO: adapt cycles burnt stats
+        // TODO - Implementation: adapt cycles burnt stats
         ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_JUDGE_SCORING);
         // Only official Judge canisters may call this
         switch (getJudgeCanister(Principal.toText(msg.caller))) {
@@ -2023,16 +2013,16 @@ actor class GameStateCanister() = this {
                     D.print("GameState: addScoredResponse - 02");
                     return #Err(#Unauthorized);
                 };
-                // TODO: likely we want to store the submissions from the mAIners and check here that it was an actual submission and that the data matches up
+                // TODO - Design: likely we want to store the submissions from the mAIners and check here that it was an actual submission and that the data matches up
 
                 // Verify that challenge is open
                 if (not verifyChallenge(#Open, scoredResponseInput.challengeId)) {
-                    // TODO: likely we want to store the scored response nevertheless for the closed challenge
+                    // TODO - Design: likely we want to store the scored response nevertheless for the closed challenge
                     D.print("GameState: addScoredResponse - 03");
                     return #Err(#InvalidId);
                 };
 
-                // TODO: do we really need a separate storage for submissions & scored submissions?
+                // TODO - Design: do we really need a separate storage for submissions & scored submissions?
                 // Change submissionStatus of the submission in submissionsStorage to #Judged
                 let submissionId : Text = scoredResponseInput.submissionId;
                 let submission : Types.ChallengeResponseSubmission = {
@@ -2103,7 +2093,7 @@ actor class GameStateCanister() = this {
 
                 // Determine if ranking of scored responses can be triggered
                 if (numberOfScoredResponsesForChallenge >= THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE) {
-                    // TODO: we should close the challenge for handing out to mAIners, but we need to:
+                    // TODO - Design: we should close the challenge for handing out to mAIners, but we need to:
                     //       (-) accept mAIner submissions that have already received this challenge
                     //       (-) score those submissions
                     //       FOR NOW - JUST CLOSE IT AND RANK IT...
@@ -2111,7 +2101,7 @@ actor class GameStateCanister() = this {
                     D.print("GameState: addScoredResponse - reached threshold & closing the challenge: " # debug_show(scoredResponseInput.challengeQuestion));
                     switch (await finalizeOpenChallenge(scoredResponseInput.challengeId)) {
                         case (false) {
-                            // TODO: error handling (e.g. put into queue and try again later)
+                            // TODO - Error Handling: error handling (e.g. put into queue and try again later)
                         };
                         case (true) {
                             // continue
@@ -2136,7 +2126,7 @@ actor class GameStateCanister() = this {
         return #Ok(getWinnersForRecentChallenges());
     };
 
-    // Function to get recent protocol activity (TODO: decide if access should remain public)
+    // Function to get recent protocol activity (TODO - Security: decide if access should remain public)
     public query func getRecentProtocolActivity() : async Types.ProtocolActivityResult {
         let winnersForRecentChallenges : [Types.ChallengeWinnerDeclaration] = getWinnersForRecentChallenges();
         let openChallenges : [Types.Challenge] = getOpenChallenges();
@@ -2149,7 +2139,7 @@ actor class GameStateCanister() = this {
 
     // Function for user to get the score of a submission by one of their mAIners
     public query (msg) func getScoreForSubmission(submissionInput : Types.SubmissionRetrievalInput) : async Types.ScoredResponseRetrievalResult {
-        // TODO: put access checks in place
+        // TODO - Security: put access checks in place
         /* if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         }; */
@@ -2160,7 +2150,7 @@ actor class GameStateCanister() = this {
                 return #Err(#InvalidId);
             };
             case (?scoredResponse) {
-                // TODO: decide if only owner of mAIner should be allowed to retrieve this
+                // TODO - Security: decide if only owner of mAIner should be allowed to retrieve this
                 return #Ok(scoredResponse);
             };
         };
@@ -2170,7 +2160,7 @@ actor class GameStateCanister() = this {
         return #Ok(TOTAL_PROTOCOL_CYCLES_BURNT);
     };
 
-// Mockup functions
+// Mockup functions (TODO - Testing: remove)
     // Function for frontend integration testing that returns mockup data
     public query (msg) func getScoreForSubmission_mockup(submissionInput : Types.SubmissionRetrievalInput) : async Types.ScoredResponseRetrievalResult {
         switch (getOpenChallenge(submissionInput.challengeId)) {
@@ -2362,7 +2352,7 @@ actor class GameStateCanister() = this {
         };
     };
 
-// Upgrade Hooks
+// Upgrade Hooks (TODO - Implementation: upgrade Motoko to use enhanced orthogonal persistence)
     system func preupgrade() {
         challengerCanistersStorageStable := Iter.toArray(challengerCanistersStorage.entries());
         judgeCanistersStorageStable := Iter.toArray(judgeCanistersStorage.entries());

@@ -15,6 +15,7 @@ import Time "mo:base/Time";
 import Error "mo:base/Error";
 
 import Types "../../common/Types";
+import ICManagementCanister "../../common/ICManagementCanister";
 
 actor class CanisterCreationCanister() = this {
 
@@ -52,7 +53,7 @@ actor class CanisterCreationCanister() = this {
         return #Ok(authRecord);
     };
 
-    let IC0 : Types.IC_Management = actor ("aaaaa-aa");
+    let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
 
     // Admin function to upload mainer agent controller canister wasm
     private stable var mainerControllerCanisterWasm : [Nat8] = [];
@@ -323,11 +324,15 @@ actor class CanisterCreationCanister() = this {
                 };
 
                 let createdControllerCanister = await IC0.create_canister({
+                    sender_canister_version = null;
                     settings = ?{
                         freezing_threshold = null;
                         controllers = ?[Principal.fromActor(this), configurationInput.owner];
                         memory_allocation = null;
                         compute_allocation = null;
+                        log_visibility = null;
+                        reserved_cycles_limit = null;
+                        wasm_memory_limit  = null;
                     };
                 });
 
@@ -338,6 +343,7 @@ actor class CanisterCreationCanister() = this {
                     wasm_module = Blob.fromArray(mainerControllerCanisterWasm);
                     mode = #install;
                     canister_id = createdControllerCanister.canister_id;
+                    sender_canister_version = null;
                 });
                 D.print("mAInerCreator: createCanister - installControllerWasm "# debug_show (installControllerWasm));
 
@@ -475,11 +481,15 @@ actor class CanisterCreationCanister() = this {
                                 Cycles.add(3_000_000_000_000);  // 3T cycles  (TODO: what is the minimum?) adjust based on cycles user paid for (and are being sent from Game State)
 
                                 let createdLlmCanister = await IC0.create_canister({
+                                    sender_canister_version = null;
                                     settings = ?{
                                         freezing_threshold = null;
                                         controllers = ?[Principal.fromText(associatedCanisterAddress), Principal.fromActor(this), configurationInput.owner];
                                         memory_allocation = null;
                                         compute_allocation = null;
+                                        log_visibility = null;
+                                        reserved_cycles_limit = null;
+                                        wasm_memory_limit  = null;
                                     };
                                 });
                                 D.print("mAInerCreator: createCanister createdLlmCanister");
@@ -490,6 +500,7 @@ actor class CanisterCreationCanister() = this {
                                     wasm_module = Blob.fromArray(modelCreationArtefacts.canisterWasm);
                                     mode = #install;
                                     canister_id = createdLlmCanister.canister_id;
+                                    sender_canister_version = null;
                                 });
                                 D.print("mAInerCreator: createCanister installLlmWasm");
                                 D.print(debug_show (installLlmWasm));
