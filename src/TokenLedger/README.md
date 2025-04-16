@@ -119,7 +119,7 @@ dfx canister call funnAI_ledger_canister is_ledger_ready --network development
 dfx canister call funnAI_ledger_canister icrc1_minting_account --network development
 dfx canister call funnAI_ledger_canister icrc1_total_supply --network development
 
-Checks on Game State:
+TODO (once Game State has token ledger code) Checks on Game State:
 dfx canister call game_state_canister --network development setTokenLedgerCanisterId '("4uuff-dyaaa-aaaaj-qnoeq-cai")'
  
 dfx canister call game_state_canister --network development testTokenMintingAdmin 
