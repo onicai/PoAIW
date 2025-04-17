@@ -1300,7 +1300,7 @@ actor class GameStateCanister() = this {
                                 let canisterCreationInput : Types.CanisterCreationConfiguration = {
                                     canisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType;
                                     owner: Principal = userMainerEntry.ownedBy; // User
-                                    associatedCanisterAddress : ?Types.CanisterAddress = null;
+                                    associatedCanisterAddress : ?Types.CanisterAddress = null; // TODO - Design: if ShareAgent determine if the shareServiceCanisterAddress should be provided or whether Creator stores this info and fills it in
                                     mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                 };
                                 // TODO - Implementation: charge with cycles (the user paid for)
