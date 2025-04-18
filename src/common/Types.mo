@@ -124,9 +124,8 @@ module Types {
 
     public type CanisterCreationConfigurationInput = {
         canisterType : ProtocolCanisterType;
-        selectedModel : ?SelectableMainerLLMs;
         associatedCanisterAddress : ?CanisterAddress;
-        mainerAgentCanisterType: MainerAgentCanisterType;
+        mainerConfig : MainerConfigurationInput;
     };
 
     public type CanisterCreationConfiguration = CanisterCreationConfigurationInput and {
@@ -141,7 +140,7 @@ module Types {
     public type CanisterCreationResult = Result<CanisterCreationRecord, ApiError>;
 
     //-------------------------------------------------------------------------
-    // Challenger
+// Challenger
     public type ChallengeTopicStatus = {
         #Open;
         #Closed;
@@ -186,7 +185,35 @@ module Types {
 
     public type ChallengesResult = Result<[Challenge], ApiError>;
 
-    // mAIner
+    public type GeneratedChallenge = {
+        generationId : Text;
+        generationSeed : Nat32;
+        generatedTimestamp : Nat64;
+        generatedByLlmId : Text;
+        generationPrompt : Text;
+        generatedChallengeText : Text;
+    };
+
+    public type GeneratedChallengeResult = Result<GeneratedChallenge, ApiError>;
+    public type GeneratedChallengesResult = Result<[GeneratedChallenge], ApiError>;
+
+    public type InputRecord = {
+        args : [Text]; // the CLI args of llama.cpp/examples/main, as a list of strings
+    };
+
+    public type OutputRecordResult = Result<OutputRecord, ApiError>;
+    public type OutputRecord = {
+        status_code : Nat16;
+        output : Text;
+        conversation : Text;
+        error : Text;
+        prompt_remaining : Text;
+        generated_eog : Bool;
+    };
+
+    public type CanisterIDRecordResult = Result<CanisterIDRecord, ApiError>;
+
+// mAIner
     public type ChallengeQueueInput = Challenge and {
         challengeQueuedId : Text;
         challengeQueuedBy : Principal;
@@ -224,7 +251,53 @@ module Types {
     public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmission, ApiError>;
     public type ChallengeResponseSubmissionsResult = Result<[ChallengeResponseSubmission], ApiError>;
 
-    // Judge
+    // Agent Settings
+    public type TimeInterval = {
+        #Daily;
+    };
+
+    public type CyclesBurnRate = {
+        cycles : Nat;
+        timeInterval : TimeInterval;
+    };
+
+    public type MainerAgentSettingsInput = {
+        cyclesBurnRate : CyclesBurnRate;
+    };
+
+    public type MainerAgentSettings = MainerAgentSettingsInput and {
+        creationTimestamp : Nat64;
+        createdBy : Principal;
+    };
+
+    public type IssueFlagsRecord = {
+        lowCycleBalance : Bool;
+    };
+
+    public type IssueFlagsRetrievalResult = Result<IssueFlagsRecord, ApiError>;
+
+    public type StatisticsRecord = {
+        totalCyclesBurnt : Nat;
+        cycleBalance : Nat;
+        cyclesBurnRate : CyclesBurnRate;
+    };
+
+    public type StatisticsRetrievalResult = Result<StatisticsRecord, ApiError>;
+
+    // local for mAIner interacting with LLM
+    public type ChallengeResponse = {
+        challengeId : Text;
+        generationId : Text;
+        generationSeed : Nat32;
+        generatedTimestamp : Nat64;
+        generatedByLlmId : Text;
+        generationPrompt : Text;
+        generatedResponseText : Text;
+    };
+
+    public type ChallengeResponseResult = Result<ChallengeResponse, ApiError>;
+
+// Judge
     public type ScoredResponseInput = ChallengeResponseSubmission and {
         judgedBy: Principal;
         score: Nat;
@@ -249,6 +322,77 @@ module Types {
     };
 
     public type ScoredResponseRetrievalResult = Result<ScoredResponse, ApiError>;
+
+    // local for Judge interacting with LLM
+    public type JudgeScore = {
+        generationId : Text;
+        generationSeed : Nat32;
+        generatedTimestamp : Nat64;
+        generatedByLlmId : Text;
+        generationPrompt : Text;
+        generatedScoreText : Text;
+        generatedScore : Nat;
+    };
+
+    public type ScoredResponseByJudge = ScoredResponse and {
+        judgeScoreRecord : JudgeScore;
+    };
+
+    public type JudgeChallengeResponseResult = Result<JudgeScore, ApiError>;
+
+    public type CopyPromptCacheInputRecord = {
+        from : Text;
+        to : Text;
+    };
+
+// mAIner Creator
+    public type InsertArtefactsResult = Result<ModelCreationArtefacts, ApiError>;
+
+    // data needed to create a new canister with the model
+    public type ModelCreationArtefacts = {
+        canisterWasm : [Nat8];
+        modelFile : [Blob];
+        modelFileSha256 : Text;
+    };
+
+    public type FileUploadInputRecord = {
+        filename : Text;
+        chunk : [Nat8]; // the chunk being uploaded, as a vec of bytes
+        chunksize : Nat64; // the chunksize (allowing sanity check)
+        offset : Nat64; // the offset where to write the chunk
+    };
+
+    public type FileUploadRecordResult = Result<FileUploadRecord, ApiError>;
+    
+    public type FileUploadRecord = {
+        filename : Text; // the total filesize in bytes
+        filesize : Nat64; // the total filesize in bytes after writing chunk at offset
+        filesha256 : Text; // the total filesize in bytes after writing chunk at offset
+    };
+
+    public type UploadResult = {
+        creationResult : Text;
+    };
+
+    public type FileUploadResult = Result<UploadResult, ApiError>;
+
+    public type MaxTokensRecord = {
+        max_tokens_update : Nat64;
+        max_tokens_query : Nat64;
+    };
+
+    public type MainerAgentCtrlbCanister = actor {
+        add_llm_canister: (CanisterIDRecord) -> async StatusCodeRecordResult;
+        health: query () -> async StatusCodeRecordResult;
+        setGameStateCanisterId: (Text) -> async StatusCodeRecordResult;
+        setRoundRobinLLMs: (Nat) -> async StatusCodeRecordResult;
+        set_llm_canister_id: (CanisterIDRecord) -> async StatusCodeRecordResult;
+        setMainerCanisterType: (MainerAgentCanisterType) -> async StatusCodeRecordResult;
+        getMainerCanisterType: () -> async MainerAgentCanisterTypeResult;
+        setShareServiceCanisterId: (Text) -> async StatusCodeRecordResult;
+        addMainerShareAgentCanister: (MainerAgentCanisterInput) -> async MainerAgentCanisterResult;
+        startTimerExecutionAdmin: () -> async AuthRecordResult;
+    };
 
     //-------------------------------------------------------------------------
     public type ChallengeWinnerDeclaration = {
@@ -305,11 +449,6 @@ module Types {
     public type CyclesBurntResult = Result<Nat, ApiError>;
 
     //-------------------------------------------------------------------------
-    public type FileUploadRecord = {
-        creationResult : Text;
-    };
-
-    public type FileUploadResult = Result<FileUploadRecord, ApiError>;
 
     public type StatusCode = Nat16;
 
@@ -321,62 +460,38 @@ module Types {
 
     //-------------------------------------------------------------------------
 // Canister Actors
+    public type GameStateCanister_Actor = actor {
+        getRandomOpenChallengeTopic : () -> async ChallengeTopicResult;
+        addChallenge : (NewChallengeInput) -> async ChallengeAdditionResult;
+        getNextSubmissionToJudge : () -> async ChallengeResponseSubmissionResult;
+        addScoredResponse : (ScoredResponseInput) -> async ScoredResponseResult;
+        submitChallengeResponse : (ChallengeResponseSubmissionInput) -> async ChallengeResponseSubmissionMetadataResult;
+        getRandomOpenChallenge : () -> async ChallengeResult;
+        addMainerAgentCanister : (MainerAgentCanisterInput) -> async MainerAgentCanisterResult;
+    };
+
     public type MainerCreator_Actor = actor {
         createCanister: shared CanisterCreationConfiguration -> async CanisterCreationResult;
     };
 
-    // IC Management Canister types
-    public type canister_id = Principal;
-    public type canister_settings = {
-        controllers : ?[Principal];
-        freezing_threshold : ?Nat;
-        memory_allocation : ?Nat;
-        compute_allocation : ?Nat;
-    };
-    public type definite_canister_settings = {
-        controllers : ?[Principal];
-        freezing_threshold : Nat;
-        memory_allocation : Nat;
-        compute_allocation : Nat;
-    };
-    public type user_id = Principal;
-    public type wasm_module = Blob;
-    public type canister_status_response = {
-        status : { #stopped; #stopping; #running };
-        memory_size : Nat;
-        cycles : Nat;
-        settings : definite_canister_settings;
-        module_hash : ?Blob;
+    public type LLMCanister = actor {
+        health : () -> async StatusCodeRecordResult;
+        ready : () -> async StatusCodeRecordResult;
+        check_access : () -> async StatusCodeRecordResult;
+        new_chat : (InputRecord) -> async OutputRecordResult;
+        run_update : (InputRecord) -> async OutputRecordResult;
+        remove_prompt_cache : (InputRecord) -> async OutputRecordResult;
+        copy_prompt_cache : (CopyPromptCacheInputRecord) -> async StatusCodeRecordResult;
+        load_model : (InputRecord) -> async OutputRecordResult;
+        set_max_tokens : (MaxTokensRecord) -> async StatusCodeRecordResult;
+        file_upload_chunk : (FileUploadInputRecord) -> async FileUploadRecordResult;
+        log_pause : () -> async StatusCodeRecordResult;
+        log_resume : () -> async StatusCodeRecordResult;
     };
 
-    public type IC_Management = actor {
-        canister_status : shared query { canister_id : canister_id } -> async canister_status_response;
-        create_canister : shared { settings : ?canister_settings } -> async {
-            canister_id : canister_id;
-        };
-        delete_canister : shared { canister_id : canister_id } -> async ();
-        deposit_cycles : shared { canister_id : canister_id } -> async ();
-        install_code : shared {
-            arg : Blob;
-            wasm_module : wasm_module;
-            mode : { #reinstall; #upgrade; #install };
-            canister_id : canister_id;
-        } -> async ();
-        provisional_create_canister_with_cycles : shared {
-            settings : ?canister_settings;
-            amount : ?Nat;
-        } -> async { canister_id : canister_id };
-        provisional_top_up_canister : shared {
-            canister_id : canister_id;
-            amount : Nat;
-        } -> async ();
-        raw_rand : shared () -> async Blob;
-        start_canister : shared { canister_id : canister_id } -> async ();
-        stop_canister : shared { canister_id : canister_id } -> async ();
-        uninstall_code : shared { canister_id : canister_id } -> async ();
-        update_settings : shared {
-            canister_id : Principal;
-            settings : canister_settings;
-        } -> async ();
+    // mAIner ShareAgent canister
+    public type MainerCanister_Actor = actor {
+        addChallengeToShareServiceQueue : (ChallengeQueueInput) -> async ChallengeQueueInputResult;
+        addChallengeResponseToShareAgent : (ChallengeResponseSubmissionInput) -> async StatusCodeRecordResult;
     };
 };

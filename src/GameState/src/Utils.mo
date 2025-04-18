@@ -10,8 +10,6 @@ import Blob "mo:base/Blob";
 import Array "mo:base/Array";
 import Random "mo:base/Random";
 import Int "mo:base/Int";
-import Nat64 "mo:base/Nat64";
-import Time "mo:base/Time";
 
 module {
     type Result<Ok, Err> = Result.Result<Ok, Err>;
