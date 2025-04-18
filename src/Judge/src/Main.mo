@@ -1,4 +1,3 @@
-import Array "mo:base/Array";
 import Buffer "mo:base/Buffer";
 import D "mo:base/Debug";
 import Error "mo:base/Error";
@@ -9,17 +8,35 @@ import Nat32 "mo:base/Nat32";
 import Nat64 "mo:base/Nat64";
 import Bool "mo:base/Bool";
 import Float "mo:base/Float";
-// import HashMap "mo:base/HashMap";
 import List "mo:base/List";
 import Int "mo:base/Int";
 import Time "mo:base/Time";
 import { setTimer; recurringTimer } = "mo:base/Timer";
 import Timer "mo:base/Timer";
 
-import Types "Types";
+import Types "../../common/Types";
 import Utils "Utils";
 
 actor class JudgeCtrlbCanister() = this {
+
+    public shared query (msg) func whoami() : async Principal {
+        return msg.caller;
+    };
+
+    // Function to verify that canister is up & running
+    public shared query func health() : async Types.StatusCodeRecordResult {
+        return #Ok({ status_code = 200 });
+    };
+
+    // Admin function to verify that caller is a controller of this canister
+    public shared query (msg) func amiController() : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        return #Ok({ status_code = 200 });
+    };
+
+    // Orthogonal Persisted Data storage
 
     stable var GAME_STATE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // local dev: "bkyz2-fmaaa-aaaaa-qaaaq-cai";
     stable var gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
@@ -32,8 +49,6 @@ actor class JudgeCtrlbCanister() = this {
         gameStateCanisterActor := actor (GAME_STATE_CANISTER_ID);
         return #Ok({ status_code = 200 });
     };
-
-    // Orthogonal Persisted Data storage
 
     // timer ID, so we can stop it after starting
     stable var recurringTimerId : ?Timer.TimerId = null;
@@ -85,6 +100,7 @@ actor class JudgeCtrlbCanister() = this {
         };
         _add_llm_canister_id(llmCanisterIdRecord);
     };
+
     private func _add_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : Types.StatusCodeRecordResult {
         let llmCanister = actor (llmCanisterIdRecord.canister_id) : Types.LLMCanister;
         D.print("Judge: Inside function _add_llm_canister_id. Adding llm: " # Principal.toText(Principal.fromActor(llmCanister)));
@@ -98,15 +114,6 @@ actor class JudgeCtrlbCanister() = this {
                 D.print("Judge: Canister ID: " # Principal.toText(Principal.fromActor(canister)));
             },
         );
-        return #Ok({ status_code = 200 });
-    };
-
-    public shared query (msg) func whoami() : async Principal {
-        return msg.caller;
-    };
-
-    // Function to verify that canister is up & running
-    public shared query func health() : async Types.StatusCodeRecordResult {
         return #Ok({ status_code = 200 });
     };
 
@@ -128,14 +135,6 @@ actor class JudgeCtrlbCanister() = this {
                 // Handle errors, such as llm canister not responding
                 return #Err(#Other("Failed to call ready endpoint of llm canister = " # Principal.toText(Principal.fromActor(llmCanister))));
             };
-        };
-        return #Ok({ status_code = 200 });
-    };
-
-    // Admin function to verify that caller is a controller of this canister
-    public shared query (msg) func amiController() : async Types.StatusCodeRecordResult {
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
         };
         return #Ok({ status_code = 200 });
     };
@@ -227,7 +226,7 @@ actor class JudgeCtrlbCanister() = this {
             case (#Err(error)) {
                 D.print("Judge: processSubmission error");
                 D.print(debug_show (error));
-                // TODO: error handling
+                // TODO - Error Handling
             };
             case (#Ok(scoringOutput)) {
                 // Store record of scoring the response
@@ -265,7 +264,7 @@ actor class JudgeCtrlbCanister() = this {
                 switch (pushResult) {
                     case (false) {
                         D.print("Judge: pushResult error");
-                        // TODO: error handling
+                        // TODO - Error Handling
                     };
                     case (true) {
                         // Send scored response to Game State canister
@@ -302,7 +301,7 @@ actor class JudgeCtrlbCanister() = this {
                             case (#Err(error)) {
                                 D.print("Judge: sendResult error");
                                 D.print(debug_show (error));
-                                // TODO: error handling
+                                // TODO - Error Handling
                             };
                             case (_) {
                                 // Successfully processed and sent to Game State
@@ -631,7 +630,7 @@ actor class JudgeCtrlbCanister() = this {
         switch (submissionResult) {
             case (#Err(error)) {
                 D.print("Judge:  scoreNextSubmission - submissionResult error : " # debug_show (error));
-                // TODO: error handling
+                // TODO - Error Handling
             };
             case (#Ok(submissionEntry : Types.ChallengeResponseSubmission)) {
                 D.print("Judge:  scoreNextSubmission submissionResult submissionEntry");
@@ -640,7 +639,7 @@ actor class JudgeCtrlbCanister() = this {
                 // Sanity checks on submitted response
                 if (submissionEntry.submissionStatus != #Judging or submissionEntry.submissionId == "" or submissionEntry.challengeId == "" or submissionEntry.challengeQuestion == "" or submissionEntry.challengeAnswer == "") {
                     D.print("Judge: scoreNextSubmission - 02 - submissionEntry error - submissionEntry: " # debug_show (submissionEntry));
-                    // TODO: error handling ... If this happens, we need to call the Game State canister to update the submissionStatus of the submission to #Error
+                    // TODO - Error Handling: If this happens, we need to call the Game State canister to update the submissionStatus of the submission to #Error
                     return;
                 };
 
@@ -653,6 +652,7 @@ actor class JudgeCtrlbCanister() = this {
     };
 
     public shared query (msg) func getRoundRobinCanister() : async Types.CanisterIDRecordResult {
+        // TODO - Security: should this be open access?
         let canisterIDRecord : Types.CanisterIDRecord = {
             canister_id = Principal.toText(Principal.fromActor(_getRoundRobinCanister()));
         };
@@ -677,11 +677,11 @@ actor class JudgeCtrlbCanister() = this {
     };
 
 // Timer
-    stable var actionRegularityInSeconds = 60; // TODO: set based on user setting for cycles burn rate
+    stable var actionRegularityInSeconds = 60; // TODO - Implementation: adjust based on protocol progress and demand
 
     private func triggerRecurringAction() : async () {
         D.print("Judge:  Recurring action was triggered");
-        //ignore scoreNextSubmission(); TODO
+        //ignore scoreNextSubmission(); TODO - Testing
         let result = await scoreNextSubmission();
         D.print("Judge:  Recurring action result");
         D.print(debug_show (result));
@@ -724,7 +724,7 @@ actor class JudgeCtrlbCanister() = this {
         };
     };
 
-    // TODO: remove; testing function for admin
+    // TODO - Testing: remove; testing function for admin
     public shared (msg) func triggerScoreSubmissionAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));

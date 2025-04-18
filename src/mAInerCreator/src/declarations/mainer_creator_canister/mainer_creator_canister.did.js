@@ -1,5 +1,5 @@
 export const idlFactory = ({ IDL }) => {
-  const AvailableModels = IDL.Variant({ 'Qwen2_5_500M' : IDL.Null });
+  const SelectableMainerLLMs = IDL.Variant({ 'Qwen2_5_500M' : IDL.Null });
   const ModelCreationArtefacts = IDL.Record({
     'canisterWasm' : IDL.Vec(IDL.Nat8),
     'modelFileSha256' : IDL.Text,
@@ -21,26 +21,29 @@ export const idlFactory = ({ IDL }) => {
   });
   const AuthRecord = IDL.Record({ 'auth' : IDL.Text });
   const AuthRecordResult = IDL.Variant({ 'Ok' : AuthRecord, 'Err' : ApiError });
-  const ProtocolCanisterType = IDL.Variant({
-    'MainerAgent' : IDL.Null,
-    'MainerLlm' : IDL.Null,
-    'Challenger' : IDL.Null,
-    'Judge' : IDL.Null,
-    'Verifier' : IDL.Null,
-    'MainerCreator' : IDL.Null,
-  });
   const MainerAgentCanisterType = IDL.Variant({
     'NA' : IDL.Null,
     'Own' : IDL.Null,
     'ShareAgent' : IDL.Null,
     'ShareService' : IDL.Null,
   });
+  const ProtocolCanisterType = IDL.Variant({
+    'MainerAgent' : MainerAgentCanisterType,
+    'MainerLlm' : IDL.Null,
+    'Challenger' : IDL.Null,
+    'Judge' : IDL.Null,
+    'Verifier' : IDL.Null,
+    'MainerCreator' : IDL.Null,
+  });
+  const MainerConfigurationInput = IDL.Record({
+    'selectedLLM' : IDL.Opt(SelectableMainerLLMs),
+    'mainerAgentCanisterType' : MainerAgentCanisterType,
+  });
   const CanisterAddress = IDL.Text;
   const CanisterCreationConfiguration = IDL.Record({
-    'selectedModel' : AvailableModels,
     'canisterType' : ProtocolCanisterType,
     'owner' : IDL.Principal,
-    'mainerAgentCanisterType' : MainerAgentCanisterType,
+    'mainerConfig' : MainerConfigurationInput,
     'associatedCanisterAddress' : IDL.Opt(CanisterAddress),
   });
   const CanisterCreationRecord = IDL.Record({
@@ -63,7 +66,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const CanisterCreationCanister = IDL.Service({
     'addModelCreationArtefactsEntry' : IDL.Func(
-        [AvailableModels, ModelCreationArtefacts],
+        [SelectableMainerLLMs, ModelCreationArtefacts],
         [InsertArtefactsResult],
         [],
       ),
@@ -74,7 +77,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'finish_upload_mainer_llm' : IDL.Func(
-        [AvailableModels, IDL.Text],
+        [SelectableMainerLLMs, IDL.Text],
         [FileUploadResult],
         [],
       ),
@@ -87,7 +90,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'start_upload_mainer_llm' : IDL.Func([], [StatusCodeRecordResult], []),
     'start_upload_mainer_llm_canister_wasm' : IDL.Func(
-        [AvailableModels],
+        [SelectableMainerLLMs],
         [StatusCodeRecordResult],
         [],
       ),
@@ -112,7 +115,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'upload_mainer_llm_canister_wasm_bytes_chunk' : IDL.Func(
-        [AvailableModels, IDL.Vec(IDL.Nat8)],
+        [SelectableMainerLLMs, IDL.Vec(IDL.Nat8)],
         [FileUploadResult],
         [],
       ),

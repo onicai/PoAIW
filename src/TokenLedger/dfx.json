@@ -1,6 +1,6 @@
 {
   "canisters": {
-    "icrc1_ledger_canister": {
+    "funnAI_ledger_canister": {
       "type": "custom",
       "candid": "https://github.com/dfinity/ic/releases/download/ledger-suite-icrc-2025-01-07/ledger.did",
       "wasm": "https://github.com/dfinity/ic/releases/download/ledger-suite-icrc-2025-01-07/ic-icrc1-ledger.wasm.gz",
@@ -11,6 +11,26 @@
     "build": {
       "args": "",
       "packtool": ""
+    }
+  },
+  "networks": {
+    "development": {
+      "providers": [
+        "https://icp0.io"
+      ],
+      "type": "persistent"
+    },
+    "testing": {
+      "providers": [
+        "https://icp0.io"
+      ],
+      "type": "persistent"
+    },
+    "backup": {
+      "providers": [
+        "https://icp0.io"
+      ],
+      "type": "persistent"
     }
   },
   "output_env_file": ".env",

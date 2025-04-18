@@ -12,11 +12,10 @@ export type ApiError = { 'FailedOperation' : null } |
 export interface AuthRecord { 'auth' : string }
 export type AuthRecordResult = { 'Ok' : AuthRecord } |
   { 'Err' : ApiError };
-export type AvailableModels = { 'Qwen2_5_500M' : null };
 export type CanisterAddress = string;
 export interface CanisterCreationCanister {
   'addModelCreationArtefactsEntry' : ActorMethod<
-    [AvailableModels, ModelCreationArtefacts],
+    [SelectableMainerLLMs, ModelCreationArtefacts],
     InsertArtefactsResult
   >,
   'amiController' : ActorMethod<[], AuthRecordResult>,
@@ -25,7 +24,7 @@ export interface CanisterCreationCanister {
     CanisterCreationResult
   >,
   'finish_upload_mainer_llm' : ActorMethod<
-    [AvailableModels, string],
+    [SelectableMainerLLMs, string],
     FileUploadResult
   >,
   'health' : ActorMethod<[], StatusCodeRecordResult>,
@@ -36,7 +35,7 @@ export interface CanisterCreationCanister {
   >,
   'start_upload_mainer_llm' : ActorMethod<[], StatusCodeRecordResult>,
   'start_upload_mainer_llm_canister_wasm' : ActorMethod<
-    [AvailableModels],
+    [SelectableMainerLLMs],
     StatusCodeRecordResult
   >,
   'testCreateMainerControllerCanister' : ActorMethod<
@@ -53,16 +52,15 @@ export interface CanisterCreationCanister {
     FileUploadResult
   >,
   'upload_mainer_llm_canister_wasm_bytes_chunk' : ActorMethod<
-    [AvailableModels, Uint8Array | number[]],
+    [SelectableMainerLLMs, Uint8Array | number[]],
     FileUploadResult
   >,
   'whoami' : ActorMethod<[], Principal>,
 }
 export interface CanisterCreationConfiguration {
-  'selectedModel' : AvailableModels,
   'canisterType' : ProtocolCanisterType,
   'owner' : Principal,
-  'mainerAgentCanisterType' : MainerAgentCanisterType,
+  'mainerConfig' : MainerConfigurationInput,
   'associatedCanisterAddress' : [] | [CanisterAddress],
 }
 export interface CanisterCreationRecord {
@@ -79,17 +77,22 @@ export type MainerAgentCanisterType = { 'NA' : null } |
   { 'Own' : null } |
   { 'ShareAgent' : null } |
   { 'ShareService' : null };
+export interface MainerConfigurationInput {
+  'selectedLLM' : [] | [SelectableMainerLLMs],
+  'mainerAgentCanisterType' : MainerAgentCanisterType,
+}
 export interface ModelCreationArtefacts {
   'canisterWasm' : Uint8Array | number[],
   'modelFileSha256' : string,
   'modelFile' : Array<Uint8Array | number[]>,
 }
-export type ProtocolCanisterType = { 'MainerAgent' : null } |
+export type ProtocolCanisterType = { 'MainerAgent' : MainerAgentCanisterType } |
   { 'MainerLlm' : null } |
   { 'Challenger' : null } |
   { 'Judge' : null } |
   { 'Verifier' : null } |
   { 'MainerCreator' : null };
+export type SelectableMainerLLMs = { 'Qwen2_5_500M' : null };
 export type StatusCode = number;
 export interface StatusCodeRecord { 'status_code' : StatusCode }
 export type StatusCodeRecordResult = { 'Ok' : StatusCodeRecord } |
