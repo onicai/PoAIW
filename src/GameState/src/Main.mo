@@ -147,7 +147,8 @@ actor class GameStateCanister() = this {
 
     // mAIner agent wasm module hash that must match
         // TODO: implement way to manage this
-    stable var officialMainerAgentCanisterWasmHash : Blob = "\FD\A5\4F\A3\52\4A\26\10\80\E1\27\F0\54\67\14\59\E2\30\AF\B1\F9\87\12\49\1A\8C\B1\A4\DE\08\65\53";
+        // -> For now, do not make it stable, so it can be updated via a canister upgrade
+    let officialMainerAgentCanisterWasmHash : Blob = "\81\A4\F9\CF\78\2F\24\5E\11\DB\08\97\10\1B\06\26\4C\60\E3\19\45\46\16\17\58\91\80\0C\17\BC\1E\DC";
     
     public shared (msg) func testMainerCodeIntegrityAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -1300,7 +1301,7 @@ actor class GameStateCanister() = this {
                                 let canisterCreationInput : Types.CanisterCreationConfiguration = {
                                     canisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType;
                                     owner: Principal = userMainerEntry.ownedBy; // User
-                                    associatedCanisterAddress : ?Types.CanisterAddress = null;
+                                    associatedCanisterAddress : ?Types.CanisterAddress = null; // TODO - Design: if ShareAgent determine if the shareServiceCanisterAddress should be provided or whether Creator stores this info and fills it in
                                     mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                 };
                                 // TODO - Implementation: charge with cycles (the user paid for)
@@ -1736,7 +1737,8 @@ actor class GameStateCanister() = this {
                                 // continue as check passed
                             } else {
                                 let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
-                                D.print("GameState: submitChallengeResponse - agentCanisterInfo didn't pass verification: " # debug_show(agentCanisterInfo)); 
+                                D.print("GameState: submitChallengeResponse - agentCanisterInfo didn't pass verification: " # debug_show(agentCanisterInfo) # " - expected wasm hash = " # debug_show(officialMainerAgentCanisterWasmHash));
+                                 
                                 // TODO - Design: further measurements?
                                 return #Err(#Unauthorized);
                             };

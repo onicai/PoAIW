@@ -694,7 +694,7 @@ actor class CanisterCreationCanister() = this {
             selectedLLM : ?Types.SelectableMainerLLMs = ?#Qwen2_5_500M;
         };
         let config : Types.CanisterCreationConfiguration = {
-            canisterType : Types.ProtocolCanisterType = #MainerAgent(#Own);
+            canisterType : Types.ProtocolCanisterType = #MainerAgent(mainerAgentCanisterType);
             associatedCanisterAddress : ?Types.CanisterAddress = shareServiceCanisterAddress;
             owner : Principal = msg.caller; 
             mainerConfig : Types.MainerConfigurationInput = mainerConfig;

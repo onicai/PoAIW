@@ -17,22 +17,30 @@ type StatisticsRecord =
    cyclesBurnRate: CyclesBurnRate;
    totalCyclesBurnt: nat;
  };
+type SelectableMainerLLMs = variant {Qwen2_5_500M;};
 type ProtocolCanisterType = 
  variant {
    Challenger;
    Judge;
-   MainerAgent;
+   MainerAgent: MainerAgentCanisterType;
    MainerCreator;
    MainerLlm;
    Verifier;
  };
-type OfficialProtocolCanister = 
+type OfficialMainerAgentCanister = 
  record {
    address: CanisterAddress;
    canisterType: ProtocolCanisterType;
    createdBy: principal;
    creationTimestamp: nat64;
+   mainerConfig: MainerConfigurationInput;
    ownedBy: principal;
+   status: CanisterStatus;
+ };
+type MainerConfigurationInput = 
+ record {
+   mainerAgentCanisterType: MainerAgentCanisterType;
+   selectedLLM: opt SelectableMainerLLMs;
  };
 type MainerAgentSettingsInput = record {cyclesBurnRate: CyclesBurnRate;};
 type MainerAgentCtrlbCanister = 
@@ -89,14 +97,16 @@ type MainerAgentCanisterType =
 type MainerAgentCanisterResult = 
  variant {
    Err: ApiError;
-   Ok: OfficialProtocolCanister;
+   Ok: OfficialMainerAgentCanister;
  };
 type MainerAgentCanisterInput = 
  record {
    address: CanisterAddress;
    canisterType: ProtocolCanisterType;
    mainerAgentCanisterType: MainerAgentCanisterType;
+   mainerConfig: MainerConfigurationInput;
    ownedBy: principal;
+   status: CanisterStatus;
  };
 type IssueFlagsRetrievalResult = 
  variant {
@@ -213,6 +223,17 @@ type ChallengeQueueInput =
    challengeTopicId: text;
    challengeTopicStatus: ChallengeTopicStatus;
    submissionCyclesRequired: nat;
+ };
+type CanisterStatus = 
+ variant {
+   ControllerCreated;
+   ControllerCreationInProgress;
+   LlmSetupFinished;
+   LlmSetupInProgress;
+   Other: text;
+   Paid;
+   Paused;
+   Running;
  };
 type CanisterIDRecordResult = 
  variant {
