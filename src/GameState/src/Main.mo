@@ -1363,10 +1363,31 @@ actor class GameStateCanister() = this {
                             };
                             case (?mainerCreatorEntry) {
                                 let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
+
+                                var associatedCanisterAddress : ?Types.CanisterAddress = null;
+                                switch (userMainerEntry.canisterType) {
+                                    case (#MainerAgent(#Own)) {
+                                        // continue
+                                    };
+                                    case (#MainerAgent(#ShareAgent)) {
+                                        // if of type ShareAgent, the shareServiceCanisterAddress is provided from the Game State info and added here as associatedCanisterAddress
+                                        switch (getNextSharedServiceCanisterEntry()) {
+                                            case (null) {
+                                                // This should never happen as it indicates there isn't any Shared mAIning Service canister registered here
+                                                return #Err(#Unauthorized);
+                                            };
+                                            case (?sharedServiceEntry) {
+                                                associatedCanisterAddress := ?sharedServiceEntry.address;
+                                            };
+                                        };
+                                    };
+                                    case (_) { return #Err(#Other("Unsupported")); }
+                                };
+                                
                                 let canisterCreationInput : Types.CanisterCreationConfiguration = {
                                     canisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType;
                                     owner: Principal = userMainerEntry.ownedBy; // User
-                                    associatedCanisterAddress : ?Types.CanisterAddress = null; // TODO - Design: if ShareAgent determine if the shareServiceCanisterAddress should be provided or whether Creator stores this info and fills it in
+                                    associatedCanisterAddress : ?Types.CanisterAddress = associatedCanisterAddress; // null for #Own, shareServiceCanisterAddress for ShareAgent
                                     mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                 };
                                 // TODO - Implementation: charge with cycles (the user paid for)
