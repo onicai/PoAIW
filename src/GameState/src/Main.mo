@@ -1159,6 +1159,19 @@ actor class GameStateCanister() = this {
         }; 
     };
 
+    public shared (msg) func removeOfficialSharedServiceCanisters(canisterId : Text) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        switch (removeSharedServiceCanister(canisterId)) {
+            case (false) { return #Err(#InvalidId); };
+            case (true) { return #Ok({ auth = "Success" }); };
+        };
+    };
+
     // Admin function to add an official protocol canister
     public shared (msg) func addOfficialCanister(canisterEntryToAdd : Types.CanisterInput) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
