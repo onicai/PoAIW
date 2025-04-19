@@ -324,6 +324,7 @@ actor class GameStateCanister() = this {
 
     private func getMainerCreatorCanister(canisterAddress : Text) : ?Types.OfficialProtocolCanister {
         D.print("GameState: getMainerCreatorCanister - canisterAddress: " # debug_show(canisterAddress));
+        // TODO - Testing: remove (as just for debugging) 
         let mainerCreatorCanistersEntries = Iter.toArray(mainerCreatorCanistersStorage.entries());
         D.print("GameState: getMainerCreatorCanister - mainerCreatorCanistersStorage: " # debug_show(mainerCreatorCanistersEntries));
         switch (mainerCreatorCanistersStorage.get(canisterAddress)) {
@@ -343,7 +344,43 @@ actor class GameStateCanister() = this {
     };
 
     private func getNextMainerCreatorCanisterEntry() : ?Types.OfficialProtocolCanister {
+        // TODO - Implementation: if this should be used for load balancing, then a different implementation is needed (likely by keeping an index of last used canister)
         return mainerCreatorCanistersStorage.vals().next();
+    };
+
+    // Official Shared mAIning Service canisters
+    stable var sharedServiceCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
+    var sharedServiceCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
+    
+    private func putSharedServiceCanister(canisterAddress : Text, canisterEntry : Types.OfficialProtocolCanister) : Bool {
+        sharedServiceCanistersStorage.put(canisterAddress, canisterEntry);
+        return true;
+    };
+
+    private func getSharedServiceCanister(canisterAddress : Text) : ?Types.OfficialProtocolCanister {
+        D.print("GameState: getSharedServiceCanister - canisterAddress: " # debug_show(canisterAddress));
+        // TODO - Testing: remove (as just for debugging) 
+        let canistersEntries = Iter.toArray(sharedServiceCanistersStorage.entries());
+        D.print("GameState: getSharedServiceCanister - canistersEntries: " # debug_show(canistersEntries));
+        switch (sharedServiceCanistersStorage.get(canisterAddress)) {
+            case (null) { return null; };
+            case (?canisterEntry) { return ?canisterEntry; };
+        };
+    };
+
+    private func removeSharedServiceCanister(canisterAddress : Text) : Bool {
+        switch (sharedServiceCanistersStorage.get(canisterAddress)) {
+            case (null) { return false; };
+            case (?canisterEntry) {
+                let removeResult = sharedServiceCanistersStorage.remove(canisterAddress);
+                return true;
+            };
+        };
+    };
+
+    private func getNextSharedServiceCanisterEntry() : ?Types.OfficialProtocolCanister {
+        // TODO - Implementation: if this should be used for load balancing, then a different implementation is needed (likely by keeping an index of last used canister)
+        return sharedServiceCanistersStorage.vals().next();
     };
 
     // mAIner Registry: Official mAIner agent canisters (owned by users)
@@ -2366,6 +2403,7 @@ actor class GameStateCanister() = this {
         submissionsStorageStable := Iter.toArray(submissionsStorage.entries());
         scoredResponsesPerChallengeStable := Iter.toArray(scoredResponsesPerChallenge.entries());
         winnerDeclarationForChallengeStable := Iter.toArray(winnerDeclarationForChallenge.entries());
+        sharedServiceCanistersStorageStable := Iter.toArray(sharedServiceCanistersStorage.entries());
     };
 
     system func postupgrade() {
@@ -2389,5 +2427,7 @@ actor class GameStateCanister() = this {
         scoredResponsesPerChallengeStable := [];
         winnerDeclarationForChallenge := HashMap.fromIter(Iter.fromArray(winnerDeclarationForChallengeStable), winnerDeclarationForChallengeStable.size(), Text.equal, Text.hash);
         winnerDeclarationForChallengeStable := [];
+        sharedServiceCanistersStorage := HashMap.fromIter(Iter.fromArray(sharedServiceCanistersStorageStable), sharedServiceCanistersStorageStable.size(), Text.equal, Text.hash);
+        sharedServiceCanistersStorageStable := [];
     };
 };
