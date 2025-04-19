@@ -1130,7 +1130,7 @@ actor class GameStateCanister() = this {
         };
     };
 
-    // Admin function to get the official protocol canisters
+    // Admin functions to get the official protocol canisters
     public shared (msg) func getOfficialChallengerCanisters() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -1140,6 +1140,20 @@ actor class GameStateCanister() = this {
         };
         let challengerCanister : ?Types.OfficialProtocolCanister = getChallengerCanister("br5f7-7uaaa-aaaaa-qaaca-cai");
         switch (challengerCanister) {
+            case (null) { return #Err(#InvalidId); };
+            case (?canisterEntry) { return #Ok({ auth = canisterEntry.address }); };
+        }; 
+    };
+
+    public shared (msg) func getOfficialSharedServiceCanisters() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let sharedServiceCanister : ?Types.OfficialProtocolCanister = getNextSharedServiceCanisterEntry();
+        switch (sharedServiceCanister) {
             case (null) { return #Err(#InvalidId); };
             case (?canisterEntry) { return #Ok({ auth = canisterEntry.address }); };
         }; 
@@ -1192,6 +1206,20 @@ actor class GameStateCanister() = this {
                     status : Types.CanisterStatus = #Running;
                 };
                 let putResponse = putMainerCreatorCanister(canisterEntryToAdd.address, canisterEntry);
+                if (not putResponse) {
+                    return #Err(#Other("An error adding the canister occurred"));
+                };
+            };
+            case (#MainerAgent(#ShareService)) {
+                let canisterEntry : Types.OfficialProtocolCanister = {
+                    address : Text = canisterEntryToAdd.address;
+                    canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
+                    creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                    createdBy : Principal = msg.caller;
+                    ownedBy : Principal = Principal.fromActor(this);
+                    status : Types.CanisterStatus = #Running;
+                };
+                let putResponse = putSharedServiceCanister(canisterEntryToAdd.address, canisterEntry);
                 if (not putResponse) {
                     return #Err(#Other("An error adding the canister occurred"));
                 };
