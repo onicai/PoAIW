@@ -1880,6 +1880,7 @@ actor class GameStateCanister() = this {
                         let transactionToVerify = mainerTopUpInfo.paymentTransactionBlockId;
                         
                         // TODO - Implementation: credit mAIner agent with cycles (the user paid for)
+                        // ALternative: credit via the CMC service
                         let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
                         // Retrieve mAIner agent canister's info
                         D.print("GameState: topUpCyclesForMainerAgent - Verify agent canister's wasm module hash#####################################################################################################################################################################################");
