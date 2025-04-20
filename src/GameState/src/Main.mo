@@ -1242,6 +1242,67 @@ actor class GameStateCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
+    // TODO - Implementation:: Function to unlock a mAIner (and thus gain the right to create one and follow the creation flow below)
+    // (called by backend e.g. when lottery is won, later on by users directly too)
+    public shared (msg) func unlockUserMainerAgent(mainerCreationInput : Types.MainerCreationInput) : async Types.MainerAgentCanisterResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized); 
+        };
+        // TODO - Security: scope permission correctly
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Sanity checks on configuration of mAIner agent
+        let mainerConfig : Types.MainerConfigurationInput = mainerCreationInput.mainerConfig;
+        switch (mainerConfig.selectedLLM) {
+            case (null) {
+                // use default model
+            };
+            case (?#Qwen2_5_500M) {
+                // continue
+            };
+            case (_) { return #Err(#Other("Unsupported")); }
+        };
+        switch (mainerConfig.mainerAgentCanisterType) {
+            case (#Own) {
+                // continue
+            };
+            case (#ShareAgent) {
+                // continue
+            };
+            case (_) { return #Err(#Other("Unsupported")); }
+        };
+
+        var ownedBy : Principal = msg.caller; // User
+        if (Principal.isController(msg.caller)) {
+            switch (mainerCreationInput.owner) {
+                case (null) {
+                    return #Err(#Other("Unsupported"));
+                };
+                case (?ownerPrincipal) {
+                    ownedBy := ownerPrincipal; // User specified by Controller
+                };
+            };            
+        };
+        
+        let canisterEntry : Types.OfficialMainerAgentCanister = {
+            address : Text = ""; // To be assigned (when Controller canister was created)
+            canisterType: Types.ProtocolCanisterType = #MainerAgent(mainerConfig.mainerAgentCanisterType);
+            creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+            createdBy : Principal = msg.caller; // Controller (e.g. backend) or User
+            ownedBy : Principal = ownedBy;
+            status : Types.CanisterStatus = #Unlocked;
+            mainerConfig : Types.MainerConfigurationInput = mainerConfig;
+        };
+        switch (putUserMainerAgent(canisterEntry)) {
+            case (true) {
+                return #Ok(canisterEntry);
+            };
+            case (false) { return #Err(#FailedOperation); }
+        };
+    };
+
     // Function for user to create a new mAIner agent
     public shared (msg) func createUserMainerAgent(mainerCreationInput : Types.MainerCreationInput) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -1267,6 +1328,47 @@ actor class GameStateCanister() = this {
             };
             case (_) { return #Err(#Other("Unsupported")); }
         };
+
+        // TODO - Implementation: verify that the user has an unlocked mAIner entry of the mainerAgentCanisterType type (thus is allowed to create the new mAIner)
+        /* switch (getUserMainerAgents(msg.caller)) {
+            case (null) {
+                return #Err(#Unauthorized);
+            };
+            case (?userMainerEntries) {
+                // Find entry by creationTimestamp as no Controller address exists yet
+                switch (List.find<Types.OfficialMainerAgentCanister>(userMainerEntries, func(mainerEntry: Types.OfficialProtocolCanister) : Bool { mainerEntry.creationTimestamp == mainerInfo.creationTimestamp } )) {
+                    case (null) {
+                        return #Err(#InvalidId);
+                    };
+                    case (?userMainerEntry) {
+                        // Sanity checks on userMainerEntry (i.e. info provided is correct and matches entry info)
+                        if (userMainerEntry.address != "") {
+                            // At this point, no canister should have been created, i.e. no canister address
+                            return #Err(#InvalidId);
+                        };
+                        switch (userMainerEntry.canisterType) {
+                            case (#MainerAgent(mainerType)) {
+                                if (mainerConfig.mainerAgentCanisterType != mainerType) {
+                                    // wrong mAIner type (Own vs Shared)
+                                    return #Err(#InvalidId);
+                                };
+                                // continue
+                            };
+                            case (_) { return #Err(#Other("Unsupported")); }
+                        };
+                        switch (userMainerEntry.status) {
+                            case (#Unlocked) {
+                                // continue
+                            };
+                            case (#Paid) {
+                                return #Err(#Other("Continue with next call in flow"));
+                            };
+                            case (_) { return #Err(#Other("Unsupported")); }
+                        };
+                    };
+                };
+            };
+        }; */
 
         // TODO - Implementation: verify user's payment for this agent via mainerCreationInput.paymentTransactionBlockId https://github.com/bob-robert-ai/bob/blob/3c1d19c4f8ce7de5c74654855e7be44117973d19/minter-v2/src/main.rs#L134
         let transactionToVerify = mainerCreationInput.paymentTransactionBlockId;

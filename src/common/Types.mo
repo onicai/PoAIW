@@ -54,6 +54,7 @@ module Types {
     public type CanisterAddress = Text;
 
     public type CanisterStatus = {
+        #Unlocked;
         #Paid;
         #ControllerCreationInProgress;
         #ControllerCreated;
@@ -120,6 +121,7 @@ module Types {
     public type MainerCreationInput = {
         paymentTransactionBlockId : Nat64;
         mainerConfig : MainerConfigurationInput;
+        owner: ?Principal;
     };
 
     public type CanisterCreationConfigurationInput = {
