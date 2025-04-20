@@ -1657,6 +1657,8 @@ actor class GameStateCanister() = this {
             return #Err(#Unauthorized);
         };
 
+        // TODO - Implementation: add payment info to params and verify user payment (for new LLM canister)
+
         // Sanity checks on mAIner info
         if (not Principal.equal(mainerInfo.ownedBy, msg.caller)) {
             // Only the mAIner owner may call this
