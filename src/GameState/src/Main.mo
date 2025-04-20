@@ -324,6 +324,7 @@ actor class GameStateCanister() = this {
 
     private func getMainerCreatorCanister(canisterAddress : Text) : ?Types.OfficialProtocolCanister {
         D.print("GameState: getMainerCreatorCanister - canisterAddress: " # debug_show(canisterAddress));
+        // TODO - Testing: remove (as just for debugging) 
         let mainerCreatorCanistersEntries = Iter.toArray(mainerCreatorCanistersStorage.entries());
         D.print("GameState: getMainerCreatorCanister - mainerCreatorCanistersStorage: " # debug_show(mainerCreatorCanistersEntries));
         switch (mainerCreatorCanistersStorage.get(canisterAddress)) {
@@ -343,7 +344,43 @@ actor class GameStateCanister() = this {
     };
 
     private func getNextMainerCreatorCanisterEntry() : ?Types.OfficialProtocolCanister {
+        // TODO - Implementation: if this should be used for load balancing, then a different implementation is needed (likely by keeping an index of last used canister)
         return mainerCreatorCanistersStorage.vals().next();
+    };
+
+    // Official Shared mAIning Service canisters
+    stable var sharedServiceCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
+    var sharedServiceCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
+    
+    private func putSharedServiceCanister(canisterAddress : Text, canisterEntry : Types.OfficialProtocolCanister) : Bool {
+        sharedServiceCanistersStorage.put(canisterAddress, canisterEntry);
+        return true;
+    };
+
+    private func getSharedServiceCanister(canisterAddress : Text) : ?Types.OfficialProtocolCanister {
+        D.print("GameState: getSharedServiceCanister - canisterAddress: " # debug_show(canisterAddress));
+        // TODO - Testing: remove (as just for debugging) 
+        let canistersEntries = Iter.toArray(sharedServiceCanistersStorage.entries());
+        D.print("GameState: getSharedServiceCanister - canistersEntries: " # debug_show(canistersEntries));
+        switch (sharedServiceCanistersStorage.get(canisterAddress)) {
+            case (null) { return null; };
+            case (?canisterEntry) { return ?canisterEntry; };
+        };
+    };
+
+    private func removeSharedServiceCanister(canisterAddress : Text) : Bool {
+        switch (sharedServiceCanistersStorage.get(canisterAddress)) {
+            case (null) { return false; };
+            case (?canisterEntry) {
+                let removeResult = sharedServiceCanistersStorage.remove(canisterAddress);
+                return true;
+            };
+        };
+    };
+
+    private func getNextSharedServiceCanisterEntry() : ?Types.OfficialProtocolCanister {
+        // TODO - Implementation: if this should be used for load balancing, then a different implementation is needed (likely by keeping an index of last used canister)
+        return sharedServiceCanistersStorage.vals().next();
     };
 
     // mAIner Registry: Official mAIner agent canisters (owned by users)
@@ -1093,7 +1130,7 @@ actor class GameStateCanister() = this {
         };
     };
 
-    // Admin function to get the official protocol canisters
+    // Admin functions to get the official protocol canisters
     public shared (msg) func getOfficialChallengerCanisters() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -1106,6 +1143,33 @@ actor class GameStateCanister() = this {
             case (null) { return #Err(#InvalidId); };
             case (?canisterEntry) { return #Ok({ auth = canisterEntry.address }); };
         }; 
+    };
+
+    public shared (msg) func getOfficialSharedServiceCanisters() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let sharedServiceCanister : ?Types.OfficialProtocolCanister = getNextSharedServiceCanisterEntry();
+        switch (sharedServiceCanister) {
+            case (null) { return #Err(#InvalidId); };
+            case (?canisterEntry) { return #Ok({ auth = canisterEntry.address }); };
+        }; 
+    };
+
+    public shared (msg) func removeOfficialSharedServiceCanisters(canisterId : Text) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        switch (removeSharedServiceCanister(canisterId)) {
+            case (false) { return #Err(#InvalidId); };
+            case (true) { return #Ok({ auth = "Success" }); };
+        };
     };
 
     // Admin function to add an official protocol canister
@@ -1155,6 +1219,20 @@ actor class GameStateCanister() = this {
                     status : Types.CanisterStatus = #Running;
                 };
                 let putResponse = putMainerCreatorCanister(canisterEntryToAdd.address, canisterEntry);
+                if (not putResponse) {
+                    return #Err(#Other("An error adding the canister occurred"));
+                };
+            };
+            case (#MainerAgent(#ShareService)) {
+                let canisterEntry : Types.OfficialProtocolCanister = {
+                    address : Text = canisterEntryToAdd.address;
+                    canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
+                    creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                    createdBy : Principal = msg.caller;
+                    ownedBy : Principal = Principal.fromActor(this);
+                    status : Types.CanisterStatus = #Running;
+                };
+                let putResponse = putSharedServiceCanister(canisterEntryToAdd.address, canisterEntry);
                 if (not putResponse) {
                     return #Err(#Other("An error adding the canister occurred"));
                 };
@@ -1298,10 +1376,31 @@ actor class GameStateCanister() = this {
                             };
                             case (?mainerCreatorEntry) {
                                 let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
+
+                                var associatedCanisterAddress : ?Types.CanisterAddress = null;
+                                switch (userMainerEntry.canisterType) {
+                                    case (#MainerAgent(#Own)) {
+                                        // continue
+                                    };
+                                    case (#MainerAgent(#ShareAgent)) {
+                                        // if of type ShareAgent, the shareServiceCanisterAddress is provided from the Game State info and added here as associatedCanisterAddress
+                                        switch (getNextSharedServiceCanisterEntry()) {
+                                            case (null) {
+                                                // This should never happen as it indicates there isn't any Shared mAIning Service canister registered here
+                                                return #Err(#Unauthorized);
+                                            };
+                                            case (?sharedServiceEntry) {
+                                                associatedCanisterAddress := ?sharedServiceEntry.address;
+                                            };
+                                        };
+                                    };
+                                    case (_) { return #Err(#Other("Unsupported")); }
+                                };
+                                
                                 let canisterCreationInput : Types.CanisterCreationConfiguration = {
                                     canisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType;
                                     owner: Principal = userMainerEntry.ownedBy; // User
-                                    associatedCanisterAddress : ?Types.CanisterAddress = null; // TODO - Design: if ShareAgent determine if the shareServiceCanisterAddress should be provided or whether Creator stores this info and fills it in
+                                    associatedCanisterAddress : ?Types.CanisterAddress = associatedCanisterAddress; // null for #Own, shareServiceCanisterAddress for ShareAgent
                                     mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                 };
                                 // TODO - Implementation: charge with cycles (the user paid for)
@@ -2366,6 +2465,7 @@ actor class GameStateCanister() = this {
         submissionsStorageStable := Iter.toArray(submissionsStorage.entries());
         scoredResponsesPerChallengeStable := Iter.toArray(scoredResponsesPerChallenge.entries());
         winnerDeclarationForChallengeStable := Iter.toArray(winnerDeclarationForChallenge.entries());
+        sharedServiceCanistersStorageStable := Iter.toArray(sharedServiceCanistersStorage.entries());
     };
 
     system func postupgrade() {
@@ -2389,5 +2489,7 @@ actor class GameStateCanister() = this {
         scoredResponsesPerChallengeStable := [];
         winnerDeclarationForChallenge := HashMap.fromIter(Iter.fromArray(winnerDeclarationForChallengeStable), winnerDeclarationForChallengeStable.size(), Text.equal, Text.hash);
         winnerDeclarationForChallengeStable := [];
+        sharedServiceCanistersStorage := HashMap.fromIter(Iter.fromArray(sharedServiceCanistersStorageStable), sharedServiceCanistersStorageStable.size(), Text.equal, Text.hash);
+        sharedServiceCanistersStorageStable := [];
     };
 };
