@@ -1814,6 +1814,91 @@ actor class GameStateCanister() = this {
         putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry); 
     };
 
+    // Function for user to top up cycles of an existing mAIner agent
+    public shared (msg) func topUpCyclesForMainerAgent(mainerTopUpInfo : Types.MainerAgentTopUpInput) : async Types.MainerAgentCanisterResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Sanity checks on provided mAIner info
+        let mainerInfo : Types.OfficialMainerAgentCanister = mainerTopUpInfo.mainerAgent;
+        if (not Principal.equal(mainerInfo.ownedBy, msg.caller)) {
+            // Only the mAIner owner may call this
+            return #Err(#Unauthorized);
+        };
+        if (mainerInfo.address == "") {
+            // The mAIner Controller canister address is needed
+            return #Err(#InvalidId);
+        };
+        switch (mainerInfo.canisterType) {
+            case (#MainerAgent(_)) {
+                // continue
+            };
+            case (_) { return #Err(#Other("Unsupported")); }
+        };
+        switch (mainerInfo.status) {
+            // mAIner already has been created
+            case (#Running) {
+                // continue
+            };
+            case (#Paused) {
+                // continue
+            };
+            case (_) { return #Err(#Other("Unsupported")); }
+        };
+
+        // Verify existing mAIner entry
+        switch (getUserMainerAgents(msg.caller)) {
+            case (null) {
+                return #Err(#Unauthorized);
+            };
+            case (?userMainerEntries) {
+                switch (List.find<Types.OfficialMainerAgentCanister>(userMainerEntries, func(mainerEntry: Types.OfficialMainerAgentCanister) : Bool { mainerEntry.address == mainerInfo.address } )) {
+                    case (null) {
+                        return #Err(#InvalidId);
+                    };
+                    case (?userMainerEntry) {
+                        // Sanity checks on userMainerEntry (i.e. address provided is correct and matches entry info)
+                        switch (userMainerEntry.canisterType) {
+                            case (#MainerAgent(_)) {
+                                // continue
+                            };
+                            case (_) { return #Err(#Other("Unsupported")); }
+                        };
+                        switch (userMainerEntry.status) {
+                            // mAIner already has been created
+                            case (#Running) {
+                                // continue
+                            };
+                            case (#Paused) {
+                                // continue
+                            };
+                            case (_) { return #Err(#Other("Unsupported")); }
+                        };
+
+                        // TODO - Implementation: verify user's payment for this agent via paymentTransactionBlockId https://github.com/bob-robert-ai/bob/blob/3c1d19c4f8ce7de5c74654855e7be44117973d19/minter-v2/src/main.rs#L134
+                        let transactionToVerify = mainerTopUpInfo.paymentTransactionBlockId;
+                        
+                        // TODO - Implementation: credit mAIner agent with cycles (the user paid for)
+                        let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
+                        // Retrieve mAIner agent canister's info
+                        D.print("GameState: topUpCyclesForMainerAgent - Verify agent canister's wasm module hash#####################################################################################################################################################################################");
+                        try {
+                            let deposit_cycles_args = { canister_id : Principal = Principal.fromText(userMainerEntry.address); };
+                            // TODO - Implementation: charge call with cycles
+                            let result = await IC_Management_Actor.deposit_cycles(deposit_cycles_args);
+                            //TODO - Design: decide whether a top up history should be kept
+                            return #Ok(userMainerEntry);
+                        } catch (e) {
+                            D.print("GameState: topUpCyclesForMainerAgent - Failed to credit cycles to mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e));      
+                            return #Err(#Other("GameState: topUpCyclesForMainerAgent - Failed to credit cycles to mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e)));
+                        };                        
+                    };
+                };
+            };
+        };
+    };
+
     // Function for user to get their mAIner agent canisters
     public shared query (msg) func getMainerAgentCanistersForUser() : async Types.MainerAgentCanistersResult {
         // TODO - Testing: only for demo: allow open access

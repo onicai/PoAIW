@@ -141,6 +141,11 @@ module Types {
 
     public type CanisterCreationResult = Result<CanisterCreationRecord, ApiError>;
 
+    public type MainerAgentTopUpInput = {
+        paymentTransactionBlockId : Nat64;
+        mainerAgent : OfficialMainerAgentCanister;
+    };
+
     //-------------------------------------------------------------------------
 // Challenger
     public type ChallengeTopicStatus = {
