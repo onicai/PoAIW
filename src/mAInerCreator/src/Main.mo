@@ -29,6 +29,18 @@ actor class CanisterCreationCanister() = this {
 
     let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
 
+    // TODO: Cycles burnt per operation    
+    stable let _CYCLES_MILLION = 1_000_000;
+    stable let CYCLES_BILLION = 1_000_000_000;
+    stable let CYCLES_TRILLION = 1_000_000_000_000;
+
+
+    // TODO: Keep in sync with SUBMISSION_CYCLES_REQUIRED in mAInerCreator
+    let MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED = 5 * CYCLES_TRILLION; // TODO: Update to actual values
+    let MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED = 5 * CYCLES_TRILLION; // TODO: Update to actual values
+    // Small margin to for the mAInerCreator canister miscellaneous operations
+    let MAINER_CREATOR_CYCLES_MARGIN = 10 * CYCLES_BILLION; // TODO: Update to actual values
+
     // -------------------------------------------------------------------------------
     // Canister Endpoints
 
@@ -300,9 +312,7 @@ actor class CanisterCreationCanister() = this {
 
         switch (configurationInput.canisterType) {
             case (#MainerAgent(_)) {
-                // Create mAIner controller canister for new mAIner agent
-                Cycles.add(1_000_000_000_000);  // 1T cycles (800B was the minimum required) TODO - Implementation: adjust based on actual cycles user paid for during creation
-
+                // Create mAIner controller canister for new mAIner agent                
                 let mainerAgentCanisterType = configurationInput.mainerConfig.mainerAgentCanisterType;
                 D.print("mAInerCreator: createCanister - mainerAgentCanisterType = " # debug_show (mainerAgentCanisterType));
                 var shareServiceCanisterAddress : Types.CanisterAddress = ""; // TODO - Design: determine if this should be provided or whether Creator stores this info and fills it in here
@@ -320,6 +330,17 @@ actor class CanisterCreationCanister() = this {
                     };
                 };
 
+                // Accept required cycles for canister creation
+                let cyclesAcceptedForMainerAgentCtrlbCreation = Cycles.accept<system>(MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED);
+                if (cyclesAcceptedForMainerAgentCtrlbCreation != MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED) {
+                    // Sanity check: At this point, this should never fail
+                    D.print("mAInerCreator: createCanister - should never fail checking cyclesAcceptedForMainerAgentCtrlbCreation");
+                    return #Err(#Unauthorized);                    
+                };
+
+                let cyclesAdded = MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED - MAINER_CREATOR_CYCLES_MARGIN;  // (TODO - adjust) (creation costs 1T, so canister will end up with 3T in balance)
+                Cycles.add<system>(cyclesAdded);
+
                 let createdControllerCanister = await IC0.create_canister({
                     sender_canister_version = null;
                     settings = ?{
@@ -333,8 +354,19 @@ actor class CanisterCreationCanister() = this {
                     };
                 });
 
-                D.print("mAInerCreator: createCanister - createdControllerCanister = " # debug_show (createdControllerCanister));
+                var cyclesBalance : Nat = 0;
+                try {
+                    let canisterStatus = await IC0.canister_status({canister_id = createdControllerCanister.canister_id;});
+                    cyclesBalance := canisterStatus.cycles;
+                } catch (e) {
+                    D.print("mAInerCreator: createCanister - Failed to retrieve info for createdControllerCanister: " # debug_show(createdControllerCanister.canister_id)  # Error.message(e) );
+                    return #Err(#Other("mAInerCreator: createCanister - Failed to retrieve info for createdControllerCanister: " # debug_show(createdControllerCanister.canister_id) # Error.message(e)));
+                };
 
+                D.print("mAInerCreator: createCanister - createdControllerCanister = " # debug_show (createdControllerCanister) # "(cyclesBalance = " # debug_show (cyclesBalance) # ")");
+
+                // --------------------------------------------------
+                // install code
                 let installControllerWasm = await IC0.install_code({
                     arg = "";
                     wasm_module = Blob.fromArray(mainerControllerCanisterWasm);
@@ -342,8 +374,23 @@ actor class CanisterCreationCanister() = this {
                     canister_id = createdControllerCanister.canister_id;
                     sender_canister_version = null;
                 });
+
+                var cyclesUsed : Nat = 0;
+                try {
+                    let canisterStatus = await IC0.canister_status({canister_id = createdControllerCanister.canister_id;});
+                    cyclesUsed := cyclesBalance - canisterStatus.cycles;
+                    cyclesBalance := canisterStatus.cycles;
+                } catch (e) {
+                    D.print("mAInerCreator: createCanister - Failed to retrieve info for createdControllerCanister: " # debug_show(createdControllerCanister.canister_id)  # Error.message(e) );
+                    return #Err(#Other("mAInerCreator: createCanister - Failed to retrieve info for createdControllerCanister: " # debug_show(createdControllerCanister.canister_id) # Error.message(e)));
+                };
+                D.print("mAInerCreator: createCanister - install_code for createdControllerCanister = " # debug_show (createdControllerCanister) # 
+                " - cyclesUsed = " # debug_show (cyclesUsed) # 
+                " - cyclesBalance = " # debug_show (cyclesBalance));
+                
                 D.print("mAInerCreator: createCanister - installControllerWasm "# debug_show (installControllerWasm));
 
+                // --------------------------------------------------
                 // Verify new canister is working
                 let controllerCanisterActor = actor (Principal.toText(createdControllerCanister.canister_id)) : Types.MainerAgentCtrlbCanister;
                 D.print("mAInerCreator: createCanister - calling createdControllerCanister.health()");
@@ -440,6 +487,19 @@ actor class CanisterCreationCanister() = this {
                     };
                 };
 
+                // ---------------------------------------------------------
+                try {
+                    let canisterStatus = await IC0.canister_status({canister_id = createdControllerCanister.canister_id;});
+                    cyclesUsed := cyclesBalance - canisterStatus.cycles;
+                    cyclesBalance := canisterStatus.cycles;
+                } catch (e) {
+                    D.print("mAInerCreator: createCanister - Failed to retrieve info for createdControllerCanister: " # debug_show(createdControllerCanister.canister_id)  # Error.message(e) );
+                    return #Err(#Other("mAInerCreator: createCanister - Failed to retrieve info for createdControllerCanister: " # debug_show(createdControllerCanister.canister_id) # Error.message(e)));
+                };
+                D.print("mAInerCreator: createCanister - configuration of createdControllerCanister = " # debug_show (createdControllerCanister) # 
+                " - cyclesUsed = " # debug_show (cyclesUsed) # 
+                " - cyclesBalance = " # debug_show (cyclesBalance));
+
                 // --------------------------------------------------------------------
                 let creationRecord = {
                     creationResult = "Success";
@@ -475,7 +535,17 @@ actor class CanisterCreationCanister() = this {
                             case (?modelCreationArtefacts) {
                                 D.print("mAInerCreator: createCanister modelCreationArtefacts");
                                 // Create mAIner LLM (and add it to a mAIner controller)
-                                Cycles.add(3_000_000_000_000);  // 3T cycles  (TODO - Implementation: what is the minimum?) adjust based on cycles user paid for (and are being sent from Game State)
+
+                                // Accept required cycles for canister creation
+                                let cyclesAcceptedForMainerAgentLlmCreation = Cycles.accept<system>(MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED);
+                                if (cyclesAcceptedForMainerAgentLlmCreation != MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED) {
+                                    // Sanity check: At this point, this should never fail
+                                    D.print("mAInerCreator: createCanister - should never fail checking cyclesAcceptedForMainerAgentLlmCreation");
+                                    return #Err(#Unauthorized);                    
+                                };
+
+                                let cyclesAdded = MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED - MAINER_CREATOR_CYCLES_MARGIN;  // (TODO - adjust) (creation costs 1T, so canister will end up with 3T in balance)
+                                Cycles.add<system>(cyclesAdded); // (TODO - adjust based on cycles user paid for (and are being sent from Game State)
 
                                 let createdLlmCanister = await IC0.create_canister({
                                     sender_canister_version = null;
@@ -489,9 +559,19 @@ actor class CanisterCreationCanister() = this {
                                         wasm_memory_limit  = null;
                                     };
                                 });
-                                D.print("mAInerCreator: createCanister createdLlmCanister");
-                                D.print(debug_show (createdLlmCanister));
+                                var cyclesBalance : Nat = 0;
+                                try {
+                                    let canisterStatus = await IC0.canister_status({canister_id = createdLlmCanister.canister_id;});
+                                    cyclesBalance := canisterStatus.cycles;
+                                } catch (e) {
+                                    D.print("mAInerCreator: createCanister - Failed to retrieve info for createdLlmCanister: " # debug_show(createdLlmCanister.canister_id)  # Error.message(e) );
+                                    return #Err(#Other("mAInerCreator: createCanister - Failed to retrieve info for createdLlmCanister: " # debug_show(createdLlmCanister.canister_id) # Error.message(e)));
+                                };
 
+                                D.print("mAInerCreator: createCanister - createdLlmCanister = " # debug_show (createdLlmCanister) # "(cyclesBalance = " # debug_show (cyclesBalance) # ")");
+
+                                // --------------------------------------------------
+                                // install code
                                 let installLlmWasm = await IC0.install_code({
                                     arg = "";
                                     wasm_module = Blob.fromArray(modelCreationArtefacts.canisterWasm);
@@ -499,9 +579,21 @@ actor class CanisterCreationCanister() = this {
                                     canister_id = createdLlmCanister.canister_id;
                                     sender_canister_version = null;
                                 });
-                                D.print("mAInerCreator: createCanister installLlmWasm");
-                                D.print(debug_show (installLlmWasm));
+                                var cyclesUsed : Nat = 0;
+                                try {
+                                    let canisterStatus = await IC0.canister_status({canister_id = createdLlmCanister.canister_id;});
+                                    cyclesUsed := cyclesBalance - canisterStatus.cycles;
+                                    cyclesBalance := canisterStatus.cycles;
+                                } catch (e) {
+                                    D.print("mAInerCreator: createCanister - Failed to retrieve info for createdLlmCanister: " # debug_show(createdLlmCanister.canister_id)  # Error.message(e) );
+                                    return #Err(#Other("mAInerCreator: createCanister - Failed to retrieve info for createdLlmCanister: " # debug_show(createdLlmCanister.canister_id) # Error.message(e)));
+                                };
+                                D.print("mAInerCreator: createCanister - install_code for createdLlmCanister = " # debug_show (createdLlmCanister) # 
+                                " - cyclesUsed = " # debug_show (cyclesUsed) # 
+                                " - cyclesBalance = " # debug_show (cyclesBalance));
+                                D.print("mAInerCreator: createCanister installLlmWasm" # debug_show (installLlmWasm));
 
+                                // --------------------------------------------------
                                 // Verify new canister is working
                                 let llmCanisterActor = actor (Principal.toText(createdLlmCanister.canister_id)) : Types.LLMCanister;
                                 D.print("mAInerCreator: createCanister llmCanisterActor");
@@ -516,6 +608,7 @@ actor class CanisterCreationCanister() = this {
                                     };
                                 };
 
+                                // ------------------------------------------
                                 // Make LLM functional
                                 // Upload model file
                                 // let chunkSize = 42000; // ~0.01 MB for testing TODO - Testing
@@ -660,6 +753,19 @@ actor class CanisterCreationCanister() = this {
                                         // all good, continue
                                     };
                                 };
+
+                                // ---------------------------------------------------------
+                                try {
+                                    let canisterStatus = await IC0.canister_status({canister_id = createdLlmCanister.canister_id;});
+                                    cyclesUsed := cyclesBalance - canisterStatus.cycles;
+                                    cyclesBalance := canisterStatus.cycles;
+                                } catch (e) {
+                                    D.print("mAInerCreator: createCanister - Failed to retrieve info for createdLlmCanister: " # debug_show(createdLlmCanister.canister_id)  # Error.message(e) );
+                                    return #Err(#Other("mAInerCreator: createCanister - Failed to retrieve info for createdLlmCanister: " # debug_show(createdLlmCanister.canister_id) # Error.message(e)));
+                                };
+                                D.print("mAInerCreator: createCanister - configuration of createdLlmCanister = " # debug_show (createdLlmCanister) # 
+                                " - cyclesUsed = " # debug_show (cyclesUsed) # 
+                                " - cyclesBalance = " # debug_show (cyclesBalance));
 
                                 // --------------------------------------------------------------------
                                 let creationRecord = {

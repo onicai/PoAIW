@@ -240,17 +240,23 @@ actor class GameStateCanister() = this {
     // TODO: Cycles burnt per operation    
     stable let _CYCLES_MILLION = 1_000_000;
     stable let CYCLES_BILLION = 1_000_000_000;
-    stable let _CYCLES_TRILLION = 1_000_000_000_000;
-    // TODO: Keep in sync with SUBMISSION_CYCLES_REQUIRED in mAIner
-    stable let SUBMISSION_CYCLES_REQUIRED : Nat = 100 * CYCLES_BILLION; // TODO: determine how many cycles are needed to process one submission (incl. judge)
-    
-    stable let FAILED_SUBMISSION_CYCLES_CUT : Nat = SUBMISSION_CYCLES_REQUIRED / 5;
-    stable let _JUDGE_CYCLES_PROVISION_PER_SUBMISSION : Nat = 80 * CYCLES_BILLION; // TODO: determine how many cycles should be forwarded to judge per submission
+    stable let CYCLES_TRILLION = 1_000_000_000_000;
 
-    // TODO: llama_cpp_canister must return these values
-    stable var CYCLES_BURNT_CHALLENGE_CREATION : Nat = 110 * CYCLES_BILLION;
-    stable var CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * CYCLES_BILLION;
-    stable var CYCLES_BURNT_JUDGE_SCORING : Nat = 300 * CYCLES_BILLION;
+
+    // TODO: Keep in sync with SUBMISSION_CYCLES_REQUIRED in mAInerCreator
+    let MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED = 5 * CYCLES_TRILLION; // TODO: Update to actual values
+    let MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED = 5 * CYCLES_TRILLION; // TODO: Update to actual values
+
+    // TODO: Keep in sync with SUBMISSION_CYCLES_REQUIRED in mAIner
+    let SUBMISSION_CYCLES_REQUIRED : Nat = 100 * CYCLES_BILLION; // TODO: determine how many cycles are needed to process one submission (incl. judge)
+    
+    let FAILED_SUBMISSION_CYCLES_CUT : Nat = SUBMISSION_CYCLES_REQUIRED / 5;
+    let _JUDGE_CYCLES_PROVISION_PER_SUBMISSION : Nat = 80 * CYCLES_BILLION; // TODO: determine how many cycles should be forwarded to judge per submission
+
+    // TODO: Update to actual values
+    let CYCLES_BURNT_CHALLENGE_CREATION : Nat = 110 * CYCLES_BILLION;
+    let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * CYCLES_BILLION;
+    let CYCLES_BURNT_JUDGE_SCORING : Nat = 300 * CYCLES_BILLION;
 
     // Official Challenger canisters
     stable var challengerCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
@@ -1505,8 +1511,39 @@ actor class GameStateCanister() = this {
                                     associatedCanisterAddress : ?Types.CanisterAddress = associatedCanisterAddress; // null for #Own, shareServiceCanisterAddress for ShareAgent
                                     mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                 };
+                                
+                                // TODO - outcomment checks on cycles used during canister creation
+                                let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
+                                D.print("GameState: spinUpMainerControllerCanister - Get cycles balance of mAInerCreator ("# debug_show(mainerCreatorEntry.address) #  ") before calling createCanister.");
+                                var cyclesBefore : Nat = 0;
+                                try {
+                                    let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
+                                    cyclesBefore := canisterStatus.cycles;
+                                } catch (e) {
+                                    D.print("GameState: spinUpMainerControllerCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
+                                    return #Err(#Other("GameState: spinUpMainerControllerCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address) # Error.message(e)));
+                                };
+                                D.print("GameState: spinUpMainerControllerCanister - cycles balance of mAInerCreator ("# debug_show(mainerCreatorEntry.address) #  ") before calling createCanister = " # debug_show(cyclesBefore) );
+
                                 // TODO - Implementation: charge with cycles (the user paid for)
+                                let cyclesAdded = MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED; // (TODO - adjust & sync with amount used by mAInerCreator)
+                                Cycles.add<system>(cyclesAdded);
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
+
+                                D.print("GameState: spinUpMainerControllerCanister - Get cycles balance of mAInerCreator ("# debug_show(mainerCreatorEntry.address) #  ") after calling createCanister.");
+                                var cyclesAfter : Nat = 0;
+                                try {
+                                    let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
+                                    cyclesAfter := canisterStatus.cycles;
+                                } catch (e) {
+                                    D.print("GameState: spinUpMainerControllerCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
+                                    return #Err(#Other("GameState: spinUpMainerControllerCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address) # Error.message(e)));
+                                };
+                                let cyclesUsed : Nat = cyclesBefore + cyclesAdded - cyclesAfter;
+                                D.print("GameState: spinUpMainerControllerCanister - cycles balance of mAInerCreator (" # debug_show(mainerCreatorEntry.address) #  ") after calling createCanister = " # debug_show(cyclesAfter) );
+                                D.print("GameState: spinUpMainerControllerCanister - cycles added   to mAInerCreator (" # debug_show(mainerCreatorEntry.address) #  ")                              = " # debug_show(cyclesAdded) );
+                                D.print("GameState: spinUpMainerControllerCanister - cycles used    by mAInerCreator (" # debug_show(mainerCreatorEntry.address) #  ")                              = " # debug_show(cyclesUsed) );
+
                                 switch (result) {
                                     case (#Ok(canisterCreationRecord)) {
                                         let canisterEntry : Types.OfficialMainerAgentCanister = {
@@ -1623,8 +1660,39 @@ actor class GameStateCanister() = this {
                                     associatedCanisterAddress : ?Types.CanisterAddress = ?userMainerEntry.address; // Controller address
                                     mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                 };
+
+                                // TODO - outcomment checks on cycles used during canister creation
+                                let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
+                                D.print("GameState: setUpMainerLlmCanister - Get cycles balance of mAInerCreator " # debug_show(mainerCreatorEntry.address) # "before calling createCanister.");
+                                var cyclesBefore : Nat = 0;
+                                try {
+                                    let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
+                                    cyclesBefore := canisterStatus.cycles;
+                                } catch (e) {
+                                    D.print("GameState: setUpMainerLlmCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
+                                    return #Err(#Other("GameState: setUpMainerLlmCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address) # Error.message(e)));
+                                };
+                                D.print("GameState: setUpMainerLlmCanister - cycles balance of mAInerCreator " # debug_show(mainerCreatorEntry.address) # "before calling createCanister = " # debug_show(cyclesBefore) );  
+
                                 // TODO - Implementation: charge with cycles (the user paid for)
+                                let cyclesAdded = MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED; // (TODO - adjust & sync with amount used by mAInerCreator)
+                                Cycles.add<system>(cyclesAdded);
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
+
+                                D.print("GameState: setUpMainerLlmCanister - Get cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") after calling createCanister.");
+                                var cyclesAfter : Nat = 0;
+                                try {
+                                    let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
+                                    cyclesAfter := canisterStatus.cycles;
+                                } catch (e) {
+                                    D.print("GameState: setUpMainerLlmCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
+                                    return #Err(#Other("GameState: setUpMainerLlmCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address) # Error.message(e)));
+                                };
+                                let cyclesUsed : Nat = cyclesBefore + cyclesAdded - cyclesAfter;
+                                D.print("GameState: setUpMainerLlmCanister - cycles balance of mAInerCreator " # debug_show(mainerCreatorEntry.address) # "after calling createCanister = " # debug_show(cyclesAfter) );  
+                                D.print("GameState: setUpMainerLlmCanister - cyclesUsed by mAInerCreator: " # debug_show(cyclesUsed) );
+
+
                                 switch (result) {
                                     case (#Ok(canisterCreationRecord)) {
                                         //TODO - Design: decide what to do with canisterCreationRecord.newCanisterId; of new LLM canister, e.g. attach to OfficialMainerAgentCanister type and entry
@@ -1730,8 +1798,37 @@ actor class GameStateCanister() = this {
                                     associatedCanisterAddress : ?Types.CanisterAddress = ?userMainerEntry.address; // Controller address
                                     mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                 };
+                                // TODO - outcomment checks on cycles used during canister creation
+                                let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
+                                D.print("GameState: addLlmCanisterToMainer - Get cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") before calling createCanister.");
+                                var cyclesBefore : Nat = 0;
+                                try {
+                                    let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
+                                    cyclesBefore := canisterStatus.cycles;
+                                } catch (e) {
+                                    D.print("GameState: addLlmCanisterToMainer - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
+                                    return #Err(#Other("GameState: addLlmCanisterToMainer - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address) # Error.message(e)));
+                                };
+                                D.print("GameState: addLlmCanisterToMainer - cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") before calling createCanister = " # debug_show(cyclesBefore) );
+
                                 // TODO - Implementation: charge with cycles (the user paid for)
+                                let cyclesAdded = MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED; // (TODO - adjust & sync with amount used by mAInerCreator)
+                                Cycles.add<system>(cyclesAdded);
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
+
+                                D.print("GameState: addLlmCanisterToMainer - Get cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") after calling createCanister.");
+                                var cyclesAfter : Nat = 0;
+                                try {
+                                    let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
+                                    cyclesAfter := canisterStatus.cycles;
+                                } catch (e) {
+                                    D.print("GameState: addLlmCanisterToMainer - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
+                                    return #Err(#Other("GameState: addLlmCanisterToMainer - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address) # Error.message(e)));
+                                };
+                                let cyclesUsed : Nat = cyclesBefore + cyclesAdded - cyclesAfter;
+                                D.print("GameState: addLlmCanisterToMainer - cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") after calling createCanister = " # debug_show(cyclesAfter) );
+                                D.print("GameState: addLlmCanisterToMainer - cyclesUsed by mAInerCreator: " # debug_show(cyclesUsed) );
+
                                 switch (result) {
                                     case (#Ok(canisterCreationRecord)) {
                                         //TODO - Design: decide what to do with canisterCreationRecord.newCanisterId; of new LLM canister, e.g. attach to OfficialMainerAgentCanister type and entry

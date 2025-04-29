@@ -60,3 +60,8 @@ echo " "
 echo "--------------------------------------------------"
 echo "Registering GameState $CANISTER_ID_GAME_STATE_CANISTER with the mainer_creator_canister"
 dfx canister call mainer_creator_canister setMasterCanisterId "(\"$CANISTER_ID_GAME_STATE_CANISTER\")" --network $NETWORK_TYPE
+
+echo " "
+echo "--------------------------------------------------"
+echo "Make GameState $CANISTER_ID_GAME_STATE_CANISTER a controller of the mainer_creator_canister"
+dfx canister update-settings mainer_creator_canister --add-controller $CANISTER_ID_GAME_STATE_CANISTER --network $NETWORK_TYPE

@@ -2,7 +2,7 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/deploy-mainers-Own.sh
+# scripts/deploy-mainers-Own-via-mAInerCreator.sh
 #######################################################################
 
 # Default network type is local
