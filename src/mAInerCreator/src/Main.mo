@@ -443,6 +443,8 @@ actor class CanisterCreationCanister() = this {
                 // This should not be needed as the Game State makes this call to the Creator and thus the returned response will be used to Register the mAIner Agent with the GameState canister
                 if (MASTER_CANISTER_ID != Principal.toText(msg.caller)) {
                     // TODO - Testing: decide whether this block should be kept in production
+                    // -> AB: Most likely we should leave it in for when the gamestate->mAInerCreator call times out, but the creation goes just fine.
+                    //        We need to make all calls above robust against timeouts with retries.
                     let gameStateCanisterActor = actor (MASTER_CANISTER_ID) : Types.GameStateCanister_Actor;
                     D.print("mAInerCreator: createCanister - calling gameStateCanisterActor.addMainerAgentCanister with mainerAgentCanisterInput = " # debug_show (mainerAgentCanisterInput));
                     let addMainerAgentCanisterResult = await gameStateCanisterActor.addMainerAgentCanister(mainerAgentCanisterInput);
@@ -774,6 +776,26 @@ actor class CanisterCreationCanister() = this {
                                 };
                                 D.print("mAInerCreator: createCanister creationRecord");
                                 D.print(debug_show (creationRecord));
+
+                                // TODO: implement this
+                                // The call from gamestate could have timed out, while the LLM model upload was still processing
+                                // To deal with that situation, call the GameState canister to set 
+                                //          status : Types.CanisterStatus = #LlmSetupFinished;
+                                // if (MASTER_CANISTER_ID != Principal.toText(msg.caller)) {
+                                //     let gameStateCanisterActor = actor (MASTER_CANISTER_ID) : Types.GameStateCanister_Actor;
+                                //     D.print("mAInerCreator: createCanister - calling gameStateCanisterActor.addMainerAgentCanister with mainerAgentCanisterInput = " # debug_show (mainerAgentCanisterInput));
+                                //     let addMainerAgentCanisterResult = await gameStateCanisterActor.addMainerAgentCanister(mainerAgentCanisterInput);
+                                //     D.print("mAInerCreator: createCanister addMainerAgentCanisterResult" # debug_show (addMainerAgentCanisterResult));
+                                //     switch (addMainerAgentCanisterResult) {
+                                //         case (#Err(error)) {
+                                //             return #Err(error);
+                                //         };
+                                //         case _ {
+                                //             // all good, continue
+                                //         };
+                                //     };
+                                // };
+                                
                                 return #Ok(creationRecord);
                             };
                         };
