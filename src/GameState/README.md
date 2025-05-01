@@ -1,5 +1,9 @@
 See instructions in `PoAIW/README.md`
 
+```bash
+# Run these commands from the folder: funnAI
+
+# ----------------------------------------
 # mAIner of type Own
 dfx canister call game_state_canister createUserMainerAgent '(record { paymentTransactionBlockId = 11; mainerConfig = record { mainerAgentCanisterType = variant {Own}; selectedLLM = opt variant {Qwen2_5_500M}; }; })'
 
@@ -9,13 +13,36 @@ dfx canister call game_state_canister spinUpMainerControllerCanister '(record { 
 ### Copy the output from above command as the argument for next command
 dfx canister call game_state_canister setUpMainerLlmCanister '(record { status = variant { ControllerCreated }; canisterType = variant { MainerAgent = variant { Own } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_075_669_143_980_013 : nat64;  createdBy = principal "be2us-64aaa-aaaaa-qaabq-cai";       mainerConfig = record { selectedLLM = opt variant { Qwen2_5_500M }; mainerAgentCanisterType = variant { Own }; }; address = "cuj6u-c4aaa-aaaaa-qaajq-cai"; } )'
 
+### To add another LLM, call this method with same argument
+dfx canister call game_state_canister addLlmCanisterToMainer '(record { status = variant { ControllerCreated }; canisterType = variant { MainerAgent = variant { Own } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_075_669_143_980_013 : nat64;  createdBy = principal "be2us-64aaa-aaaaa-qaabq-cai";       mainerConfig = record { selectedLLM = opt variant { Qwen2_5_500M }; mainerAgentCanisterType = variant { Own }; }; address = "cuj6u-c4aaa-aaaaa-qaajq-cai"; } )'
+
+# ----------------------------------------
+# mAIner of type ShareService
+# Only a controller can make these calls when the mainerAgentCanisterType = variant {ShareService}
+# - No payment is due, so set paymentTransactionBlockId = 0
+dfx canister call game_state_canister createUserMainerAgent '(record { paymentTransactionBlockId = 0; mainerConfig = record { mainerAgentCanisterType = variant {ShareService}; selectedLLM = opt variant {Qwen2_5_500M}; }; })'
+
+### Copy the output from above command as the argument for next command
+dfx canister call game_state_canister spinUpMainerControllerCanister '(record { status = variant { Paid }; canisterType = variant { MainerAgent = variant { ShareService } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_075_669_143_980_013 : nat64; createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; mainerConfig = record { selectedLLM = opt variant { Qwen2_5_500M }; mainerAgentCanisterType = variant { ShareService };  }; address = "";  } )'
+
+### Copy the output from above command as the argument for next command
+dfx canister call game_state_canister setUpMainerLlmCanister '(record { status = variant { ControllerCreated }; canisterType = variant { MainerAgent = variant { ShareService } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_075_669_143_980_013 : nat64;  createdBy = principal "be2us-64aaa-aaaaa-qaabq-cai";       mainerConfig = record { selectedLLM = opt variant { Qwen2_5_500M }; mainerAgentCanisterType = variant { ShareService }; }; address = "cuj6u-c4aaa-aaaaa-qaajq-cai"; } )'
+
+### To add another LLM, call this method with same argument
+dfx canister call game_state_canister addLlmCanisterToMainer '(record { status = variant { ControllerCreated }; canisterType = variant { MainerAgent = variant { ShareService } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_075_669_143_980_013 : nat64;  createdBy = principal "be2us-64aaa-aaaaa-qaabq-cai";       mainerConfig = record { selectedLLM = opt variant { Qwen2_5_500M }; mainerAgentCanisterType = variant { ShareService }; }; address = "cuj6u-c4aaa-aaaaa-qaajq-cai"; } )'
+
+# ----------------------------------------
 # mAIner of type ShareAgent
-## Register ShareService if not done yet (get address from deployment output)
-dfx canister call game_state_canister addOfficialCanister "(record { address = \"aax3a-h4aaa-aaaaa-qaahq-cai\"; canisterType = variant {MainerAgent = variant {ShareService}}; })"
+
+## Register ShareService if not done yet
+## NOTE: When deploying with the scripts described in funnAI/README.md, this is already done...
+# dfx canister call game_state_canister addOfficialCanister "(record { address = \"aax3a-h4aaa-aaaaa-qaahq-cai\"; canisterType = variant {MainerAgent = variant {ShareService}}; })"
 
 ## Create ShareAgent
 dfx canister call game_state_canister createUserMainerAgent '(record { paymentTransactionBlockId = 12; mainerConfig = record { mainerAgentCanisterType = variant {ShareAgent}; selectedLLM = null; }; })'
 
 ### Copy the output from above command as the argument for next command
 dfx canister call game_state_canister spinUpMainerControllerCanister '(record {status = variant { Paid }; canisterType = variant { MainerAgent = variant { ShareAgent } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_076_185_351_556_204 : nat64; createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; mainerConfig = record {       selectedLLM = null; mainerAgentCanisterType = variant { ShareAgent }; }; address = ""; } )'
+# ----------------------------------------
+```
 
