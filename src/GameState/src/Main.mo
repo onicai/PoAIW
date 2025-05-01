@@ -1753,6 +1753,12 @@ actor class GameStateCanister() = this {
             return #Err(#Unauthorized);
         };
 
+        // For now, only Controller canisters are allowed to add LLMs to mAIners
+        // This is temporary solution to ensure we scale the system appropriately
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
         // TODO - Implementation: add payment info to params and verify user payment (for new LLM canister)
 
         // Sanity checks on mAIner info
