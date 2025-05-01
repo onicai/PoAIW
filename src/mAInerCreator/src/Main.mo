@@ -9,6 +9,8 @@ import Iter "mo:base/Iter";
 import D "mo:base/Debug";
 import Nat64 "mo:base/Nat64";
 import Nat "mo:base/Nat";
+import Int "mo:base/Int";
+import Time "mo:base/Time";
 import Error "mo:base/Error";
 
 import Types "../../common/Types";
@@ -439,24 +441,8 @@ actor class CanisterCreationCanister() = this {
                     mainerAgentCanisterType = mainerAgentCanisterType; 
                     status = #ControllerCreated;
                     mainerConfig = configurationInput.mainerConfig;
-                };
-                // This should not be needed as the Game State makes this call to the Creator and thus the returned response will be used to Register the mAIner Agent with the GameState canister
-                if (MASTER_CANISTER_ID != Principal.toText(msg.caller)) {
-                    // TODO - Testing: decide whether this block should be kept in production
-                    // -> AB: Most likely we should leave it in for when the gamestate->mAInerCreator call times out, but the creation goes just fine.
-                    //        We need to make all calls above robust against timeouts with retries.
-                    let gameStateCanisterActor = actor (MASTER_CANISTER_ID) : Types.GameStateCanister_Actor;
-                    D.print("mAInerCreator: createCanister - calling gameStateCanisterActor.addMainerAgentCanister with mainerAgentCanisterInput = " # debug_show (mainerAgentCanisterInput));
-                    let addMainerAgentCanisterResult = await gameStateCanisterActor.addMainerAgentCanister(mainerAgentCanisterInput);
-                    D.print("mAInerCreator: createCanister addMainerAgentCanisterResult" # debug_show (addMainerAgentCanisterResult));
-                    switch (addMainerAgentCanisterResult) {
-                        case (#Err(error)) {
-                            return #Err(error);
-                        };
-                        case _ {
-                            // all good, continue
-                        };
-                    };
+                    userMainerEntryCreationTimestamp : Nat64 = configurationInput.userMainerEntryCreationTimestamp;
+                    userMainerEntryCanisterType : Types.ProtocolCanisterType = configurationInput.userMainerEntryCanisterType;
                 };
 
                 // Link up the ShareAgent & ShareService canisters 
@@ -501,6 +487,22 @@ actor class CanisterCreationCanister() = this {
                 D.print("mAInerCreator: createCanister - configuration of createdControllerCanister = " # debug_show (createdControllerCanister) # 
                 " - cyclesUsed = " # debug_show (cyclesUsed) # 
                 " - cyclesBalance = " # debug_show (cyclesBalance));
+
+                // --------------------------------------------------------------------
+                // This is not needed since we are making an await call from the Game State canister
+                // // Register the new mAIner agent canister with the Game State canister, which also updates the canister status
+                // let gameStateCanisterActor = actor (MASTER_CANISTER_ID) : Types.GameStateCanister_Actor;
+                // D.print("mAInerCreator: createCanister - calling gameStateCanisterActor.addMainerAgentCanister with mainerAgentCanisterInput = " # debug_show (mainerAgentCanisterInput));
+                // let addMainerAgentCanisterResult = await gameStateCanisterActor.addMainerAgentCanister(mainerAgentCanisterInput);
+                // D.print("mAInerCreator: createCanister addMainerAgentCanisterResult" # debug_show (addMainerAgentCanisterResult));
+                // switch (addMainerAgentCanisterResult) {
+                //     case (#Err(error)) {
+                //         return #Err(error);
+                //     };
+                //     case _ {
+                //         // all good, continue
+                //     };
+                // };
 
                 // --------------------------------------------------------------------
                 let creationRecord = {
@@ -768,6 +770,32 @@ actor class CanisterCreationCanister() = this {
                                 D.print("mAInerCreator: createCanister - configuration of createdLlmCanister = " # debug_show (createdLlmCanister) # 
                                 " - cyclesUsed = " # debug_show (cyclesUsed) # 
                                 " - cyclesBalance = " # debug_show (cyclesBalance));
+                                // ---------------------------------------------------------
+
+                                // Update the Controller Agent canister with the Game State canister, which also updates the canister status
+                                let mainerAgentCanisterInput : Types.MainerAgentCanisterInput = {
+                                    address = associatedCanisterAddress;
+                                    canisterType = configurationInput.userMainerEntryCanisterType;
+                                    ownedBy = configurationInput.owner;
+                                    mainerAgentCanisterType = configurationInput.mainerConfig.mainerAgentCanisterType; 
+                                    status = #Running;   // TODO: I think it is best to now set it to #Running and not #LlmSetupFinished
+                                    mainerConfig = configurationInput.mainerConfig;
+                                    userMainerEntryCreationTimestamp : Nat64 = configurationInput.userMainerEntryCreationTimestamp;
+                                    userMainerEntryCanisterType : Types.ProtocolCanisterType = configurationInput.userMainerEntryCanisterType;
+                                };
+                                let gameStateCanisterActor = actor (MASTER_CANISTER_ID) : Types.GameStateCanister_Actor;
+                                D.print("mAInerCreator: createCanister - calling gameStateCanisterActor.addMainerAgentCanister with mainerAgentCanisterInput = " # debug_show (mainerAgentCanisterInput));
+                                let addMainerAgentCanisterResult = await gameStateCanisterActor.addMainerAgentCanister(mainerAgentCanisterInput);
+                                D.print("mAInerCreator: createCanister addMainerAgentCanisterResult" # debug_show (addMainerAgentCanisterResult));
+                                switch (addMainerAgentCanisterResult) {
+                                    case (#Err(error)) {
+                                        return #Err(error);
+                                    };
+                                    case _ {
+                                        // all good, continue
+                                    };
+                                };
+
 
                                 // --------------------------------------------------------------------
                                 let creationRecord = {
@@ -776,25 +804,6 @@ actor class CanisterCreationCanister() = this {
                                 };
                                 D.print("mAInerCreator: createCanister creationRecord");
                                 D.print(debug_show (creationRecord));
-
-                                // TODO: implement this
-                                // The call from gamestate could have timed out, while the LLM model upload was still processing
-                                // To deal with that situation, call the GameState canister to set 
-                                //          status : Types.CanisterStatus = #LlmSetupFinished;
-                                // if (MASTER_CANISTER_ID != Principal.toText(msg.caller)) {
-                                //     let gameStateCanisterActor = actor (MASTER_CANISTER_ID) : Types.GameStateCanister_Actor;
-                                //     D.print("mAInerCreator: createCanister - calling gameStateCanisterActor.addMainerAgentCanister with mainerAgentCanisterInput = " # debug_show (mainerAgentCanisterInput));
-                                //     let addMainerAgentCanisterResult = await gameStateCanisterActor.addMainerAgentCanister(mainerAgentCanisterInput);
-                                //     D.print("mAInerCreator: createCanister addMainerAgentCanisterResult" # debug_show (addMainerAgentCanisterResult));
-                                //     switch (addMainerAgentCanisterResult) {
-                                //         case (#Err(error)) {
-                                //             return #Err(error);
-                                //         };
-                                //         case _ {
-                                //             // all good, continue
-                                //         };
-                                //     };
-                                // };
                                 
                                 return #Ok(creationRecord);
                             };
@@ -807,8 +816,10 @@ actor class CanisterCreationCanister() = this {
             };
         };
     };
+    
 
 // Admin 
+    // TODO - REMOVE
     public shared (msg) func testCreateMainerControllerCanister(mainerAgentCanisterType : Types.MainerAgentCanisterType, shareServiceCanisterAddress : ?Types.CanisterAddress) : async Types.CanisterCreationResult {
         D.print("mAInerCreator: entered testCreateMainerControllerCanister");
         if (Principal.isAnonymous(msg.caller)) {
@@ -826,12 +837,15 @@ actor class CanisterCreationCanister() = this {
             associatedCanisterAddress : ?Types.CanisterAddress = shareServiceCanisterAddress;
             owner : Principal = msg.caller; 
             mainerConfig : Types.MainerConfigurationInput = mainerConfig;
+            userMainerEntryCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+            userMainerEntryCanisterType : Types.ProtocolCanisterType = #MainerAgent(mainerAgentCanisterType);
         };
         D.print("mAInerCreator: testCreateMainerControllerCanister - calling createCanister with config" # debug_show(config));
         let result = await createCanister(config);
         return result;
     };
 
+    // TODO - REMOVE
     public shared (msg) func testCreateMainerLlmCanister(controllerCanisterAddress : Text) : async Types.CanisterCreationResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -892,6 +906,8 @@ actor class CanisterCreationCanister() = this {
             associatedCanisterAddress : ?Types.CanisterAddress = ?controllerCanisterAddress;
             owner : Principal = msg.caller;
             mainerConfig : Types.MainerConfigurationInput = mainerConfig;
+            userMainerEntryCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+            userMainerEntryCanisterType : Types.ProtocolCanisterType = #MainerLlm;
         };
         let result = await createCanister(config);
         return result;

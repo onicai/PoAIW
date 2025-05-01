@@ -98,6 +98,8 @@ module Types {
         mainerAgentCanisterType: MainerAgentCanisterType;
         status : CanisterStatus;
         mainerConfig : MainerConfigurationInput;
+        userMainerEntryCreationTimestamp : Nat64; // for deduplication by putUserMainerAgent
+        userMainerEntryCanisterType : ProtocolCanisterType;
     };
 
     public type MainerAgentCanisterResult = Result<OfficialMainerAgentCanister, ApiError>;
@@ -132,6 +134,8 @@ module Types {
 
     public type CanisterCreationConfiguration = CanisterCreationConfigurationInput and {
         owner: Principal;
+        userMainerEntryCreationTimestamp : Nat64; // for deduplication by putUserMainerAgent
+        userMainerEntryCanisterType : ProtocolCanisterType;
     };
 
     public type CanisterCreationRecord = {
