@@ -148,7 +148,7 @@ actor class GameStateCanister() = this {
     // mAIner agent wasm module hash that must match
         // TODO: implement way to manage this
         // -> For now, do not make it stable, so it can be updated via a canister upgrade
-    let officialMainerAgentCanisterWasmHash : Blob = "\6C\10\45\A6\52\C3\62\D2\CE\8D\77\2A\A2\5E\59\89\5E\0C\B1\FB\30\27\84\8E\D3\8F\A3\AA\2B\B0\08\9A";
+    let officialMainerAgentCanisterWasmHash : Blob = "\F3\20\19\2A\0B\B0\80\C3\20\D8\EE\31\20\C2\06\0C\0C\C8\05\0E\3F\70\44\7E\98\B8\FA\B0\D2\D9\A3\62";
     
     public shared (msg) func testMainerCodeIntegrityAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -396,6 +396,7 @@ actor class GameStateCanister() = this {
     var userToMainerAgentsStorage : HashMap.HashMap<Principal, List.List<Types.OfficialMainerAgentCanister>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
 
     private func putMainerAgentCanister(canisterAddress : Text, canisterEntry : Types.OfficialMainerAgentCanister) : Types.MainerAgentCanisterResult {
+        // TODO - Security: for security reasons, include checks here for an entry that already exists i.e. that immutable fields aren't changed
         mainerAgentCanistersStorage.put(canisterAddress, canisterEntry);
         return #Ok(canisterEntry);
     };
@@ -1548,8 +1549,7 @@ actor class GameStateCanister() = this {
                                         // Setup the controller canister (install code & configurations)
                                         ignore creatorCanisterActor.setupCanister(canisterCreationRecord.newCanisterId, canisterCreationInput);
 
-                                        // TODO: replace it with an actual call to addMainerAgentCanister
-                                        let canisterEntry : Types.OfficialMainerAgentCanister = {
+                                        let canisterEntryToAdd : Types.OfficialMainerAgentCanister = {
                                             address : Text = canisterCreationRecord.newCanisterId; // New mAIner Controller canister's id
                                             canisterType: Types.ProtocolCanisterType = userMainerEntry.canisterType;
                                             creationTimestamp : Nat64 = userMainerEntry.creationTimestamp;
@@ -1558,10 +1558,8 @@ actor class GameStateCanister() = this {
                                             status : Types.CanisterStatus = #ControllerCreationInProgress;
                                             mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                         };
-                                        let _ = putUserMainerAgent(canisterEntry);
-                                        let _ = putMainerAgentCanister(canisterEntry.address, canisterEntry);
-                                        D.print("GameState: spinUpMainerControllerCanister - returning canisterEntry: " # debug_show(canisterEntry) );
-                                        return #Ok(canisterEntry);
+                                        D.print("GameState: spinUpMainerControllerCanister - canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );
+                                        addMainerAgentCanister_(canisterEntryToAdd);
                                     };
                                     case (_) { return #Err(#FailedOperation); };
                                 };            
@@ -1732,7 +1730,7 @@ actor class GameStateCanister() = this {
                                         ignore creatorCanisterActor.setupCanister(canisterCreationRecord.newCanisterId, canisterCreationInput);
 
                                         // TODO: replace it with an actual call to addMainerAgentCanister
-                                        let canisterEntry : Types.OfficialMainerAgentCanister = {
+                                        let canisterEntryToAdd : Types.OfficialMainerAgentCanister = {
                                             address : Text = userMainerEntry.address; // Controller 
                                             canisterType: Types.ProtocolCanisterType = userMainerEntry.canisterType;
                                             creationTimestamp : Nat64 = userMainerEntry.creationTimestamp;
@@ -1741,10 +1739,8 @@ actor class GameStateCanister() = this {
                                             status : Types.CanisterStatus = #LlmSetupInProgress;
                                             mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                         };
-                                        let _ = putUserMainerAgent(canisterEntry);
-                                        let _ = putMainerAgentCanister(canisterEntry.address, canisterEntry);
-                                        D.print("GameState: setUpMainerLlmCanister - returning canisterEntry: " # debug_show(canisterEntry) );                                        
-                                        return #Ok(canisterEntry);
+                                        D.print("GameState: setUpMainerLlmCanister - returning canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );  
+                                        addMainerAgentCanister_(canisterEntryToAdd);
                                     };
                                     case (_) { return #Err(#FailedOperation); };
                                 };            
@@ -1944,7 +1940,7 @@ actor class GameStateCanister() = this {
         };
     };
 
-    // Function for mAIner Agent Creator canister to add new mAIner agent for user
+    // Public Function for mAIner Agent Creator canister to add new mAIner agent for user
     public shared (msg) func addMainerAgentCanister(canisterEntryToAdd : Types.OfficialMainerAgentCanister) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -1964,21 +1960,35 @@ actor class GameStateCanister() = this {
         switch (getMainerCreatorCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
             case (?mainerCreatorEntry) {
-                let canisterEntry : Types.OfficialMainerAgentCanister = {
-                    address : Text = canisterEntryToAdd.address;
-                    canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
-                    creationTimestamp : Nat64 = canisterEntryToAdd.creationTimestamp;
-                    createdBy : Principal = msg.caller;
-                    ownedBy : Principal = canisterEntryToAdd.ownedBy;
-                    status : Types.CanisterStatus = canisterEntryToAdd.status;
-                    mainerConfig : Types.MainerConfigurationInput = canisterEntryToAdd.mainerConfig;
-                };
-                let _ = putUserMainerAgent(canisterEntry);
-                let _ = putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry);
-                D.print("GameState: addMainerAgentCanister - putMainerAgentCanister for canisterEntry: " # debug_show(canisterEntry) ); 
-                return #Ok(canisterEntry);
+                addMainerAgentCanister_(canisterEntryToAdd);
             };
         };
+    };
+
+    // Internal function to to add new mAIner agent for user
+    private func addMainerAgentCanister_(canisterEntryToAdd : Types.OfficialMainerAgentCanister) : Types.MainerAgentCanisterResult {
+        switch (canisterEntryToAdd.canisterType) {
+            case (#MainerAgent(_)) {
+                // continue
+            };
+            case (_) { 
+                D.print("GameState: addMainerAgentCanister_ - Unsupported canisterEntryToAdd.canisterType: " # debug_show(canisterEntryToAdd.canisterType) );
+                return #Err(#Other("Unsupported")); 
+            }
+        };
+        let canisterEntry : Types.OfficialMainerAgentCanister = {
+            address : Text = canisterEntryToAdd.address;
+            canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
+            creationTimestamp : Nat64 = canisterEntryToAdd.creationTimestamp;
+            createdBy : Principal = canisterEntryToAdd.createdBy;
+            ownedBy : Principal = canisterEntryToAdd.ownedBy;
+            status : Types.CanisterStatus = canisterEntryToAdd.status;
+            mainerConfig : Types.MainerConfigurationInput = canisterEntryToAdd.mainerConfig;
+        };
+        let _ = putUserMainerAgent(canisterEntry);
+        let _ = putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry);
+        D.print("GameState: addMainerAgentCanister - putMainerAgentCanister for canisterEntry: " # debug_show(canisterEntry) ); 
+        return #Ok(canisterEntry);
     };
 
     // TODO - Testing: remove; admin Function to add new mAIner agent for testing
