@@ -2114,20 +2114,16 @@ actor class GameStateCanister() = this {
 
     // Function for user to get their mAIner agent canisters
     public shared query (msg) func getMainerAgentCanistersForUser() : async Types.MainerAgentCanistersResult {
-        // TODO - Testing: only for demo: allow open access
-        return #Ok(getMainerAgents()); 
-        
-        // TODO - Testing: put access checks into place again 
-        /* if (Principal.isAnonymous(msg.caller)) {
+        if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
 
         switch (getUserMainerAgents(msg.caller)) {
             case (null) { return #Err(#Other("No canisters for this caller")); };
             case (?userCanistersList) {
-                return #Ok(List.toArray<Types.OfficialProtocolCanister>(userCanistersList));                              
+                return #Ok(List.toArray<Types.OfficialMainerAgentCanister>(userCanistersList));                              
             };
-        }; */
+        };
     };
 
     // Function to retrieve info on a mAIner agent canister

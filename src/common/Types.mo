@@ -53,6 +53,8 @@ module Types {
 
     public type CanisterAddress = Text;
 
+    public type CanisterAddressesResult = Result<[CanisterAddress], ApiError>;
+
     public type CanisterStatus = {
         #Unlocked;
         #Paid;
