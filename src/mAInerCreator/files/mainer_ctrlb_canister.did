@@ -49,9 +49,9 @@ type MainerAgentCtrlbCanister =
     (StatusCodeRecordResult);
    addChallengeToShareServiceQueue: (ChallengeQueueInput) ->
     (ChallengeQueueInputResult);
-   addMainerShareAgentCanister: (MainerAgentCanisterInput) ->
+   addMainerShareAgentCanister: (OfficialMainerAgentCanister) ->
     (MainerAgentCanisterResult);
-   addMainerShareAgentCanisterAdmin: (MainerAgentCanisterInput) ->
+   addMainerShareAgentCanisterAdmin: (OfficialMainerAgentCanister) ->
     (MainerAgentCanisterResult);
    add_llm_canister: (CanisterIDRecord) -> (StatusCodeRecordResult);
    amiController: () -> (StatusCodeRecordResult) query;
@@ -98,15 +98,6 @@ type MainerAgentCanisterResult =
  variant {
    Err: ApiError;
    Ok: OfficialMainerAgentCanister;
- };
-type MainerAgentCanisterInput = 
- record {
-   address: CanisterAddress;
-   canisterType: ProtocolCanisterType;
-   mainerAgentCanisterType: MainerAgentCanisterType;
-   mainerConfig: MainerConfigurationInput;
-   ownedBy: principal;
-   status: CanisterStatus;
  };
 type IssueFlagsRetrievalResult = 
  variant {
@@ -234,6 +225,7 @@ type CanisterStatus =
    Paid;
    Paused;
    Running;
+   Unlocked;
  };
 type CanisterIDRecordResult = 
  variant {

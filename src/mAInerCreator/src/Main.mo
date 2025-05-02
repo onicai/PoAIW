@@ -579,15 +579,14 @@ actor class CanisterCreationCanister() = this {
                 if (mainerAgentCanisterType == #ShareAgent) {
                     status := #Running;
                 };
-                let mainerAgentCanisterInput : Types.MainerAgentCanisterInput = {
+                let mainerAgentCanisterInput : Types.OfficialMainerAgentCanister = {
                     address = Principal.toText(newCanisterIdPrincipal );
                     canisterType = configurationInput.canisterType;
+                    creationTimestamp : Nat64 = configurationInput.userMainerEntryCreationTimestamp;
+                    createdBy : Principal = msg.caller;
                     ownedBy = configurationInput.owner;
-                    mainerAgentCanisterType = mainerAgentCanisterType; 
                     status = status;
                     mainerConfig = configurationInput.mainerConfig;
-                    userMainerEntryCreationTimestamp : Nat64 = configurationInput.userMainerEntryCreationTimestamp;
-                    userMainerEntryCanisterType : Types.ProtocolCanisterType = configurationInput.userMainerEntryCanisterType;
                 };
 
                 // Link up the ShareAgent & ShareService canisters 
@@ -893,15 +892,14 @@ actor class CanisterCreationCanister() = this {
                                 // ---------------------------------------------------------
 
                                 // Update the Controller Agent canister with the Game State canister, which also updates the canister status
-                                let mainerAgentCanisterInput : Types.MainerAgentCanisterInput = {
+                                let mainerAgentCanisterInput : Types.OfficialMainerAgentCanister = {
                                     address = associatedCanisterAddress;
                                     canisterType = configurationInput.userMainerEntryCanisterType;
+                                    creationTimestamp : Nat64 = configurationInput.userMainerEntryCreationTimestamp;
+                                    createdBy : Principal = msg.caller;
                                     ownedBy = configurationInput.owner;
-                                    mainerAgentCanisterType = configurationInput.mainerConfig.mainerAgentCanisterType; 
                                     status = #Running;   // TODO: I think it is best to now set it to #Running and not #LlmSetupFinished
                                     mainerConfig = configurationInput.mainerConfig;
-                                    userMainerEntryCreationTimestamp : Nat64 = configurationInput.userMainerEntryCreationTimestamp;
-                                    userMainerEntryCanisterType : Types.ProtocolCanisterType = configurationInput.userMainerEntryCanisterType;
                                 };
                                 let gameStateCanisterActor = actor (MASTER_CANISTER_ID) : Types.GameStateCanister_Actor;
                                 D.print("mAInerCreator: setupCanister - calling gameStateCanisterActor.addMainerAgentCanister with mainerAgentCanisterInput = " # debug_show (mainerAgentCanisterInput));
