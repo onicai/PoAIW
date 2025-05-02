@@ -792,7 +792,7 @@ actor class CanisterCreationCanister() = this {
                                         let expectedSha256 : Text = modelCreationArtefacts.modelFileSha256;
                                         
                                         if (not (filesha256 == expectedSha256)) {
-                                            D.print("mAInerCreator: createsetupCanisterCanister - ERROR: filesha256 = " # debug_show (filesha256) # "does not match expectedSha256 = " # debug_show (expectedSha256));
+                                            D.print("mAInerCreator: setupCanister - ERROR: filesha256 = " # debug_show (filesha256) # "does not match expectedSha256 = " # debug_show (expectedSha256));
                                             return #Err(#Other("The sha256 of the uploaded llm file is " # filesha256 # ", which does not match the expected value of " # expectedSha256));
                                         } else {
                                             D.print("mAInerCreator: setupCanister - filesha256 matches expectedSha256 = " # debug_show (expectedSha256));
