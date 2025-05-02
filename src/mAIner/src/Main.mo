@@ -1193,7 +1193,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Function for mAIner Agent Creator canister to add new mAIner ShareAgent canister to a mAIner ShareService canister
-    public shared (msg) func addMainerShareAgentCanister(canisterEntryToAdd : Types.MainerAgentCanisterInput) : async Types.MainerAgentCanisterResult {
+    public shared (msg) func addMainerShareAgentCanister(canisterEntryToAdd : Types.OfficialMainerAgentCanister) : async Types.MainerAgentCanisterResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -1214,8 +1214,8 @@ actor class MainerAgentCtrlbCanister() = this {
         let canisterEntry : Types.OfficialMainerAgentCanister = {
             address : Text = canisterEntryToAdd.address;
             canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
-            creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-            createdBy : Principal = msg.caller;
+            creationTimestamp : Nat64 = canisterEntryToAdd.creationTimestamp;
+            createdBy : Principal = canisterEntryToAdd.createdBy;
             ownedBy : Principal = canisterEntryToAdd.ownedBy;
             status : Types.CanisterStatus = canisterEntryToAdd.status;
             mainerConfig : Types.MainerConfigurationInput = canisterEntryToAdd.mainerConfig;
@@ -1226,7 +1226,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // TODO - Testing: remove; admin Function to add new mAIner ShareAgent for testing
-    public shared (msg) func addMainerShareAgentCanisterAdmin(canisterEntryToAdd : Types.MainerAgentCanisterInput) : async Types.MainerAgentCanisterResult {
+    public shared (msg) func addMainerShareAgentCanisterAdmin(canisterEntryToAdd : Types.OfficialMainerAgentCanister) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -1242,8 +1242,8 @@ actor class MainerAgentCtrlbCanister() = this {
         let canisterEntry : Types.OfficialMainerAgentCanister = {
             address : Text = canisterEntryToAdd.address;
             canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
-            creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-            createdBy : Principal = msg.caller;
+            creationTimestamp : Nat64 = canisterEntryToAdd.creationTimestamp;
+            createdBy : Principal = canisterEntryToAdd.createdBy;
             ownedBy : Principal = canisterEntryToAdd.ownedBy;
             status : Types.CanisterStatus = canisterEntryToAdd.status;
             mainerConfig : Types.MainerConfigurationInput = canisterEntryToAdd.mainerConfig;
