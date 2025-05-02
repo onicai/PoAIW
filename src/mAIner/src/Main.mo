@@ -541,6 +541,24 @@ actor class MainerAgentCtrlbCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
+    public query (msg) func getLLMCanisterIds() : async Types.CanisterAddressesResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+
+        var llmCanisterIds : List.List<Types.CanisterAddress> = List.nil<Types.CanisterAddress>();
+
+        for (llmCanister in llmCanisters.vals()) {
+            try {
+                llmCanisterIds := List.push<Types.CanisterAddress>(Principal.toText(Principal.fromActor(llmCanister)), llmCanisterIds);
+            } catch (error : Error) {
+                return #Err(#Other("Call failed to load llm canisters = " # Principal.toText(Principal.fromActor(llmCanister)) # Error.message(error)));
+            };
+        };
+
+        return #Ok(List.toArray(llmCanisterIds));
+    };
+
     // Settings
 
     public shared (msg) func updateAgentSettings(settingsInput : Types.MainerAgentSettingsInput) : async Types.StatusCodeRecordResult {
