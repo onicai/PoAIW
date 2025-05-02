@@ -483,6 +483,7 @@ module Types {
 
     public type MainerCreator_Actor = actor {
         createCanister: shared CanisterCreationConfiguration -> async CanisterCreationResult;
+        setupCanister: shared (Text, CanisterCreationConfiguration) -> async CanisterCreationResult;
     };
 
     public type LLMCanister = actor {

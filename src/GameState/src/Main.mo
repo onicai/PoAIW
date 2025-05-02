@@ -1525,7 +1525,8 @@ actor class GameStateCanister() = this {
                                 let cyclesAdded = MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED; // (TODO - adjust & sync with amount used by mAInerCreator)
                                 Cycles.add<system>(cyclesAdded);
 
-                                // We keep this using await, because we need to wait for the address to be returned
+                                // This only creates the canister and returns:
+                                // -> Use await, so we can return the controller's address to frontend
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
 
                                 D.print("GameState: spinUpMainerControllerCanister - Get cycles balance of mAInerCreator ("# debug_show(mainerCreatorEntry.address) #  ") after calling createCanister.");
@@ -1544,39 +1545,22 @@ actor class GameStateCanister() = this {
 
                                 switch (result) {
                                     case (#Ok(canisterCreationRecord)) {
-                                        var status : Types.CanisterStatus = #ControllerCreated;
-                                        switch (userMainerEntry.canisterType) {
-                                            case (#MainerAgent(#ShareAgent)) {
-                                                // if of type ShareAgent we're done. Set it to running
-                                                status := #Running;
-                                            };
-                                            case (_) { 
-                                                // continue 
-                                            }
-                                        };
-                                        // Following is identical to content of addMainerAgentCanister
-                                        let userMainerAgentCanisterEntry : Types.OfficialMainerAgentCanister = {
+                                        // Setup the controller canister (install code & configurations)
+                                        ignore creatorCanisterActor.setupCanister(canisterCreationRecord.newCanisterId, canisterCreationInput);
+
+                                        // TODO: replace it with an actual call to addMainerAgentCanister
+                                        let canisterEntry : Types.OfficialMainerAgentCanister = {
                                             address : Text = canisterCreationRecord.newCanisterId; // New mAIner Controller canister's id
                                             canisterType: Types.ProtocolCanisterType = userMainerEntry.canisterType;
                                             creationTimestamp : Nat64 = userMainerEntry.creationTimestamp;
                                             createdBy : Principal = Principal.fromText(mainerCreatorEntry.address); // mAIner Creator
                                             ownedBy : Principal = userMainerEntry.ownedBy; // User
-                                            status : Types.CanisterStatus = status;
+                                            status : Types.CanisterStatus = #ControllerCreationInProgress;
                                             mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                         };
-                                        let _ = putUserMainerAgent(userMainerAgentCanisterEntry);
-
-                                        let canisterEntry : Types.OfficialMainerAgentCanister = {
-                                            address : Text = canisterCreationRecord.newCanisterId; // New mAIner Controller canister's id
-                                            canisterType: Types.ProtocolCanisterType = userMainerEntry.canisterType;
-                                            creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                                            createdBy : Principal = Principal.fromText(mainerCreatorEntry.address); // mAIner Creator
-                                            ownedBy : Principal = userMainerEntry.ownedBy; // User
-                                            status : Types.CanisterStatus = status;
-                                            mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
-                                        };
-                                        let result = putMainerAgentCanister(canisterEntry.address, canisterEntry);
-                                        D.print("GameState: spinUpMainerControllerCanister - putMainerAgentCanister result: " # debug_show(result) );
+                                        let _ = putUserMainerAgent(canisterEntry);
+                                        let _ = putMainerAgentCanister(canisterEntry.address, canisterEntry);
+                                        D.print("GameState: spinUpMainerControllerCanister - returning canisterEntry: " # debug_show(canisterEntry) );
                                         return #Ok(canisterEntry);
                                     };
                                     case (_) { return #Err(#FailedOperation); };
@@ -1725,43 +1709,45 @@ actor class GameStateCanister() = this {
                                 let cyclesAdded = MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED; // (TODO - adjust & sync with amount used by mAInerCreator)
                                 Cycles.add<system>(cyclesAdded);
 
-                                // createCanister will make callback to addMainerAgentCanister with updated status
-                                ignore creatorCanisterActor.createCanister(canisterCreationInput);
-                                return #Ok(temporaryEntry);
+                                // This only creates the LLM canister and returns
+                                let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
 
-                                // TODO - REMOVE THIS ONCE CALLBACK IS IMPLEMENTED
-                                // D.print("GameState: setUpMainerLlmCanister - Get cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") after calling createCanister.");
-                                // var cyclesAfter : Nat = 0;
-                                // try {
-                                //     let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
-                                //     cyclesAfter := canisterStatus.cycles;
-                                // } catch (e) {
-                                //     D.print("GameState: setUpMainerLlmCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
-                                //     return #Err(#Other("GameState: setUpMainerLlmCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address) # Error.message(e)));
-                                // };
-                                // let cyclesUsed : Nat = cyclesBefore + cyclesAdded - cyclesAfter;
-                                // D.print("GameState: setUpMainerLlmCanister - cycles balance of mAInerCreator " # debug_show(mainerCreatorEntry.address) # "after calling createCanister = " # debug_show(cyclesAfter) );  
-                                // D.print("GameState: setUpMainerLlmCanister - cyclesUsed by mAInerCreator: " # debug_show(cyclesUsed) );
+                                D.print("GameState: setUpMainerLlmCanister - Get cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") after calling createCanister.");
+                                var cyclesAfter : Nat = 0;
+                                try {
+                                    let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
+                                    cyclesAfter := canisterStatus.cycles;
+                                } catch (e) {
+                                    D.print("GameState: setUpMainerLlmCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
+                                    return #Err(#Other("GameState: setUpMainerLlmCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address) # Error.message(e)));
+                                };
+                                let cyclesUsed : Nat = cyclesBefore + cyclesAdded - cyclesAfter;
+                                D.print("GameState: setUpMainerLlmCanister - cycles balance of mAInerCreator " # debug_show(mainerCreatorEntry.address) # "after calling createCanister = " # debug_show(cyclesAfter) );  
+                                D.print("GameState: setUpMainerLlmCanister - cyclesUsed by mAInerCreator: " # debug_show(cyclesUsed) );
 
 
-                                // switch (result) {
-                                //     case (#Ok(canisterCreationRecord)) {
-                                //         //TODO - Design: decide what to do with canisterCreationRecord.newCanisterId; of new LLM canister, e.g. attach to OfficialMainerAgentCanister type and entry
-                                //         let canisterEntry : Types.OfficialMainerAgentCanister = {
-                                //             address : Text = userMainerEntry.address; // Controller 
-                                //             canisterType: Types.ProtocolCanisterType = userMainerEntry.canisterType;
-                                //             creationTimestamp : Nat64 = userMainerEntry.creationTimestamp;
-                                //             createdBy : Principal = Principal.fromText(mainerCreatorEntry.address); // mAIner Creator
-                                //             ownedBy : Principal = userMainerEntry.ownedBy; // User
-                                //             status : Types.CanisterStatus = #LlmSetupFinished;
-                                //             mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
-                                //         };
-                                //         let result = putMainerAgentCanister(canisterEntry.address, canisterEntry);
-                                //         D.print("GameState: setUpMainerLlmCanister - putMainerAgentCanister result: " # debug_show(result) );                                        
-                                //         return #Ok(canisterEntry);
-                                //     };
-                                //     case (_) { return #Err(#FailedOperation); };
-                                // };            
+                                switch (result) {
+                                    case (#Ok(canisterCreationRecord)) {
+                                        // Setup the LLM canister (install code & configurations)
+                                        ignore creatorCanisterActor.setupCanister(canisterCreationRecord.newCanisterId, canisterCreationInput);
+
+                                        // TODO: replace it with an actual call to addMainerAgentCanister
+                                        let canisterEntry : Types.OfficialMainerAgentCanister = {
+                                            address : Text = userMainerEntry.address; // Controller 
+                                            canisterType: Types.ProtocolCanisterType = userMainerEntry.canisterType;
+                                            creationTimestamp : Nat64 = userMainerEntry.creationTimestamp;
+                                            createdBy : Principal = Principal.fromText(mainerCreatorEntry.address); // mAIner Creator
+                                            ownedBy : Principal = userMainerEntry.ownedBy; // User
+                                            status : Types.CanisterStatus = #LlmSetupInProgress;
+                                            mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
+                                        };
+                                        let _ = putUserMainerAgent(canisterEntry);
+                                        let _ = putMainerAgentCanister(canisterEntry.address, canisterEntry);
+                                        D.print("GameState: setUpMainerLlmCanister - returning canisterEntry: " # debug_show(canisterEntry) );                                        
+                                        return #Ok(canisterEntry);
+                                    };
+                                    case (_) { return #Err(#FailedOperation); };
+                                };            
                             };
                         };
                     };
@@ -1978,8 +1964,7 @@ actor class GameStateCanister() = this {
         switch (getMainerCreatorCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
             case (?mainerCreatorEntry) {
-                // AUpdate the userMainerAgent entry, so the status is updated
-                let userMainerAgentCanisterEntry : Types.OfficialMainerAgentCanister = {
+                let canisterEntry : Types.OfficialMainerAgentCanister = {
                     address : Text = canisterEntryToAdd.address;
                     canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
                     creationTimestamp : Nat64 = canisterEntryToAdd.userMainerEntryCreationTimestamp; // for deduplication by putUserMainerAgent
@@ -1988,20 +1973,10 @@ actor class GameStateCanister() = this {
                     status : Types.CanisterStatus = canisterEntryToAdd.status;
                     mainerConfig : Types.MainerConfigurationInput = canisterEntryToAdd.mainerConfig;
                 };
-                D.print("GameState: addMainerAgentCanister - putUserMainerAgent for userMainerAgentCanisterEntry: " # debug_show(userMainerAgentCanisterEntry) );
-                let _ = putUserMainerAgent(userMainerAgentCanisterEntry);
-
-                let canisterEntry : Types.OfficialMainerAgentCanister = {
-                    address : Text = canisterEntryToAdd.address;
-                    canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
-                    creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                    createdBy : Principal = msg.caller;
-                    ownedBy : Principal = canisterEntryToAdd.ownedBy;
-                    status : Types.CanisterStatus = canisterEntryToAdd.status;
-                    mainerConfig : Types.MainerConfigurationInput = canisterEntryToAdd.mainerConfig;
-                };
+                let _ = putUserMainerAgent(canisterEntry);
+                let _ = putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry);
                 D.print("GameState: addMainerAgentCanister - putMainerAgentCanister for canisterEntry: " # debug_show(canisterEntry) ); 
-                putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry);
+                return #Ok(canisterEntry);
             };
         };
     };
