@@ -59,6 +59,7 @@ type MainerAgentCtrlbCanister =
    getChallengeQueueAdmin: () -> (ChallengeQueueInputsResult) query;
    getGameStateCanisterId: () -> (text) query;
    getIssueFlagsAdmin: () -> (IssueFlagsRetrievalResult) query;
+   getLLMCanisterIds: () -> (CanisterAddressesResult) query;
    getMainerCanisterType: () -> (MainerAgentCanisterTypeResult) query;
    getMainerStatisticsAdmin: () -> (StatisticsRetrievalResult) query;
    getRecentSubmittedResponsesAdmin: () ->
@@ -233,6 +234,11 @@ type CanisterIDRecordResult =
    Ok: CanisterIDRecord;
  };
 type CanisterIDRecord = record {canister_id: text;};
+type CanisterAddressesResult = 
+ variant {
+   Err: ApiError;
+   Ok: vec CanisterAddress;
+ };
 type CanisterAddress = text;
 type AuthRecordResult = 
  variant {
