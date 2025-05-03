@@ -49,9 +49,9 @@ type MainerAgentCtrlbCanister =
     (StatusCodeRecordResult);
    addChallengeToShareServiceQueue: (ChallengeQueueInput) ->
     (ChallengeQueueInputResult);
-   addMainerShareAgentCanister: (MainerAgentCanisterInput) ->
+   addMainerShareAgentCanister: (OfficialMainerAgentCanister) ->
     (MainerAgentCanisterResult);
-   addMainerShareAgentCanisterAdmin: (MainerAgentCanisterInput) ->
+   addMainerShareAgentCanisterAdmin: (OfficialMainerAgentCanister) ->
     (MainerAgentCanisterResult);
    add_llm_canister: (CanisterIDRecord) -> (StatusCodeRecordResult);
    amiController: () -> (StatusCodeRecordResult) query;
@@ -59,6 +59,7 @@ type MainerAgentCtrlbCanister =
    getChallengeQueueAdmin: () -> (ChallengeQueueInputsResult) query;
    getGameStateCanisterId: () -> (text) query;
    getIssueFlagsAdmin: () -> (IssueFlagsRetrievalResult) query;
+   getLLMCanisterIds: () -> (CanisterAddressesResult) query;
    getMainerCanisterType: () -> (MainerAgentCanisterTypeResult) query;
    getMainerStatisticsAdmin: () -> (StatisticsRetrievalResult) query;
    getRecentSubmittedResponsesAdmin: () ->
@@ -98,15 +99,6 @@ type MainerAgentCanisterResult =
  variant {
    Err: ApiError;
    Ok: OfficialMainerAgentCanister;
- };
-type MainerAgentCanisterInput = 
- record {
-   address: CanisterAddress;
-   canisterType: ProtocolCanisterType;
-   mainerAgentCanisterType: MainerAgentCanisterType;
-   mainerConfig: MainerConfigurationInput;
-   ownedBy: principal;
-   status: CanisterStatus;
  };
 type IssueFlagsRetrievalResult = 
  variant {
@@ -234,6 +226,7 @@ type CanisterStatus =
    Paid;
    Paused;
    Running;
+   Unlocked;
  };
 type CanisterIDRecordResult = 
  variant {
@@ -241,6 +234,11 @@ type CanisterIDRecordResult =
    Ok: CanisterIDRecord;
  };
 type CanisterIDRecord = record {canister_id: text;};
+type CanisterAddressesResult = 
+ variant {
+   Err: ApiError;
+   Ok: vec CanisterAddress;
+ };
 type CanisterAddress = text;
 type AuthRecordResult = 
  variant {

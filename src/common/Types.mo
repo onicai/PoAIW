@@ -53,7 +53,10 @@ module Types {
 
     public type CanisterAddress = Text;
 
+    public type CanisterAddressesResult = Result<[CanisterAddress], ApiError>;
+
     public type CanisterStatus = {
+        #Unlocked;
         #Paid;
         #ControllerCreationInProgress;
         #ControllerCreated;
@@ -90,15 +93,6 @@ module Types {
     };
     public type MainerAgentCanisterTypeResult = Result<MainerAgentCanisterType, ApiError>;
 
-    public type MainerAgentCanisterInput = {
-        address : CanisterAddress;
-        canisterType: ProtocolCanisterType;
-        ownedBy: Principal;
-        mainerAgentCanisterType: MainerAgentCanisterType;
-        status : CanisterStatus;
-        mainerConfig : MainerConfigurationInput;
-    };
-
     public type MainerAgentCanisterResult = Result<OfficialMainerAgentCanister, ApiError>;
 
     public type MainerAgentCanistersResult = Result<[OfficialMainerAgentCanister], ApiError>;
@@ -120,16 +114,19 @@ module Types {
     public type MainerCreationInput = {
         paymentTransactionBlockId : Nat64;
         mainerConfig : MainerConfigurationInput;
+        owner: ?Principal;
     };
 
     public type CanisterCreationConfigurationInput = {
         canisterType : ProtocolCanisterType;
-        associatedCanisterAddress : ?CanisterAddress;
+        associatedCanisterAddress : ?CanisterAddress; // References Controller for an LLM, and ShareService for a ShareAgent
         mainerConfig : MainerConfigurationInput;
     };
 
     public type CanisterCreationConfiguration = CanisterCreationConfigurationInput and {
         owner: Principal;
+        userMainerEntryCreationTimestamp : Nat64; // References Controller - for deduplication by putUserMainerAgent
+        userMainerEntryCanisterType : ProtocolCanisterType; // References Controller
     };
 
     public type CanisterCreationRecord = {
@@ -138,6 +135,11 @@ module Types {
     };
 
     public type CanisterCreationResult = Result<CanisterCreationRecord, ApiError>;
+
+    public type MainerAgentTopUpInput = {
+        paymentTransactionBlockId : Nat64;
+        mainerAgent : OfficialMainerAgentCanister;
+    };
 
     //-------------------------------------------------------------------------
 // Challenger
@@ -390,7 +392,7 @@ module Types {
         setMainerCanisterType: (MainerAgentCanisterType) -> async StatusCodeRecordResult;
         getMainerCanisterType: () -> async MainerAgentCanisterTypeResult;
         setShareServiceCanisterId: (Text) -> async StatusCodeRecordResult;
-        addMainerShareAgentCanister: (MainerAgentCanisterInput) -> async MainerAgentCanisterResult;
+        addMainerShareAgentCanister: (OfficialMainerAgentCanister) -> async MainerAgentCanisterResult;
         startTimerExecutionAdmin: () -> async AuthRecordResult;
     };
 
@@ -467,11 +469,12 @@ module Types {
         addScoredResponse : (ScoredResponseInput) -> async ScoredResponseResult;
         submitChallengeResponse : (ChallengeResponseSubmissionInput) -> async ChallengeResponseSubmissionMetadataResult;
         getRandomOpenChallenge : () -> async ChallengeResult;
-        addMainerAgentCanister : (MainerAgentCanisterInput) -> async MainerAgentCanisterResult;
+        addMainerAgentCanister : (OfficialMainerAgentCanister) -> async MainerAgentCanisterResult;
     };
 
     public type MainerCreator_Actor = actor {
         createCanister: shared CanisterCreationConfiguration -> async CanisterCreationResult;
+        setupCanister: shared (Text, CanisterCreationConfiguration) -> async CanisterCreationResult;
     };
 
     public type LLMCanister = actor {

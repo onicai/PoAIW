@@ -67,3 +67,8 @@ if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; t
 else
     echo "Successfully called setGameStateCanisterId for GameState $CANISTER_ID_GAME_STATE_CANISTER."
 fi
+
+echo " "
+echo "--------------------------------------------------"
+echo "Make GameState $CANISTER_ID_GAME_STATE_CANISTER a controller of the judge_ctrlb_canister"
+dfx canister update-settings judge_ctrlb_canister --add-controller $CANISTER_ID_GAME_STATE_CANISTER --network $NETWORK_TYPE

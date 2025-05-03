@@ -2,7 +2,7 @@
 
 #######################################################################
 # run from parent folder as:
-# scripts/deploy-mainers-Share.sh
+# scripts/deploy-mainers-Share-via-mAInerCreator.sh
 #######################################################################
 
 # Default network type is local
