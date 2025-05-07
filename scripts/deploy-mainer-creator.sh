@@ -14,10 +14,10 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --network)
             shift
-            if [ "$1" = "local" ] || [ "$1" = "ic" ]; then
+            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ]; then
                 NETWORK_TYPE=$1
             else
-                echo "Invalid network type: $1. Use 'local' or 'ic'."
+                echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing."
                 exit 1
             fi
             shift
@@ -34,7 +34,7 @@ while [ $# -gt 0 ]; do
             ;;
         *)
             echo "Unknown argument: $1"
-            echo "Usage: $0 --network [local|ic]"
+            echo "Usage: $0 --network [local|ic|testing]"
             exit 1
             ;;
     esac

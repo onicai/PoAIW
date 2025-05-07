@@ -105,6 +105,12 @@ module Types {
 
     public type MainerAgentCanistersResult = Result<[OfficialMainerAgentCanister], ApiError>;
 
+    public type SetUpMainerLlmCanisterResult = Result<
+        {
+            llmCanisterId : Text;
+            controllerCanisterEntry : OfficialMainerAgentCanister;
+        }, ApiError>;
+
     public type CanisterRetrieveInput = {
         address : CanisterAddress;
     };

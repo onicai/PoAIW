@@ -12,36 +12,36 @@ NUM_LLMS_ROUND_ROBIN=1 # how many LLMs we actually use
 # When deploying local, use canister IDs from .env
 source ../../llms/Challenger/.env
 
-# none will not use subnet parameter in deploy to ic
-SUBNET="none"
-
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
     case "$1" in
         --network)
             shift
-            if [ "$1" = "local" ] || [ "$1" = "ic" ]; then
+            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ]; then
                 NETWORK_TYPE=$1
                 if [ "$NETWORK_TYPE" = "ic" ]; then
                     CANISTER_ID_LLM_0='lmehs-taaaa-aaaaj-azzrq-cai'
                     CANISTER_ID_LLM_1='l6cql-7qaaa-aaaaj-azzsq-cai'  
+                elif [ "$NETWORK_TYPE" = "testing" ]; then
+                    CANISTER_ID_LLM_0='cq4yx-uyaaa-aaaaj-az76q-cai'
+                    CANISTER_ID_LLM_1='cz7tl-cqaaa-aaaaj-az77a-cai' 
                 fi
             else
-                echo "Invalid network type: $1. Use 'local' or 'ic'."
+                echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing."
                 exit 1
             fi
             shift
             ;;
         *)
             echo "Unknown argument: $1"
-            echo "Usage: $0 --network [local|ic]"
+            echo "Usage: $0 --network [local|ic|testing]"
             exit 1
             ;;
     esac
 done
 
 echo "Using network type: $NETWORK_TYPE"
-if [ "$NETWORK_TYPE" = "ic" ]; then
+if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ]; then
     NUM_LLMS_DEPLOYED=2
 fi
 

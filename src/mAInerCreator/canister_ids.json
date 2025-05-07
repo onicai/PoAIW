@@ -2,6 +2,7 @@
   "mainer_creator_canister": {
     "development": "",
     "ic": "movk5-tyaaa-aaaaj-az64q-cai",
-    "local": ""
+    "local": "",
+    "testing": "cx56d-zaaaa-aaaaj-az76a-cai"
   }
 }
