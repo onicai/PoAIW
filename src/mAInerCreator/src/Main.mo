@@ -40,8 +40,9 @@ actor class CanisterCreationCanister() = this {
     // TODO: Keep in sync with SUBMISSION_CYCLES_REQUIRED in mAInerCreator
     let MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED = 5 * CYCLES_TRILLION; // TODO: Update to actual values
     let MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED = 5 * CYCLES_TRILLION; // TODO: Update to actual values
-    // Small margin to for the mAInerCreator canister miscellaneous operations
-    let MAINER_CREATOR_CYCLES_MARGIN = 10 * CYCLES_BILLION; // TODO: Update to actual values
+    // Margin for the mAInerCreator canister for creation operations
+    let MAINER_CREATOR_CTRLB_CREATION_CYCLES_MARGIN = 10 * CYCLES_BILLION;
+    let MAINER_CREATOR_LLM_CREATION_CYCLES_MARGIN = 1 * CYCLES_TRILLION;
 
     // -------------------------------------------------------------------------------
     // Canister Endpoints
@@ -341,7 +342,7 @@ actor class CanisterCreationCanister() = this {
                     return #Err(#Unauthorized);                    
                 };
 
-                let cyclesAdded = MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED - MAINER_CREATOR_CYCLES_MARGIN;  // (TODO - adjust) (creation costs 1T, so canister will end up with 3T in balance)
+                let cyclesAdded = MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED - MAINER_CREATOR_CTRLB_CREATION_CYCLES_MARGIN;  // (TODO - adjust) (creation costs 1T, so canister will end up with 3T in balance)
                 Cycles.add<system>(cyclesAdded);
 
                 let createdControllerCanister = await IC0.create_canister({
@@ -412,7 +413,7 @@ actor class CanisterCreationCanister() = this {
                                     return #Err(#Unauthorized);                    
                                 };
 
-                                let cyclesAdded = MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED - MAINER_CREATOR_CYCLES_MARGIN;  // (TODO - adjust) (creation costs 1T, so canister will end up with 3T in balance)
+                                let cyclesAdded = MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED - MAINER_CREATOR_LLM_CREATION_CYCLES_MARGIN;  // (TODO - adjust) (creation costs 1T, so canister will end up with 3T in balance)
                                 Cycles.add<system>(cyclesAdded); // (TODO - adjust based on cycles user paid for (and are being sent from Game State)
 
                                 let createdLlmCanister = await IC0.create_canister({
