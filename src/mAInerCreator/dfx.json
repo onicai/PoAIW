@@ -16,6 +16,18 @@
         "https://icp0.io"
       ],
       "type": "persistent"
+    },
+    "testing": {
+      "providers": [
+        "https://icp0.io"
+      ],
+      "type": "persistent"
+    },
+    "backup": {
+      "providers": [
+        "https://icp0.io"
+      ],
+      "type": "persistent"
     }
   },
   "output_env_file": ".env"
