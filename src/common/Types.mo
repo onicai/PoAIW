@@ -55,12 +55,20 @@ module Types {
 
     public type CanisterAddressesResult = Result<[CanisterAddress], ApiError>;
 
+    public type LlmSetupStatus = {
+        #CanisterCreationInProgress;
+        #CanisterCreated;
+        #CodeInstallInProgress;
+        #ModelUploadProgress : Nat8;
+        #ConfigurationInProgress;
+    };
+
     public type CanisterStatus = {
         #Unlocked;
         #Paid;
         #ControllerCreationInProgress;
         #ControllerCreated;
-        #LlmSetupInProgress;
+        #LlmSetupInProgress : LlmSetupStatus;
         #LlmSetupFinished;
         #Running;
         #Paused;
@@ -96,6 +104,12 @@ module Types {
     public type MainerAgentCanisterResult = Result<OfficialMainerAgentCanister, ApiError>;
 
     public type MainerAgentCanistersResult = Result<[OfficialMainerAgentCanister], ApiError>;
+
+    public type SetUpMainerLlmCanisterResult = Result<
+        {
+            llmCanisterId : Text;
+            controllerCanisterEntry : OfficialMainerAgentCanister;
+        }, ApiError>;
 
     public type CanisterRetrieveInput = {
         address : CanisterAddress;

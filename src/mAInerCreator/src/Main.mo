@@ -40,8 +40,9 @@ actor class CanisterCreationCanister() = this {
     // TODO: Keep in sync with SUBMISSION_CYCLES_REQUIRED in mAInerCreator
     let MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED = 5 * CYCLES_TRILLION; // TODO: Update to actual values
     let MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED = 5 * CYCLES_TRILLION; // TODO: Update to actual values
-    // Small margin to for the mAInerCreator canister miscellaneous operations
-    let MAINER_CREATOR_CYCLES_MARGIN = 10 * CYCLES_BILLION; // TODO: Update to actual values
+    // Margin for the mAInerCreator canister for creation operations
+    let MAINER_CREATOR_CTRLB_CREATION_CYCLES_MARGIN = 10 * CYCLES_BILLION;
+    let MAINER_CREATOR_LLM_CREATION_CYCLES_MARGIN = 1 * CYCLES_TRILLION;
 
     // -------------------------------------------------------------------------------
     // Canister Endpoints
@@ -341,7 +342,7 @@ actor class CanisterCreationCanister() = this {
                     return #Err(#Unauthorized);                    
                 };
 
-                let cyclesAdded = MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED - MAINER_CREATOR_CYCLES_MARGIN;  // (TODO - adjust) (creation costs 1T, so canister will end up with 3T in balance)
+                let cyclesAdded = MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED - MAINER_CREATOR_CTRLB_CREATION_CYCLES_MARGIN;  // (TODO - adjust) (creation costs 1T, so canister will end up with 3T in balance)
                 Cycles.add<system>(cyclesAdded);
 
                 let createdControllerCanister = await IC0.create_canister({
@@ -412,7 +413,7 @@ actor class CanisterCreationCanister() = this {
                                     return #Err(#Unauthorized);                    
                                 };
 
-                                let cyclesAdded = MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED - MAINER_CREATOR_CYCLES_MARGIN;  // (TODO - adjust) (creation costs 1T, so canister will end up with 3T in balance)
+                                let cyclesAdded = MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED - MAINER_CREATOR_LLM_CREATION_CYCLES_MARGIN;  // (TODO - adjust) (creation costs 1T, so canister will end up with 3T in balance)
                                 Cycles.add<system>(cyclesAdded); // (TODO - adjust based on cycles user paid for (and are being sent from Game State)
 
                                 let createdLlmCanister = await IC0.create_canister({
@@ -704,6 +705,30 @@ actor class CanisterCreationCanister() = this {
 
                                 D.print("mAInerCreator (#MainerLlm): setupCanister - createdLlmCanister = " # debug_show (newCanisterIdPrincipal ) # "(cyclesBalance = " # debug_show (cyclesBalance) # ")");
 
+                                // ---------------------------------------------------------
+                                // Update the Controller Agent canister status with the Game State canister
+                                var mainerAgentCanisterInput : Types.OfficialMainerAgentCanister = {
+                                    address = associatedCanisterAddress;
+                                    canisterType = configurationInput.userMainerEntryCanisterType;
+                                    creationTimestamp : Nat64 = configurationInput.userMainerEntryCreationTimestamp;
+                                    createdBy : Principal = msg.caller;
+                                    ownedBy = configurationInput.owner;
+                                    status = #LlmSetupInProgress(#CodeInstallInProgress); // Only field updated
+                                    mainerConfig = configurationInput.mainerConfig;
+                                };
+                                let gameStateCanisterActor = actor (MASTER_CANISTER_ID) : Types.GameStateCanister_Actor;
+                                D.print("mAInerCreator (#MainerLlm): setupCanister - calling gameStateCanisterActor.addMainerAgentCanister with mainerAgentCanisterInput = " # debug_show (mainerAgentCanisterInput));
+                                var addMainerAgentCanisterResult = await gameStateCanisterActor.addMainerAgentCanister(mainerAgentCanisterInput);
+                                D.print("mAInerCreator (#MainerLlm): setupCanister addMainerAgentCanisterResult" # debug_show (addMainerAgentCanisterResult));
+                                switch (addMainerAgentCanisterResult) {
+                                    case (#Err(error)) {
+                                        return #Err(error);
+                                    };
+                                    case _ {
+                                        // all good, continue
+                                    };
+                                };
+
                                 // --------------------------------------------------
                                 // install code
                                 let installLlmWasm = await IC0.install_code({
@@ -750,13 +775,50 @@ actor class CanisterCreationCanister() = this {
                                 var chunkSize : Nat = 0;
                                 var offset : Nat = 0;
                                 var nextChunk : [Nat8] = [];
-                                
+
+                                // For progress reporting
+                                var modelUploadProgress : Nat8 = 0;
+                                let modelUploadProgressInterval : Nat = 10; // 10% progress interval
+
                                 D.print("mAInerCreator (#MainerLlm): setupCanister start upload of LLM model");
                                 var chunkCount : Nat = 0;
+                                let totalChunks : Nat = modelCreationArtefacts.modelFile.size();
+                                var nextProgressThreshold : Nat = 0;
+
                                 var uploadModelFileResult : Types.FileUploadRecordResult = #Ok({ filename = "models/model.gguf"; filesha256 = ""; filesize = 0 }); // Placeholder
                                 for (chunk in modelCreationArtefacts.modelFile.vals()) {
-                                    if (chunkCount % 10 == 0) {
-                                        D.print("mAInerCreator (#MainerLlm): setupCanister uploading file chunk " # debug_show (chunkCount));
+                                    var progress : Nat = (chunkCount * 100) / totalChunks; // Integer division rounds down
+                                    if (chunkCount + 1 == totalChunks) {
+                                        progress := 100; // Set to 100% for the last chunk
+                                    };
+                                    if (progress >= nextProgressThreshold) {
+                                        modelUploadProgress := Nat8.fromNat(nextProgressThreshold); // Set to 0, 10, 20, ..., 100
+                                        D.print("mAInerCreator (#MainerLlm): setupCanister uploading file chunk " # debug_show (chunkCount) # "(modelUploadProgress = " # debug_show (modelUploadProgress) # "%)");
+
+                                        // ---------------------------------------------------------
+                                        // Update the Controller Agent canister status with the Game State canister
+                                        mainerAgentCanisterInput := {
+                                            address = associatedCanisterAddress;
+                                            canisterType = configurationInput.userMainerEntryCanisterType;
+                                            creationTimestamp : Nat64 = configurationInput.userMainerEntryCreationTimestamp;
+                                            createdBy : Principal = msg.caller;
+                                            ownedBy = configurationInput.owner;
+                                            status = #LlmSetupInProgress(#ModelUploadProgress(modelUploadProgress)); // Only field updated
+                                            mainerConfig = configurationInput.mainerConfig;
+                                        };
+                                        D.print("mAInerCreator (#MainerLlm): setupCanister - calling gameStateCanisterActor.addMainerAgentCanister with mainerAgentCanisterInput = " # debug_show (mainerAgentCanisterInput));
+                                        addMainerAgentCanisterResult := await gameStateCanisterActor.addMainerAgentCanister(mainerAgentCanisterInput);
+                                        D.print("mAInerCreator (#MainerLlm): setupCanister addMainerAgentCanisterResult" # debug_show (addMainerAgentCanisterResult));
+                                        switch (addMainerAgentCanisterResult) {
+                                            case (#Err(error)) {
+                                                return #Err(error);
+                                            };
+                                            case _ {
+                                                // all good, continue
+                                            };
+                                        };
+
+                                        nextProgressThreshold += modelUploadProgressInterval;
                                     };
                                     chunkCount := chunkCount + 1;
                                     
@@ -808,6 +870,29 @@ actor class CanisterCreationCanister() = this {
                                         } else {
                                             D.print("mAInerCreator (#MainerLlm): setupCanister - filesha256 matches expectedSha256 = " # debug_show (expectedSha256));
                                         };
+                                    };
+                                };
+
+                                // ---------------------------------------------------------
+                                // Update the Controller Agent canister status with the Game State canister
+                                mainerAgentCanisterInput := {
+                                    address = associatedCanisterAddress;
+                                    canisterType = configurationInput.userMainerEntryCanisterType;
+                                    creationTimestamp : Nat64 = configurationInput.userMainerEntryCreationTimestamp;
+                                    createdBy : Principal = msg.caller;
+                                    ownedBy = configurationInput.owner;
+                                    status = #LlmSetupInProgress(#ConfigurationInProgress); // Only field updated
+                                    mainerConfig = configurationInput.mainerConfig;
+                                };
+                                D.print("mAInerCreator (#MainerLlm): setupCanister - calling gameStateCanisterActor.addMainerAgentCanister with mainerAgentCanisterInput = " # debug_show (mainerAgentCanisterInput));
+                                addMainerAgentCanisterResult := await gameStateCanisterActor.addMainerAgentCanister(mainerAgentCanisterInput);
+                                D.print("mAInerCreator (#MainerLlm): setupCanister addMainerAgentCanisterResult" # debug_show (addMainerAgentCanisterResult));
+                                switch (addMainerAgentCanisterResult) {
+                                    case (#Err(error)) {
+                                        return #Err(error);
+                                    };
+                                    case _ {
+                                        // all good, continue
                                     };
                                 };
 
@@ -911,10 +996,10 @@ actor class CanisterCreationCanister() = this {
                                 D.print("mAInerCreator (#MainerLlm): setupCanister - configuration of createdLlmCanister = " # debug_show (newCanisterIdPrincipal ) # 
                                 " - cyclesUsed = " # debug_show (cyclesUsed) # 
                                 " - cyclesBalance = " # debug_show (cyclesBalance));
+
                                 // ---------------------------------------------------------
-                               
-                                // Update the Controller Agent canister with the Game State canister, which also updates the canister status
-                                let mainerAgentCanisterInput : Types.OfficialMainerAgentCanister = {
+                                // Update the Controller Agent canister status with the Game State canister
+                                mainerAgentCanisterInput := {
                                     address = associatedCanisterAddress;
                                     canisterType = configurationInput.userMainerEntryCanisterType;
                                     creationTimestamp : Nat64 = configurationInput.userMainerEntryCreationTimestamp;
@@ -923,9 +1008,8 @@ actor class CanisterCreationCanister() = this {
                                     status = #Running;   // We started the timer of the controller mAIner Agent, so we are running
                                     mainerConfig = configurationInput.mainerConfig;
                                 };
-                                let gameStateCanisterActor = actor (MASTER_CANISTER_ID) : Types.GameStateCanister_Actor;
                                 D.print("mAInerCreator (#MainerLlm): setupCanister - calling gameStateCanisterActor.addMainerAgentCanister with mainerAgentCanisterInput = " # debug_show (mainerAgentCanisterInput));
-                                let addMainerAgentCanisterResult = await gameStateCanisterActor.addMainerAgentCanister(mainerAgentCanisterInput);
+                                addMainerAgentCanisterResult := await gameStateCanisterActor.addMainerAgentCanister(mainerAgentCanisterInput);
                                 D.print("mAInerCreator (#MainerLlm): setupCanister addMainerAgentCanisterResult" # debug_show (addMainerAgentCanisterResult));
                                 switch (addMainerAgentCanisterResult) {
                                     case (#Err(error)) {

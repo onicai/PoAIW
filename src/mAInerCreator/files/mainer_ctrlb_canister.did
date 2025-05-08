@@ -100,6 +100,14 @@ type MainerAgentCanisterResult =
    Err: ApiError;
    Ok: OfficialMainerAgentCanister;
  };
+type LlmSetupStatus = 
+ variant {
+   CanisterCreated;
+   CanisterCreationInProgress;
+   CodeInstallInProgress;
+   ConfigurationInProgress;
+   ModelUploadProgress: nat8;
+ };
 type IssueFlagsRetrievalResult = 
  variant {
    Err: ApiError;
@@ -221,7 +229,7 @@ type CanisterStatus =
    ControllerCreated;
    ControllerCreationInProgress;
    LlmSetupFinished;
-   LlmSetupInProgress;
+   LlmSetupInProgress: LlmSetupStatus;
    Other: text;
    Paid;
    Paused;

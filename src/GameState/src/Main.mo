@@ -148,7 +148,7 @@ actor class GameStateCanister() = this {
     // mAIner agent wasm module hash that must match
         // TODO: implement way to manage this
         // -> For now, do not make it stable, so it can be updated via a canister upgrade
-    let officialMainerAgentCanisterWasmHash : Blob = "\80\1F\61\E8\62\6F\6F\1E\2E\D3\75\4B\E8\91\93\72\8C\D7\BF\34\06\94\20\B9\C2\81\68\9F\F4\0F\BF\E0";
+    let officialMainerAgentCanisterWasmHash : Blob = "\E3\75\AE\41\04\89\B5\1A\0D\76\3A\77\F9\27\A6\50\97\2C\30\BB\49\6A\02\8D\35\37\49\9A\3B\9E\2E\8A";
     
     public shared (msg) func testMainerCodeIntegrityAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -1397,10 +1397,12 @@ actor class GameStateCanister() = this {
         // Sanity checks on mAIner info
         if (not Principal.equal(mainerInfo.ownedBy, msg.caller)) {
             // Only the same user may continue with the creation flow
+            D.print("GameState: spinUpMainerControllerCanister - 01 ");
             return #Err(#Unauthorized);
         };
         if (mainerInfo.address != "") {
             // At this point, no canister should have been created, i.e. no canister address
+            D.print("GameState: spinUpMainerControllerCanister - 02 ");
             return #Err(#InvalidId);
         };
         switch (mainerInfo.canisterType) {
@@ -1423,18 +1425,21 @@ actor class GameStateCanister() = this {
         // Verify existing mAIner entry
         switch (getUserMainerAgents(msg.caller)) {
             case (null) {
+                D.print("GameState: spinUpMainerControllerCanister - 03 ");
                 return #Err(#Unauthorized);
             };
             case (?userMainerEntries) {
                 // Find entry by creationTimestamp as no Controller address exists yet
                 switch (List.find<Types.OfficialMainerAgentCanister>(userMainerEntries, func(mainerEntry: Types.OfficialProtocolCanister) : Bool { mainerEntry.creationTimestamp == mainerInfo.creationTimestamp } )) {
                     case (null) {
+                        D.print("GameState: spinUpMainerControllerCanister - 04 ");
                         return #Err(#InvalidId);
                     };
                     case (?userMainerEntry) {
                         // Sanity checks on userMainerEntry (i.e. info provided is correct and matches entry info)
                         if (userMainerEntry.address != "") {
                             // At this point, no canister should have been created, i.e. no canister address
+                            D.print("GameState: spinUpMainerControllerCanister - 05 ");
                             return #Err(#InvalidId);
                         };
                         switch (userMainerEntry.canisterType) {
@@ -1451,7 +1456,10 @@ actor class GameStateCanister() = this {
                                 // indicates a retry
                                 // continue
                             };
-                            case (_) { return #Err(#Other("Unsupported")); }
+                            case (_) { 
+                                D.print("GameState: spinUpMainerControllerCanister - 06 ");
+                                return #Err(#Other("Unsupported")); 
+                            }
                         };
                         let temporaryEntry : Types.OfficialMainerAgentCanister = {
                             address : Text = userMainerEntry.address;
@@ -1472,6 +1480,7 @@ actor class GameStateCanister() = this {
                         switch (getNextMainerCreatorCanisterEntry()) {
                             case (null) {
                                 // This should never happen as it indicates there isn't any mAIner Creator canister registered here
+                                D.print("GameState: spinUpMainerControllerCanister - 07 ");
                                 return #Err(#Unauthorized);
                             };
                             case (?mainerCreatorEntry) {
@@ -1490,6 +1499,7 @@ actor class GameStateCanister() = this {
                                         switch (getNextSharedServiceCanisterEntry()) {
                                             case (null) {
                                                 // This should never happen as it indicates there isn't any Shared mAIning Service canister registered here
+                                                D.print("GameState: spinUpMainerControllerCanister - 08 ");
                                                 return #Err(#Unauthorized);
                                             };
                                             case (?sharedServiceEntry) {
@@ -1572,7 +1582,7 @@ actor class GameStateCanister() = this {
     };
 
     // Function for user to set up an LLM for a mAIner agent
-    public shared (msg) func setUpMainerLlmCanister(mainerInfo : Types.OfficialMainerAgentCanister) : async Types.MainerAgentCanisterResult {
+    public shared (msg) func setUpMainerLlmCanister(mainerInfo : Types.OfficialMainerAgentCanister) : async Types.SetUpMainerLlmCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -1604,7 +1614,7 @@ actor class GameStateCanister() = this {
             case (#ControllerCreated) {
                 // continue
             };
-            case (#LlmSetupInProgress) {
+            case (#LlmSetupInProgress(_)) {
                 // indicates a retry
                 // continue
             };
@@ -1639,17 +1649,20 @@ actor class GameStateCanister() = this {
                                 return #Err(#Other("Unsupported")); 
                             }
                         };
+                        // TODO: These checks are dangerous.
+                        // for example, if something went wrong with setup of LLM before, the status may be set to #LlmSetupInProgress(#CanisterCreated)
+                        // and we are not able to add an LLM canister -> the controller is stuck
                         switch (userMainerEntry.status) {
                             case (#ControllerCreated) {
                                 // continue
                             };
-                            case (#LlmSetupInProgress) {
+                            case (#LlmSetupInProgress(_)) {
                                 // indicates a retry
                                 // continue
                             };
                             case (_) { 
                                 D.print("GameState: setUpMainerLlmCanister - Unsupported userMainerEntry.status: " # debug_show(userMainerEntry.status) );
-                                return #Err(#Other("Unsupported")); 
+                                return #Err(#Other("Unsupported userMainerEntry.status: " # debug_show(userMainerEntry.status))); 
                             }
                         };
 
@@ -1661,7 +1674,7 @@ actor class GameStateCanister() = this {
                             creationTimestamp : Nat64 = userMainerEntry.creationTimestamp; // for deduplication by putUserMainerAgent
                             createdBy : Principal = userMainerEntry.createdBy;
                             ownedBy : Principal = userMainerEntry.ownedBy;
-                            status : Types.CanisterStatus = #LlmSetupInProgress; // only field updated
+                            status : Types.CanisterStatus = #LlmSetupInProgress(#CanisterCreationInProgress); // only field updated
                             mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                         };
                         switch (putUserMainerAgent(temporaryEntry)) {
@@ -1709,6 +1722,7 @@ actor class GameStateCanister() = this {
 
                                 // This only creates the LLM canister and returns
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
+                                D.print("GameState: setUpMainerLlmCanister - createCanister returned " # debug_show(result) );
 
                                 D.print("GameState: setUpMainerLlmCanister - Get cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") after calling createCanister.");
                                 var cyclesAfter : Nat = 0;
@@ -1723,24 +1737,29 @@ actor class GameStateCanister() = this {
                                 D.print("GameState: setUpMainerLlmCanister - cycles balance of mAInerCreator " # debug_show(mainerCreatorEntry.address) # "after calling createCanister = " # debug_show(cyclesAfter) );  
                                 D.print("GameState: setUpMainerLlmCanister - cyclesUsed by mAInerCreator: " # debug_show(cyclesUsed) );
 
-
                                 switch (result) {
                                     case (#Ok(canisterCreationRecord)) {
+                                        D.print("GameState: setUpMainerLlmCanister - Setting up LLM Canister ID = " # debug_show(canisterCreationRecord.newCanisterId) );
                                         // Setup the LLM canister (install code & configurations)
                                         ignore creatorCanisterActor.setupCanister(canisterCreationRecord.newCanisterId, canisterCreationInput);
 
-                                        // TODO: replace it with an actual call to addMainerAgentCanister
                                         let canisterEntryToAdd : Types.OfficialMainerAgentCanister = {
                                             address : Text = userMainerEntry.address; // Controller 
                                             canisterType: Types.ProtocolCanisterType = userMainerEntry.canisterType;
                                             creationTimestamp : Nat64 = userMainerEntry.creationTimestamp;
                                             createdBy : Principal = Principal.fromText(mainerCreatorEntry.address); // mAIner Creator
                                             ownedBy : Principal = userMainerEntry.ownedBy; // User
-                                            status : Types.CanisterStatus = #LlmSetupInProgress;
+                                            status : Types.CanisterStatus = #LlmSetupInProgress(#CanisterCreated); //This is status of the controller
                                             mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                         };
                                         D.print("GameState: setUpMainerLlmCanister - returning canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );  
-                                        addMainerAgentCanister_(canisterEntryToAdd);
+                                        let _ = addMainerAgentCanister_(canisterEntryToAdd);
+                                        return #Ok(
+                                            {
+                                            llmCanisterId : Text = canisterCreationRecord.newCanisterId;
+                                            controllerCanisterEntry : Types.OfficialMainerAgentCanister = canisterEntryToAdd;
+                                            }
+                                        );
                                     };
                                     case (_) { return #Err(#FailedOperation); };
                                 };            
@@ -1753,7 +1772,7 @@ actor class GameStateCanister() = this {
     };
 
     // Function for user to add an LLM to an existing mAIner agent
-    public shared (msg) func addLlmCanisterToMainer(mainerInfo : Types.OfficialMainerAgentCanister) : async Types.MainerAgentCanisterResult {
+    public shared (msg) func addLlmCanisterToMainer(mainerInfo : Types.OfficialMainerAgentCanister) : async Types.SetUpMainerLlmCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -1784,7 +1803,10 @@ actor class GameStateCanister() = this {
                 // mAIners of type ShareService may have dedicated LLMs attached
                 // continue
             };
-            case (_) { return #Err(#Other("Unsupported")); }
+            case (_) { 
+                D.print("GameState: addLlmCanisterToMainer - Unsupported mainerInfo.canisterType: " # debug_show(mainerInfo.canisterType) );
+                return #Err(#Other("Unsupported")); 
+            }
         };
         switch (mainerInfo.status) {
             // mAIner already has been created and is not currently setting up an LLM
@@ -1800,8 +1822,10 @@ actor class GameStateCanister() = this {
             case (#Paused) {
                 // continue
             };
-            case (_) { D.print("GameState: addLlmCanisterToMainer - Unsupported mainerInfo.status: " # debug_show(mainerInfo.status) );
-                return #Err(#Other("Unsupported")); }
+            case (_) { 
+                D.print("GameState: addLlmCanisterToMainer - Unsupported mainerInfo.status: " # debug_show(mainerInfo.status) );
+                return #Err(#Other("Unsupported")); 
+            }
         };
 
         // Verify existing mAIner entry
@@ -1827,8 +1851,11 @@ actor class GameStateCanister() = this {
                             };
                             case (_) { 
                                 D.print("GameState: addLlmCanisterToMainer - Unsupported mAIner type: " # debug_show(userMainerEntry.canisterType) );   
-                                return #Err(#Other("Unsupported")); }
+                                return #Err(#Other("Unsupported mAIner type: " # debug_show(userMainerEntry.canisterType))); }
                         };
+                        // TODO: These checks are dangerous.
+                        // for example, if something went wrong with setup of LLM before, the status may be set to #LlmSetupInProgress(#CanisterCreated)
+                        // and we are not able to add an LLM canister -> the controller is stuck
                         switch (userMainerEntry.status) {
                             // mAIner already has been created and is not currently setting up an LLM
                             case (#ControllerCreated) {
@@ -1845,7 +1872,7 @@ actor class GameStateCanister() = this {
                             };
                             case (_) { 
                                 D.print("GameState: addLlmCanisterToMainer - Unsupported userMainerEntry.status: " # debug_show(userMainerEntry.status) );
-                                return #Err(#Other("Unsupported")); }
+                                return #Err(#Other("Unsupported userMainerEntry.status: " # debug_show(userMainerEntry.status))); }
                         };
 
                         let temporaryEntry : Types.OfficialMainerAgentCanister = {
@@ -1854,7 +1881,7 @@ actor class GameStateCanister() = this {
                             creationTimestamp : Nat64 = userMainerEntry.creationTimestamp; // for deduplication by putUserMainerAgent
                             createdBy : Principal = userMainerEntry.createdBy;
                             ownedBy : Principal = userMainerEntry.ownedBy;
-                            status : Types.CanisterStatus = #LlmSetupInProgress; // only field updated
+                            status : Types.CanisterStatus = #LlmSetupInProgress(#CanisterCreated); //This is status of the controller -- createCanister updates status via callback
                             mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                         };
                         switch (putUserMainerAgent(temporaryEntry)) {
@@ -1897,41 +1924,49 @@ actor class GameStateCanister() = this {
                                 let cyclesAdded = MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED; // (TODO - adjust & sync with amount used by mAInerCreator)
                                 Cycles.add<system>(cyclesAdded);
 
-                                // createCanister will make callback to addMainerAgentCanister with updated status
-                                ignore creatorCanisterActor.createCanister(canisterCreationInput);
-                                return #Ok(temporaryEntry);
+                                // This only creates the LLM canister and returns
+                                let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
+                                D.print("GameState: addLlmCanisterToMainer - createCanister returned " # debug_show(result) );
 
-                                // TODO - REMOVE THIS ONCE CALLBACK IS IMPLEMENTED
-                                // D.print("GameState: addLlmCanisterToMainer - Get cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") after calling createCanister.");
-                                // var cyclesAfter : Nat = 0;
-                                // try {
-                                //     let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
-                                //     cyclesAfter := canisterStatus.cycles;
-                                // } catch (e) {
-                                //     D.print("GameState: addLlmCanisterToMainer - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
-                                //     return #Err(#Other("GameState: addLlmCanisterToMainer - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address) # Error.message(e)));
-                                // };
-                                // let cyclesUsed : Nat = cyclesBefore + cyclesAdded - cyclesAfter;
-                                // D.print("GameState: addLlmCanisterToMainer - cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") after calling createCanister = " # debug_show(cyclesAfter) );
-                                // D.print("GameState: addLlmCanisterToMainer - cyclesUsed by mAInerCreator: " # debug_show(cyclesUsed) );
+                                D.print("GameState: addLlmCanisterToMainer - Get cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") after calling createCanister.");
+                                var cyclesAfter : Nat = 0;
+                                try {
+                                    let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
+                                    cyclesAfter := canisterStatus.cycles;
+                                } catch (e) {
+                                    D.print("GameState: addLlmCanisterToMainer - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
+                                    return #Err(#Other("GameState: addLlmCanisterToMainer - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address) # Error.message(e)));
+                                };
+                                let cyclesUsed : Nat = cyclesBefore + cyclesAdded - cyclesAfter;
+                                D.print("GameState: setUpMainerLaddLlmCanisterToMainerlmCanister - cycles balance of mAInerCreator " # debug_show(mainerCreatorEntry.address) # "after calling createCanister = " # debug_show(cyclesAfter) );  
+                                D.print("GameState: addLlmCanisterToMainer - cyclesUsed by mAInerCreator: " # debug_show(cyclesUsed) );
 
-                                // switch (result) {
-                                //     case (#Ok(canisterCreationRecord)) {
-                                //         //TODO - Design: decide what to do with canisterCreationRecord.newCanisterId; of new LLM canister, e.g. attach to OfficialMainerAgentCanister type and entry
-                                //         /* let canisterEntry : Types.OfficialMainerAgentCanister = {
-                                //             address : Text = userMainerEntry.address; // Controller 
-                                //             canisterType: Types.ProtocolCanisterType = userMainerEntry.canisterType;
-                                //             creationTimestamp : Nat64 = userMainerEntry.creationTimestamp;
-                                //             createdBy : Principal = Principal.fromText(mainerCreatorEntry.address); // mAIner Creator
-                                //             ownedBy : Principal = userMainerEntry.ownedBy; // User
-                                //             status : Types.CanisterStatus = #LlmSetupFinished;
-                                //             mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
-                                //         };
-                                //         let result = putMainerAgentCanister(canisterEntry.address, canisterEntry); */
-                                //         return #Ok(userMainerEntry);
-                                //     };
-                                //     case (_) { return #Err(#FailedOperation); };
-                                // };            
+                                switch (result) {
+                                    case (#Ok(canisterCreationRecord)) {
+                                        D.print("GameState: addLlmCanisterToMainer - Setting up LLM Canister ID = " # debug_show(canisterCreationRecord.newCanisterId) );
+                                        // Setup the LLM canister (install code & configurations)
+                                        ignore creatorCanisterActor.setupCanister(canisterCreationRecord.newCanisterId, canisterCreationInput);
+
+                                        let canisterEntryToAdd : Types.OfficialMainerAgentCanister = {
+                                            address : Text = userMainerEntry.address; // Controller 
+                                            canisterType: Types.ProtocolCanisterType = userMainerEntry.canisterType;
+                                            creationTimestamp : Nat64 = userMainerEntry.creationTimestamp;
+                                            createdBy : Principal = Principal.fromText(mainerCreatorEntry.address); // mAIner Creator
+                                            ownedBy : Principal = userMainerEntry.ownedBy; // User
+                                            status : Types.CanisterStatus = #LlmSetupInProgress(#CanisterCreated); //This is status of the controller
+                                            mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
+                                        };
+                                        D.print("GameState: addLlmCanisterToMainer - returning canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );  
+                                        let _ = addMainerAgentCanister_(canisterEntryToAdd);
+                                        return #Ok(
+                                            {
+                                            llmCanisterId : Text = canisterCreationRecord.newCanisterId;
+                                            controllerCanisterEntry : Types.OfficialMainerAgentCanister = canisterEntryToAdd;
+                                            }
+                                        );
+                                    };
+                                    case (_) { return #Err(#FailedOperation); };
+                                };             
                             };
                         };
                     };
@@ -2044,7 +2079,7 @@ actor class GameStateCanister() = this {
             case (#ControllerCreated) {
                 // continue
             };
-            case (#LlmSetupInProgress) {
+            case (#LlmSetupInProgress(_)) {
                 // continue
             };
             case (#LlmSetupFinished) {
