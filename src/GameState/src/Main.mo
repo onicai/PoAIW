@@ -229,8 +229,8 @@ actor class GameStateCanister() = this {
     };  
 
 
-    // Statistics
-    stable var TOTAL_PROTOCOL_CYCLES_BURNT : Nat = 0;
+    // Statistics 
+    stable var TOTAL_PROTOCOL_CYCLES_BURNT : Nat = 0; // TODO - Implementation: ensure all relevant events for cycle buring are captured and adjust cycle burning numbers below to actual values
 
     private func increaseTotalProtocolCyclesBurnt(cyclesBurntToAdd : Nat) : Bool {
         TOTAL_PROTOCOL_CYCLES_BURNT := TOTAL_PROTOCOL_CYCLES_BURNT + cyclesBurntToAdd;
@@ -257,6 +257,10 @@ actor class GameStateCanister() = this {
     let CYCLES_BURNT_CHALLENGE_CREATION : Nat = 110 * CYCLES_BILLION;
     let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * CYCLES_BILLION;
     let CYCLES_BURNT_JUDGE_SCORING : Nat = 300 * CYCLES_BILLION;
+    let CYCLES_BURNT_CANISTER_CREATION : Nat = 300 * CYCLES_BILLION;
+    let CYCLES_BURNT_MAINER_CREATION : Nat = 300 * CYCLES_BILLION;
+    let CYCLES_BURNT_LLM_CREATION : Nat = 1300 * CYCLES_BILLION;
+    let CYCLES_BURNT_WINNER_DECLARATION : Nat = 100 * CYCLES_BILLION;
 
     // Official Challenger canisters
     stable var challengerCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
@@ -1087,8 +1091,6 @@ actor class GameStateCanister() = this {
 
         // TODO - Implementation: require cycles for adding new challenge
 
-        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_CHALLENGE_CREATION);
-
         // Only official Challenger canisters may call this
         switch (getChallengerCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
@@ -1116,6 +1118,7 @@ actor class GameStateCanister() = this {
                 };
 
                 let putResult = putOpenChallenge(challengeId, challengeAdded);
+                ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_CHALLENGE_CREATION);
                 return #Ok(challengeAdded);                        
             };             
         };
@@ -1230,6 +1233,7 @@ actor class GameStateCanister() = this {
             };
             case (_) { return #Err(#Other("Unsupported")); }
         };
+        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_CANISTER_CREATION);
         return #Ok({ status_code = 200 });
     };
 
@@ -1569,6 +1573,7 @@ actor class GameStateCanister() = this {
                                             mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                         };
                                         D.print("GameState: spinUpMainerControllerCanister - canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );
+                                        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_MAINER_CREATION);
                                         addMainerAgentCanister_(canisterEntryToAdd);
                                     };
                                     case (_) { return #Err(#FailedOperation); };
@@ -1752,7 +1757,8 @@ actor class GameStateCanister() = this {
                                             status : Types.CanisterStatus = #LlmSetupInProgress(#CanisterCreated); //This is status of the controller
                                             mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                         };
-                                        D.print("GameState: setUpMainerLlmCanister - returning canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );  
+                                        D.print("GameState: setUpMainerLlmCanister - returning canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );
+                                        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_LLM_CREATION);
                                         let _ = addMainerAgentCanister_(canisterEntryToAdd);
                                         return #Ok(
                                             {
@@ -1957,6 +1963,7 @@ actor class GameStateCanister() = this {
                                             mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                         };
                                         D.print("GameState: addLlmCanisterToMainer - returning canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );  
+                                        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_LLM_CREATION);
                                         let _ = addMainerAgentCanister_(canisterEntryToAdd);
                                         return #Ok(
                                             {
@@ -2022,7 +2029,7 @@ actor class GameStateCanister() = this {
         };
         let _ = putUserMainerAgent(canisterEntry);
         let _ = putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry);
-        D.print("GameState: addMainerAgentCanister - putMainerAgentCanister for canisterEntry: " # debug_show(canisterEntry) ); 
+        D.print("GameState: addMainerAgentCanister - putMainerAgentCanister for canisterEntry: " # debug_show(canisterEntry) );
         return #Ok(canisterEntry);
     };
 
@@ -2222,8 +2229,6 @@ actor class GameStateCanister() = this {
             D.print("GameState: submitChallengeResponse - cycles required : " # debug_show(SUBMISSION_CYCLES_REQUIRED));
             return #Err(#InsuffientCycles(SUBMISSION_CYCLES_REQUIRED));                    
         };
-        // TODO - Implementation: adapt cycles burnt stats
-        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
         // Only official mAIner agent canisters may call this
         switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
             case (null) {
@@ -2324,6 +2329,8 @@ actor class GameStateCanister() = this {
                     submissionStatus: Types.ChallengeResponseSubmissionStatus = submissionAdded.submissionStatus;
                 };
                 D.print("GameState: submitChallengeResponse - submitted!");
+                // TODO - Implementation: adapt cycles burnt stats
+                ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
                 return #Ok(submissionMetada);           
             };
         };
@@ -2518,6 +2525,8 @@ actor class GameStateCanister() = this {
                                 return false;
                             };
                             case (true) {
+                                // TODO - Implementation: adapt cycles burnt stats
+                                ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_WINNER_DECLARATION);
                                 return true;
                             };
                         };
@@ -2533,8 +2542,6 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        // TODO - Implementation: adapt cycles burnt stats
-        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_JUDGE_SCORING);
         // Only official Judge canisters may call this
         switch (getJudgeCanister(Principal.toText(msg.caller))) {
             case (null) { 
@@ -2621,6 +2628,8 @@ actor class GameStateCanister() = this {
                 };
                 D.print("GameState: addScoredResponse - All Good - calling putScoredResponseForChallenge");
                 D.print("GameState: addScoredResponse - scoredResponseEntry = " # debug_show(scoredResponseEntry));
+                // TODO - Implementation: adapt cycles burnt stats
+                ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_JUDGE_SCORING);
                 let numberOfScoredResponsesForChallenge : Nat = putScoredResponseForChallenge(scoredResponseEntry);
                 D.print("GameState: addScoredResponse - numberOfScoredResponsesForChallenge = " # debug_show(numberOfScoredResponsesForChallenge));
                 D.print("GameState: addScoredResponse - THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE = " # debug_show(THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE));
