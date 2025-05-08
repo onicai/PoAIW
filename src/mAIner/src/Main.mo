@@ -278,8 +278,9 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Statistics
-    stable var TOTAL_MAINER_CYCLES_BURNT : Nat = 0;
+    stable var TOTAL_MAINER_CYCLES_BURNT : Nat = 100 * CYCLES_BILLION; // Initial value represents costs for creating this canister
 
+    // TODO - Implementation: ensure all relevant events for cycle buring are captured and adjust cycle burning numbers below to actual values
     private func increaseTotalCyclesBurnt(cyclesBurntToAdd : Nat) : Bool {
         TOTAL_MAINER_CYCLES_BURNT := TOTAL_MAINER_CYCLES_BURNT + cyclesBurntToAdd;
         return true;
@@ -287,6 +288,7 @@ actor class MainerAgentCtrlbCanister() = this {
 
     // TODO - Implementation: llama_cpp_canister must return this number
     stable var CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * CYCLES_BILLION;
+    let CYCLES_BURNT_LLM_CREATION : Nat = 1300 * CYCLES_BILLION;
 
     stable let CYCLES_BURN_RATE_DEFAULT : Types.CyclesBurnRate = {
         cycles : Nat = 10 * CYCLES_TRILLION;
@@ -448,6 +450,8 @@ actor class MainerAgentCtrlbCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
+        // TODO - Implementation: adapt cycles burnt stats
+        ignore increaseTotalCyclesBurnt(CYCLES_BURNT_LLM_CREATION);
         _add_llm_canister_id(llmCanisterIdRecord);
     };
     private func _add_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : Types.StatusCodeRecordResult {
@@ -1080,6 +1084,8 @@ actor class MainerAgentCtrlbCanister() = this {
                         };
                         case (#Ok(challengeQueueInput_)) {
                             D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - addChallengeToShareServiceQueue returned successfully : ");
+                            // TODO - Implementation: adapt cycles burnt stats
+                            ignore increaseTotalCyclesBurnt(SHARE_SERVICE_QUEUE_CYCLES_REQUIRED);
                             challengeQueueInput := challengeQueueInput_;
                         };
                     };
