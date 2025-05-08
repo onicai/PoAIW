@@ -76,6 +76,8 @@ ls ../../llama_cpp_canister/models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-
 
 # Deploy ALL canisters:
 
+NOTE: you can skip this, and continue deployment using instructions of funnAI/README.md
+
 ```bash
 # from folder: PoAIW
 scripts/build_llama_cpp_canister.sh  # Note: Optional - works on Mac only
