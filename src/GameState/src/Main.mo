@@ -506,6 +506,20 @@ actor class GameStateCanister() = this {
         return Iter.toArray(openChallengesStorage.vals());
     };
 
+    private func resetOpenChallenges() : Bool {
+        // Create a new empty HashMap to replace the current one
+        let emptyStorage : HashMap.HashMap<Text, Types.Challenge> = HashMap.HashMap(0, Text.equal, Text.hash);
+        
+        // Get all current open challenges before replacing the storage
+        let allChallenges : [Types.Challenge] = Iter.toArray(openChallengesStorage.vals());
+        
+        // Replace the openChallengesStorage with an empty HashMap
+        openChallengesStorage := emptyStorage;
+        
+        // Return success
+        return true;
+    };
+
     private func removeOpenChallenge(challengeId : Text) : Bool {
         switch (openChallengesStorage.get(challengeId)) {
             case (null) { return false; };
@@ -1052,6 +1066,18 @@ actor class GameStateCanister() = this {
         };
         let challenges : [Types.Challenge] = getOpenChallenges();
         return #Ok(challenges.size());
+    };
+
+    // Functions for Admin to reset (delete all) current (open) challenges
+    public shared (msg) func resetCurrentChallengesAdmin() : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        D.print("GameState: resetCurrentChallengesAdmin - entered");
+        if (not resetOpenChallenges()){
+            return #Err(#Other("An error occurred resetting the challenges"));
+        };
+        return #Ok({ status_code = 200 });
     };
 
     // Function for Challenger agent canister to retrieve a random challenge topic
