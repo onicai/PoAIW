@@ -1374,6 +1374,16 @@ actor class GameStateCanister() = this {
         // TODO - Implementation: verify user's payment for this agent via mainerCreationInput.paymentTransactionBlockId https://github.com/bob-robert-ai/bob/blob/3c1d19c4f8ce7de5c74654855e7be44117973d19/minter-v2/src/main.rs#L134
         //        Skip payment verification in case of ShareService, which is created by an Admin (Controller)
         let transactionToVerify = mainerCreationInput.paymentTransactionBlockId;
+        // TODO - Implementation: track redeemed transaction blocks to ensure no double spending
+        // TODO - Implementation: ensure that paid amount equals price
+            // TODO - Implementation: variable to set the price for creating a mAIner
+            // TODO - Implementation: Set timer for once a day that calculates the creation price based on the ICP/cycles conversion rate
+
+        // TODO - Implementation: new function to decide on ICP usage
+            // TODO - Implementation: Calculates profit cut and resulting amount for mAIner (own function, also use then to get the number of cycles to send Creator which has to be stable)
+            // TODO - Implementation: cycle balance > security buffer: take cycles from cycle balance
+            // TODO - Implementation: Otherwise: convert ICP to cycles via Cycles Minting Canister (mint cycles to itself)
+            // TODO - Implementation: Converts profit In ICP to FUNNAI
 
         let canisterEntry : Types.OfficialMainerAgentCanister = {
             address : Text = ""; // To be assigned (when Controller canister was created)
@@ -1381,7 +1391,7 @@ actor class GameStateCanister() = this {
             creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
             createdBy : Principal = msg.caller; // User (Admin (controller) in case of ShareService)
             ownedBy : Principal = msg.caller; // User (Admin (controller) in case of ShareService)
-            status : Types.CanisterStatus = #Paid;
+            status : Types.CanisterStatus = #Paid; // TODO - Implementation: add transaction id to status #Paid or introduce new field
             mainerConfig : Types.MainerConfigurationInput = mainerConfig;
         };
         switch (putUserMainerAgent(canisterEntry)) {
@@ -1391,6 +1401,18 @@ actor class GameStateCanister() = this {
             case (false) { return #Err(#FailedOperation); }
         };
     };
+
+    // TODO - Implementation: new function to top up mAIner
+        // has similar implementation as above
+        // TODO - Implementation: verify user's payment
+            // TODO - Implementation: track redeemed transaction blocks to ensure no double spending
+        // TODO - Implementation: new function to decide on ICP usage
+            // TODO - Implementation: cycle balance > security buffer: take cycles from cycle balance
+                // TODO - Implementation: Calculates profit cut and resulting amount for mAIner (own function, needs to get cycles price from CMC; maybe not needed if combined with minting below)
+            // TODO - Implementation: Otherwise: convert ICP to cycles via Cycles Minting Canister (mint cycles to itself)
+            // TODO - Implementation: Sends cycles To mAIner (controller canister) for mAIner top up
+                // TODO - Implementation: Via new function on mAIner: addCycles() (https://docs.google.com/document/d/1VKZ_uSPRphl8X32b54KWO_jXHPzE2Z49W29MOlycrMY/edit?disco=AAABi81Xxbc)
+            // TODO - Implementation: Converts profit In ICP to FUNNAI
 
     // Function for user to create a new mAIner agent Controller canister
     public shared (msg) func spinUpMainerControllerCanister(mainerInfo : Types.OfficialMainerAgentCanister) : async Types.MainerAgentCanisterResult {
@@ -1537,6 +1559,7 @@ actor class GameStateCanister() = this {
                                 D.print("GameState: spinUpMainerControllerCanister - cycles balance of mAInerCreator ("# debug_show(mainerCreatorEntry.address) #  ") before calling createCanister = " # debug_show(cyclesBefore) );
 
                                 // TODO - Implementation: charge with cycles (the user paid for)
+                                    // TODO - Implementation: get via dedicated function (also used above), also use then to get the number of cycles to send Creator which has to be stable
                                 let cyclesAdded = MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED; // (TODO - adjust & sync with amount used by mAInerCreator)
                                 Cycles.add<system>(cyclesAdded);
 
