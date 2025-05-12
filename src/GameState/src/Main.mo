@@ -697,16 +697,15 @@ actor class GameStateCanister() = this {
         };
     };
 
-    // Hashmap for mAIner prompt & prompt cache storage, key=challengeId
+    // Hashmap for mAIner prompt & prompt cache storage, key=mainerPromptId
     stable var mainerPromptsStable : [(Text, Types.MainerPrompt)] = [];
     var mainerPrompts : HashMap.HashMap<Text, Types.MainerPrompt> = HashMap.HashMap(0, Text.equal, Text.hash);
 
-    // Emepheral Hashmap for mAIner prompt cache upload buffers for chunked uploads, key=challengeId
+    // Emepheral Hashmap for mAIner prompt cache upload buffers for chunked uploads, key=mainerPromptId
     var mainerPromptCacheUploadBuffers : HashMap.HashMap<Text, Buffer.Buffer<Blob>> = HashMap.HashMap(0, Text.equal, Text.hash);
 
     // Function to be called by Challenger to start upload of the mainer prompt & prompt cache
-    public shared (msg) func start_upload_mainer_prompt_cache(challengeId: Text) : async Types.StatusCodeRecordResult {
-        D.print("GameState: start_upload_mainer_prompt_cache - challengeId: " # debug_show(challengeId));
+    public shared (msg) func startUploadMainerPromptCache() : async Types.StartUploadMainerPromptCacheRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -720,31 +719,25 @@ actor class GameStateCanister() = this {
                     return #Err(#Unauthorized);
                 };
 
-                // Check if the challengeId is valid
-                switch (getOpenChallenge(challengeId)) {
-                    case (null) { return #Err(#Other("No open challenge found for challengeId: " # challengeId)); };
-                    case (?challengeEntry) { 
-                        // Check if the challenge is already closed
-                        if (challengeEntry.challengeStatus == #Closed) {
-                            // Delete the prompt cache upload session for this Challenge
-                            let _ = mainerPromptCacheUploadBuffers.remove(challengeId);
-                            return #Err(#Other("Challenge is already closed for challengeId: " # challengeId));
-                        };
-                    };
-                };
+                let mainerPromptId : Text = await Utils.newRandomUniqueId();
+                D.print("GameState: startUploadMainerPromptCache - mainerPromptId: " # debug_show(mainerPromptId));
 
                 // Initialize the prompt cache upload session for this Challenge
                 let mainerPromptCacheUploadBuffer : Buffer.Buffer<Blob> = Buffer.Buffer<Blob>(0);
-                mainerPromptCacheUploadBuffers.put(challengeId, mainerPromptCacheUploadBuffer);
+                mainerPromptCacheUploadBuffers.put(mainerPromptId, mainerPromptCacheUploadBuffer);
                 
-                return #Ok({ status_code = 200 });
+                return #Ok({ mainerPromptId = mainerPromptId });
             };             
         };
     };
 
     // Function to be called by Challenger to upload a chunk of the mAIner prompt cache for a given challenge
-    public shared (msg) func upload_mainer_prompt_cache_bytes_chunk(challengeId: Text, bytesChunk : Blob, chunkID : Nat) : async Types.FileUploadResult {
-        D.print("GameState: start_upload_mainer_prompt_cache - challengeId: " # debug_show(challengeId));
+    public shared (msg) func uploadMainerPromptCacheBytesChunk(uploadMainerPromptCacheBytesChunkInput: Types.UploadMainerPromptCacheBytesChunkInput) : async Types.StatusCodeRecordResult {
+        let mainerPromptId: Text = uploadMainerPromptCacheBytesChunkInput.mainerPromptId;
+        let bytesChunk : Blob = uploadMainerPromptCacheBytesChunkInput.bytesChunk;
+        let chunkID : Nat = uploadMainerPromptCacheBytesChunkInput.chunkID;
+
+        D.print("GameState: uploadMainerPromptCacheBytesChunk - mainerPromptId: " # debug_show(mainerPromptId) # ", chunkID : " # debug_show(chunkID));
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -758,31 +751,18 @@ actor class GameStateCanister() = this {
                     return #Err(#Unauthorized);
                 };
 
-                // Check if the challengeId is valid
-                switch (getOpenChallenge(challengeId)) {
-                    case (null) { return #Err(#Other("No open challenge found for challengeId: " # challengeId)); };
-                    case (?challengeEntry) { 
-                        // Check if the challenge is already closed
-                        if (challengeEntry.challengeStatus == #Closed) {
-                            // Delete the prompt cache upload session for this Challenge
-                            let _ = mainerPromptCacheUploadBuffers.remove(challengeId);
-                            return #Err(#Other("Challenge is already closed for challengeId: " # challengeId));
-                        };
-                    };
-                };
-
-                switch (mainerPromptCacheUploadBuffers.get(challengeId)) {
-                    case (null) { return #Err(#Other("No upload buffer found for challengeId: " # challengeId # "first call: start_upload_mainer_prompt_cache")); };
+                switch (mainerPromptCacheUploadBuffers.get(mainerPromptId)) {
+                    case (null) { return #Err(#Other("No upload buffer found for mainerPromptId: " # mainerPromptId # "first call: startUploadMainerPromptCache")); };
                     case (?mainerPromptCacheUploadBuffer) { 
                         let expectedChunkID = mainerPromptCacheUploadBuffer.size();
                         // Only process if this is the expected next chunk or a retry of a previous chunk
                         if (chunkID < expectedChunkID) {
                             // This is a retry of a chunk we've already processed
-                            return #Ok({ creationResult = "Success" });
+                            return #Ok({ status_code = 200 });
                         } else if (chunkID == expectedChunkID) {
                             // This is the expected next chunk, so process it
                             mainerPromptCacheUploadBuffer.add(bytesChunk);
-                            return #Ok({ creationResult = "Success" });
+                            return #Ok({ status_code = 200 });
                         } else {
                             // This is a chunk ahead of what we expect (gap in sequence)
                             return #Err(#Other("Chunk ID " # Nat.toText(chunkID) # " is ahead of the expected chunk ID " # Nat.toText(expectedChunkID)));
@@ -794,8 +774,12 @@ actor class GameStateCanister() = this {
     };
 
     // Function to be called by Challenger to finish upload of the mainer prompt cache & store it with prompt text and sha256
-    public shared (msg) func finish_upload_mainer_prompt_cache(challengeId: Text, promptText: Text, promptCacheSha256: Text) : async Types.StatusCodeRecordResult {
-        D.print("GameState: finish_upload_mainer_prompt_cache - challengeId: " # debug_show(challengeId));
+    public shared (msg) func finishUploadMainerPromptCache(finishUploadMainerPromptCacheInput : Types.FinishUploadMainerPromptCacheInput) : async Types.StatusCodeRecordResult {
+        let mainerPromptId: Text = finishUploadMainerPromptCacheInput.mainerPromptId;
+        let promptText: Text = finishUploadMainerPromptCacheInput.promptText;
+        let promptCacheSha256: Text = finishUploadMainerPromptCacheInput.promptCacheSha256;
+
+        D.print("GameState: finishUploadMainerPromptCache - mainerPromptId: " # debug_show(mainerPromptId));
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -809,21 +793,8 @@ actor class GameStateCanister() = this {
                     return #Err(#Unauthorized);
                 };
 
-                // Check if the challengeId is valid
-                switch (getOpenChallenge(challengeId)) {
-                    case (null) { return #Err(#Other("No open challenge found for challengeId: " # challengeId)); };
-                    case (?challengeEntry) { 
-                        // Check if the challenge is already closed
-                        if (challengeEntry.challengeStatus == #Closed) {
-                            // Delete the prompt cache upload session for this Challenge
-                            let _ = mainerPromptCacheUploadBuffers.remove(challengeId);
-                            return #Err(#Other("Challenge is already closed for challengeId: " # challengeId));
-                        };
-                    };
-                };
-
-                switch (mainerPromptCacheUploadBuffers.get(challengeId)) {
-                    case (null) { return #Err(#Other("No upload buffer found for challengeId: " # challengeId)); };
+                switch (mainerPromptCacheUploadBuffers.get(mainerPromptId)) {
+                    case (null) { return #Err(#Other("No upload buffer found for mainerPromptId: " # mainerPromptId)); };
                     case (?mainerPromptCacheUploadBuffer) { 
                         // Store the mAIner prompt & cache & sha256 for this Challenge
                         let mainerPrompt : Types.MainerPrompt = {
@@ -831,13 +802,13 @@ actor class GameStateCanister() = this {
                             promptCacheChunks = Buffer.toArray<Blob>(mainerPromptCacheUploadBuffer);
                             promptCacheSha256 = promptCacheSha256;
                         };
-                        D.print("GameState: finish_upload_mainer_prompt_cache - Storing mainerPrompt for challengeId: " # debug_show(challengeId) # "\n" #
+                        D.print("GameState: finishUploadMainerPromptCache - Storing mainerPrompt for mainerPromptId: " # debug_show(mainerPromptId) # "\n" #
                             "promptText: " # debug_show(promptText) # "\n" #
                             "promptCacheSha256: " # debug_show(promptCacheSha256));
-                        mainerPrompts.put(challengeId, mainerPrompt);
+                        mainerPrompts.put(mainerPromptId, mainerPrompt);
 
                         // Delete the prompt cache upload session for this Challenge
-                        let _ = mainerPromptCacheUploadBuffers.remove(challengeId);
+                        let _ = mainerPromptCacheUploadBuffers.remove(mainerPromptId);
 
                         return #Ok({ status_code = 200 });
                     };
@@ -1283,6 +1254,7 @@ actor class GameStateCanister() = this {
                     challengeId : Text = challengeId;
                     challengeQuestion : Text = newChallenge.challengeQuestion;
                     challengeQuestionSeed : Nat32 = newChallenge.challengeQuestionSeed;
+                    mainerPromptId : Text = newChallenge.mainerPromptId;
                     challengeCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                     challengeCreatedBy : Types.CanisterAddress = challengerEntry.address;
                     challengeStatus : Types.ChallengeStatus = #Open;
@@ -2474,6 +2446,7 @@ actor class GameStateCanister() = this {
                     challengeTopicStatus : Types.ChallengeTopicStatus = challengeResponseSubmissionInput.challengeTopicStatus;
                     challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = challengeResponseSubmissionInput.challengeQuestionSeed;
+                    mainerPromptId : Text = challengeResponseSubmissionInput.mainerPromptId;
                     challengeId : Text = challengeResponseSubmissionInput.challengeId;
                     challengeCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeCreationTimestamp;
                     challengeCreatedBy : Types.CanisterAddress = challengeResponseSubmissionInput.challengeCreatedBy;
@@ -2557,6 +2530,7 @@ actor class GameStateCanister() = this {
                                         challengeTopicStatus : Types.ChallengeTopicStatus = submission.challengeTopicStatus;
                                         challengeQuestion : Text = submission.challengeQuestion;
                                         challengeQuestionSeed : Nat32 = submission.challengeQuestionSeed;
+                                        mainerPromptId : Text = submission.mainerPromptId;
                                         challengeId : Text = submission.challengeId;
                                         challengeCreationTimestamp : Nat64 = submission.challengeCreationTimestamp;
                                         challengeCreatedBy : Types.CanisterAddress = submission.challengeCreatedBy;
@@ -2741,6 +2715,7 @@ actor class GameStateCanister() = this {
                     challengeTopicStatus : Types.ChallengeTopicStatus = scoredResponseInput.challengeTopicStatus;
                     challengeQuestion : Text = scoredResponseInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = scoredResponseInput.challengeQuestionSeed;
+                    mainerPromptId : Text = scoredResponseInput.mainerPromptId;
                     challengeId : Text = scoredResponseInput.challengeId;
                     challengeCreationTimestamp : Nat64 = scoredResponseInput.challengeCreationTimestamp;
                     challengeCreatedBy : Types.CanisterAddress = scoredResponseInput.challengeCreatedBy;
@@ -2773,6 +2748,7 @@ actor class GameStateCanister() = this {
                     challengeTopicStatus : Types.ChallengeTopicStatus = scoredResponseInput.challengeTopicStatus;
                     challengeQuestion : Text = scoredResponseInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = scoredResponseInput.challengeQuestionSeed;
+                    mainerPromptId : Text = scoredResponseInput.mainerPromptId;
                     challengeId : Text = scoredResponseInput.challengeId;
                     challengeCreationTimestamp : Nat64 = scoredResponseInput.challengeCreationTimestamp;
                     challengeCreatedBy : Types.CanisterAddress = scoredResponseInput.challengeCreatedBy;
@@ -2881,6 +2857,7 @@ actor class GameStateCanister() = this {
                     challengeTopicStatus : Types.ChallengeTopicStatus = openChallenge.challengeTopicStatus;
                     challengeQuestion : Text = openChallenge.challengeQuestion;
                     challengeQuestionSeed : Nat32 = openChallenge.challengeQuestionSeed;
+                    mainerPromptId : Text = openChallenge.mainerPromptId;
                     challengeId : Text = openChallenge.challengeId;
                     challengeCreationTimestamp : Nat64 = openChallenge.challengeCreationTimestamp;
                     challengeCreatedBy : Types.CanisterAddress = openChallenge.challengeCreatedBy;
@@ -2914,6 +2891,7 @@ actor class GameStateCanister() = this {
                             challengeTopicStatus : Types.ChallengeTopicStatus = closedChallenge.challengeTopicStatus;
                             challengeQuestion : Text = closedChallenge.challengeQuestion;
                             challengeQuestionSeed : Nat32 = closedChallenge.challengeQuestionSeed;
+                            mainerPromptId : Text = closedChallenge.mainerPromptId;
                             challengeId : Text = closedChallenge.challengeId;
                             challengeCreationTimestamp : Nat64 = closedChallenge.challengeCreationTimestamp;
                             challengeCreatedBy : Types.CanisterAddress = closedChallenge.challengeCreatedBy;
@@ -2945,6 +2923,7 @@ actor class GameStateCanister() = this {
                             challengeTopicStatus : Types.ChallengeTopicStatus = #Archived;
                             challengeQuestion : Text = "";
                             challengeQuestionSeed : Nat32 = 0;
+                            mainerPromptId : Text = "submissionInput.mainerPromptId";
                             challengeId : Text = submissionInput.challengeId;
                             challengeCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                             challengeCreatedBy : Types.CanisterAddress = "";
