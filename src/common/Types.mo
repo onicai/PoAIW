@@ -301,8 +301,85 @@ module Types {
         timeInterval : TimeInterval;
     };
 
+    // TODO - Implementation: finalize implementation (likely: make this settable in Game State and then retrievable by mAIner)
+    // TODO - Design: finalize exact (initial) amounts
+    public let cyclesBurnRateDefaultLow : CyclesBurnRate = {
+        cycles : Nat = 1_000_000_000_000;
+        timeInterval : TimeInterval = #Daily;
+    };
+
+    public let cyclesBurnRateDefaultMid : CyclesBurnRate = {
+        cycles : Nat = 4_000_000_000_000;
+        timeInterval : TimeInterval = #Daily;
+    };
+
+    public let cyclesBurnRateDefaultHigh : CyclesBurnRate = {
+        cycles : Nat = 10_000_000_000_000;
+        timeInterval : TimeInterval = #Daily;
+    };
+
+    public let cyclesBurnRateDefaultVeryHigh : CyclesBurnRate = {
+        cycles : Nat = 20_000_000_000_000;
+        timeInterval : TimeInterval = #Daily;
+    };
+
+    public type CyclesBurnRateDefault = {
+        #Low;
+        #Mid;
+        #High;
+        #VeryHigh;
+        #Custom : CyclesBurnRate;
+    };
+
+    public func getCyclesBurnRate(cyclesBurnRateDefault : CyclesBurnRateDefault) : CyclesBurnRate {
+        switch (cyclesBurnRateDefault) {
+            case (#Low) {
+                return cyclesBurnRateDefaultLow;
+            };
+            case (#Mid) {
+                return cyclesBurnRateDefaultMid;
+            };
+            case (#High) {
+                return cyclesBurnRateDefaultHigh;
+            };
+            case (#VeryHigh) {
+                return cyclesBurnRateDefaultVeryHigh;
+            };
+            case (#Custom(customCyclesBurnRate)) {
+                return customCyclesBurnRate;
+            };
+            case (_) {
+                return cyclesBurnRateDefaultLow;
+            };
+        };
+    };
+
+    // TODO - Implementation: merge into common file
+    let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200_000_000_000;
+    let SUBMISSION_CYCLES_REQUIRED : Nat = 100_000_000_000;
+    let secondsInMinute = 60;
+    let minutesInHour = 60;
+    let hoursInDay = 24;
+
+
+
+    public func getTimerRegularityForCyclesBurnRate(cyclesBurnRate : CyclesBurnRate) : Nat {
+        var timeIntervalDuration = secondsInMinute * minutesInHour * hoursInDay; // Daily as default, i.e. this gives the seconds per day
+        switch (cyclesBurnRate.timeInterval) {
+            case (#Daily) {
+                // use default
+            };
+        };
+        // Calculate how many responses can be generated with the cycles budget based on response costs (generation plus submission)
+        let submissionsInTimeInterval = cyclesBurnRate.cycles / (CYCLES_BURNT_RESPONSE_GENERATION + SUBMISSION_CYCLES_REQUIRED);
+        // Calculate how often to respond (in seconds)
+        let timerRegularity = timeIntervalDuration / submissionsInTimeInterval;
+
+        return timerRegularity;
+    };
+
     public type MainerAgentSettingsInput = {
-        cyclesBurnRate : CyclesBurnRate;
+        cyclesBurnRate : CyclesBurnRateDefault;
     };
 
     public type MainerAgentSettings = MainerAgentSettingsInput and {

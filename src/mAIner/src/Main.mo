@@ -287,13 +287,10 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // TODO - Implementation: llama_cpp_canister must return this number
-    stable var CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * CYCLES_BILLION;
+    stable let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * CYCLES_BILLION;
     let CYCLES_BURNT_LLM_CREATION : Nat = 1300 * CYCLES_BILLION;
 
-    stable let CYCLES_BURN_RATE_DEFAULT : Types.CyclesBurnRate = {
-        cycles : Nat = 10 * CYCLES_TRILLION;
-        timeInterval : Types.TimeInterval = #Daily;
-    };
+    stable let CYCLES_BURN_RATE_DEFAULT : Types.CyclesBurnRate = Types.cyclesBurnRateDefaultLow;
 
     public query (msg) func getMainerStatisticsAdmin() : async Types.StatisticsRetrievalResult {
         // TODO - Security: put access checks in place
@@ -304,7 +301,7 @@ actor class MainerAgentCtrlbCanister() = this {
         switch (getCurrentAgentSettings()) {
             case (null) {};
             case (?agentSettings) {
-                cyclesBurnRateToReturn := agentSettings.cyclesBurnRate;
+                cyclesBurnRateToReturn := Types.getCyclesBurnRate(agentSettings.cyclesBurnRate);
             };
         };
         let response : Types.StatisticsRecord = {
@@ -569,8 +566,29 @@ actor class MainerAgentCtrlbCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
+        switch (settingsInput.cyclesBurnRate) {
+            case (#Low) {
+                // continue
+            };
+            case (#Mid) {
+                // continue
+            };
+            case (#High) {
+                // continue
+            };
+            case (#VeryHigh) {
+                // continue
+            };
+            case (#Custom(customCyclesBurnRate)) {
+                // currently not supported
+                return #Err(#StatusCode(401));
+            };
+            case (_) {
+                return #Err(#StatusCode(400));
+            };
+        };
         let settingsEntry : Types.MainerAgentSettings = {
-            cyclesBurnRate : Types.CyclesBurnRate = settingsInput.cyclesBurnRate;
+            cyclesBurnRate : Types.CyclesBurnRateDefault = settingsInput.cyclesBurnRate;
             creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
             createdBy : Principal = msg.caller;
         };
@@ -578,6 +596,11 @@ actor class MainerAgentCtrlbCanister() = this {
         if (not putResult) {
             return #Err(#StatusCode(500));
         };
+
+        // Restart the timers to apply the new settings
+        let stopResult = await stopTimerExecution();
+        ignore startTimerExecution();
+
         return #Ok({ status_code = 200 });
     };
 
@@ -1298,10 +1321,27 @@ actor class MainerAgentCtrlbCanister() = this {
     
     private func startTimerExecution() : async Types.AuthRecordResult {
         var res = "You started the timers: ";
+        let TIMER_REGULARITY_DEFAULT = 5; // TODO - Implementation: move to common file
+        var timerRegularity = TIMER_REGULARITY_DEFAULT;
+
+        // Calculate timer regularity based on cycles burn rate for user's mAIner
+        if (MAINER_AGENT_CANISTER_TYPE == #Own or MAINER_AGENT_CANISTER_TYPE == #ShareAgent) {
+            var cyclesBurnRate = CYCLES_BURN_RATE_DEFAULT;
+            switch (getCurrentAgentSettings()) {
+                case (null) {
+                    // use default
+
+                };
+                case (?agentSettings) {
+                    cyclesBurnRate := Types.getCyclesBurnRate(agentSettings.cyclesBurnRate);
+                };
+            };
+            timerRegularity := Types.getTimerRegularityForCyclesBurnRate(cyclesBurnRate);
+        };
 
         if (MAINER_AGENT_CANISTER_TYPE == #Own or MAINER_AGENT_CANISTER_TYPE == #ShareAgent) {
             res := res # " 1, ";
-            ignore setTimer<system>(#seconds 5,
+            ignore setTimer<system>(#seconds timerRegularity,
                 func () : async () {
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer 1");
                     let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction1);
@@ -1313,7 +1353,7 @@ actor class MainerAgentCtrlbCanister() = this {
 
         if (MAINER_AGENT_CANISTER_TYPE == #Own or MAINER_AGENT_CANISTER_TYPE == #ShareService) {
             res := res # " 2";
-            ignore setTimer<system>(#seconds 5,
+            ignore setTimer<system>(#seconds timerRegularity,
                 func () : async () {
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer 2");
                     let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction2);
