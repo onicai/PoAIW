@@ -1,4 +1,3 @@
-// import IcpLedger "canister:icp_ledger_canister"; https://github.com/dfinity/examples/blob/master/motoko/icp_transfer/src/icp_transfer_backend/main.mo
 import D "mo:base/Debug";
 // import Array "mo:base/Array";
 import Principal "mo:base/Principal";
@@ -16,10 +15,13 @@ import Nat "mo:base/Nat";
 import Order "mo:base/Order";
 import Error "mo:base/Error";
 import Blob "mo:base/Blob";
+import Hash "mo:base/Hash";
 
 import Types "../../common/Types";
 import ICManagementCanister "../../common/ICManagementCanister";
 import TokenLedger "../../common/icp-ledger-interface";
+import CMC "../../common/cycles-minting-canister-interface";
+
 import Utils "Utils";
 
 actor class GameStateCanister() = this {
@@ -31,6 +33,10 @@ actor class GameStateCanister() = this {
 
     // Token Ledger
     stable var TOKEN_LEDGER_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // TODO: update
+
+    stable let ICP_LEDGER_ACTOR : TokenLedger.TOKEN_LEDGER = Types.IcpLedger_Actor;
+
+    stable let CMC_ACTOR : CMC.CYCLES_MINTING_CANISTER = Types.CyclesMintingCanister_Actor;
 
     // TODO: remove this function before launching
     public shared (msg) func setTokenLedgerCanisterId(_token_ledger_canister_id : Text) : async Types.AuthRecordResult {
@@ -88,9 +94,9 @@ actor class GameStateCanister() = this {
     type TransferArgs = {
         amount : Tokens;
         toPrincipal : Principal;
-        toSubaccount : ?IcpLedger.SubAccount;
+        toSubaccount : ?TokenLedger.SubAccount;
     };
-    private func transfer(args : TransferArgs) : async Result.Result<IcpLedger.BlockIndex, Text> {
+    private func transfer(args : TransferArgs) : async Result.Result<TokenLedger.BlockIndex, Text> {
         Debug.print(
             "Transferring "
             # debug_show (args.amount)
@@ -100,7 +106,7 @@ actor class GameStateCanister() = this {
             # debug_show (args.toSubaccount)
         );
 
-        let transferArgs : IcpLedger.TransferArgs = {
+        let transferArgs : TokenLedger.TransferArgs = {
             // can be used to distinguish between transactions
             memo = 0;
             // the amount we want to transfer
@@ -117,7 +123,7 @@ actor class GameStateCanister() = this {
 
         try {
             // initiate the transfer
-            let transferResult = await IcpLedger.transfer(transferArgs);
+            let transferResult = await ICP_LEDGER_ACTOR.transfer(transferArgs);
 
             // check if the transfer was successfull
             switch (transferResult) {
@@ -132,11 +138,11 @@ actor class GameStateCanister() = this {
         };
     };
 
-    private func verify_payment(paymentBlockIndex : IcpLedger.BlockIndex) : async Result.Result<Text, Text> {
+    private func verify_payment(paymentBlockIndex : TokenLedger.BlockIndex) : async Result.Result<Text, Text> {
         // https://internetcomputer.org/docs/defi/token-ledgers/usage/icp_ledger_usage#receiving-icp
         let startIndex : Nat64 = paymentBlockIndex;
         let queryLength : Nat64 = 1;
-        let queryResult = await IcpLedger.get_blocks({
+        let queryResult = await ICP_LEDGER_ACTOR.get_blocks({
             start = startIndex;
             length = queryLength;
         });
@@ -1298,11 +1304,181 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Helpers for payments
+    stable var redeemedTransactionBlocksStorageStable : [(Nat, Types.RedeemedTransactionBlock)] = [];
+    var redeemedTransactionBlocksStorage : HashMap.HashMap<Nat, Types.RedeemedTransactionBlock> = HashMap.HashMap(0, Nat.equal, Hash.hash);
+
+    func checkExistingTransactionBlock(transactionBlock : Nat64) : Bool {
+        switch (redeemedTransactionBlocksStorage.get(Nat64.toNat(transactionBlock))) {
+            case (null) {
+                return false;
+            };
+            case (?existingTransactionBlock) {
+                return true;
+            };
+        };
+    };
+
+    private func putRedeemedTransactionBlock(transactionEntry : Types.RedeemedTransactionBlock) : Bool {
+        switch (checkExistingTransactionBlock(transactionEntry.paymentTransactionBlockId)) {
+            case (false) {
+                // new entry
+                redeemedTransactionBlocksStorage.put(Nat64.toNat(transactionEntry.paymentTransactionBlockId), transactionEntry);
+                return true;
+            };
+            case (true) { 
+                //existing entry
+                return false;
+            }; 
+        };
+    };
+
+    // Payment memo to specify in transaction to Protocol
+    stable let MEMO_PAYMENT : Nat64 = 2940769044; // TODO - Security: double check value can be used
+    stable let PROTOCOL_PRINCIPAL_BLOB : Blob = Principal.toBlob(Principal.fromActor(this));
+
+    stable let PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * CYCLES_TRILLION;
+
+    // Price to create a mAIner TODO - Implementation: finalize
+    stable var PRICE_OWN_MAINER : Nat64 = 12;
+    stable var PRICE_SHARED_MAINER : Nat64 = 10;
+    stable var PROTOCOL_OPERATION_FEES_CUT : Nat = 20 / 100;
+
+    // TODO - Implementation: function to set the price for creating a mAIner
+        // TODO - Implementation: Set timer for once a day that calculates the creation price based on the ICP/cycles conversion rate
+    private func setPriceForCreatingMainer(newPrice : Nat64, mainerType : Types.MainerAgentCanisterType) : Bool {
+        switch (mainerType) {
+            case (#Own) {
+                PRICE_OWN_MAINER := newPrice;
+            };
+            case (#ShareAgent) {
+                PRICE_SHARED_MAINER := newPrice;
+            };
+            case (_) { return false; }
+        };
+        return true;
+    };
+
+    // TODO - Implementation: new function to decide on usage of incoming funds (e.g. for mAIner creation or top ups)
+    private func handleIncomingFunds(transactionEntry : Types.RedeemedTransactionBlock) : async Types.HandleIncomingFundsResult {
+        // TODO - Implementation: Calculate cut for Protocol's operational expenses
+        var amountToKeep : Nat = transactionEntry.amount * PROTOCOL_OPERATION_FEES_CUT;
+        let amountForMainer : Nat = transactionEntry.amount - amountToKeep;
+        var amountToConvert : Nat = 0;
+        // TODO - Implementation: if cycle balance > security buffer: take cycles from cycle balance
+        switch (transactionEntry.redeemedFor) {
+            case (#MainerCreation(#Own)) {
+                if (PROTOCOL_CYCLES_BALANCE_BUFFER > Cycles.balance()) {
+                    // Cycles balance is lower than security threshold, so convert the payment to cycles
+                    amountToConvert := transactionEntry.amount;
+                } else {
+                    // No need to convert to cycles as cycle balance is high enough
+                    amountToKeep := transactionEntry.amount;
+                };           
+            };
+            case (#MainerCreation(#ShareAgent)) {
+                if (PROTOCOL_CYCLES_BALANCE_BUFFER > Cycles.balance()) {
+                    // Cycles balance is lower than security threshold, so convert the payment to cycles
+                    amountToConvert := transactionEntry.amount;
+                } else {
+                    // No need to convert to cycles as cycle balance is high enough
+                    amountToKeep := transactionEntry.amount;
+                };
+            };
+            case (#MainerTopUp(mainerCanisterAddress)) {
+                amountToConvert := amountForMainer; // Always convert mAIner's share of payment into cycles
+            };
+            case (_) { return #Err(#Other("Unsupported")); }
+        };
+        // TODO - Implementation: Otherwise: convert amountToConvert to cycles via Cycles Minting Canister (mint cycles to itself)
+        // Send ICP to Cycles Minting Canister
+        let cmcAccount : TokenLedger.Account = {
+            owner : Principal = Principal.fromActor(CMC_ACTOR);
+            subaccount : ?Blob = null;
+        };
+        let notifyTopUpMemo : ?Blob = ?"\54\50\55\50\00\00\00\00"; // TODO - Implementation: double check
+        let transferArg : TokenLedger.TransferArg = {
+            to : TokenLedger.Account = cmcAccount;
+            fee : ?Nat = null;
+            memo : ?Blob = notifyTopUpMemo; // needed for CMC to accept top up
+            from_subaccount : ?Blob = null;
+            created_at_time : ?Nat64 = null;
+            amount : Nat = amountToConvert;
+        };
+        let transferResult : TokenLedger.Result = await ICP_LEDGER_ACTOR.icrc1_transfer(transferArg);
+        switch (transferResult) {
+            case (#Ok(transactionBlockId)) {
+                // Then notify Cycles Minting Canister to credit the corresponding cycles to this canister
+                let notifyTopUpArg : CMC.NotifyTopUpArg = {
+                    block_index : CMC.BlockIndex = Nat64.fromNat(transactionBlockId);
+                    canister_id : Principal = Principal.fromActor(this); // Game State (Protocol); Note: cycles will be sent to mAIner via direct calls as part of dedicated functions (e.g. for creation or for top ups)
+                };
+                let notifyTopUpResult : CMC.NotifyTopUpResult = await CMC_ACTOR.notify_top_up(notifyTopUpArg);
+                switch (notifyTopUpResult) {
+                    case (#Ok(cyclesReceived)) {
+                        if (PROTOCOL_CYCLES_BALANCE_BUFFER < Cycles.balance()) {
+                            // TODO - Implementation: Convert amountToKeep to FUNNAI
+                        };
+                        var cyclesForProtocol: Nat = cyclesReceived;
+                        var cyclesForMainer : Nat = 0;
+                        switch (transactionEntry.redeemedFor) {
+                            case (#MainerCreation(#Own)) {
+                                cyclesForMainer := MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED + MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED;                                      
+                            };
+                            case (#MainerCreation(#ShareAgent)) {
+                                cyclesForMainer := MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED;
+                            };
+                            case (#MainerTopUp(mainerCanisterAddress)) {
+                                cyclesForProtocol := cyclesReceived * PROTOCOL_OPERATION_FEES_CUT;
+                                cyclesForMainer := cyclesReceived - cyclesForProtocol;                              
+                            };
+                            case (_) { return #Err(#Other("Unsupported")); }
+                        };
+
+                        // Sanity check
+                        if (cyclesForMainer > cyclesReceived) {
+                            // This should never happen
+                            return #Err(#Other("cyclesForMainer > cyclesReceived"));                            
+                        };
+
+                        let response : Types.HandleIncomingFundsRecord = {
+                            cyclesForProtocol: Nat = cyclesForProtocol;
+                            cyclesForMainer : Nat = cyclesForMainer;
+                        };
+                        return #Ok(response);               
+                    };
+                    case (#Err(topUpError)) {
+                        return #Err(#Other("Error during CMC notify top up: " # debug_show(topUpError)));
+                    };
+                    case (_) { return #Err(#FailedOperation); }
+                };              
+            };
+            case (#Err(transferError)) {
+                return #Err(#Other("Error during ICP transfer: " # debug_show(transferError)));
+            };
+            case (_) { return #Err(#FailedOperation); }
+        };
+    };
+
     // Function for user to create a new mAIner agent
     public shared (msg) func createUserMainerAgent(mainerCreationInput : Types.MainerCreationInput) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized); 
+            return #Err(#Unauthorized);
         };
+        // TODO - Implementation: verify user's payment for this agent via mainerCreationInput.paymentTransactionBlockId https://github.com/bob-robert-ai/bob/blob/3c1d19c4f8ce7de5c74654855e7be44117973d19/minter-v2/src/main.rs#L134
+        //        Skip payment verification in case of ShareService, which is created by an Admin (Controller)
+        // Memo to add to transaction?
+        let transactionToVerify = mainerCreationInput.paymentTransactionBlockId;
+        switch (checkExistingTransactionBlock(transactionToVerify)) {
+            case (false) {
+                // new transaction, continue
+            };
+            case (true) {
+                // already redeem transaction
+                return #Err(#Other("Already redeemd this transaction block")); // no double spending
+            };
+        };
+
         // Sanity checks on configuration of mAIner agent
         let mainerConfig : Types.MainerConfigurationInput = mainerCreationInput.mainerConfig;
         switch (mainerConfig.selectedLLM) {
@@ -1371,24 +1547,69 @@ actor class GameStateCanister() = this {
             };
         }; */
 
-        // TODO - Implementation: verify user's payment for this agent via mainerCreationInput.paymentTransactionBlockId https://github.com/bob-robert-ai/bob/blob/3c1d19c4f8ce7de5c74654855e7be44117973d19/minter-v2/src/main.rs#L134
-        //        Skip payment verification in case of ShareService, which is created by an Admin (Controller)
-        let transactionToVerify = mainerCreationInput.paymentTransactionBlockId;
-        // TODO - Implementation: track redeemed transaction blocks to ensure no double spending
-        // TODO - Implementation: ensure that paid amount equals price
-            // TODO - Implementation: variable to set the price for creating a mAIner
-            // TODO - Implementation: Set timer for once a day that calculates the creation price based on the ICP/cycles conversion rate
-
-        // TODO - Implementation: new function to decide on ICP usage
-            // TODO - Implementation: Calculates profit cut and resulting amount for mAIner (own function, also use then to get the number of cycles to send Creator which has to be stable)
-            // TODO - Implementation: cycle balance > security buffer: take cycles from cycle balance
-            // TODO - Implementation: Otherwise: convert ICP to cycles via Cycles Minting Canister (mint cycles to itself)
-            // TODO - Implementation: Converts profit In ICP to FUNNAI
+        // Retrieve transaction from Ledger
+            // https://dashboard.internetcomputer.org/canister/ryjl3-tyaaa-aaaaa-aaaba-cai
+        let getBlocksArgs : TokenLedger.GetBlocksArgs = {
+            start : Nat64 = transactionToVerify;
+            length : Nat64 = 1;
+        };
+        let queryBlocksResponse : TokenLedger.QueryBlocksResponse = await ICP_LEDGER_ACTOR.query_blocks(getBlocksArgs);
+        // Verify transaction exists
+        if (queryBlocksResponse.blocks.size() < 1) {
+            return #Err(#InvalidId);
+        };
+        let retrievedTransaction : TokenLedger.CandidTransaction = queryBlocksResponse.blocks[0].transaction;
+        // Verify transaction memo
+        if (Nat64.notEqual(retrievedTransaction.memo, MEMO_PAYMENT)) {
+            return #Err(#Other("Unsupported Memo"));
+        };
+        let redeemedFor : Types.RedeemedForOptions = #MainerCreation(mainerConfig.mainerAgentCanisterType);
+        var amountPaid : Nat = 0;
+        let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+        // Verify transaction went to Protocol's account
+        switch (retrievedTransaction.operation) {
+            case (null) {
+                return #Err(#Other("Couldn't verify transaction operation details"));  
+            };
+            case (?transactionOperation) {
+                switch (transactionOperation) {
+                    case (#Transfer(transferDetails)) {
+                        if (Blob.notEqual(transferDetails.to, PROTOCOL_PRINCIPAL_BLOB)) {
+                            return #Err(#Other("Transaction didn't go to Protocol's address")); 
+                        };
+                        // TODO - Implementation: ensure that paid amount equals price
+                        switch (mainerConfig.mainerAgentCanisterType) {
+                            case (#Own) {
+                                if (transferDetails.amount.e8s < PRICE_OWN_MAINER) {
+                                    return #Err(#Other("Transaction didn't pay full price"));
+                                };                              
+                            };
+                            case (#ShareAgent) {
+                                if (transferDetails.amount.e8s < PRICE_SHARED_MAINER) {
+                                    return #Err(#Other("Transaction didn't pay full price"));
+                                };                                
+                            };
+                            case (_) { return #Err(#Other("Unsupported")); }
+                        };
+                        amountPaid := Nat64.toNat(transferDetails.amount.e8s);
+                        let newTransactionEntry : Types.RedeemedTransactionBlock = {
+                            paymentTransactionBlockId : Nat64 = transactionToVerify;
+                            creationTimestamp : Nat64 = creationTimestamp;
+                            redeemedBy : Principal = msg.caller;
+                            redeemedFor : Types.RedeemedForOptions = redeemedFor;
+                            amount : Nat = amountPaid;
+                        };
+                        ignore handleIncomingFunds(newTransactionEntry);
+                    };
+                    case (_) { return #Err(#Other("Transaction wasn't sent correctly")); }
+                };
+            };
+        };
 
         let canisterEntry : Types.OfficialMainerAgentCanister = {
             address : Text = ""; // To be assigned (when Controller canister was created)
             canisterType: Types.ProtocolCanisterType = #MainerAgent(mainerConfig.mainerAgentCanisterType);
-            creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+            creationTimestamp : Nat64 = creationTimestamp;
             createdBy : Principal = msg.caller; // User (Admin (controller) in case of ShareService)
             ownedBy : Principal = msg.caller; // User (Admin (controller) in case of ShareService)
             status : Types.CanisterStatus = #Paid; // TODO - Implementation: add transaction id to status #Paid or introduce new field
@@ -1396,6 +1617,22 @@ actor class GameStateCanister() = this {
         };
         switch (putUserMainerAgent(canisterEntry)) {
             case (true) {
+                // TODO - Implementation: track redeemed transaction blocks to ensure no double spending
+                let newTransactionEntry : Types.RedeemedTransactionBlock = {
+                    paymentTransactionBlockId : Nat64 = transactionToVerify;
+                    creationTimestamp : Nat64 = canisterEntry.creationTimestamp;
+                    redeemedBy : Principal = msg.caller;
+                    redeemedFor : Types.RedeemedForOptions = redeemedFor;
+                    amount : Nat = amountPaid;
+                };
+                switch (putRedeemedTransactionBlock(newTransactionEntry)) {
+                    case (false) {
+                        // TODO - Error Handling: likely retry
+                    };
+                    case (true) {
+                        // continue
+                    };
+                };
                 return #Ok(canisterEntry);
             };
             case (false) { return #Err(#FailedOperation); }
@@ -2931,6 +3168,7 @@ actor class GameStateCanister() = this {
         scoredResponsesPerChallengeStable := Iter.toArray(scoredResponsesPerChallenge.entries());
         winnerDeclarationForChallengeStable := Iter.toArray(winnerDeclarationForChallenge.entries());
         sharedServiceCanistersStorageStable := Iter.toArray(sharedServiceCanistersStorage.entries());
+        redeemedTransactionBlocksStorageStable := Iter.toArray(redeemedTransactionBlocksStorage.entries());
     };
 
     system func postupgrade() {
@@ -2956,5 +3194,7 @@ actor class GameStateCanister() = this {
         winnerDeclarationForChallengeStable := [];
         sharedServiceCanistersStorage := HashMap.fromIter(Iter.fromArray(sharedServiceCanistersStorageStable), sharedServiceCanistersStorageStable.size(), Text.equal, Text.hash);
         sharedServiceCanistersStorageStable := [];
+        redeemedTransactionBlocksStorage := HashMap.fromIter(Iter.fromArray(redeemedTransactionBlocksStorageStable), redeemedTransactionBlocksStorageStable.size(), Nat.equal, Hash.hash);
+        redeemedTransactionBlocksStorageStable := [];
     };
 };
