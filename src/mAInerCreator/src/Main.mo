@@ -201,10 +201,11 @@ actor class CanisterCreationCanister() = this {
     stable let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(1, 1));
     stable let initBlob : Blob = Blob.fromArray(innerInitArray);
     stable var modelFileChunks : [var Blob] = Array.init<Blob>(1, initBlob);
+    stable let MAX_MODEL_FILE_CHUNKS : Nat = 400; // TODO - Design: should this be a parameter or switch to Buffer?
 
     // Admin function to start upload of the mainer LLM model file
     public shared (msg) func start_upload_mainer_llm() : async Types.StatusCodeRecordResult {
-        D.print("mAInerCreator: reset_mainer_llm_model_file");
+        D.print("mAInerCreator: start_upload_mainer_llm");
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -223,9 +224,12 @@ actor class CanisterCreationCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        if (chunkID >= MAX_MODEL_FILE_CHUNKS) {
+            return #Err(#Other("upload_mainer_llm_bytes_chunk: chunkID exceeds maximum allowed value - overflowing the allocated size of the modelFileChunks array"));
+        };
         if (chunkID == 0 and nextChunkID == 0) {
             // initialize data structure only on the first chunk
-            modelFileChunks := Array.init<Blob>(400, initBlob);
+            modelFileChunks := Array.init<Blob>(MAX_MODEL_FILE_CHUNKS, initBlob);
         };
 
         // Only process if this is the expected next chunk or a retry of a previous chunk
@@ -277,6 +281,7 @@ actor class CanisterCreationCanister() = this {
         };
     };
 
+    // Uploads a chunk of the model file to the LLM canister
     private func retryLlmChunkUploadWithDelay(llmCanisterActor : Types.LLMCanister, uploadChunk : Types.FileUploadInputRecord, attempts : Nat, delay : Nat) : async Types.FileUploadRecordResult {
         if (attempts > 0) {
             try {
