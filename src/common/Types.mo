@@ -3,6 +3,9 @@ import Principal "mo:base/Principal";
 import Nat16 "mo:base/Nat16";
 import List "mo:base/List";
 
+import TokenLedger "./icp-ledger-interface";
+import CMC "./cycles-minting-canister-interface";
+
 module Types {
     //-------------------------------------------------------------------------
     public type ApiError = {
@@ -99,6 +102,7 @@ module Types {
         #ShareAgent;
         #ShareService;
     };
+
     public type MainerAgentCanisterTypeResult = Result<MainerAgentCanisterType, ApiError>;
 
     public type MainerAgentCanisterResult = Result<OfficialMainerAgentCanister, ApiError>;
@@ -123,6 +127,26 @@ module Types {
     public type MainerConfigurationInput = {
         mainerAgentCanisterType: MainerAgentCanisterType;
         selectedLLM : ?SelectableMainerLLMs;
+    };
+
+    public type RedeemedForOptions = {
+        #MainerCreation : MainerAgentCanisterType;
+        #MainerTopUp : CanisterAddress;
+    };
+
+    public type HandleIncomingFundsRecord = {
+        cyclesForProtocol: Nat;
+        cyclesForMainer : Nat;
+    };
+
+    public type HandleIncomingFundsResult = Result<HandleIncomingFundsRecord, ApiError>;
+
+    public type RedeemedTransactionBlock = {
+        paymentTransactionBlockId : Nat64;
+        creationTimestamp : Nat64;
+        redeemedBy : Principal;
+        redeemedFor : RedeemedForOptions;
+        amount : Nat;
     };
 
     public type MainerCreationInput = {
@@ -511,4 +535,12 @@ module Types {
         addChallengeToShareServiceQueue : (ChallengeQueueInput) -> async ChallengeQueueInputResult;
         addChallengeResponseToShareAgent : (ChallengeResponseSubmissionInput) -> async StatusCodeRecordResult;
     };
+
+    // ICP Token Ledger
+    public let ICP_TOKEN_LEDGER_CANISTER_ID = "ryjl3-tyaaa-aaaaa-aaaba-cai";
+    public let IcpLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (ICP_TOKEN_LEDGER_CANISTER_ID);
+
+    // Cycles Minting Canister
+    public let CYCLES_MINTING_CANISTER_ID = "rkp4c-7iaaa-aaaaa-aaaca-cai";
+    public let CyclesMintingCanister_Actor : CMC.CYCLES_MINTING_CANISTER = actor (CYCLES_MINTING_CANISTER_ID);
 };
