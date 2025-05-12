@@ -1,3 +1,4 @@
+import Buffer "mo:base/Buffer";
 import Blob "mo:base/Blob";
 import Principal "mo:base/Principal";
 import Nat16 "mo:base/Nat16";
@@ -213,6 +214,14 @@ module Types {
     public type GeneratedChallengeResult = Result<GeneratedChallenge, ApiError>;
     public type GeneratedChallengesResult = Result<[GeneratedChallenge], ApiError>;
 
+    // pre-calculated & ingested mAIner prompt & prompt cache
+    public type MainerPrompt = {
+        promptText : Text;
+        promptCacheChunks : [Blob];
+        promptCacheSha256 : Text;
+    };
+
+    // llama_cpp_canister endpoints data structures
     public type InputRecord = {
         args : [Text]; // the CLI args of llama.cpp/examples/main, as a list of strings
     };
