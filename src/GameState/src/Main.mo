@@ -1361,7 +1361,7 @@ actor class GameStateCanister() = this {
     // TODO - Implementation: new function to decide on usage of incoming funds (e.g. for mAIner creation or top ups)
     private func handleIncomingFunds(transactionEntry : Types.RedeemedTransactionBlock) : async Types.HandleIncomingFundsResult {
         // TODO - Implementation: Calculate cut for Protocol's operational expenses
-        var amountToKeep : Nat = transactionEntry.amount * Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT / 100;
+        var amountToKeep : Nat = transactionEntry.amount * Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT / 100; // TODO - Implementation: ensure this math operation works
         let amountForMainer : Nat = transactionEntry.amount - amountToKeep;
         var amountToConvert : Nat = 0;
         // TODO - Implementation: if cycle balance > security buffer: take cycles from cycle balance
