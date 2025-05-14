@@ -68,6 +68,36 @@ actor class MainerAgentCtrlbCanister() = this {
         return GAME_STATE_CANISTER_ID;
     };
 
+    // Official cycle balance
+    stable var officialCyclesBalance : Nat = Cycles.balance(); // TODO - Implementation: ensure this picks up the cycles the mAIner receives during creation
+    stable var officialCycleTopUpsStorage : List.List<Types.OfficialMainerCycleTopUp> = List.nil<Types.OfficialMainerCycleTopUp>();
+    
+    public shared (msg) func addCycles() : async Types.AddCyclesResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Accept the cycles the call is charged with
+        let cyclesAdded = Cycles.accept<system>(Cycles.available());
+
+        // Add to official cycle balance and store all official top ups
+        if (Principal.equal(msg.caller, Principal.fromText(GAME_STATE_CANISTER_ID))) {
+            // Game State can make official top ups (via its top up flow)
+            officialCyclesBalance := officialCyclesBalance + cyclesAdded;
+            let topUpEntry : Types.OfficialMainerCycleTopUp = {
+                amountAdded : Nat = cyclesAdded;
+                newOfficialCycleBalance : Nat = officialCyclesBalance;
+                creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                sentBy : Principal = msg.caller;
+            };
+            officialCycleTopUpsStorage := List.push<Types.OfficialMainerCycleTopUp>(topUpEntry, officialCycleTopUpsStorage);
+        };
+        
+        return #Ok({
+            added : Bool = true;
+            amount : Nat = cyclesAdded;
+        });
+    };
+
     // -------------------------------
     stable var SHARE_SERVICE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // Dummy value; Only used by ShareAgent
     stable var shareServiceCanisterActor = actor (SHARE_SERVICE_CANISTER_ID) : Types.MainerCanister_Actor;

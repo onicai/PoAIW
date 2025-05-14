@@ -2483,9 +2483,9 @@ actor class GameStateCanister() = this {
                                 // TODO - Implementation: credit mAIner agent with cycles (the user paid for)
                                 try {
                                     let Mainer_Actor : Types.MainerAgentCtrlbCanister = actor (userMainerEntry.address);
-                                    // TODO - Implementation: Via new function on mAIner: addCycles() (https://docs.google.com/document/d/1VKZ_uSPRphl8X32b54KWO_jXHPzE2Z49W29MOlycrMY/edit?disco=AAABi81Xxbc)
                                     // TODO - Implementation: charge call with cycles
                                     Cycles.add<system>(handleResult.cyclesForMainer);
+                                    // TODO - Implementation: Add these cycles via dedicated function on mAIner
                                     let addCyclesResponse = await Mainer_Actor.addCycles();
                                     switch (addCyclesResponse) {
                                         case (#Err(error)) {

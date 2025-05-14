@@ -2,6 +2,7 @@ import Blob "mo:base/Blob";
 import Principal "mo:base/Principal";
 import Nat16 "mo:base/Nat16";
 import List "mo:base/List";
+import Prelude "mo:base/Prelude";
 
 import TokenLedger "./icp-ledger-interface";
 import CMC "./cycles-minting-canister-interface";
@@ -154,6 +155,20 @@ module Types {
         redeemedBy : Principal;
         redeemedFor : RedeemedForOptions;
         amount : Nat;
+    };
+
+    public type AddCyclesRecord = {
+        added : Bool;
+        amount : Nat;
+    };
+
+    public type AddCyclesResult = Result<AddCyclesRecord, ApiError>;
+
+    public type OfficialMainerCycleTopUp = {
+        amountAdded : Nat;
+        newOfficialCycleBalance : Nat;
+        creationTimestamp : Nat64;
+        sentBy : Principal;
     };
 
     public type MainerCreationInput = {
@@ -598,6 +613,7 @@ module Types {
         setShareServiceCanisterId: (Text) -> async StatusCodeRecordResult;
         addMainerShareAgentCanister: (OfficialMainerAgentCanister) -> async MainerAgentCanisterResult;
         startTimerExecutionAdmin: () -> async AuthRecordResult;
+        addCycles: () -> async AddCyclesResult;
     };
 
     public type LLMCanister = actor {
