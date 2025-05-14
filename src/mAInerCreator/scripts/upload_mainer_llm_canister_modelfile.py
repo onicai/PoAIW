@@ -147,8 +147,10 @@ def main() -> int:
         for attempt in range(1, max_retries + 1):
             try:
                 # Send i as the chunkId
-                response = canister_creator.upload_mainer_llm_bytes_chunk(
-                    chunk, i
+                response = canister_creator.upload_mainer_llm_bytes_chunk({
+                    "bytesChunk" : chunk, 
+                    "chunkID" : i
+                    }
                 )  # pylint: disable=no-member
                 break  # Exit the loop if the request is successful
             except Exception as e:
@@ -171,9 +173,10 @@ def main() -> int:
 
     # ---------------------------------------------------------------------------
     # Store the expected sha256 hash of the model file
-    finishResponse = canister_creator.finish_upload_mainer_llm(
-        selectedModel,
-        modelFileSha256
+    finishResponse = canister_creator.finish_upload_mainer_llm({
+        "selectedModel" : selectedModel,
+        "modelFileSha256" : modelFileSha256
+    }
     )  # pylint: disable=no-member
     print(finishResponse)
     return 0

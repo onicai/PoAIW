@@ -320,6 +320,7 @@ actor class ChallengerCtrlbCanister() {
                                             mainerPromptId : Text = mainerPromptId;
                                             promptText: Text = mainerPrompt.promptText;
                                             promptCacheSha256: Text = mainerPrompt.promptCacheSha256;
+                                            promptCacheFilename: Text = mainerPrompt.promptCacheFilename;
                                         };
                                         let finishUploadMainerPromptCacheRecordResult : Types.StatusCodeRecordResult = await gameStateCanisterActor.finishUploadMainerPromptCache(finishUploadMainerPromptCacheInput);
                                         switch (finishUploadMainerPromptCacheRecordResult) {
@@ -417,11 +418,12 @@ actor class ChallengerCtrlbCanister() {
     // TODO - Refactor the code to avoid duplication
     private func mAInerPromptGenerationDoIt_(mainerPromptGenerationInput : Types.MainerPromptGenerationInput) : async Types.MainerPromptGenerationRecordResult {
         let maxContinueLoopCount : Nat = 6; // After this many calls to run_update, we stop.
-        let num_tokens : Nat64 = 1024;
+        let num_tokens : Nat64 = 1; // We do NOT want the LLM to generate any tokens, just to ingest the prompt
         let temp : Float = 0.8;
 
         var promptRepetitive : Text = "<|im_start|>user\nAnswer the following question as brief as possible. This is the question: ";
         var prompt : Text = promptRepetitive # mainerPromptGenerationInput.generatedChallenge.generatedChallengeText # "\n<|im_end|>\n<|im_start|>assistant\n";
+        let promptText : Text = prompt; // for sending in return
 
         let llmCanister = _getRoundRobinCanister();
 
@@ -734,9 +736,11 @@ actor class ChallengerCtrlbCanister() {
         // ----------------------------------------------------------------------
         // Return the result
         let mainerPrompt: Types.MainerPrompt = {
-            promptText : Text = prompt;
+            promptText : Text = promptText;
             promptCacheChunks : [Blob] = Buffer.toArray<Blob>(mainerPromptCacheBuffer);
             promptCacheSha256 : Text = ""; // TODO - calculate the sha256 hash of the prompt cache
+            promptCacheFilename : Text = promptCache;
+            promptCacheNumberOfChunks : Nat = mainerPromptCacheBuffer.size();
         };
         let mainerPromptGenerationRecord : Types.MainerPromptGenerationRecord = {
             generationId : Text = generationId;
@@ -1043,7 +1047,7 @@ actor class ChallengerCtrlbCanister() {
         };
 
         // Return the generated challenge
-        let challengeOutput : Types.GeneratedChallenge = {
+        let generatedChallenge : Types.GeneratedChallenge = {
             generationId : Text = generationId;
             generationSeed : Nat32 = seed;
             generatedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
@@ -1051,7 +1055,7 @@ actor class ChallengerCtrlbCanister() {
             generationPrompt : Text = generationPrompt;
             generatedChallengeText : Text = generationOutput;
         };
-        return #Ok(challengeOutput);
+        return #Ok(generatedChallenge);
     };
 
     public shared query (msg) func getRoundRobinCanister() : async Types.CanisterIDRecordResult {

@@ -74,17 +74,20 @@ else
     echo "mainer_creator_canister is healthy."
 fi
 
-echo " "
-echo "Generate the bindings for the upload scripts"
+# echo " "
+# echo "Generate the bindings for the upload scripts"
 dfx generate
+CANDID="src/declarations/mainer_creator_canister/mainer_creator_canister.did"
+echo " "
+echo "Using the candid file: $CANDID"
 
 echo " "
 echo "Upload the mAIner CONTROLLER canister wasm with scripts.upload_mainer_controller_canister"
-python -m scripts.upload_mainer_controller_canister --network $NETWORK_TYPE --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+python -m scripts.upload_mainer_controller_canister --network $NETWORK_TYPE --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid $CANDID
 
 echo " "
 echo "Upload the mAIner LLM canister wasm with scripts.upload_mainer_llm_canister_wasm"
-python -m scripts.upload_mainer_llm_canister_wasm --network $NETWORK_TYPE --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+python -m scripts.upload_mainer_llm_canister_wasm --network $NETWORK_TYPE --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid $CANDID
 
 # Skip this time-consuming step when when upgrading the code
 if [ "$DEPLOY_MODE" != "upgrade" ]; then
@@ -96,5 +99,5 @@ if [ "$DEPLOY_MODE" != "upgrade" ]; then
         --canister mainer_creator_canister \
         --wasm files/qwen2.5-0.5b-instruct-q8_0.gguf  \
         --hf-sha256 "ca59ca7f13d0e15a8cfa77bd17e65d24f6844b554a7b6c12e07a5f89ff76844e" \
-        --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+        --candid $CANDID
 fi

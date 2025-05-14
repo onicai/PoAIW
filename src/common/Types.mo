@@ -240,7 +240,7 @@ module Types {
 
     public type UploadPromptCacheInputRecord = {
         promptcache : Text;
-        chunk : Blob;
+        chunk : [Nat8];
         chunksize : Nat64;
         offset : Nat64;
     };
@@ -314,6 +314,31 @@ module Types {
     public type ChallengeResponseSubmissionMetadataResult = Result<ChallengeResponseSubmissionMetadata, ApiError>;
     public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmission, ApiError>;
     public type ChallengeResponseSubmissionsResult = Result<[ChallengeResponseSubmission], ApiError>;
+
+    public type UploadMainerLlmCanisterWasmBytesChunkInput = {
+        selectedModel : SelectableMainerLLMs;
+        bytesChunk : [Nat8];
+    };
+    public type AddModelCreationArtefactsEntry = {
+        selectedModel : SelectableMainerLLMs;
+        creationArtefacts : ModelCreationArtefacts;
+    };
+    public type FinishUploadMainerLlmInput = {
+        selectedModel : SelectableMainerLLMs;
+        modelFileSha256 : Text;
+    };
+    public type UploadMainerLlmBytesChunkInput = {
+        bytesChunk : Blob;
+        chunkID : Nat;
+    };
+    public type SetupCanisterInput = {
+        newCanisterId : Text;
+        configurationInput : CanisterCreationConfiguration;
+    };
+    public type TestCreateMainerControllerCanister = {
+        mainerAgentCanisterType : MainerAgentCanisterType;
+        shareServiceCanisterAddress : ?CanisterAddress;
+    };
 
     // Agent Settings
     public type TimeInterval = {
@@ -524,10 +549,17 @@ module Types {
 
     //-------------------------------------------------------------------------
     // pre-calculated & ingested mAIner prompt & prompt cache
-    public type MainerPrompt = {
+    public type MainerPromptInfo = {
         promptText : Text;
-        promptCacheChunks : [Blob];
         promptCacheSha256 : Text;
+        promptCacheFilename: Text;
+        promptCacheNumberOfChunks : Nat;
+    };
+    public type MainerPromptInfoResult = Result<MainerPromptInfo, ApiError>;
+
+
+    public type MainerPrompt = MainerPromptInfo and {
+        promptCacheChunks : [Blob];
     };
     public type MainerPromptGenerationInput = {
         generatedChallenge : Types.GeneratedChallenge;
@@ -557,7 +589,17 @@ module Types {
         mainerPromptId : Text;
         promptText: Text;
         promptCacheSha256: Text;
+        promptCacheFilename: Text;
     };
+
+    public type DownloadMainerPromptCacheBytesChunkInput = {
+        mainerPromptId : Text;
+        chunkID : Nat;
+    };
+    public type DownloadMainerPromptCacheBytesChunkRecord = DownloadMainerPromptCacheBytesChunkInput and {
+        bytesChunk : Blob;
+    };
+    public type DownloadMainerPromptCacheBytesChunkRecordResult = Result<DownloadMainerPromptCacheBytesChunkRecord, ApiError>;
     //-------------------------------------------------------------------------
 // Canister Actors
     public type GameStateCanister_Actor = actor {
@@ -570,12 +612,14 @@ module Types {
         addMainerAgentCanister : (OfficialMainerAgentCanister) -> async MainerAgentCanisterResult;
         startUploadMainerPromptCache : () -> async Types.StartUploadMainerPromptCacheRecordResult;
         uploadMainerPromptCacheBytesChunk : (UploadMainerPromptCacheBytesChunkInput) -> async Types.StatusCodeRecordResult;
+        downloadMainerPromptCacheBytesChunk : (DownloadMainerPromptCacheBytesChunkInput) -> async Types.DownloadMainerPromptCacheBytesChunkRecordResult;
         finishUploadMainerPromptCache : (FinishUploadMainerPromptCacheInput) -> async Types.StatusCodeRecordResult;
+        getMainerPromptInfo : (Text) -> async Types.MainerPromptInfoResult;
     };
 
     public type MainerCreator_Actor = actor {
         createCanister: shared CanisterCreationConfiguration -> async CanisterCreationResult;
-        setupCanister: shared (Text, CanisterCreationConfiguration) -> async CanisterCreationResult;
+        setupCanister: shared SetupCanisterInput -> async CanisterCreationResult;
     };
 
     public type LLMCanister = actor {

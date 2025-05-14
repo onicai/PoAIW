@@ -58,7 +58,7 @@ dfx canister call mainer_creator_canister amiController
 # Type: #Own
 
 # Create a mAIner controller canister of type #Own
-dfx canister call mainer_creator_canister testCreateMainerControllerCanister '(variant {Own}, null)'
+dfx canister call mainer_creator_canister testCreateMainerControllerCanister '(record {mainerAgentCanisterType = variant {Own}, shareServiceCanisterAddress = null})'
 NEW_MAINER_OWN_CANISTER="xxxxx-...-cai"   # copy newCanisterId from printout
 
 # Create one or more llm canister for the just created mAIner controller canister of type #Own
@@ -71,7 +71,7 @@ dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_M
 # Type: #ShareService & #ShareAgent
 
 # Create a mAIner controller canister of type #ShareService
-dfx canister call mainer_creator_canister testCreateMainerControllerCanister '(variant {ShareService}, null)'
+dfx canister call mainer_creator_canister testCreateMainerControllerCanister '(record {mainerAgentCanisterType = variant {ShareService}, shareServiceCanisterAddress = null})'
 NEW_MAINER_SHARE_SERVICE_CANISTER="yyyyy-...-cai"   # copy newCanisterId from printout
 
 # Create one or more llm canisters for use by the just created mAIner ShareService canister
@@ -82,11 +82,12 @@ dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_M
 # Create mAIner controller canisters of type #ShareAgent
 # -> A ShareAgent canister uses the ShareService and not its own LLMs,
 #    so pass the ShareService canister id
-dfx canister call mainer_creator_canister testCreateMainerControllerCanister "(variant {ShareAgent}, opt \"$NEW_MAINER_SHARE_SERVICE_CANISTER\")"
+        mainerAgentCanisterType : MainerAgentCanisterType;
+dfx canister call mainer_creator_canister testCreateMainerControllerCanister "(record { mainerAgentCanisterType = variant {ShareAgent}, shareServiceCanisterAddress = opt \"$NEW_MAINER_SHARE_SERVICE_CANISTER\"})"
 NEW_MAINER_SHARE_AGENT_CANISTER="zzzzz-...-cai"   # copy newCanisterId from printout
 
 # You can create more ShareAgent canisters that use the same ShareService
-dfx canister call mainer_creator_canister testCreateMainerControllerCanister "(variant {ShareAgent}, opt \"$NEW_MAINER_SHARE_SERVICE_CANISTER\")" 
+dfx canister call mainer_creator_canister testCreateMainerControllerCanister "(record {mainerAgentCanisterType = variant {ShareAgent}, shareServiceCanisterAddress = opt \"$NEW_MAINER_SHARE_SERVICE_CANISTER\"})" 
 ANOTHER_MAINER_SHARE_AGENT_CANISTER="zzzzz-...-cai"   # copy newCanisterId from printout
 # etc.
 

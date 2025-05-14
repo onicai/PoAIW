@@ -148,7 +148,7 @@ actor class GameStateCanister() = this {
     // mAIner agent wasm module hash that must match
         // TODO: implement way to manage this
         // -> For now, do not make it stable, so it can be updated via a canister upgrade
-    let officialMainerAgentCanisterWasmHash : Blob = "\E3\75\AE\41\04\89\B5\1A\0D\76\3A\77\F9\27\A6\50\97\2C\30\BB\49\6A\02\8D\35\37\49\9A\3B\9E\2E\8A";
+    let officialMainerAgentCanisterWasmHash : Blob = "\C4\86\EE\36\2F\91\2B\58\0F\DC\15\83\D4\8C\44\F7\C0\BD\C7\86\FF\37\48\4C\9F\B6\4C\EF\34\CA\5D\07";
     
     public shared (msg) func testMainerCodeIntegrityAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -778,6 +778,7 @@ actor class GameStateCanister() = this {
         let mainerPromptId: Text = finishUploadMainerPromptCacheInput.mainerPromptId;
         let promptText: Text = finishUploadMainerPromptCacheInput.promptText;
         let promptCacheSha256: Text = finishUploadMainerPromptCacheInput.promptCacheSha256;
+        let promptCacheFilename: Text = finishUploadMainerPromptCacheInput.promptCacheFilename;
 
         D.print("GameState: finishUploadMainerPromptCache - mainerPromptId: " # debug_show(mainerPromptId));
         if (Principal.isAnonymous(msg.caller)) {
@@ -799,18 +800,95 @@ actor class GameStateCanister() = this {
                         // Store the mAIner prompt & cache & sha256 for this Challenge
                         let mainerPrompt : Types.MainerPrompt = {
                             promptText = promptText;
-                            promptCacheChunks = Buffer.toArray<Blob>(mainerPromptCacheUploadBuffer);
                             promptCacheSha256 = promptCacheSha256;
+                            promptCacheFilename = promptCacheFilename;
+                            promptCacheNumberOfChunks = mainerPromptCacheUploadBuffer.size();
+                            promptCacheChunks = Buffer.toArray<Blob>(mainerPromptCacheUploadBuffer);
                         };
                         D.print("GameState: finishUploadMainerPromptCache - Storing mainerPrompt for mainerPromptId: " # debug_show(mainerPromptId) # "\n" #
                             "promptText: " # debug_show(promptText) # "\n" #
                             "promptCacheSha256: " # debug_show(promptCacheSha256));
                         mainerPrompts.put(mainerPromptId, mainerPrompt);
 
-                        // Delete the prompt cache upload session for this Challenge
+                        // Delete the prompt cache upload buffer for this Challenge
                         let _ = mainerPromptCacheUploadBuffers.remove(mainerPromptId);
 
                         return #Ok({ status_code = 200 });
+                    };
+                };
+            };             
+        };
+    };
+
+    // Function to be called by mAIner to get the mainer prompt info
+    public shared query (msg) func getMainerPromptInfo(mainerPromptId : Text) : async Types.MainerPromptInfoResult {
+        D.print("GameState: getMainerPromptInfo - mainerPromptId: " # debug_show(mainerPromptId));
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Only official mAIner canisters may call this
+        switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?mainerAgentEntry) {
+                // Verify consistency of the caller
+                if (mainerAgentEntry.address != Principal.toText(msg.caller)) {
+                    return #Err(#Unauthorized);
+                };
+                
+                switch (mainerPrompts.get(mainerPromptId)) {
+                    case (null) { return #Err(#Other("No mainerPrompt found for mainerPromptId: " # mainerPromptId)); };
+                    case (?mainerPrompt) { 
+                        // Store the mAIner prompt & cache & sha256 for this Challenge
+                        let mainerPromptInfo : Types.MainerPromptInfo = {
+                            promptText = mainerPrompt.promptText;
+                            promptCacheSha256 = mainerPrompt.promptCacheSha256;
+                            promptCacheFilename = mainerPrompt.promptCacheFilename;
+                            promptCacheNumberOfChunks = mainerPrompt.promptCacheNumberOfChunks;
+                        };
+                        D.print("GameState: getMainerPromptInfo - Returning mainerPromptInfo for mainerPromptId: " # debug_show(mainerPromptId) # "\n" #
+                            "mainerPromptInfo: " # debug_show(mainerPromptInfo) );
+                        return #Ok(mainerPromptInfo);
+                    };
+                };
+            };             
+        };
+    };
+
+    // Function to be called by mAIner to get the mainer prompt cache in chunks
+    public shared query (msg) func downloadMainerPromptCacheBytesChunk(downloadMainerPromptCacheBytesChunkInput : Types.DownloadMainerPromptCacheBytesChunkInput) : async Types.DownloadMainerPromptCacheBytesChunkRecordResult {
+        D.print("GameState: downloadMainerPromptCacheBytesChunk.");
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Only official mAIner canisters may call this
+        switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?mainerAgentEntry) {
+                // Verify consistency of the caller
+                if (mainerAgentEntry.address != Principal.toText(msg.caller)) {
+                    return #Err(#Unauthorized);
+                };
+
+                let mainerPromptId: Text = downloadMainerPromptCacheBytesChunkInput.mainerPromptId;
+                let chunkID : Nat = downloadMainerPromptCacheBytesChunkInput.chunkID;
+                
+                switch (mainerPrompts.get(mainerPromptId)) {
+                    case (null) { return #Err(#Other("No mainerPrompt found for mainerPromptId: " # mainerPromptId)); };
+                    case (?mainerPrompt) { 
+                        let promptCacheChunks : [Blob] = mainerPrompt.promptCacheChunks;
+                        if (chunkID >= promptCacheChunks.size()) {
+                            return #Err(#Other("Chunk ID " # Nat.toText(chunkID) # " is out of range for mainerPromptId: " # mainerPromptId));
+                        };
+                        let chunk : Blob = promptCacheChunks[chunkID];
+                        let downloadMainerPromptCacheBytesChunkRecord : Types.DownloadMainerPromptCacheBytesChunkRecord = {
+                            mainerPromptId : Text = mainerPromptId;
+                            chunkID : Nat = chunkID;
+                            bytesChunk : Blob = chunk;
+                        };
+
+                        return #Ok(downloadMainerPromptCacheBytesChunkRecord);
                     };
                 };
             };             
@@ -1704,7 +1782,11 @@ actor class GameStateCanister() = this {
                                 switch (result) {
                                     case (#Ok(canisterCreationRecord)) {
                                         // Setup the controller canister (install code & configurations)
-                                        ignore creatorCanisterActor.setupCanister(canisterCreationRecord.newCanisterId, canisterCreationInput);
+                                        let setupCanisterInput : Types.SetupCanisterInput = {
+                                            newCanisterId : Text = canisterCreationRecord.newCanisterId;
+                                            configurationInput : Types.CanisterCreationConfiguration = canisterCreationInput;
+                                        };
+                                        ignore creatorCanisterActor.setupCanister(setupCanisterInput);
 
                                         let canisterEntryToAdd : Types.OfficialMainerAgentCanister = {
                                             address : Text = canisterCreationRecord.newCanisterId; // New mAIner Controller canister's id
@@ -1888,7 +1970,11 @@ actor class GameStateCanister() = this {
                                     case (#Ok(canisterCreationRecord)) {
                                         D.print("GameState: setUpMainerLlmCanister - Setting up LLM Canister ID = " # debug_show(canisterCreationRecord.newCanisterId) );
                                         // Setup the LLM canister (install code & configurations)
-                                        ignore creatorCanisterActor.setupCanister(canisterCreationRecord.newCanisterId, canisterCreationInput);
+                                        let setupCanisterInput : Types.SetupCanisterInput = {
+                                            newCanisterId : Text = canisterCreationRecord.newCanisterId;
+                                            configurationInput : Types.CanisterCreationConfiguration = canisterCreationInput;
+                                        };
+                                        ignore creatorCanisterActor.setupCanister(setupCanisterInput);
 
                                         let canisterEntryToAdd : Types.OfficialMainerAgentCanister = {
                                             address : Text = userMainerEntry.address; // Controller 
@@ -2092,7 +2178,11 @@ actor class GameStateCanister() = this {
                                     case (#Ok(canisterCreationRecord)) {
                                         D.print("GameState: addLlmCanisterToMainer - Setting up LLM Canister ID = " # debug_show(canisterCreationRecord.newCanisterId) );
                                         // Setup the LLM canister (install code & configurations)
-                                        ignore creatorCanisterActor.setupCanister(canisterCreationRecord.newCanisterId, canisterCreationInput);
+                                        let setupCanisterInput : Types.SetupCanisterInput = {
+                                            newCanisterId : Text = canisterCreationRecord.newCanisterId;
+                                            configurationInput : Types.CanisterCreationConfiguration = canisterCreationInput;
+                                        };
+                                        ignore creatorCanisterActor.setupCanister(setupCanisterInput);
 
                                         let canisterEntryToAdd : Types.OfficialMainerAgentCanister = {
                                             address : Text = userMainerEntry.address; // Controller 
