@@ -1460,14 +1460,77 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // TODO - Implementation: new function to verify a payment to the Protocol (e.g. for mAIner creation or top ups)
+    private func verifyIncomingPayment(transactionEntry : Types.RedeemedTransactionBlock) : async Types.VerifyPaymentResult {
+        // Memo to add to transaction?
+        // Retrieve transaction from Ledger
+            // https://dashboard.internetcomputer.org/canister/ryjl3-tyaaa-aaaaa-aaaba-cai
+        let getBlocksArgs : TokenLedger.GetBlocksArgs = {
+            start : Nat64 = transactionEntry.paymentTransactionBlockId;
+            length : Nat64 = 1;
+        };
+        let queryBlocksResponse : TokenLedger.QueryBlocksResponse = await ICP_LEDGER_ACTOR.query_blocks(getBlocksArgs);
+        // Verify transaction exists
+        if (queryBlocksResponse.blocks.size() < 1) {
+            return #Err(#InvalidId);
+        };
+        let retrievedTransaction : TokenLedger.CandidTransaction = queryBlocksResponse.blocks[0].transaction;
+        // Verify transaction memo
+        if (Nat64.notEqual(retrievedTransaction.memo, MEMO_PAYMENT)) {
+            return #Err(#Other("Unsupported Memo"));
+        };        
+        // Verify transaction went to Protocol's account
+        switch (retrievedTransaction.operation) {
+            case (null) {
+                return #Err(#Other("Couldn't verify transaction operation details"));  
+            };
+            case (?transactionOperation) {
+                switch (transactionOperation) {
+                    case (#Transfer(transferDetails)) {
+                        if (Blob.notEqual(transferDetails.to, PROTOCOL_PRINCIPAL_BLOB)) {
+                            return #Err(#Other("Transaction didn't go to Protocol's address")); 
+                        };
+                        // TODO - Implementation: ensure that paid amount equals price
+                        switch (transactionEntry.redeemedFor) {
+                            case (#MainerCreation(mainerAgentCanisterType)) {
+                                switch (mainerAgentCanisterType) {
+                                    case (#Own) {
+                                        if (transferDetails.amount.e8s < PRICE_OWN_MAINER) {
+                                            return #Err(#Other("Transaction didn't pay full price"));
+                                        };                              
+                                    };
+                                    case (#ShareAgent) {
+                                        if (transferDetails.amount.e8s < PRICE_SHARED_MAINER) {
+                                            return #Err(#Other("Transaction didn't pay full price"));
+                                        };                                
+                                    };
+                                    case (_) { return #Err(#Other("Unsupported")); }
+                                };                             
+                            };
+                            case (#MainerTopUp(_)) {
+                                // continue as there is no fixed price                             
+                            };
+                            case (_) { return #Err(#Other("Unsupported")); }
+                        };
+                        let amountPaid = Nat64.toNat(transferDetails.amount.e8s);
+                        return #Ok({
+                            amountPaid : Nat = amountPaid;
+                            verified : Bool = true;
+                        });
+                    };
+                    case (_) { return #Err(#Other("Transaction wasn't sent correctly")); }
+                };
+            };
+        };
+    };
+
     // Function for user to create a new mAIner agent
     public shared (msg) func createUserMainerAgent(mainerCreationInput : Types.MainerCreationInput) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        // TODO - Implementation: verify user's payment for this agent via mainerCreationInput.paymentTransactionBlockId https://github.com/bob-robert-ai/bob/blob/3c1d19c4f8ce7de5c74654855e7be44117973d19/minter-v2/src/main.rs#L134
-        //        Skip payment verification in case of ShareService, which is created by an Admin (Controller)
-        // Memo to add to transaction?
+
+        // TODO - Implementation: ensure this transaction block hasn't been redeemed yet (no double spending)     
         let transactionToVerify = mainerCreationInput.paymentTransactionBlockId;
         switch (checkExistingTransactionBlock(transactionToVerify)) {
             case (false) {
@@ -1547,63 +1610,40 @@ actor class GameStateCanister() = this {
             };
         }; */
 
-        // Retrieve transaction from Ledger
-            // https://dashboard.internetcomputer.org/canister/ryjl3-tyaaa-aaaaa-aaaba-cai
-        let getBlocksArgs : TokenLedger.GetBlocksArgs = {
-            start : Nat64 = transactionToVerify;
-            length : Nat64 = 1;
-        };
-        let queryBlocksResponse : TokenLedger.QueryBlocksResponse = await ICP_LEDGER_ACTOR.query_blocks(getBlocksArgs);
-        // Verify transaction exists
-        if (queryBlocksResponse.blocks.size() < 1) {
-            return #Err(#InvalidId);
-        };
-        let retrievedTransaction : TokenLedger.CandidTransaction = queryBlocksResponse.blocks[0].transaction;
-        // Verify transaction memo
-        if (Nat64.notEqual(retrievedTransaction.memo, MEMO_PAYMENT)) {
-            return #Err(#Other("Unsupported Memo"));
-        };
-        let redeemedFor : Types.RedeemedForOptions = #MainerCreation(mainerConfig.mainerAgentCanisterType);
+        // TODO - Implementation: verify user's payment for this agent via the TransactionBlockId
+        var verifiedPayment : Bool = false;
         var amountPaid : Nat = 0;
+        let redeemedFor : Types.RedeemedForOptions = #MainerCreation(mainerConfig.mainerAgentCanisterType);
         let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-        // Verify transaction went to Protocol's account
-        switch (retrievedTransaction.operation) {
-            case (null) {
-                return #Err(#Other("Couldn't verify transaction operation details"));  
+        switch (mainerConfig.mainerAgentCanisterType) {
+            case (#ShareService) {
+                // Skip payment verification in case of ShareService, which is created by an Admin (Controller)
+                verifiedPayment := true;
             };
-            case (?transactionOperation) {
-                switch (transactionOperation) {
-                    case (#Transfer(transferDetails)) {
-                        if (Blob.notEqual(transferDetails.to, PROTOCOL_PRINCIPAL_BLOB)) {
-                            return #Err(#Other("Transaction didn't go to Protocol's address")); 
-                        };
-                        // TODO - Implementation: ensure that paid amount equals price
-                        switch (mainerConfig.mainerAgentCanisterType) {
-                            case (#Own) {
-                                if (transferDetails.amount.e8s < PRICE_OWN_MAINER) {
-                                    return #Err(#Other("Transaction didn't pay full price"));
-                                };                              
-                            };
-                            case (#ShareAgent) {
-                                if (transferDetails.amount.e8s < PRICE_SHARED_MAINER) {
-                                    return #Err(#Other("Transaction didn't pay full price"));
-                                };                                
-                            };
-                            case (_) { return #Err(#Other("Unsupported")); }
-                        };
-                        amountPaid := Nat64.toNat(transferDetails.amount.e8s);
-                        let newTransactionEntry : Types.RedeemedTransactionBlock = {
-                            paymentTransactionBlockId : Nat64 = transactionToVerify;
-                            creationTimestamp : Nat64 = creationTimestamp;
-                            redeemedBy : Principal = msg.caller;
-                            redeemedFor : Types.RedeemedForOptions = redeemedFor;
-                            amount : Nat = amountPaid;
-                        };
-                        ignore handleIncomingFunds(newTransactionEntry);
+            case (_) {
+                let transactionEntryToVerify : Types.RedeemedTransactionBlock = {
+                    paymentTransactionBlockId : Nat64 = transactionToVerify;
+                    creationTimestamp : Nat64 = creationTimestamp;
+                    redeemedBy : Principal = msg.caller;
+                    redeemedFor : Types.RedeemedForOptions = redeemedFor;
+                    amount : Nat = amountPaid; // to be updated
+                };
+
+                let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify);
+                switch (verificationResponse) {
+                    case (#Ok(verificationResult)) {
+                        verifiedPayment := verificationResult.verified;
+                        amountPaid := verificationResult.amountPaid;
                     };
-                    case (_) { return #Err(#Other("Transaction wasn't sent correctly")); }
+                    case (_) {
+                        return #Err(#Other("Payment verification failed"));                      
+                    };
                 };
             };
+        };
+
+        if (not verifiedPayment) {
+            return #Err(#Other("Payment couldn't be verified"));
         };
 
         let canisterEntry : Types.OfficialMainerAgentCanister = {
@@ -1615,41 +1655,40 @@ actor class GameStateCanister() = this {
             status : Types.CanisterStatus = #Paid; // TODO - Implementation: add transaction id to status #Paid or introduce new field
             mainerConfig : Types.MainerConfigurationInput = mainerConfig;
         };
-        switch (putUserMainerAgent(canisterEntry)) {
-            case (true) {
-                // TODO - Implementation: track redeemed transaction blocks to ensure no double spending
-                let newTransactionEntry : Types.RedeemedTransactionBlock = {
-                    paymentTransactionBlockId : Nat64 = transactionToVerify;
-                    creationTimestamp : Nat64 = canisterEntry.creationTimestamp;
-                    redeemedBy : Principal = msg.caller;
-                    redeemedFor : Types.RedeemedForOptions = redeemedFor;
-                    amount : Nat = amountPaid;
-                };
-                switch (putRedeemedTransactionBlock(newTransactionEntry)) {
+        let newTransactionEntry : Types.RedeemedTransactionBlock = {
+            paymentTransactionBlockId : Nat64 = transactionToVerify;
+            creationTimestamp : Nat64 = canisterEntry.creationTimestamp;
+            redeemedBy : Principal = msg.caller;
+            redeemedFor : Types.RedeemedForOptions = redeemedFor;
+            amount : Nat = amountPaid;
+        };
+        let handleResponse = await handleIncomingFunds(newTransactionEntry);
+        switch (handleResponse) {
+            case (#Err(error)) {
+                return #Err(#FailedOperation);
+            };
+            case (#Ok(handleResult)) {
+                switch (putUserMainerAgent(canisterEntry)) {
+                    case (true) {
+                        // TODO - Implementation: track redeemed transaction blocks to ensure no double spending
+                        switch (putRedeemedTransactionBlock(newTransactionEntry)) {
+                            case (false) {
+                                // TODO - Error Handling: likely retry
+                            };
+                            case (true) {
+                                // continue
+                            };
+                        };
+                        return #Ok(canisterEntry);
+                    };
                     case (false) {
                         // TODO - Error Handling: likely retry
-                    };
-                    case (true) {
-                        // continue
-                    };
+                        return #Err(#FailedOperation);
+                    }
                 };
-                return #Ok(canisterEntry);
             };
-            case (false) { return #Err(#FailedOperation); }
         };
     };
-
-    // TODO - Implementation: new function to top up mAIner
-        // has similar implementation as above
-        // TODO - Implementation: verify user's payment
-            // TODO - Implementation: track redeemed transaction blocks to ensure no double spending
-        // TODO - Implementation: new function to decide on ICP usage
-            // TODO - Implementation: cycle balance > security buffer: take cycles from cycle balance
-                // TODO - Implementation: Calculates profit cut and resulting amount for mAIner (own function, needs to get cycles price from CMC; maybe not needed if combined with minting below)
-            // TODO - Implementation: Otherwise: convert ICP to cycles via Cycles Minting Canister (mint cycles to itself)
-            // TODO - Implementation: Sends cycles To mAIner (controller canister) for mAIner top up
-                // TODO - Implementation: Via new function on mAIner: addCycles() (https://docs.google.com/document/d/1VKZ_uSPRphl8X32b54KWO_jXHPzE2Z49W29MOlycrMY/edit?disco=AAABi81Xxbc)
-            // TODO - Implementation: Converts profit In ICP to FUNNAI
 
     // Function for user to create a new mAIner agent Controller canister
     public shared (msg) func spinUpMainerControllerCanister(mainerInfo : Types.OfficialMainerAgentCanister) : async Types.MainerAgentCanisterResult {
@@ -2325,6 +2364,18 @@ actor class GameStateCanister() = this {
             return #Err(#Unauthorized);
         };
 
+        // TODO - Implementation: ensure this transaction block hasn't been redeemed yet (no double spending)     
+        let transactionToVerify = mainerTopUpInfo.paymentTransactionBlockId;
+        switch (checkExistingTransactionBlock(transactionToVerify)) {
+            case (false) {
+                // new transaction, continue
+            };
+            case (true) {
+                // already redeem transaction
+                return #Err(#Other("Already redeemd this transaction block")); // no double spending
+            };
+        };
+
         // Sanity checks on provided mAIner info
         let mainerInfo : Types.OfficialMainerAgentCanister = mainerTopUpInfo.mainerAgent;
         if (not Principal.equal(mainerInfo.ownedBy, msg.caller)) {
@@ -2390,24 +2441,76 @@ actor class GameStateCanister() = this {
                             case (_) { return #Err(#Other("Unsupported")); }
                         };
 
-                        // TODO - Implementation: verify user's payment for this agent via paymentTransactionBlockId https://github.com/bob-robert-ai/bob/blob/3c1d19c4f8ce7de5c74654855e7be44117973d19/minter-v2/src/main.rs#L134
-                        let transactionToVerify = mainerTopUpInfo.paymentTransactionBlockId;
-                        
-                        // TODO - Implementation: credit mAIner agent with cycles (the user paid for)
-                        // ALternative: credit via the CMC service
-                        let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
-                        // Retrieve mAIner agent canister's info
-                        D.print("GameState: topUpCyclesForMainerAgent - Verify agent canister's wasm module hash#####################################################################################################################################################################################");
-                        try {
-                            let deposit_cycles_args = { canister_id : Principal = Principal.fromText(userMainerEntry.address); };
-                            // TODO - Implementation: charge call with cycles
-                            let result = await IC_Management_Actor.deposit_cycles(deposit_cycles_args);
-                            //TODO - Design: decide whether a top up history should be kept
-                            return #Ok(userMainerEntry);
-                        } catch (e) {
-                            D.print("GameState: topUpCyclesForMainerAgent - Failed to credit cycles to mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e));      
-                            return #Err(#Other("GameState: topUpCyclesForMainerAgent - Failed to credit cycles to mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e)));
-                        };                        
+                        // TODO - Implementation: verify user's payment for this agent via the TransactionBlockId
+                        var verifiedPayment : Bool = false;
+                        var amountPaid : Nat = 0;
+                        let redeemedFor : Types.RedeemedForOptions = #MainerTopUp(userMainerEntry.address);
+                        let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                        let transactionEntryToVerify : Types.RedeemedTransactionBlock = {
+                            paymentTransactionBlockId : Nat64 = mainerTopUpInfo.paymentTransactionBlockId;
+                            creationTimestamp : Nat64 = creationTimestamp;
+                            redeemedBy : Principal = msg.caller;
+                            redeemedFor : Types.RedeemedForOptions = redeemedFor;
+                            amount : Nat = amountPaid; // to be updated
+                        };
+                        let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify);
+                        switch (verificationResponse) {
+                            case (#Ok(verificationResult)) {
+                                verifiedPayment := verificationResult.verified;
+                                amountPaid := verificationResult.amountPaid;
+                            };
+                            case (_) {
+                                return #Err(#Other("Payment verification failed"));                      
+                            };
+                        };
+                        if (not verifiedPayment) {
+                            return #Err(#Other("Payment couldn't be verified"));
+                        };
+
+                        let newTransactionEntry : Types.RedeemedTransactionBlock = {
+                            paymentTransactionBlockId : Nat64 = mainerTopUpInfo.paymentTransactionBlockId;
+                            creationTimestamp : Nat64 = creationTimestamp;
+                            redeemedBy : Principal = msg.caller;
+                            redeemedFor : Types.RedeemedForOptions = redeemedFor;
+                            amount : Nat = amountPaid;
+                        };
+                        let handleResponse : Types.HandleIncomingFundsResult = await handleIncomingFunds(newTransactionEntry);
+                        switch (handleResponse) {
+                            case (#Err(error)) {
+                                return #Err(#FailedOperation);
+                            };
+                            case (#Ok(handleResult)) {
+                                // TODO - Implementation: credit mAIner agent with cycles (the user paid for)
+                                try {
+                                    let Mainer_Actor : Types.MainerAgentCtrlbCanister = actor (userMainerEntry.address);
+                                    // TODO - Implementation: Via new function on mAIner: addCycles() (https://docs.google.com/document/d/1VKZ_uSPRphl8X32b54KWO_jXHPzE2Z49W29MOlycrMY/edit?disco=AAABi81Xxbc)
+                                    // TODO - Implementation: charge call with cycles
+                                    Cycles.add<system>(handleResult.cyclesForMainer);
+                                    let addCyclesResponse = await Mainer_Actor.addCycles();
+                                    switch (addCyclesResponse) {
+                                        case (#Err(error)) {
+                                            return #Err(#FailedOperation);
+                                        };
+                                        case (#Ok(addCyclesResult)) {
+                                            //TODO - Design: decide whether a top up history should be kept
+                                            // TODO - Implementation: track redeemed transaction blocks to ensure no double spending
+                                            switch (putRedeemedTransactionBlock(newTransactionEntry)) {
+                                                case (false) {
+                                                    // TODO - Error Handling: likely retry
+                                                };
+                                                case (true) {
+                                                    // continue
+                                                };
+                                            };
+                                            return #Ok(userMainerEntry);
+                                        };
+                                    };
+                                } catch (e) {
+                                    D.print("GameState: topUpCyclesForMainerAgent - Failed to credit cycles to mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e));      
+                                    return #Err(#Other("GameState: topUpCyclesForMainerAgent - Failed to credit cycles to mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e)));
+                                };
+                            };
+                        };                       
                     };
                 };
             };

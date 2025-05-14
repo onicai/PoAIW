@@ -141,6 +141,13 @@ module Types {
 
     public type HandleIncomingFundsResult = Result<HandleIncomingFundsRecord, ApiError>;
 
+    public type VerifyPaymentRecord = {
+        verified : Bool;
+        amountPaid : Nat;
+    };
+
+    public type VerifyPaymentResult = Result<VerifyPaymentRecord, ApiError>;
+
     public type RedeemedTransactionBlock = {
         paymentTransactionBlockId : Nat64;
         creationTimestamp : Nat64;
@@ -498,19 +505,6 @@ module Types {
         max_tokens_query : Nat64;
     };
 
-    public type MainerAgentCtrlbCanister = actor {
-        add_llm_canister: (CanisterIDRecord) -> async StatusCodeRecordResult;
-        health: query () -> async StatusCodeRecordResult;
-        setGameStateCanisterId: (Text) -> async StatusCodeRecordResult;
-        setRoundRobinLLMs: (Nat) -> async StatusCodeRecordResult;
-        set_llm_canister_id: (CanisterIDRecord) -> async StatusCodeRecordResult;
-        setMainerCanisterType: (MainerAgentCanisterType) -> async StatusCodeRecordResult;
-        getMainerCanisterType: () -> async MainerAgentCanisterTypeResult;
-        setShareServiceCanisterId: (Text) -> async StatusCodeRecordResult;
-        addMainerShareAgentCanister: (OfficialMainerAgentCanister) -> async MainerAgentCanisterResult;
-        startTimerExecutionAdmin: () -> async AuthRecordResult;
-    };
-
     //-------------------------------------------------------------------------
     public type ChallengeWinnerDeclaration = {
         challengeId : Text;
@@ -590,6 +584,20 @@ module Types {
     public type MainerCreator_Actor = actor {
         createCanister: shared CanisterCreationConfiguration -> async CanisterCreationResult;
         setupCanister: shared (Text, CanisterCreationConfiguration) -> async CanisterCreationResult;
+    };
+
+    // mAIner
+    public type MainerAgentCtrlbCanister = actor {
+        add_llm_canister: (CanisterIDRecord) -> async StatusCodeRecordResult;
+        health: query () -> async StatusCodeRecordResult;
+        setGameStateCanisterId: (Text) -> async StatusCodeRecordResult;
+        setRoundRobinLLMs: (Nat) -> async StatusCodeRecordResult;
+        set_llm_canister_id: (CanisterIDRecord) -> async StatusCodeRecordResult;
+        setMainerCanisterType: (MainerAgentCanisterType) -> async StatusCodeRecordResult;
+        getMainerCanisterType: () -> async MainerAgentCanisterTypeResult;
+        setShareServiceCanisterId: (Text) -> async StatusCodeRecordResult;
+        addMainerShareAgentCanister: (OfficialMainerAgentCanister) -> async MainerAgentCanisterResult;
+        startTimerExecutionAdmin: () -> async AuthRecordResult;
     };
 
     public type LLMCanister = actor {
