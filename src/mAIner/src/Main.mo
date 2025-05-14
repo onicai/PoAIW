@@ -774,8 +774,22 @@ actor class MainerAgentCtrlbCanister() = this {
                     return;
                 };
 
+                // Check if there were any unofficial cycle top ups and if so pay the appropriate fee for the Protocol's operational expenses
+                var cyclesToSend = challengeResponseSubmissionInput.submissionCyclesRequired;
+                if (officialCyclesBalance < Cycles.balance()) {
+                    // Unofficial top ups were made, thus pay the fee for these top ups to Game State now as a share of the balances difference
+                    try {
+                        let cyclesForOperationalExpenses = (Cycles.balance() - officialCyclesBalance) * Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT / 100;
+                        cyclesToSend := cyclesToSend + cyclesForOperationalExpenses;
+                    } catch (error : Error) {
+                        // Continue nevertheless
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - catch error when calculating fee to pay for unofficial top ups : ");
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - error: " # Error.message(error));
+                    };
+                };
+
                 // Add the required amount of cycles
-                Cycles.add<system>(challengeResponseSubmissionInput.submissionCyclesRequired);
+                Cycles.add<system>(cyclesToSend);
 
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling submitChallengeResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
                 let submitMetadaResult : Types.ChallengeResponseSubmissionMetadataResult = await gameStateCanisterActor.submitChallengeResponse(challengeResponseSubmissionInput);
@@ -812,6 +826,9 @@ actor class MainerAgentCtrlbCanister() = this {
                             submittedTimestamp : Nat64 = submitMetada.submittedTimestamp;
                             submissionStatus : Types.ChallengeResponseSubmissionStatus = submitMetada.submissionStatus;
                         };
+                        // Any outstanding top up fees were paid so reset official balance to reflect this
+                        officialCyclesBalance := Cycles.balance();
+
                         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling putSubmittedResponse");
                         let putResult = putSubmittedResponse(challengeResponseSubmission);
                         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - return from putSubmittedResponse");

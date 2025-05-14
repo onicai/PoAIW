@@ -376,14 +376,13 @@ module Types {
         };
     };
 
-    // TODO - Implementation: merge into common file
+    // TODO - Implementation: merge into common file and finalize numbers
+    public let PROTOCOL_OPERATION_FEES_CUT_PERCENT : Nat = 20;
     let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200_000_000_000;
     let SUBMISSION_CYCLES_REQUIRED : Nat = 100_000_000_000;
     let secondsInMinute = 60;
     let minutesInHour = 60;
     let hoursInDay = 24;
-
-
 
     public func getTimerRegularityForCyclesBurnRate(cyclesBurnRate : CyclesBurnRate) : Nat {
         var timeIntervalDuration = secondsInMinute * minutesInHour * hoursInDay; // Daily as default, i.e. this gives the seconds per day
