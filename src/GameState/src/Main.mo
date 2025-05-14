@@ -1342,7 +1342,6 @@ actor class GameStateCanister() = this {
     // Price to create a mAIner TODO - Implementation: finalize
     stable var PRICE_OWN_MAINER : Nat64 = 12;
     stable var PRICE_SHARED_MAINER : Nat64 = 10;
-    stable var PROTOCOL_OPERATION_FEES_CUT : Nat = 20 / 100;
 
     // TODO - Implementation: function to set the price for creating a mAIner
         // TODO - Implementation: Set timer for once a day that calculates the creation price based on the ICP/cycles conversion rate
@@ -1362,7 +1361,7 @@ actor class GameStateCanister() = this {
     // TODO - Implementation: new function to decide on usage of incoming funds (e.g. for mAIner creation or top ups)
     private func handleIncomingFunds(transactionEntry : Types.RedeemedTransactionBlock) : async Types.HandleIncomingFundsResult {
         // TODO - Implementation: Calculate cut for Protocol's operational expenses
-        var amountToKeep : Nat = transactionEntry.amount * PROTOCOL_OPERATION_FEES_CUT;
+        var amountToKeep : Nat = transactionEntry.amount * Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT / 100;
         let amountForMainer : Nat = transactionEntry.amount - amountToKeep;
         var amountToConvert : Nat = 0;
         // TODO - Implementation: if cycle balance > security buffer: take cycles from cycle balance
@@ -1429,7 +1428,7 @@ actor class GameStateCanister() = this {
                                 cyclesForMainer := MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED;
                             };
                             case (#MainerTopUp(mainerCanisterAddress)) {
-                                cyclesForProtocol := cyclesReceived * PROTOCOL_OPERATION_FEES_CUT;
+                                cyclesForProtocol := cyclesReceived * Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT / 100;
                                 cyclesForMainer := cyclesReceived - cyclesForProtocol;                              
                             };
                             case (_) { return #Err(#Other("Unsupported")); }
@@ -2580,11 +2579,11 @@ actor class GameStateCanister() = this {
     public shared (msg) func submitChallengeResponse(challengeResponseSubmissionInput : Types.ChallengeResponseSubmissionInput) : async Types.ChallengeResponseSubmissionMetadataResult {
         D.print("GameState: submitChallengeResponse - entered");
         if (Principal.isAnonymous(msg.caller)) {
-            let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+            let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT); // TODO - Security: verify that this can't have side effects, e.g. if Cycles.available() are smaller than FAILED_SUBMISSION_CYCLES_CUT
             D.print("GameState: submitChallengeResponse - 01");
             return #Err(#Unauthorized);
         };
-        // Verify that submission is charged with cycles
+        // Verify that submission is charged with enough cycles
         if (Cycles.available() < SUBMISSION_CYCLES_REQUIRED) {
             let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
             D.print("GameState: submitChallengeResponse - 02");
@@ -2650,9 +2649,9 @@ actor class GameStateCanister() = this {
                     return #Err(#Other("GameState: testMainerCodeIntegrityAdmin - Failed to retrieve info for mAIner: " # debug_show(challengeResponseSubmissionInput) # Error.message(e)));
                 };
 
-                // Accept required cycles for submission
-                let cyclesAcceptedForSubmission = Cycles.accept<system>(SUBMISSION_CYCLES_REQUIRED);
-                if (cyclesAcceptedForSubmission != SUBMISSION_CYCLES_REQUIRED) {
+                // Accept cycles for submission (submission fee plus any outstanding fees, e.g. cuts from unofficial top ups for Protocol's operational expenses)
+                let cyclesAcceptedForSubmission = Cycles.accept<system>(Cycles.available());
+                if (cyclesAcceptedForSubmission < SUBMISSION_CYCLES_REQUIRED) {
                     // Sanity check: At this point, this should never fail
                     D.print("GameState: submitChallengeResponse - 07");
                     return #Err(#Unauthorized);                    
