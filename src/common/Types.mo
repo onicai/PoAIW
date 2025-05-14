@@ -1,3 +1,4 @@
+import Buffer "mo:base/Buffer";
 import Blob "mo:base/Blob";
 import Principal "mo:base/Principal";
 import Nat16 "mo:base/Nat16";
@@ -184,6 +185,7 @@ module Types {
     public type NewChallengeInput = ChallengeTopic and {
         challengeQuestion : Text;
         challengeQuestionSeed : Nat32;
+        mainerPromptId : Text;
     };
 
     public type Challenge = NewChallengeInput and {
@@ -213,6 +215,7 @@ module Types {
     public type GeneratedChallengeResult = Result<GeneratedChallenge, ApiError>;
     public type GeneratedChallengesResult = Result<[GeneratedChallenge], ApiError>;
 
+// llama_cpp_canister endpoints data structures
     public type InputRecord = {
         args : [Text]; // the CLI args of llama.cpp/examples/main, as a list of strings
     };
@@ -228,6 +231,51 @@ module Types {
     };
 
     public type CanisterIDRecordResult = Result<CanisterIDRecord, ApiError>;
+
+    public type DownloadPromptCacheInputRecord = {
+        promptcache : Text;
+        chunksize : Nat64;
+        offset : Nat64;
+    };
+
+    public type UploadPromptCacheInputRecord = {
+        promptcache : Text;
+        chunk : [Nat8];
+        chunksize : Nat64;
+        offset : Nat64;
+    };
+
+    public type PromptCacheDetailsInputRecord = {
+        promptcache : Text;
+    };
+
+    // -----------------------------------------------------
+    public type FileDownloadInputRecord = {
+        filename : Text;
+        chunksize : Nat64;
+        offset : Nat64;
+    };
+    public type FileDownloadRecordResult = Result<FileDownloadRecord, ApiError>;
+
+    public type FileDownloadRecord = {
+        chunk : Blob; // the chunk read from the file, as a vec of bytes
+        chunksize : Nat64; // the chunksize in bytes
+        filesize : Nat64; // the total filesize in bytes
+        offset : Nat64; // the chunk starts here (bytes from beginning)
+        done : Bool; // true if there are no more bytes to read
+    };
+
+    // -----------------------------------------------------
+    public type FileDetailsInputRecord = {
+        filename : Text;
+    };
+    public type FileDetailsRecordResult = Result<FileDetailsRecord, ApiError>;
+
+    public type FileDetailsRecord = {
+        filename : Text;
+        filesize : Nat64; // the total filesize in bytes
+        filesha256 : Text; // the total filesize in bytes
+    };
 
 // mAIner
     public type ChallengeQueueInput = Challenge and {
@@ -266,6 +314,31 @@ module Types {
     public type ChallengeResponseSubmissionMetadataResult = Result<ChallengeResponseSubmissionMetadata, ApiError>;
     public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmission, ApiError>;
     public type ChallengeResponseSubmissionsResult = Result<[ChallengeResponseSubmission], ApiError>;
+
+    public type UploadMainerLlmCanisterWasmBytesChunkInput = {
+        selectedModel : SelectableMainerLLMs;
+        bytesChunk : [Nat8];
+    };
+    public type AddModelCreationArtefactsEntry = {
+        selectedModel : SelectableMainerLLMs;
+        creationArtefacts : ModelCreationArtefacts;
+    };
+    public type FinishUploadMainerLlmInput = {
+        selectedModel : SelectableMainerLLMs;
+        modelFileSha256 : Text;
+    };
+    public type UploadMainerLlmBytesChunkInput = {
+        bytesChunk : Blob;
+        chunkID : Nat;
+    };
+    public type SetupCanisterInput = {
+        newCanisterId : Text;
+        configurationInput : CanisterCreationConfiguration;
+    };
+    public type TestCreateMainerControllerCanister = {
+        mainerAgentCanisterType : MainerAgentCanisterType;
+        shareServiceCanisterAddress : ?CanisterAddress;
+    };
 
     // Agent Settings
     public type TimeInterval = {
@@ -475,6 +548,59 @@ module Types {
     public type CanisterIDRecord = { canister_id : Text };
 
     //-------------------------------------------------------------------------
+    // pre-calculated & ingested mAIner prompt & prompt cache
+    public type MainerPromptInfo = {
+        promptText : Text;
+        promptCacheSha256 : Text;
+        promptCacheFilename: Text;
+        promptCacheNumberOfChunks : Nat;
+    };
+    public type MainerPromptInfoResult = Result<MainerPromptInfo, ApiError>;
+
+
+    public type MainerPrompt = MainerPromptInfo and {
+        promptCacheChunks : [Blob];
+    };
+    public type MainerPromptGenerationInput = {
+        generatedChallenge : Types.GeneratedChallenge;
+        chunkSizePrompCacheDownload : Nat64;
+    };
+    public type MainerPromptGenerationRecord = {
+        generationId : Text;
+        generationSeed : Nat32;
+        generatedTimestamp : Nat64;
+        generatedByLlmId : Text;
+        generationPrompt : Text;
+        mainerPrompt: MainerPrompt;
+    };
+    public type MainerPromptGenerationRecordResult = Result<MainerPromptGenerationRecord, ApiError>;
+
+    public type StartUploadMainerPromptCacheRecord = {
+        mainerPromptId : Text;
+    };
+    public type StartUploadMainerPromptCacheRecordResult = Result<StartUploadMainerPromptCacheRecord, ApiError>;
+
+    public type UploadMainerPromptCacheBytesChunkInput = {
+        mainerPromptId : Text;
+        bytesChunk : Blob;
+        chunkID : Nat;
+    };
+    public type FinishUploadMainerPromptCacheInput = {
+        mainerPromptId : Text;
+        promptText: Text;
+        promptCacheSha256: Text;
+        promptCacheFilename: Text;
+    };
+
+    public type DownloadMainerPromptCacheBytesChunkInput = {
+        mainerPromptId : Text;
+        chunkID : Nat;
+    };
+    public type DownloadMainerPromptCacheBytesChunkRecord = DownloadMainerPromptCacheBytesChunkInput and {
+        bytesChunk : Blob;
+    };
+    public type DownloadMainerPromptCacheBytesChunkRecordResult = Result<DownloadMainerPromptCacheBytesChunkRecord, ApiError>;
+    //-------------------------------------------------------------------------
 // Canister Actors
     public type GameStateCanister_Actor = actor {
         getRandomOpenChallengeTopic : () -> async ChallengeTopicResult;
@@ -484,11 +610,16 @@ module Types {
         submitChallengeResponse : (ChallengeResponseSubmissionInput) -> async ChallengeResponseSubmissionMetadataResult;
         getRandomOpenChallenge : () -> async ChallengeResult;
         addMainerAgentCanister : (OfficialMainerAgentCanister) -> async MainerAgentCanisterResult;
+        startUploadMainerPromptCache : () -> async Types.StartUploadMainerPromptCacheRecordResult;
+        uploadMainerPromptCacheBytesChunk : (UploadMainerPromptCacheBytesChunkInput) -> async Types.StatusCodeRecordResult;
+        downloadMainerPromptCacheBytesChunk : (DownloadMainerPromptCacheBytesChunkInput) -> async Types.DownloadMainerPromptCacheBytesChunkRecordResult;
+        finishUploadMainerPromptCache : (FinishUploadMainerPromptCacheInput) -> async Types.StatusCodeRecordResult;
+        getMainerPromptInfo : (Text) -> async Types.MainerPromptInfoResult;
     };
 
     public type MainerCreator_Actor = actor {
         createCanister: shared CanisterCreationConfiguration -> async CanisterCreationResult;
-        setupCanister: shared (Text, CanisterCreationConfiguration) -> async CanisterCreationResult;
+        setupCanister: shared SetupCanisterInput -> async CanisterCreationResult;
     };
 
     public type LLMCanister = actor {
@@ -499,6 +630,9 @@ module Types {
         run_update : (InputRecord) -> async OutputRecordResult;
         remove_prompt_cache : (InputRecord) -> async OutputRecordResult;
         copy_prompt_cache : (CopyPromptCacheInputRecord) -> async StatusCodeRecordResult;
+        download_prompt_cache_chunk : (DownloadPromptCacheInputRecord) -> async FileDownloadRecordResult;
+        upload_prompt_cache_chunk : (UploadPromptCacheInputRecord) -> async FileUploadRecordResult;
+        uploaded_prompt_cache_details : (PromptCacheDetailsInputRecord) -> async FileDetailsRecordResult;
         load_model : (InputRecord) -> async OutputRecordResult;
         set_max_tokens : (MaxTokensRecord) -> async StatusCodeRecordResult;
         file_upload_chunk : (FileUploadInputRecord) -> async FileUploadRecordResult;

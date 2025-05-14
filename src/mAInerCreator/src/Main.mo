@@ -117,13 +117,15 @@ actor class CanisterCreationCanister() = this {
     };
 
     // Admin function to insert needed artefacts to create canisters for a new model type
-    public shared (msg) func addModelCreationArtefactsEntry(selectedModel : Types.SelectableMainerLLMs, creationArtefacts : Types.ModelCreationArtefacts) : async Types.InsertArtefactsResult {
+    public shared (msg) func addModelCreationArtefactsEntry(addModelCreationArtefactsEntryInput : Types.AddModelCreationArtefactsEntry) : async Types.InsertArtefactsResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        let selectedModel = addModelCreationArtefactsEntryInput.selectedModel;
+        let creationArtefacts = addModelCreationArtefactsEntryInput.creationArtefacts;
         let creationArtefactsResult = putModelCreationArtefacts(selectedModel, creationArtefacts);
         let result = getModelCreationArtefacts(selectedModel);
         switch (result) {
@@ -161,7 +163,7 @@ actor class CanisterCreationCanister() = this {
     };
 
     // Admin function to upload an LLM canister wasm file
-    public shared (msg) func upload_mainer_llm_canister_wasm_bytes_chunk(selectedModel : Types.SelectableMainerLLMs, bytesChunk : [Nat8]) : async Types.FileUploadResult {
+    public shared (msg) func upload_mainer_llm_canister_wasm_bytes_chunk(uploadMainerLlmCanisterWasmBytesChunkInput : Types.UploadMainerLlmCanisterWasmBytesChunkInput) : async Types.FileUploadResult {
         D.print("mAInerCreator: upload_mainer_llm_canister_wasm_bytes_chunk");
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -169,6 +171,9 @@ actor class CanisterCreationCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
+
+        let selectedModel = uploadMainerLlmCanisterWasmBytesChunkInput.selectedModel;
+        let bytesChunk = uploadMainerLlmCanisterWasmBytesChunkInput.bytesChunk;
 
         switch (getModelCreationArtefacts(selectedModel)) {
             case (?existingArtefacts) {
@@ -201,10 +206,11 @@ actor class CanisterCreationCanister() = this {
     stable let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(1, 1));
     stable let initBlob : Blob = Blob.fromArray(innerInitArray);
     stable var modelFileChunks : [var Blob] = Array.init<Blob>(1, initBlob);
+    stable let MAX_MODEL_FILE_CHUNKS : Nat = 400; // TODO - Design: should this be a parameter or switch to Buffer?
 
     // Admin function to start upload of the mainer LLM model file
     public shared (msg) func start_upload_mainer_llm() : async Types.StatusCodeRecordResult {
-        D.print("mAInerCreator: reset_mainer_llm_model_file");
+        D.print("mAInerCreator: start_upload_mainer_llm");
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -216,16 +222,21 @@ actor class CanisterCreationCanister() = this {
     };
 
     // Admin function to upload a model file chunk
-    public shared (msg) func upload_mainer_llm_bytes_chunk(bytesChunk : Blob, chunkID : Nat) : async Types.FileUploadResult {
+    public shared (msg) func upload_mainer_llm_bytes_chunk(uploadMainerLlmBytesChunkInput : Types.UploadMainerLlmBytesChunkInput) : async Types.FileUploadResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        let bytesChunk = uploadMainerLlmBytesChunkInput.bytesChunk;
+        let chunkID = uploadMainerLlmBytesChunkInput.chunkID;
+        if (chunkID >= MAX_MODEL_FILE_CHUNKS) {
+            return #Err(#Other("upload_mainer_llm_bytes_chunk: chunkID exceeds maximum allowed value - overflowing the allocated size of the modelFileChunks array"));
+        };
         if (chunkID == 0 and nextChunkID == 0) {
             // initialize data structure only on the first chunk
-            modelFileChunks := Array.init<Blob>(400, initBlob);
+            modelFileChunks := Array.init<Blob>(MAX_MODEL_FILE_CHUNKS, initBlob);
         };
 
         // Only process if this is the expected next chunk or a retry of a previous chunk
@@ -244,13 +255,16 @@ actor class CanisterCreationCanister() = this {
     };
 
     // Admin function to finish the upload of a model file
-    public shared (msg) func finish_upload_mainer_llm(selectedModel : Types.SelectableMainerLLMs, modelFileSha256 : Text) : async Types.FileUploadResult {
+    public shared (msg) func finish_upload_mainer_llm(finishUploadMainerLlmInput : Types.FinishUploadMainerLlmInput) : async Types.FileUploadResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
+
+        let selectedModel = finishUploadMainerLlmInput.selectedModel;
+        let modelFileSha256 = finishUploadMainerLlmInput.modelFileSha256;
 
         switch (getModelCreationArtefacts(selectedModel)) {
             case (?existingArtefacts) {
@@ -277,6 +291,7 @@ actor class CanisterCreationCanister() = this {
         };
     };
 
+    // Uploads a chunk of the model file to the LLM canister
     private func retryLlmChunkUploadWithDelay(llmCanisterActor : Types.LLMCanister, uploadChunk : Types.FileUploadInputRecord, attempts : Nat, delay : Nat) : async Types.FileUploadRecordResult {
         if (attempts > 0) {
             try {
@@ -461,10 +476,12 @@ actor class CanisterCreationCanister() = this {
     // Installs code into a mAIner canister and configures it.
     // This function is designed to be ignored.
     // It will call the GameState canister addMainerAgentCanister when done, to update the status of the controller canister
-    public shared (msg) func setupCanister(newCanisterId: Text, configurationInput : Types.CanisterCreationConfiguration) : async Types.CanisterCreationResult {
+    public shared (msg) func setupCanister(setupCanisterInput : Types.SetupCanisterInput) : async Types.CanisterCreationResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        let newCanisterId = setupCanisterInput.newCanisterId;
+        let configurationInput = setupCanisterInput.configurationInput;
         // Only Controllers and the Master canister may call this (plus the canister itself for testing functionality)
         D.print("mAInerCreator: setupCanister - msg.caller = " # debug_show(msg.caller));
         D.print("mAInerCreator: setupCanister - MASTER_CANISTER_ID = " # debug_show(MASTER_CANISTER_ID));
@@ -511,6 +528,7 @@ actor class CanisterCreationCanister() = this {
 
                 // --------------------------------------------------
                 // install code
+                D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): setupCanister - start installing code into ctrlb canister " # debug_show (newCanisterIdPrincipal));
                 let installControllerWasm = await IC0.install_code({
                     arg = "";
                     wasm_module = Blob.fromArray(mainerControllerCanisterWasm);
@@ -518,6 +536,7 @@ actor class CanisterCreationCanister() = this {
                     canister_id = newCanisterIdPrincipal ;
                     sender_canister_version = null;
                 });
+                D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): setupCanister - finished installing code into ctrlb canister " # debug_show (newCanisterIdPrincipal));
 
                 var cyclesUsed : Nat = 0;
                 try {
@@ -1044,7 +1063,8 @@ actor class CanisterCreationCanister() = this {
 
 // Admin 
     // TODO - REMOVE
-    public shared (msg) func testCreateMainerControllerCanister(mainerAgentCanisterType : Types.MainerAgentCanisterType, shareServiceCanisterAddress : ?Types.CanisterAddress) : async Types.CanisterCreationResult {
+    // public shared (msg) func testCreateMainerControllerCanister(mainerAgentCanisterType : Types.MainerAgentCanisterType, shareServiceCanisterAddress : ?Types.CanisterAddress) : async Types.CanisterCreationResult {
+    public shared (msg) func testCreateMainerControllerCanister(testCreateMainerControllerCanister : Types.TestCreateMainerControllerCanister) : async Types.CanisterCreationResult {
         D.print("mAInerCreator: entered testCreateMainerControllerCanister");
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -1052,6 +1072,9 @@ actor class CanisterCreationCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        let mainerAgentCanisterType : Types.MainerAgentCanisterType = testCreateMainerControllerCanister.mainerAgentCanisterType;
+        let shareServiceCanisterAddress : ?Types.CanisterAddress = testCreateMainerControllerCanister.shareServiceCanisterAddress;
+
         let mainerConfig : Types.MainerConfigurationInput = {
             mainerAgentCanisterType: Types.MainerAgentCanisterType = mainerAgentCanisterType;
             selectedLLM : ?Types.SelectableMainerLLMs = ?#Qwen2_5_500M;

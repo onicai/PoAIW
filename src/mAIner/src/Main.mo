@@ -1,9 +1,11 @@
 import Buffer "mo:base/Buffer";
+import Blob "mo:base/Blob";
 import D "mo:base/Debug";
 import Error "mo:base/Error";
 import Principal "mo:base/Principal";
 import Text "mo:base/Text";
 import Nat "mo:base/Nat";
+import Nat8 "mo:base/Nat8";
 import Nat32 "mo:base/Nat32";
 import Nat64 "mo:base/Nat64";
 import Bool "mo:base/Bool";
@@ -621,6 +623,7 @@ actor class MainerAgentCtrlbCanister() = this {
                     challengeTopicStatus : Types.ChallengeTopicStatus = challengeQueueInput.challengeTopicStatus;
                     challengeQuestion : Text = challengeQueueInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = challengeQueueInput.challengeQuestionSeed;
+                    mainerPromptId : Text = challengeQueueInput.mainerPromptId;
                     challengeId : Text = challengeQueueInput.challengeId;
                     challengeCreationTimestamp : Nat64 = challengeQueueInput.challengeCreationTimestamp;
                     challengeCreatedBy : Types.CanisterAddress = challengeQueueInput.challengeCreatedBy;
@@ -738,6 +741,7 @@ actor class MainerAgentCtrlbCanister() = this {
                             challengeTopicStatus : Types.ChallengeTopicStatus = challengeResponseSubmissionInput.challengeTopicStatus;
                             challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
                             challengeQuestionSeed : Nat32 = challengeResponseSubmissionInput.challengeQuestionSeed;
+                            mainerPromptId : Text = challengeResponseSubmissionInput.mainerPromptId;
                             challengeId : Text = challengeResponseSubmissionInput.challengeId;
                             challengeCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeCreationTimestamp;
                             challengeCreatedBy : Types.CanisterAddress = challengeResponseSubmissionInput.challengeCreatedBy;
@@ -775,17 +779,35 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     private func respondToChallengeDoIt_(challengeQueueInput : Types.ChallengeQueueInput) : async Types.ChallengeResponseResult {
-        // TODO - Implementation: probably need to improve the seed generation variability
         let maxContinueLoopCount : Nat = 6; // After this many calls to run_update, we stop.
         let num_tokens : Nat64 = 1024;
         let temp : Float = 0.8;
 
-        var prompt : Text = "<|im_start|>user\n" #
-        "This is a question about " # challengeQueueInput.challengeTopic # " " #
-        "Give the answer as brief as possible. This is the question: " # challengeQueueInput.challengeQuestion # "\n" #
-        "<|im_end|>\n<|im_start|>assistant\n" #
-        "The answer is: ";
+        // --------------------------------------------------------
+        // var promptRepetitive : Text = "<|im_start|>user\nAnswer the following question as brief as possible. This is the question: ";
+        // var prompt : Text = promptRepetitive # challengeQueueInput.challengeQuestion # "\n<|im_end|>\n<|im_start|>assistant\n";
+        let mainerPromptId : Text = challengeQueueInput.mainerPromptId;
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): calling getMainerPromptInfo of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
+        let mainerPromptInfoResult : Types.MainerPromptInfoResult = await gameStateCanisterActor.getMainerPromptInfo(mainerPromptId);
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): getMainerPromptInfo returned.");
+        var prompt : Text = "";
+        var promptCacheSha256 : Text = "";
+        var promptSaveCache : Text = ""; // We will upload this into the LLM canister
+        var promptCacheNumberOfChunks : Nat = 0;
+        switch (mainerPromptInfoResult) {
+            case (#Err(error)) {
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): getMainerPromptInfo error " # debug_show (error));
+                return #Err(error);
+            };
+            case (#Ok(mainerPromptInfo)) {
+                prompt := mainerPromptInfo.promptText;
+                promptCacheSha256 := mainerPromptInfo.promptCacheSha256;
+                promptSaveCache := mainerPromptInfo.promptCacheFilename;
+                promptCacheNumberOfChunks := mainerPromptInfo.promptCacheNumberOfChunks;
+            };
+        };
 
+        // --------------------------------------------------------
         let llmCanister = _getRoundRobinCanister();
 
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
@@ -806,7 +828,7 @@ actor class MainerAgentCtrlbCanister() = this {
 
         let generationId : Text = await Utils.newRandomUniqueId();
 
-        // Use the generationId to create a highly variable seed or the LLM
+        // Use the generationId to create a highly variable seed for the LLM
         let seed : Nat32 = Utils.getRandomLlmSeed(generationId);
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - seed = " # debug_show(seed));
 
@@ -828,8 +850,177 @@ actor class MainerAgentCtrlbCanister() = this {
         var generated_eog : Bool = false;
 
         // ----------------------------------------------------------------------
+        // Step 0
+        // Restore a previously saved prompt cache file
+        // We will check if the one from the Challenger is already in this LLM
+        // let promptSaveCache : Text = Nat32.toText(Text.hash(promptRepetitive)) # ".cache";
+        var foundPromptSaveCache : Bool = false;
+
+        try {
+            let copyPromptCacheInputRecord : Types.CopyPromptCacheInputRecord = { 
+                from = promptSaveCache; 
+                to =  promptCache
+            };
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): calling copy_prompt_cache to restore a previously saved promptCache if it exists. promptSaveCache: " # promptSaveCache);
+            num_update_calls += 1;
+            let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.copy_prompt_cache(copyPromptCacheInputRecord);
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): returned from copy_prompt_cache with statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
+            switch (statusCodeRecordResult) {
+                case (#Err(_)) {
+                    foundPromptSaveCache := false;
+                };
+                case (#Ok(_)) {
+                    foundPromptSaveCache := true;
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - foundPromptSaveCache ! (no need to get it again from Gamestate.) " # debug_show(promptCache));
+                };
+            };
+        } catch (error : Error) {
+            // Handle errors, such as llm canister not responding
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): catch error when calling copy_prompt_cache : ");
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): error: " # Error.message(error));
+            return #Err(
+                #Other(
+                    "Failed call to copy_prompt_cache of " # Principal.toText(Principal.fromActor(llmCanister)) #
+                    " with error: " # Error.message(error)
+                )
+            );
+        };
+
+        if (not foundPromptSaveCache) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - Did not find promptCache (will get it from Gamestate & upload to LLM) " # debug_show(promptCache));
+            let mainerPromptCacheBuffer : Buffer.Buffer<Blob> = Buffer.Buffer<Blob>(0);
+            for (i in Iter.range(0, promptCacheNumberOfChunks - 1)) {
+                var delay : Nat = 2_000_000_000; // 2 seconds
+                let maxAttempts : Nat = 8;
+                let downloadMainerPromptCacheBytesChunkInput : Types.DownloadMainerPromptCacheBytesChunkInput = {
+                    mainerPromptId = mainerPromptId;
+                    chunkID = i;
+                };
+                let downloadMainerPromptCacheBytesChunkRecordResult: Types.DownloadMainerPromptCacheBytesChunkRecordResult = await retryGameStateMainerPromptCacheChunkDownloadWithDelay(gameStateCanisterActor, downloadMainerPromptCacheBytesChunkInput, maxAttempts, delay);
+                switch (downloadMainerPromptCacheBytesChunkRecordResult) {
+                    case (#Err(error)) {
+                        D.print("Challenger: generateChallenge -  ERROR during upload of mAIner prompt cache chunk - statusCodeRecordResult:" # debug_show (statusCodeRecordResult));
+                        return #Err(error);
+                    };
+                    case (#Ok(downloadMainerPromptCacheBytesChunkRecord)) {
+                        D.print("Challenger: generateChallenge - download of mAIner prompt cache chunk successful - chunkID: " # debug_show (downloadMainerPromptCacheBytesChunkRecord.chunkID));
+                        mainerPromptCacheBuffer.add(downloadMainerPromptCacheBytesChunkRecord.bytesChunk);
+                    };
+                };
+            };
+
+            // ---------------------------------------------------------
+            // Upload prompt cache file
+            var chunkSize : Nat = 0;
+            var offset : Nat = 0;
+            var nextChunk : [Nat8] = [];
+
+            // For progress reporting
+            var modelUploadProgress : Nat8 = 0;
+            let modelUploadProgressInterval : Nat = 10; // 10% progress interval
+
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - Downloaded the promptCache from Gamestate. Will now upload to LLM - " # debug_show(promptCache));
+            var chunkCount : Nat = 0;
+            let totalChunks : Nat = mainerPromptCacheBuffer.size();
+            var nextProgressThreshold : Nat = 0;
+
+            var fileUploadRecordResult : Types.FileUploadRecordResult = #Ok({ filename = promptCache; filesha256 = ""; filesize = 0 }); // Placeholder
+            for (chunk in mainerPromptCacheBuffer.vals()) {
+                var progress : Nat = (chunkCount * 100) / totalChunks; // Integer division rounds down
+                if (chunkCount + 1 == totalChunks) {
+                    progress := 100; // Set to 100% for the last chunk
+                };
+                if (progress >= nextProgressThreshold) {
+                    modelUploadProgress := Nat8.fromNat(nextProgressThreshold); // Set to 0, 10, 20, ..., 100
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - uploading promptCache chunk " # debug_show (chunkCount) # "(modelUploadProgress = " # debug_show (modelUploadProgress) # "%)");
+                    nextProgressThreshold += modelUploadProgressInterval;
+                };
+                chunkCount := chunkCount + 1;
+                
+                nextChunk := Blob.toArray(chunk);
+                chunkSize := nextChunk.size();
+                let uploadChunk : Types.UploadPromptCacheInputRecord = {
+                    promptcache = promptCache;
+                    chunk = nextChunk;
+                    chunksize = Nat64.fromNat(chunkSize);
+                    offset = Nat64.fromNat(offset);
+                };
+
+                var delay : Nat = 2_000_000_000; // 2 seconds
+                let maxAttempts : Nat = 8;
+                fileUploadRecordResult := await retryLlmPrompCacheChunkUploadWithDelay(llmCanister, uploadChunk, maxAttempts, delay);
+                switch (fileUploadRecordResult) {
+                    case (#Err(error)) {
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - ERROR uploading a promptCache chunk - uploadModelFileResult:");
+                        D.print(debug_show (fileUploadRecordResult));
+                        return #Err(error);
+                    };
+                    case (#Ok(_)) {
+                        // all good, continue with next chunk
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - success uploading a promptCache chunk - fileUploadRecordResult = " # debug_show (fileUploadRecordResult));
+                        offset := offset + chunkSize;
+                    };
+                };
+            };
+
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - after prompt cache upload -- checking filesha256.");
+            switch (fileUploadRecordResult) {
+                case (#Err(error)) {
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - ERROR - fileUploadRecordResult:" # debug_show (fileUploadRecordResult));
+                    return #Err(error);
+                };
+                case (#Ok(fileUploadRecordResult)) {
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - fileUploadRecordResult" # debug_show (fileUploadRecordResult));
+                    // Check the sha256
+                    let filesha256 : Text = fileUploadRecordResult.filesha256;
+                    let expectedSha256 : Text = promptCacheSha256;
+                    
+                    if (not (filesha256 == expectedSha256)) {
+                        D.print("mAInerCreator (#MainerLlm): setupCanister - ERROR: filesha256 = " # debug_show (filesha256) # "does not match expectedSha256 = " # debug_show (expectedSha256));
+                        D.print("mAInerCreator (#MainerLlm): setupCanister - THIS IS A TODO FOR THE CHALLENGER !!!");
+                        // TODO - Challenger must set the promptCacheSha256
+                        // return #Err(#Other("The sha256 of the uploaded llm file is " # filesha256 # ", which does not match the expected value of " # expectedSha256));
+                    } else {
+                        D.print("mAInerCreator (#MainerLlm): setupCanister - filesha256 matches expectedSha256 = " # debug_show (expectedSha256));
+                    };
+                };
+            };
+
+            // -----
+            // Save the prompt cache for reuse with next submission using the same prompt
+            try {
+                let copyPromptCacheInputRecord : Types.CopyPromptCacheInputRecord = { 
+                    from = promptCache; 
+                    to =  promptSaveCache
+                };
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): calling copy_prompt_cache to save the uploaded promptCache (" # promptCache # ") to promptSaveCache: " # promptSaveCache);
+                let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.copy_prompt_cache(copyPromptCacheInputRecord);
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): returned from copy_prompt_cache with statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
+                switch (statusCodeRecordResult) {
+                    case (#Err(error)) {
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - ERROR - statusCodeRecordResult:" # debug_show (fileUploadRecordResult));
+                        return #Err(error);
+                    };
+                    case (#Ok(_)) {
+                        foundPromptSaveCache := true;
+                    };
+                };                
+            } catch (error : Error) {
+                // Handle errors, such as llm canister not responding
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): catch error when calling copy_prompt_cache : ");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): error: " # Error.message(error));
+                return #Err(
+                    #Other(
+                        "Failed call to copy_prompt_cache of " # Principal.toText(Principal.fromActor(llmCanister)) #
+                        " with error: " # Error.message(error)
+                    )
+                );
+            };
+        };
+
+        // ----------------------------------------------------------------------
         // Step 1
-        // Call new_chat - this resets the prompt-cache for this conversation
+        // Call new_chat
         try {
             let args : [Text] = [
                 "--prompt-cache",
@@ -940,9 +1131,35 @@ actor class MainerAgentCtrlbCanister() = this {
                         if (prompt_remaining == "") {
                             prompt := ""; // Send empty prompt - the prompt ingestion is done.
                             continueLoopCount += 1; // We count the actual generation steps
+                            // NO LONGER NEEDED - WE leave it here for now in case want to restore the logic in future
+                            // // -----
+                            // // Prompt ingestion is finished. If it was not yet there, save the prompt cache for reuse with next submission
+                            // if (not foundPromptSaveCache) {
+                            //     try {
+                            //         let copyPromptCacheInputRecord : Types.CopyPromptCacheInputRecord = { 
+                            //             from = promptCache; 
+                            //             to =  promptSaveCache
+                            //         };
+                            //         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): calling copy_prompt_cache to save the promptCache to promptSaveCache: " # promptSaveCache);
+                            //         num_update_calls += 1;
+                            //         let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.copy_prompt_cache(copyPromptCacheInputRecord);
+                            //         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): returned from copy_prompt_cache with statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
+                            //         // We do not care what the result is, as it is just a possible optimization operation
+                            //     } catch (error : Error) {
+                            //         // Handle errors, such as llm canister not responding
+                            //         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): catch error when calling copy_prompt_cache : ");
+                            //         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): error: " # Error.message(error));
+                            //         return #Err(
+                            //             #Other(
+                            //                 "Failed call to copy_prompt_cache of " # Principal.toText(Principal.fromActor(llmCanister)) #
+                            //                 " with error: " # Error.message(error)
+                            //             )
+                            //         );
+                            //     };
+                            // };
                         };
                         if (generated_eog) {
-                            break continueLoop; // Exit the loop - the challengeQueueInput is generated.
+                            break continueLoop; // Exit the loop - the mAIner response is generated.
                         };
                     };
                 };
@@ -996,6 +1213,48 @@ actor class MainerAgentCtrlbCanister() = this {
             generatedResponseText : Text = generationOutput;
         };
         return #Ok(responseOutput);
+    };
+
+    // Downloads a chunk of the mAIner prompt cache file from the GameState canister
+    private func retryGameStateMainerPromptCacheChunkDownloadWithDelay(gameStateCanisterActor : Types.GameStateCanister_Actor, downloadMainerPromptCacheBytesChunkInput : Types.DownloadMainerPromptCacheBytesChunkInput, attempts : Nat, delay : Nat) : async Types.DownloadMainerPromptCacheBytesChunkRecordResult {
+        if (attempts > 0) {
+            try {
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): - retryGameStateMainerPromptCacheChunkDownloadWithDelay - calling gameStateCanisterActor.downloadMainerPromptCacheBytesChunk for mainerPromptId, chunkID = " # debug_show (downloadMainerPromptCacheBytesChunkInput.mainerPromptId) # ", " # debug_show (downloadMainerPromptCacheBytesChunkInput.chunkID));
+                let downloadMainerPromptCacheBytesChunkRecordResult : Types.DownloadMainerPromptCacheBytesChunkRecordResult = await gameStateCanisterActor.downloadMainerPromptCacheBytesChunk(downloadMainerPromptCacheBytesChunkInput);
+                return downloadMainerPromptCacheBytesChunkRecordResult;
+                
+            } catch (e) {
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): - retryGameStateMainerPromptCacheChunkDownloadWithDelay - gameStateCanisterActor.uploadMainerPromptCacheBytesChunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
+                
+                // TODO - Implementation: introduce a delay using a timer...
+                // Just retry immediately with decremented attempts
+                return await retryGameStateMainerPromptCacheChunkDownloadWithDelay(gameStateCanisterActor, downloadMainerPromptCacheBytesChunkInput, attempts - 1, delay);
+            };
+        } else {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): - retryGameStateMainerPromptCacheChunkDownloadWithDelay - Max retry attempts reached");
+            return #Err(#Other("Max retry attempts reached"));
+        };
+    };
+
+    // Uploads a chunk of the promptCache file to the LLM canister
+    private func retryLlmPrompCacheChunkUploadWithDelay(llmCanisterActor : Types.LLMCanister, uploadChunk : Types.UploadPromptCacheInputRecord, attempts : Nat, delay : Nat) : async Types.FileUploadRecordResult {
+        if (attempts > 0) {
+            try {
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): - retryLlmPrompCacheChunkUploadWithDelay - calling upload_prompt_cache_chunk for chunksize, offset = " # debug_show (uploadChunk.chunksize) # ", " # debug_show (uploadChunk.offset));
+                let uploadModelFileResult : Types.FileUploadRecordResult = await llmCanisterActor.upload_prompt_cache_chunk(uploadChunk);
+                return uploadModelFileResult;
+                
+            } catch (e) {
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): - retryLlmPrompCacheChunkUploadWithDelay - LLM upload_prompt_cache_chunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
+                
+                // TODO - Implementation: introduce a delay using a timer...
+                // Just retry immediately with decremented attempts
+                return await retryLlmPrompCacheChunkUploadWithDelay(llmCanisterActor, uploadChunk, attempts - 1, delay);
+            };
+        } else {
+            D.print("Max retry attempts reached");
+            return #Err(#Other("Max retry attempts reached"));
+        };
     };
 
     // Triggered by timer 1: get next challenge and add it to the queue
@@ -1052,6 +1311,7 @@ actor class MainerAgentCtrlbCanister() = this {
                     challengeTopicStatus : Types.ChallengeTopicStatus = challenge.challengeTopicStatus;
                     challengeQuestion : Text = challenge.challengeQuestion;
                     challengeQuestionSeed : Nat32 = challenge.challengeQuestionSeed;
+                    mainerPromptId : Text = challenge.mainerPromptId;
                     challengeId : Text = challenge.challengeId;
                     challengeCreationTimestamp : Nat64 = challenge.challengeCreationTimestamp;
                     challengeCreatedBy : Types.CanisterAddress = challenge.challengeCreatedBy;
@@ -1162,7 +1422,7 @@ actor class MainerAgentCtrlbCanister() = this {
 
                 // Process the challenge
                 // Sanity checks
-                if (challengeQueueInput.challengeId == "" or challengeQueueInput.challengeQuestion == "" or challengeQueueInput.challengeTopic == "") {
+                if (challengeQueueInput.challengeId == "" or challengeQueueInput.mainerPromptId == "") {
                     return;
                 };
                 switch (challengeQueueInput.challengeStatus) {

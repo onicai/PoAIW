@@ -122,9 +122,10 @@ def main() -> int:
         retry_delay = 2  # seconds
         for attempt in range(1, max_retries + 1):
             try:
-                response = canister_creator.upload_mainer_llm_canister_wasm_bytes_chunk(
-                    selectedModel,
-                    chunk
+                response = canister_creator.upload_mainer_llm_canister_wasm_bytes_chunk({
+                    "selectedModel" : selectedModel,
+                    "bytesChunk" : chunk,
+                }
                 )  # pylint: disable=no-member
                 break  # Exit the loop if the request is successful
             except Exception as e:

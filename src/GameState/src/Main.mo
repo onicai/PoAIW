@@ -1,10 +1,11 @@
 // import IcpLedger "canister:icp_ledger_canister"; https://github.com/dfinity/examples/blob/master/motoko/icp_transfer/src/icp_transfer_backend/main.mo
 import D "mo:base/Debug";
-// import Array "mo:base/Array";
+import Buffer "mo:base/Buffer";
+import Array "mo:base/Array";
 import Principal "mo:base/Principal";
 import Text "mo:base/Text";
-// import Blob "mo:base/Blob";
-// import Nat8 "mo:base/Nat8";
+import Blob "mo:base/Blob";
+import Nat8 "mo:base/Nat8";
 import Cycles "mo:base/ExperimentalCycles";
 import HashMap "mo:base/HashMap";
 import Nat64 "mo:base/Nat64";
@@ -15,7 +16,6 @@ import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Order "mo:base/Order";
 import Error "mo:base/Error";
-import Blob "mo:base/Blob";
 
 import Types "../../common/Types";
 import ICManagementCanister "../../common/ICManagementCanister";
@@ -148,7 +148,7 @@ actor class GameStateCanister() = this {
     // mAIner agent wasm module hash that must match
         // TODO: implement way to manage this
         // -> For now, do not make it stable, so it can be updated via a canister upgrade
-    let officialMainerAgentCanisterWasmHash : Blob = "\E3\75\AE\41\04\89\B5\1A\0D\76\3A\77\F9\27\A6\50\97\2C\30\BB\49\6A\02\8D\35\37\49\9A\3B\9E\2E\8A";
+    let officialMainerAgentCanisterWasmHash : Blob = "\C4\86\EE\36\2F\91\2B\58\0F\DC\15\83\D4\8C\44\F7\C0\BD\C7\86\FF\37\48\4C\9F\B6\4C\EF\34\CA\5D\07";
     
     public shared (msg) func testMainerCodeIntegrityAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -697,6 +697,204 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Hashmap for mAIner prompt & prompt cache storage, key=mainerPromptId
+    stable var mainerPromptsStable : [(Text, Types.MainerPrompt)] = [];
+    var mainerPrompts : HashMap.HashMap<Text, Types.MainerPrompt> = HashMap.HashMap(0, Text.equal, Text.hash);
+
+    // Emepheral Hashmap for mAIner prompt cache upload buffers for chunked uploads, key=mainerPromptId
+    var mainerPromptCacheUploadBuffers : HashMap.HashMap<Text, Buffer.Buffer<Blob>> = HashMap.HashMap(0, Text.equal, Text.hash);
+
+    // Function to be called by Challenger to start upload of the mainer prompt & prompt cache
+    public shared (msg) func startUploadMainerPromptCache() : async Types.StartUploadMainerPromptCacheRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Only official Challenger canisters may call this
+        switch (getChallengerCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?challengerEntry) {
+                // Verify consistency of the caller
+                if (challengerEntry.address != Principal.toText(msg.caller)) {
+                    return #Err(#Unauthorized);
+                };
+
+                let mainerPromptId : Text = await Utils.newRandomUniqueId();
+                D.print("GameState: startUploadMainerPromptCache - mainerPromptId: " # debug_show(mainerPromptId));
+
+                // Initialize the prompt cache upload session for this Challenge
+                let mainerPromptCacheUploadBuffer : Buffer.Buffer<Blob> = Buffer.Buffer<Blob>(0);
+                mainerPromptCacheUploadBuffers.put(mainerPromptId, mainerPromptCacheUploadBuffer);
+                
+                return #Ok({ mainerPromptId = mainerPromptId });
+            };             
+        };
+    };
+
+    // Function to be called by Challenger to upload a chunk of the mAIner prompt cache for a given challenge
+    public shared (msg) func uploadMainerPromptCacheBytesChunk(uploadMainerPromptCacheBytesChunkInput: Types.UploadMainerPromptCacheBytesChunkInput) : async Types.StatusCodeRecordResult {
+        let mainerPromptId: Text = uploadMainerPromptCacheBytesChunkInput.mainerPromptId;
+        let bytesChunk : Blob = uploadMainerPromptCacheBytesChunkInput.bytesChunk;
+        let chunkID : Nat = uploadMainerPromptCacheBytesChunkInput.chunkID;
+
+        D.print("GameState: uploadMainerPromptCacheBytesChunk - mainerPromptId: " # debug_show(mainerPromptId) # ", chunkID : " # debug_show(chunkID));
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Only official Challenger canisters may call this
+        switch (getChallengerCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?challengerEntry) {
+                // Verify consistency of the caller
+                if (challengerEntry.address != Principal.toText(msg.caller)) {
+                    return #Err(#Unauthorized);
+                };
+
+                switch (mainerPromptCacheUploadBuffers.get(mainerPromptId)) {
+                    case (null) { return #Err(#Other("No upload buffer found for mainerPromptId: " # mainerPromptId # "first call: startUploadMainerPromptCache")); };
+                    case (?mainerPromptCacheUploadBuffer) { 
+                        let expectedChunkID = mainerPromptCacheUploadBuffer.size();
+                        // Only process if this is the expected next chunk or a retry of a previous chunk
+                        if (chunkID < expectedChunkID) {
+                            // This is a retry of a chunk we've already processed
+                            return #Ok({ status_code = 200 });
+                        } else if (chunkID == expectedChunkID) {
+                            // This is the expected next chunk, so process it
+                            mainerPromptCacheUploadBuffer.add(bytesChunk);
+                            return #Ok({ status_code = 200 });
+                        } else {
+                            // This is a chunk ahead of what we expect (gap in sequence)
+                            return #Err(#Other("Chunk ID " # Nat.toText(chunkID) # " is ahead of the expected chunk ID " # Nat.toText(expectedChunkID)));
+                        };
+                    };
+                };
+            };             
+        };
+    };
+
+    // Function to be called by Challenger to finish upload of the mainer prompt cache & store it with prompt text and sha256
+    public shared (msg) func finishUploadMainerPromptCache(finishUploadMainerPromptCacheInput : Types.FinishUploadMainerPromptCacheInput) : async Types.StatusCodeRecordResult {
+        let mainerPromptId: Text = finishUploadMainerPromptCacheInput.mainerPromptId;
+        let promptText: Text = finishUploadMainerPromptCacheInput.promptText;
+        let promptCacheSha256: Text = finishUploadMainerPromptCacheInput.promptCacheSha256;
+        let promptCacheFilename: Text = finishUploadMainerPromptCacheInput.promptCacheFilename;
+
+        D.print("GameState: finishUploadMainerPromptCache - mainerPromptId: " # debug_show(mainerPromptId));
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Only official Challenger canisters may call this
+        switch (getChallengerCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?challengerEntry) {
+                // Verify consistency of the caller
+                if (challengerEntry.address != Principal.toText(msg.caller)) {
+                    return #Err(#Unauthorized);
+                };
+
+                switch (mainerPromptCacheUploadBuffers.get(mainerPromptId)) {
+                    case (null) { return #Err(#Other("No upload buffer found for mainerPromptId: " # mainerPromptId)); };
+                    case (?mainerPromptCacheUploadBuffer) { 
+                        // Store the mAIner prompt & cache & sha256 for this Challenge
+                        let mainerPrompt : Types.MainerPrompt = {
+                            promptText = promptText;
+                            promptCacheSha256 = promptCacheSha256;
+                            promptCacheFilename = promptCacheFilename;
+                            promptCacheNumberOfChunks = mainerPromptCacheUploadBuffer.size();
+                            promptCacheChunks = Buffer.toArray<Blob>(mainerPromptCacheUploadBuffer);
+                        };
+                        D.print("GameState: finishUploadMainerPromptCache - Storing mainerPrompt for mainerPromptId: " # debug_show(mainerPromptId) # "\n" #
+                            "promptText: " # debug_show(promptText) # "\n" #
+                            "promptCacheSha256: " # debug_show(promptCacheSha256));
+                        mainerPrompts.put(mainerPromptId, mainerPrompt);
+
+                        // Delete the prompt cache upload buffer for this Challenge
+                        let _ = mainerPromptCacheUploadBuffers.remove(mainerPromptId);
+
+                        return #Ok({ status_code = 200 });
+                    };
+                };
+            };             
+        };
+    };
+
+    // Function to be called by mAIner to get the mainer prompt info
+    public shared query (msg) func getMainerPromptInfo(mainerPromptId : Text) : async Types.MainerPromptInfoResult {
+        D.print("GameState: getMainerPromptInfo - mainerPromptId: " # debug_show(mainerPromptId));
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Only official mAIner canisters may call this
+        switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?mainerAgentEntry) {
+                // Verify consistency of the caller
+                if (mainerAgentEntry.address != Principal.toText(msg.caller)) {
+                    return #Err(#Unauthorized);
+                };
+                
+                switch (mainerPrompts.get(mainerPromptId)) {
+                    case (null) { return #Err(#Other("No mainerPrompt found for mainerPromptId: " # mainerPromptId)); };
+                    case (?mainerPrompt) { 
+                        // Store the mAIner prompt & cache & sha256 for this Challenge
+                        let mainerPromptInfo : Types.MainerPromptInfo = {
+                            promptText = mainerPrompt.promptText;
+                            promptCacheSha256 = mainerPrompt.promptCacheSha256;
+                            promptCacheFilename = mainerPrompt.promptCacheFilename;
+                            promptCacheNumberOfChunks = mainerPrompt.promptCacheNumberOfChunks;
+                        };
+                        D.print("GameState: getMainerPromptInfo - Returning mainerPromptInfo for mainerPromptId: " # debug_show(mainerPromptId) # "\n" #
+                            "mainerPromptInfo: " # debug_show(mainerPromptInfo) );
+                        return #Ok(mainerPromptInfo);
+                    };
+                };
+            };             
+        };
+    };
+
+    // Function to be called by mAIner to get the mainer prompt cache in chunks
+    public shared query (msg) func downloadMainerPromptCacheBytesChunk(downloadMainerPromptCacheBytesChunkInput : Types.DownloadMainerPromptCacheBytesChunkInput) : async Types.DownloadMainerPromptCacheBytesChunkRecordResult {
+        D.print("GameState: downloadMainerPromptCacheBytesChunk.");
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Only official mAIner canisters may call this
+        switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?mainerAgentEntry) {
+                // Verify consistency of the caller
+                if (mainerAgentEntry.address != Principal.toText(msg.caller)) {
+                    return #Err(#Unauthorized);
+                };
+
+                let mainerPromptId: Text = downloadMainerPromptCacheBytesChunkInput.mainerPromptId;
+                let chunkID : Nat = downloadMainerPromptCacheBytesChunkInput.chunkID;
+                
+                switch (mainerPrompts.get(mainerPromptId)) {
+                    case (null) { return #Err(#Other("No mainerPrompt found for mainerPromptId: " # mainerPromptId)); };
+                    case (?mainerPrompt) { 
+                        let promptCacheChunks : [Blob] = mainerPrompt.promptCacheChunks;
+                        if (chunkID >= promptCacheChunks.size()) {
+                            return #Err(#Other("Chunk ID " # Nat.toText(chunkID) # " is out of range for mainerPromptId: " # mainerPromptId));
+                        };
+                        let chunk : Blob = promptCacheChunks[chunkID];
+                        let downloadMainerPromptCacheBytesChunkRecord : Types.DownloadMainerPromptCacheBytesChunkRecord = {
+                            mainerPromptId : Text = mainerPromptId;
+                            chunkID : Nat = chunkID;
+                            bytesChunk : Blob = chunk;
+                        };
+
+                        return #Ok(downloadMainerPromptCacheBytesChunkRecord);
+                    };
+                };
+            };             
+        };
+    };
+
     // Submissions to challenges
     stable var submissionsStorageStable : [(Text, Types.ChallengeResponseSubmission)] = [];
     var submissionsStorage : HashMap.HashMap<Text, Types.ChallengeResponseSubmission> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -1134,6 +1332,7 @@ actor class GameStateCanister() = this {
                     challengeId : Text = challengeId;
                     challengeQuestion : Text = newChallenge.challengeQuestion;
                     challengeQuestionSeed : Nat32 = newChallenge.challengeQuestionSeed;
+                    mainerPromptId : Text = newChallenge.mainerPromptId;
                     challengeCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                     challengeCreatedBy : Types.CanisterAddress = challengerEntry.address;
                     challengeStatus : Types.ChallengeStatus = #Open;
@@ -1583,7 +1782,11 @@ actor class GameStateCanister() = this {
                                 switch (result) {
                                     case (#Ok(canisterCreationRecord)) {
                                         // Setup the controller canister (install code & configurations)
-                                        ignore creatorCanisterActor.setupCanister(canisterCreationRecord.newCanisterId, canisterCreationInput);
+                                        let setupCanisterInput : Types.SetupCanisterInput = {
+                                            newCanisterId : Text = canisterCreationRecord.newCanisterId;
+                                            configurationInput : Types.CanisterCreationConfiguration = canisterCreationInput;
+                                        };
+                                        ignore creatorCanisterActor.setupCanister(setupCanisterInput);
 
                                         let canisterEntryToAdd : Types.OfficialMainerAgentCanister = {
                                             address : Text = canisterCreationRecord.newCanisterId; // New mAIner Controller canister's id
@@ -1767,7 +1970,11 @@ actor class GameStateCanister() = this {
                                     case (#Ok(canisterCreationRecord)) {
                                         D.print("GameState: setUpMainerLlmCanister - Setting up LLM Canister ID = " # debug_show(canisterCreationRecord.newCanisterId) );
                                         // Setup the LLM canister (install code & configurations)
-                                        ignore creatorCanisterActor.setupCanister(canisterCreationRecord.newCanisterId, canisterCreationInput);
+                                        let setupCanisterInput : Types.SetupCanisterInput = {
+                                            newCanisterId : Text = canisterCreationRecord.newCanisterId;
+                                            configurationInput : Types.CanisterCreationConfiguration = canisterCreationInput;
+                                        };
+                                        ignore creatorCanisterActor.setupCanister(setupCanisterInput);
 
                                         let canisterEntryToAdd : Types.OfficialMainerAgentCanister = {
                                             address : Text = userMainerEntry.address; // Controller 
@@ -1971,7 +2178,11 @@ actor class GameStateCanister() = this {
                                     case (#Ok(canisterCreationRecord)) {
                                         D.print("GameState: addLlmCanisterToMainer - Setting up LLM Canister ID = " # debug_show(canisterCreationRecord.newCanisterId) );
                                         // Setup the LLM canister (install code & configurations)
-                                        ignore creatorCanisterActor.setupCanister(canisterCreationRecord.newCanisterId, canisterCreationInput);
+                                        let setupCanisterInput : Types.SetupCanisterInput = {
+                                            newCanisterId : Text = canisterCreationRecord.newCanisterId;
+                                            configurationInput : Types.CanisterCreationConfiguration = canisterCreationInput;
+                                        };
+                                        ignore creatorCanisterActor.setupCanister(setupCanisterInput);
 
                                         let canisterEntryToAdd : Types.OfficialMainerAgentCanister = {
                                             address : Text = userMainerEntry.address; // Controller 
@@ -2325,6 +2536,7 @@ actor class GameStateCanister() = this {
                     challengeTopicStatus : Types.ChallengeTopicStatus = challengeResponseSubmissionInput.challengeTopicStatus;
                     challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = challengeResponseSubmissionInput.challengeQuestionSeed;
+                    mainerPromptId : Text = challengeResponseSubmissionInput.mainerPromptId;
                     challengeId : Text = challengeResponseSubmissionInput.challengeId;
                     challengeCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeCreationTimestamp;
                     challengeCreatedBy : Types.CanisterAddress = challengeResponseSubmissionInput.challengeCreatedBy;
@@ -2408,6 +2620,7 @@ actor class GameStateCanister() = this {
                                         challengeTopicStatus : Types.ChallengeTopicStatus = submission.challengeTopicStatus;
                                         challengeQuestion : Text = submission.challengeQuestion;
                                         challengeQuestionSeed : Nat32 = submission.challengeQuestionSeed;
+                                        mainerPromptId : Text = submission.mainerPromptId;
                                         challengeId : Text = submission.challengeId;
                                         challengeCreationTimestamp : Nat64 = submission.challengeCreationTimestamp;
                                         challengeCreatedBy : Types.CanisterAddress = submission.challengeCreatedBy;
@@ -2592,6 +2805,7 @@ actor class GameStateCanister() = this {
                     challengeTopicStatus : Types.ChallengeTopicStatus = scoredResponseInput.challengeTopicStatus;
                     challengeQuestion : Text = scoredResponseInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = scoredResponseInput.challengeQuestionSeed;
+                    mainerPromptId : Text = scoredResponseInput.mainerPromptId;
                     challengeId : Text = scoredResponseInput.challengeId;
                     challengeCreationTimestamp : Nat64 = scoredResponseInput.challengeCreationTimestamp;
                     challengeCreatedBy : Types.CanisterAddress = scoredResponseInput.challengeCreatedBy;
@@ -2624,6 +2838,7 @@ actor class GameStateCanister() = this {
                     challengeTopicStatus : Types.ChallengeTopicStatus = scoredResponseInput.challengeTopicStatus;
                     challengeQuestion : Text = scoredResponseInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = scoredResponseInput.challengeQuestionSeed;
+                    mainerPromptId : Text = scoredResponseInput.mainerPromptId;
                     challengeId : Text = scoredResponseInput.challengeId;
                     challengeCreationTimestamp : Nat64 = scoredResponseInput.challengeCreationTimestamp;
                     challengeCreatedBy : Types.CanisterAddress = scoredResponseInput.challengeCreatedBy;
@@ -2732,6 +2947,7 @@ actor class GameStateCanister() = this {
                     challengeTopicStatus : Types.ChallengeTopicStatus = openChallenge.challengeTopicStatus;
                     challengeQuestion : Text = openChallenge.challengeQuestion;
                     challengeQuestionSeed : Nat32 = openChallenge.challengeQuestionSeed;
+                    mainerPromptId : Text = openChallenge.mainerPromptId;
                     challengeId : Text = openChallenge.challengeId;
                     challengeCreationTimestamp : Nat64 = openChallenge.challengeCreationTimestamp;
                     challengeCreatedBy : Types.CanisterAddress = openChallenge.challengeCreatedBy;
@@ -2765,6 +2981,7 @@ actor class GameStateCanister() = this {
                             challengeTopicStatus : Types.ChallengeTopicStatus = closedChallenge.challengeTopicStatus;
                             challengeQuestion : Text = closedChallenge.challengeQuestion;
                             challengeQuestionSeed : Nat32 = closedChallenge.challengeQuestionSeed;
+                            mainerPromptId : Text = closedChallenge.mainerPromptId;
                             challengeId : Text = closedChallenge.challengeId;
                             challengeCreationTimestamp : Nat64 = closedChallenge.challengeCreationTimestamp;
                             challengeCreatedBy : Types.CanisterAddress = closedChallenge.challengeCreatedBy;
@@ -2796,6 +3013,7 @@ actor class GameStateCanister() = this {
                             challengeTopicStatus : Types.ChallengeTopicStatus = #Archived;
                             challengeQuestion : Text = "";
                             challengeQuestionSeed : Nat32 = 0;
+                            mainerPromptId : Text = "submissionInput.mainerPromptId";
                             challengeId : Text = submissionInput.challengeId;
                             challengeCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                             challengeCreatedBy : Types.CanisterAddress = "";
@@ -2921,6 +3139,7 @@ actor class GameStateCanister() = this {
         userToMainerAgentsStorageStable := Iter.toArray(userToMainerAgentsStorage.entries());
         openChallengeTopicsStorageStable := Iter.toArray(openChallengeTopicsStorage.entries());
         openChallengesStorageStable := Iter.toArray(openChallengesStorage.entries());
+        mainerPromptsStable := Iter.toArray(mainerPrompts.entries());
         submissionsStorageStable := Iter.toArray(submissionsStorage.entries());
         scoredResponsesPerChallengeStable := Iter.toArray(scoredResponsesPerChallenge.entries());
         winnerDeclarationForChallengeStable := Iter.toArray(winnerDeclarationForChallenge.entries());
@@ -2942,6 +3161,8 @@ actor class GameStateCanister() = this {
         openChallengeTopicsStorageStable := [];
         openChallengesStorage := HashMap.fromIter(Iter.fromArray(openChallengesStorageStable), openChallengesStorageStable.size(), Text.equal, Text.hash);
         openChallengesStorageStable := [];
+        mainerPrompts := HashMap.fromIter(Iter.fromArray(mainerPromptsStable), openChallengeTopicsStorageStable.size(), Text.equal, Text.hash);
+        mainerPromptsStable := [];
         submissionsStorage := HashMap.fromIter(Iter.fromArray(submissionsStorageStable), submissionsStorageStable.size(), Text.equal, Text.hash);
         submissionsStorageStable := [];
         scoredResponsesPerChallenge := HashMap.fromIter(Iter.fromArray(scoredResponsesPerChallengeStable), scoredResponsesPerChallengeStable.size(), Text.equal, Text.hash);
