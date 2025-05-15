@@ -1614,6 +1614,7 @@ actor class GameStateCanister() = this {
         var amountPaid : Nat = 0;
         let redeemedFor : Types.RedeemedForOptions = #MainerCreation(mainerConfig.mainerAgentCanisterType);
         let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+        // TODO - Testing: comment out this switch statement for testing locally
         switch (mainerConfig.mainerAgentCanisterType) {
             case (#ShareService) {
                 // Skip payment verification in case of ShareService, which is created by an Admin (Controller)
@@ -1643,7 +1644,7 @@ actor class GameStateCanister() = this {
 
         if (not verifiedPayment) {
             return #Err(#Other("Payment couldn't be verified"));
-        };
+        }; // TODO - Testing: comment out this check for testing locally
 
         let canisterEntry : Types.OfficialMainerAgentCanister = {
             address : Text = ""; // To be assigned (when Controller canister was created)
@@ -1661,7 +1662,9 @@ actor class GameStateCanister() = this {
             redeemedFor : Types.RedeemedForOptions = redeemedFor;
             amount : Nat = amountPaid;
         };
+
         let handleResponse = await handleIncomingFunds(newTransactionEntry);
+        //let handleResponse = #Ok(); // TODO - Testing
         switch (handleResponse) {
             case (#Err(error)) {
                 return #Err(#FailedOperation);
