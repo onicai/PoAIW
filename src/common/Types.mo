@@ -119,6 +119,24 @@ module Types {
     public type CanisterRetrieveInput = {
         address : CanisterAddress;
     };
+
+    public type UpdateWasmHashInput = {
+        wasmHash : Blob;
+        textNote : Text;
+    };
+
+    public type CanisterWasmHashRecord = UpdateWasmHashInput and {
+        creationTimestamp : Nat64;
+        createdBy : Principal;
+        version : Nat;
+    };
+
+    public type DeriveWasmHashInput = {
+        address : CanisterAddress;
+        textNote : Text;
+    };
+
+    public type CanisterWasmHashRecordResult = Result<CanisterWasmHashRecord, ApiError>;
     
     //-------------------------------------------------------------------------
     public type SelectableMainerLLMs = {

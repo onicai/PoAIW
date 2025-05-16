@@ -152,9 +152,90 @@ actor class GameStateCanister() = this {
         // Users should not be able to tamper with the mAIner code
 
     // mAIner agent wasm module hash that must match
-        // TODO: implement way to manage this
+        // TODO - Implementation: finalize implementation, ensure it's all stable, and remove any code not needed for production
         // -> For now, do not make it stable, so it can be updated via a canister upgrade
-    let officialMainerAgentCanisterWasmHash : Blob = "\E3\75\AE\41\04\89\B5\1A\0D\76\3A\77\F9\27\A6\50\97\2C\30\BB\49\6A\02\8D\35\37\49\9A\3B\9E\2E\8A";
+    var officialMainerAgentCanisterWasmHash : Blob = "\E3\75\AE\41\04\89\B5\1A\0D\76\3A\77\F9\27\A6\50\97\2C\30\BB\49\6A\02\8D\35\37\49\9A\3B\9E\2E\8A";
+    stable var officialMainerAgentCanisterWasmHashVersion : Nat = 0;
+    stable var officialMainerAgentCanisterWasmHashRecord : Types.CanisterWasmHashRecord = {
+        wasmHash : Blob = officialMainerAgentCanisterWasmHash;
+        creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+        createdBy : Principal = Principal.fromActor(this);
+        version : Nat = officialMainerAgentCanisterWasmHashVersion;
+        textNote : Text = "initial record";
+    };
+
+    stable var previousMainerAgentCanisterWasmHashRecords : List.List<Types.CanisterWasmHashRecord> = List.nil<Types.CanisterWasmHashRecord>();
+
+    // Update the wasm hash record for the mAIner with the new wasm hash as input
+    public shared (msg) func setOfficialMainerAgentCanisterWasmHashAdmin(updateWasmHashInput : Types.UpdateWasmHashInput) : async Types.CanisterWasmHashRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Increment version
+        officialMainerAgentCanisterWasmHashVersion := officialMainerAgentCanisterWasmHashVersion + 1;
+        // Archive current record
+        previousMainerAgentCanisterWasmHashRecords := List.push<Types.CanisterWasmHashRecord>(officialMainerAgentCanisterWasmHashRecord, previousMainerAgentCanisterWasmHashRecords);
+        // Update to new record
+        let newMainerAgentCanisterWasmHashRecord : Types.CanisterWasmHashRecord = {
+            wasmHash : Blob = updateWasmHashInput.wasmHash;
+            creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+            createdBy : Principal = msg.caller;
+            version : Nat = officialMainerAgentCanisterWasmHashVersion;
+            textNote : Text = updateWasmHashInput.textNote;
+        };
+        officialMainerAgentCanisterWasmHashRecord := newMainerAgentCanisterWasmHashRecord;
+        officialMainerAgentCanisterWasmHash := updateWasmHashInput.wasmHash;
+
+        return #Ok(newMainerAgentCanisterWasmHashRecord);
+    };
+
+    // Update the wasm hash record for the mAIner by getting the new wasm hash from a running mAIner
+    public shared (msg) func deriveNewMainerAgentCanisterWasmHashAdmin(deriveWasmHashInput : Types.DeriveWasmHashInput) : async Types.CanisterWasmHashRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Get the mAIner canister's wasm module hash
+        let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
+        try {
+            let agentCanisterInfo = await IC_Management_Actor.canister_info({
+                canister_id = Principal.fromText(deriveWasmHashInput.address);
+                num_requested_changes = ?0;
+            });  
+            // Verify agent canister's wasm module hash
+            switch (agentCanisterInfo.module_hash) {
+                case (null) {
+                    D.print("GameState: deriveOfficialMainerAgentCanisterWasmHashAdmin - canister has null as module hash: " # debug_show(deriveWasmHashInput));  
+                    D.print("GameState: deriveOfficialMainerAgentCanisterWasmHashAdmin - agentCanisterInfo with null as module hash: " # debug_show(agentCanisterInfo));
+                    return #Err(#Other("GameState: deriveOfficialMainerAgentCanisterWasmHashAdmin - canister has null as module hash: " # debug_show(deriveWasmHashInput)));
+                };
+                case (?agentModuleHash) {
+                    D.print("GameState: deriveOfficialMainerAgentCanisterWasmHashAdmin - canister has module hash: " # debug_show(deriveWasmHashInput));  
+                    D.print("GameState: deriveOfficialMainerAgentCanisterWasmHashAdmin - agentCanisterInfo with module hash: " # debug_show(agentCanisterInfo));
+                    // Increment version
+                    officialMainerAgentCanisterWasmHashVersion := officialMainerAgentCanisterWasmHashVersion + 1;
+                    // Archive current record
+                    previousMainerAgentCanisterWasmHashRecords := List.push<Types.CanisterWasmHashRecord>(officialMainerAgentCanisterWasmHashRecord, previousMainerAgentCanisterWasmHashRecords);
+                    // Update to new record
+                    let newMainerAgentCanisterWasmHashRecord : Types.CanisterWasmHashRecord = {
+                        wasmHash : Blob = agentModuleHash;
+                        creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                        createdBy : Principal = msg.caller;
+                        version : Nat = officialMainerAgentCanisterWasmHashVersion;
+                        textNote : Text = deriveWasmHashInput.textNote;
+                    };
+                    officialMainerAgentCanisterWasmHashRecord := newMainerAgentCanisterWasmHashRecord;
+                    officialMainerAgentCanisterWasmHash := agentModuleHash;
+
+                    return #Ok(newMainerAgentCanisterWasmHashRecord);
+                };
+            };
+        } catch (e) {
+            D.print("GameState: deriveOfficialMainerAgentCanisterWasmHashAdmin - Failed to retrieve info for mAIner: " # debug_show(deriveWasmHashInput) # Error.message(e));      
+            return #Err(#Other("GameState: deriveOfficialMainerAgentCanisterWasmHashAdmin - Failed to retrieve info for mAIner: " # debug_show(deriveWasmHashInput) # Error.message(e)));
+        };
+    };
     
     public shared (msg) func testMainerCodeIntegrityAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -173,7 +254,7 @@ actor class GameStateCanister() = this {
                     let agentCanisterInfo = await IC_Management_Actor.canister_info({
                         canister_id = Principal.fromText(agentEntry.address);
                         num_requested_changes = ?0;
-                    });   
+                    });  
                     // Verify agent canister's wasm module hash
                     switch (agentCanisterInfo.module_hash) {
                         case (null) {
@@ -181,7 +262,7 @@ actor class GameStateCanister() = this {
                             D.print("GameState: testMainerCodeIntegrityAdmin - agentCanisterInfo with null as module hash: " # debug_show(agentCanisterInfo)); 
                         };
                         case (?agentModuleHash) {
-                            if (Blob.equal(agentModuleHash, officialMainerAgentCanisterWasmHash)) {
+                            if (Blob.equal(agentModuleHash, officialMainerAgentCanisterWasmHashRecord.wasmHash)) {
                                 D.print("GameState: testMainerCodeIntegrityAdmin - agentEntry has official module hash: " # debug_show(agentEntry));  
                                 D.print("GameState: testMainerCodeIntegrityAdmin - agentCanisterInfo with official module hash: " # debug_show(agentCanisterInfo));
                             } else {
@@ -2634,12 +2715,12 @@ actor class GameStateCanister() = this {
                             return #Err(#Unauthorized);
                         };
                         case (?agentModuleHash) {
-                            if (Blob.equal(agentModuleHash, officialMainerAgentCanisterWasmHash)) {
+                            if (Blob.equal(agentModuleHash, officialMainerAgentCanisterWasmHashRecord.wasmHash)) {
                                 D.print("GameState: testMainerCodeIntegrityAdmin - agentCanisterInfo with official module hash: " # debug_show(agentCanisterInfo));
                                 // continue as check passed
                             } else {
                                 let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
-                                D.print("GameState: submitChallengeResponse - agentCanisterInfo didn't pass verification: " # debug_show(agentCanisterInfo) # " - expected wasm hash = " # debug_show(officialMainerAgentCanisterWasmHash));
+                                D.print("GameState: submitChallengeResponse - agentCanisterInfo didn't pass verification: " # debug_show(agentCanisterInfo) # " - expected wasm hash = " # debug_show(officialMainerAgentCanisterWasmHashRecord));
                                  
                                 // TODO - Design: further measurements?
                                 return #Err(#Unauthorized);
