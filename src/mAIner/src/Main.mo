@@ -624,6 +624,7 @@ actor class MainerAgentCtrlbCanister() = this {
                     challengeQuestion : Text = challengeQueueInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = challengeQueueInput.challengeQuestionSeed;
                     mainerPromptId : Text = challengeQueueInput.mainerPromptId;
+                    judgePromptId : Text = challengeQueueInput.judgePromptId;
                     challengeId : Text = challengeQueueInput.challengeId;
                     challengeCreationTimestamp : Nat64 = challengeQueueInput.challengeCreationTimestamp;
                     challengeCreatedBy : Types.CanisterAddress = challengeQueueInput.challengeCreatedBy;
@@ -742,6 +743,7 @@ actor class MainerAgentCtrlbCanister() = this {
                             challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
                             challengeQuestionSeed : Nat32 = challengeResponseSubmissionInput.challengeQuestionSeed;
                             mainerPromptId : Text = challengeResponseSubmissionInput.mainerPromptId;
+                            judgePromptId : Text = challengeResponseSubmissionInput.judgePromptId;
                             challengeId : Text = challengeResponseSubmissionInput.challengeId;
                             challengeCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeCreationTimestamp;
                             challengeCreatedBy : Types.CanisterAddress = challengeResponseSubmissionInput.challengeCreatedBy;
@@ -779,8 +781,23 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     private func respondToChallengeDoIt_(challengeQueueInput : Types.ChallengeQueueInput) : async Types.ChallengeResponseResult {
-        let maxContinueLoopCount : Nat = 6; // After this many calls to run_update, we stop.
-        let num_tokens : Nat64 = 1024;
+        // TODO - Design: Make maxContinueLoopCount a parameter of the Challenge?
+        //        -> This sets the max number of times we allow the mAIner to call the LLM's run_update
+        //           (number of tokens generated = maxContinueLoopCount * max_tokens [13 for Qwen2.5] )
+        //
+        //        -> The number of update calls to the LLM determines the max cost of the response generation !!
+        // 
+        //        -> This then also determines the max cost of the scoring by the Judge,
+        //           because the Judge needs the same number of update calls to ingest
+        //           the response to score into it's prompt cache.
+        //
+        //        -> It might make sense to make this a parameter of the Challenge:
+        //           - certain challenges might require more tokens (update calls) to respond to
+        //           - this then drives the cost of the response generation & judge scoring
+        //           - we can then set submissionCyclesRequired in the Challenge based on this max number
+        //
+        let maxContinueLoopCount : Nat = 3; // After this many calls to run_update, we stop.
+        let num_tokens : Nat64 = 1024; // Because we stop after 3 update calls (39 tokens), this is never actually used
         let temp : Float = 0.8;
 
         // --------------------------------------------------------
@@ -852,8 +869,8 @@ actor class MainerAgentCtrlbCanister() = this {
         // ----------------------------------------------------------------------
         // Step 0
         // Restore a previously saved prompt cache file
-        // We will check if the one from the Challenger is already in this LLM
         // let promptSaveCache : Text = Nat32.toText(Text.hash(promptRepetitive)) # ".cache";
+        // We will check if the one from the Challenger is already in this LLM
         var foundPromptSaveCache : Bool = false;
 
         try {
@@ -899,11 +916,11 @@ actor class MainerAgentCtrlbCanister() = this {
                 let downloadMainerPromptCacheBytesChunkRecordResult: Types.DownloadMainerPromptCacheBytesChunkRecordResult = await retryGameStateMainerPromptCacheChunkDownloadWithDelay(gameStateCanisterActor, downloadMainerPromptCacheBytesChunkInput, maxAttempts, delay);
                 switch (downloadMainerPromptCacheBytesChunkRecordResult) {
                     case (#Err(error)) {
-                        D.print("Challenger: generateChallenge -  ERROR during upload of mAIner prompt cache chunk - statusCodeRecordResult:" # debug_show (statusCodeRecordResult));
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # ") - ERROR during download of mAIner prompt cache chunk - statusCodeRecordResult:" # debug_show (statusCodeRecordResult));
                         return #Err(error);
                     };
                     case (#Ok(downloadMainerPromptCacheBytesChunkRecord)) {
-                        D.print("Challenger: generateChallenge - download of mAIner prompt cache chunk successful - chunkID: " # debug_show (downloadMainerPromptCacheBytesChunkRecord.chunkID));
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # ") - download of mAIner prompt cache chunk successful - chunkID: " # debug_show (downloadMainerPromptCacheBytesChunkRecord.chunkID));
                         mainerPromptCacheBuffer.add(downloadMainerPromptCacheBytesChunkRecord.bytesChunk);
                     };
                 };
@@ -976,12 +993,12 @@ actor class MainerAgentCtrlbCanister() = this {
                     let expectedSha256 : Text = promptCacheSha256;
                     
                     if (not (filesha256 == expectedSha256)) {
-                        D.print("mAInerCreator (#MainerLlm): setupCanister - ERROR: filesha256 = " # debug_show (filesha256) # "does not match expectedSha256 = " # debug_show (expectedSha256));
-                        D.print("mAInerCreator (#MainerLlm): setupCanister - THIS IS A TODO FOR THE CHALLENGER !!!");
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - ERROR: filesha256 = " # debug_show (filesha256) # "does not match expectedSha256 = " # debug_show (expectedSha256));
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - THIS IS A TODO FOR THE CHALLENGER !!!");
                         // TODO - Challenger must set the promptCacheSha256
                         // return #Err(#Other("The sha256 of the uploaded llm file is " # filesha256 # ", which does not match the expected value of " # expectedSha256));
                     } else {
-                        D.print("mAInerCreator (#MainerLlm): setupCanister - filesha256 matches expectedSha256 = " # debug_show (expectedSha256));
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - filesha256 matches expectedSha256 = " # debug_show (expectedSha256));
                     };
                 };
             };
@@ -1007,8 +1024,7 @@ actor class MainerAgentCtrlbCanister() = this {
                 };                
             } catch (error : Error) {
                 // Handle errors, such as llm canister not responding
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): catch error when calling copy_prompt_cache : ");
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): error: " # Error.message(error));
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): catch error when calling copy_prompt_cache : " # Error.message(error));
                 return #Err(
                     #Other(
                         "Failed call to copy_prompt_cache of " # Principal.toText(Principal.fromActor(llmCanister)) #
@@ -1312,6 +1328,7 @@ actor class MainerAgentCtrlbCanister() = this {
                     challengeQuestion : Text = challenge.challengeQuestion;
                     challengeQuestionSeed : Nat32 = challenge.challengeQuestionSeed;
                     mainerPromptId : Text = challenge.mainerPromptId;
+                    judgePromptId : Text = challenge.judgePromptId;
                     challengeId : Text = challenge.challengeId;
                     challengeCreationTimestamp : Nat64 = challenge.challengeCreationTimestamp;
                     challengeCreatedBy : Types.CanisterAddress = challenge.challengeCreatedBy;

@@ -43,6 +43,7 @@ done
 echo "Using network type: $NETWORK_TYPE"
 if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ]; then
     NUM_LLMS_DEPLOYED=2
+    NUM_LLMS_ROUND_ROBIN=2
 fi
 
 #######################################################################

@@ -186,6 +186,7 @@ module Types {
         challengeQuestion : Text;
         challengeQuestionSeed : Nat32;
         mainerPromptId : Text;
+        judgePromptId : Text;
     };
 
     public type Challenge = NewChallengeInput and {
@@ -600,6 +601,60 @@ module Types {
         bytesChunk : Blob;
     };
     public type DownloadMainerPromptCacheBytesChunkRecordResult = Result<DownloadMainerPromptCacheBytesChunkRecord, ApiError>;
+
+    //-------------------------------------------------------------------------
+    // pre-calculated & ingested Judge prompt & prompt cache
+    public type JudgePromptInfo = {
+        promptText : Text;
+        promptCacheSha256 : Text;
+        promptCacheFilename: Text;
+        promptCacheNumberOfChunks : Nat;
+    };
+    public type JudgePromptInfoResult = Result<JudgePromptInfo, ApiError>;
+
+    public type JudgePrompt = JudgePromptInfo and {
+        promptCacheChunks : [Blob];
+    };
+    public type JudgePromptGenerationInput = {
+        generatedChallenge : Types.GeneratedChallenge;
+        chunkSizePrompCacheDownload : Nat64;
+    };
+    public type JudgePromptGenerationRecord = {
+        generationId : Text;
+        generationSeed : Nat32;
+        generatedTimestamp : Nat64;
+        generatedByLlmId : Text;
+        generationPrompt : Text;
+        judgePrompt: JudgePrompt;
+    };
+    public type JudgePromptGenerationRecordResult = Result<JudgePromptGenerationRecord, ApiError>;
+
+    public type StartUploadJudgePromptCacheRecord = {
+        judgePromptId : Text;
+    };
+    public type StartUploadJudgePromptCacheRecordResult = Result<StartUploadJudgePromptCacheRecord, ApiError>;
+
+    public type UploadJudgePromptCacheBytesChunkInput = {
+        judgePromptId : Text;
+        bytesChunk : Blob;
+        chunkID : Nat;
+    };
+    public type FinishUploadJudgePromptCacheInput = {
+        judgePromptId : Text;
+        promptText: Text;
+        promptCacheSha256: Text;
+        promptCacheFilename: Text;
+    };
+
+    public type DownloadJudgePromptCacheBytesChunkInput = {
+        judgePromptId : Text;
+        chunkID : Nat;
+    };
+    public type DownloadJudgePromptCacheBytesChunkRecord = DownloadJudgePromptCacheBytesChunkInput and {
+        bytesChunk : Blob;
+    };
+    public type DownloadJudgePromptCacheBytesChunkRecordResult = Result<DownloadJudgePromptCacheBytesChunkRecord, ApiError>;
+
     //-------------------------------------------------------------------------
 // Canister Actors
     public type GameStateCanister_Actor = actor {
@@ -615,6 +670,11 @@ module Types {
         downloadMainerPromptCacheBytesChunk : (DownloadMainerPromptCacheBytesChunkInput) -> async Types.DownloadMainerPromptCacheBytesChunkRecordResult;
         finishUploadMainerPromptCache : (FinishUploadMainerPromptCacheInput) -> async Types.StatusCodeRecordResult;
         getMainerPromptInfo : (Text) -> async Types.MainerPromptInfoResult;
+        startUploadJudgePromptCache : () -> async Types.StartUploadJudgePromptCacheRecordResult;
+        uploadJudgePromptCacheBytesChunk : (UploadJudgePromptCacheBytesChunkInput) -> async Types.StatusCodeRecordResult;
+        downloadJudgePromptCacheBytesChunk : (DownloadJudgePromptCacheBytesChunkInput) -> async Types.DownloadJudgePromptCacheBytesChunkRecordResult;
+        finishUploadJudgePromptCache : (FinishUploadJudgePromptCacheInput) -> async Types.StatusCodeRecordResult;
+        getJudgePromptInfo : (Text) -> async Types.JudgePromptInfoResult;
     };
 
     public type MainerCreator_Actor = actor {

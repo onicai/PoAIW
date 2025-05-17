@@ -1,9 +1,11 @@
 import Buffer "mo:base/Buffer";
+import Blob "mo:base/Blob";
 import D "mo:base/Debug";
 import Error "mo:base/Error";
 import Principal "mo:base/Principal";
 import Text "mo:base/Text";
 import Nat "mo:base/Nat";
+import Nat8 "mo:base/Nat8";
 import Nat32 "mo:base/Nat32";
 import Nat64 "mo:base/Nat64";
 import Bool "mo:base/Bool";
@@ -11,6 +13,7 @@ import Float "mo:base/Float";
 import List "mo:base/List";
 import Int "mo:base/Int";
 import Time "mo:base/Time";
+import Iter "mo:base/Iter";
 import { setTimer; recurringTimer } = "mo:base/Timer";
 import Timer "mo:base/Timer";
 
@@ -184,6 +187,7 @@ actor class JudgeCtrlbCanister() = this {
             challengeQuestion : Text = scoredResponse.challengeQuestion;
             challengeQuestionSeed : Nat32 = scoredResponse.challengeQuestionSeed;
             mainerPromptId : Text = scoredResponse.mainerPromptId;
+            judgePromptId : Text = scoredResponse.judgePromptId;
             challengeId : Text = scoredResponse.challengeId;
             challengeCreationTimestamp : Nat64 = scoredResponse.challengeCreationTimestamp;
             challengeCreatedBy : Types.CanisterAddress = scoredResponse.challengeCreatedBy;
@@ -239,6 +243,7 @@ actor class JudgeCtrlbCanister() = this {
                     challengeQuestion : Text = submissionEntry.challengeQuestion;
                     challengeQuestionSeed : Nat32 = submissionEntry.challengeQuestionSeed;
                     mainerPromptId : Text = submissionEntry.mainerPromptId;
+                    judgePromptId : Text = submissionEntry.judgePromptId;
                     challengeId : Text = submissionEntry.challengeId;
                     challengeCreationTimestamp : Nat64 = submissionEntry.challengeCreationTimestamp;
                     challengeCreatedBy : Types.CanisterAddress = submissionEntry.challengeCreatedBy;
@@ -278,6 +283,7 @@ actor class JudgeCtrlbCanister() = this {
                             challengeQuestion : Text = submissionEntry.challengeQuestion;
                             challengeQuestionSeed : Nat32 = submissionEntry.challengeQuestionSeed;
                             mainerPromptId : Text = submissionEntry.mainerPromptId;
+                            judgePromptId : Text = submissionEntry.judgePromptId;
                             challengeId : Text = submissionEntry.challengeId;
                             challengeCreationTimestamp : Nat64 = submissionEntry.challengeCreationTimestamp;
                             challengeCreatedBy : Types.CanisterAddress = submissionEntry.challengeCreatedBy;
@@ -322,33 +328,62 @@ actor class JudgeCtrlbCanister() = this {
         let seed : Nat32 = 42; // fixed seed for reproducibility
         let temp : Float = 0.0; // zero temperature for deterministic output
 
-        let challengeQuestion : Text = submissionEntry.challengeQuestion;
+        // let challengeQuestion : Text = submissionEntry.challengeQuestion;
+        // var challengeAnswer : Text = submissionEntry.challengeAnswer;
+        // var promptRepetitive : Text = "<|im_start|>system\n" #
+        // "You grade answers based on its correctness to the question: \n" #
+        // " \n" #
+        // "- " # challengeQuestion # "\n" #
+        // " \n" #
+        // "Grade the answer between 1 and 5\n" #
+        // "1 = completely wrong\n" #
+        // "2 = mostly wrong\n" #
+        // "3 = partially correct\n" #
+        // "4 = mostly correct\n" #
+        // "5 = completely correct\n" #
+        // " \n" #
+        // "<|im_end|> \n" #
+        // "<|im_start|>user\n" #
+        // "Grade this answer based on its correctness: \n" #
+        // " \n";
+        // var prompt : Text = promptRepetitive #
+        // "- " # challengeAnswer # "\n" #
+        // " \n" #
+        // "Respond with the grade only, nothing else.\n" #
+        // "\n<|im_end|>\n<|im_start|>assistant\n";
+
+        let judgePromptId : Text = submissionEntry.judgePromptId;
+        D.print("Judge: judgeChallengeResponseDoIt_ - calling getJudgePromptInfo of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
+        let judgePromptInfoResult : Types.JudgePromptInfoResult = await gameStateCanisterActor.getJudgePromptInfo(judgePromptId);
+        D.print("Judge: judgeChallengeResponseDoIt_ - getJudgePromptInfo returned.");
+
         var challengeAnswer : Text = submissionEntry.challengeAnswer;
-        var promptRepetitive : Text = "<|im_start|>system\n" #
-        "You grade answers based on its correctness to the question: \n" #
-        " \n" #
-        "- " # challengeQuestion # "\n" #
-        " \n" #
-        "Grade the answer between 1 and 5\n" #
-        "1 = completely wrong\n" #
-        "2 = mostly wrong\n" #
-        "3 = partially correct\n" #
-        "4 = mostly correct\n" #
-        "5 = completely correct\n" #
-        " \n" #
-        "<|im_end|> \n" #
-        "<|im_start|>user\n" #
-        "Grade this answer based on its correctness: \n" #
-        " \n";
-        var prompt : Text = promptRepetitive #
-        "- " # challengeAnswer # "\n" #
-        " \n" #
-        "Respond with the grade only, nothing else.\n" #
-        "\n<|im_end|>\n<|im_start|>assistant\n";
+        var promptRepetitive : Text = "";
+        var prompt : Text = "";
+        var promptCacheSha256 : Text = "";
+        var promptSaveCache : Text = ""; // We will upload this into the LLM canister
+        var promptCacheNumberOfChunks : Nat = 0;
+        switch (judgePromptInfoResult) {
+            case (#Err(error)) {
+                D.print("Judge: judgeChallengeResponseDoIt_ - getJudgePromptInfo error " # debug_show (error));
+                return #Err(error);
+            };
+            case (#Ok(judgePromptInfo)) {
+                promptRepetitive := judgePromptInfo.promptText;
+                prompt := promptRepetitive # 
+                "- " # challengeAnswer # "\n" #
+                " \n" #
+                "Respond with the grade only, nothing else.\n" #
+                "\n<|im_end|>\n<|im_start|>assistant\n";
+                promptCacheSha256 := judgePromptInfo.promptCacheSha256;
+                promptSaveCache := judgePromptInfo.promptCacheFilename;
+                promptCacheNumberOfChunks := judgePromptInfo.promptCacheNumberOfChunks;
+            };
+        };
 
         let llmCanister = _getRoundRobinCanister();
 
-        D.print("Judge: Inside function challengeGenerationDoIt_. llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
+        D.print("Judge: judgeChallengeResponseDoIt_ - llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
 
         // Check health of llmCanister
         // D.print("Judge: ---judge_ctrlb_canister---");
@@ -362,7 +397,7 @@ actor class JudgeCtrlbCanister() = this {
                 return #Err(error);
             };
             case (#Ok(_statusCodeRecord)) {
-                D.print("Judge: LLM is healthy");
+                D.print("Judge: judgeChallengeResponseDoIt_ - LLM is healthy");
             };
         };
 
@@ -387,7 +422,8 @@ actor class JudgeCtrlbCanister() = this {
         // ----------------------------------------------------------------------
         // Step 0
         // Restore a previously saved prompt cache file
-        let promptSaveCache : Text = Nat32.toText(Text.hash(promptRepetitive)) # ".cache";
+        // let promptSaveCache : Text = Nat32.toText(Text.hash(promptRepetitive)) # ".cache";
+        // We will check if the one from the Challenger is already in this LLM
         var foundPromptSaveCache : Bool = false;
 
         try {
@@ -395,28 +431,159 @@ actor class JudgeCtrlbCanister() = this {
                 from = promptSaveCache; 
                 to =  promptCache
             };
-            D.print("Judge:  calling copy_prompt_cache to restore a previously saved promptCache if it exists. promptSaveCache: " # promptSaveCache);
+            D.print("Judge: judgeChallengeResponseDoIt_ - calling copy_prompt_cache to restore a previously saved promptCache if it exists. promptSaveCache: " # promptSaveCache);
             num_update_calls += 1;
             let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.copy_prompt_cache(copyPromptCacheInputRecord);
-            D.print("Judge:  returned from copy_prompt_cache with statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
+            D.print("Judge: judgeChallengeResponseDoIt_ - returned from copy_prompt_cache with statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
             switch (statusCodeRecordResult) {
                 case (#Err(_)) {
                     foundPromptSaveCache := false;
                 };
                 case (#Ok(_)) {
                     foundPromptSaveCache := true;
+                    D.print("Judge: judgeChallengeResponseDoIt_ - foundPromptSaveCache ! (no need to get it again from Gamestate.) " # debug_show(promptCache));
                 };
             };
         } catch (error : Error) {
             // Handle errors, such as llm canister not responding
-            D.print("Judge:  catch error when calling copy_prompt_cache : ");
-            D.print("Judge:  error: " # Error.message(error));
+            D.print("Judge: judgeChallengeResponseDoIt_ - catch error when calling copy_prompt_cache : " # Error.message(error));
             return #Err(
                 #Other(
                     "Failed call to copy_prompt_cache of " # Principal.toText(Principal.fromActor(llmCanister)) #
                     " with error: " # Error.message(error)
                 )
             );
+        };
+
+        if (not foundPromptSaveCache) {
+            D.print("Judge: judgeChallengeResponseDoIt_ - Did not find promptCache (will get it from Gamestate & upload to LLM) " # debug_show(promptCache));
+            let judgePromptCacheBuffer : Buffer.Buffer<Blob> = Buffer.Buffer<Blob>(0);
+            for (i in Iter.range(0, promptCacheNumberOfChunks - 1)) {
+                var delay : Nat = 2_000_000_000; // 2 seconds
+                let maxAttempts : Nat = 8;
+                let downloadJudgePromptCacheBytesChunkInput : Types.DownloadJudgePromptCacheBytesChunkInput = {
+                    judgePromptId = judgePromptId;
+                    chunkID = i;
+                };
+                let downloadJudgePromptCacheBytesChunkRecordResult: Types.DownloadJudgePromptCacheBytesChunkRecordResult = await retryGameStateJudgePromptCacheChunkDownloadWithDelay(gameStateCanisterActor, downloadJudgePromptCacheBytesChunkInput, maxAttempts, delay);
+                switch (downloadJudgePromptCacheBytesChunkRecordResult) {
+                    case (#Err(error)) {
+                        D.print("Judge: judgeChallengeResponseDoIt_ - ERROR during upload of Judge prompt cache chunk - statusCodeRecordResult:" # debug_show (statusCodeRecordResult));
+                        return #Err(error);
+                    };
+                    case (#Ok(downloadJudgePromptCacheBytesChunkRecord)) {
+                        D.print("Judge: judgeChallengeResponseDoIt_ - download of Judge prompt cache chunk successful - chunkID: " # debug_show (downloadJudgePromptCacheBytesChunkRecord.chunkID));
+                        judgePromptCacheBuffer.add(downloadJudgePromptCacheBytesChunkRecord.bytesChunk);
+                    };
+                };
+            };
+
+            // ---------------------------------------------------------
+            // Upload prompt cache file
+            var chunkSize : Nat = 0;
+            var offset : Nat = 0;
+            var nextChunk : [Nat8] = [];
+
+            // For progress reporting
+            var modelUploadProgress : Nat8 = 0;
+            let modelUploadProgressInterval : Nat = 10; // 10% progress interval
+
+            D.print("Judge: judgeChallengeResponseDoIt_ - Downloaded the promptCache from Gamestate. Will now upload to LLM - " # debug_show(promptCache));
+            var chunkCount : Nat = 0;
+            let totalChunks : Nat = judgePromptCacheBuffer.size();
+            var nextProgressThreshold : Nat = 0;
+
+            var fileUploadRecordResult : Types.FileUploadRecordResult = #Ok({ filename = promptCache; filesha256 = ""; filesize = 0 }); // Placeholder
+            for (chunk in judgePromptCacheBuffer.vals()) {
+                var progress : Nat = (chunkCount * 100) / totalChunks; // Integer division rounds down
+                if (chunkCount + 1 == totalChunks) {
+                    progress := 100; // Set to 100% for the last chunk
+                };
+                if (progress >= nextProgressThreshold) {
+                    modelUploadProgress := Nat8.fromNat(nextProgressThreshold); // Set to 0, 10, 20, ..., 100
+                    D.print("Judge: judgeChallengeResponseDoIt_ - uploading promptCache chunk " # debug_show (chunkCount) # "(modelUploadProgress = " # debug_show (modelUploadProgress) # "%)");
+                    nextProgressThreshold += modelUploadProgressInterval;
+                };
+                chunkCount := chunkCount + 1;
+                
+                nextChunk := Blob.toArray(chunk);
+                chunkSize := nextChunk.size();
+                let uploadChunk : Types.UploadPromptCacheInputRecord = {
+                    promptcache = promptCache;
+                    chunk = nextChunk;
+                    chunksize = Nat64.fromNat(chunkSize);
+                    offset = Nat64.fromNat(offset);
+                };
+
+                var delay : Nat = 2_000_000_000; // 2 seconds
+                let maxAttempts : Nat = 8;
+                fileUploadRecordResult := await retryLlmPrompCacheChunkUploadWithDelay(llmCanister, uploadChunk, maxAttempts, delay);
+                switch (fileUploadRecordResult) {
+                    case (#Err(error)) {
+                        D.print("Judge: judgeChallengeResponseDoIt_ - ERROR uploading a promptCache chunk - uploadModelFileResult:");
+                        D.print(debug_show (fileUploadRecordResult));
+                        return #Err(error);
+                    };
+                    case (#Ok(_)) {
+                        // all good, continue with next chunk
+                        D.print("Judge: judgeChallengeResponseDoIt_ - success uploading a promptCache chunk - fileUploadRecordResult = " # debug_show (fileUploadRecordResult));
+                        offset := offset + chunkSize;
+                    };
+                };
+            };
+
+            D.print("Judge: judgeChallengeResponseDoIt_ - after prompt cache upload -- checking filesha256.");
+            switch (fileUploadRecordResult) {
+                case (#Err(error)) {
+                    D.print("Judge: judgeChallengeResponseDoIt_ - ERROR - fileUploadRecordResult:" # debug_show (fileUploadRecordResult));
+                    return #Err(error);
+                };
+                case (#Ok(fileUploadRecordResult)) {
+                    D.print("Judge: judgeChallengeResponseDoIt_ - fileUploadRecordResult" # debug_show (fileUploadRecordResult));
+                    // Check the sha256
+                    let filesha256 : Text = fileUploadRecordResult.filesha256;
+                    let expectedSha256 : Text = promptCacheSha256;
+                    
+                    if (not (filesha256 == expectedSha256)) {
+                        D.print("Judge: judgeChallengeResponseDoIt_ - ERROR: filesha256 = " # debug_show (filesha256) # "does not match expectedSha256 = " # debug_show (expectedSha256));
+                        D.print("Judge: judgeChallengeResponseDoIt_ - THIS IS A TODO FOR THE CHALLENGER !!!");
+                        // TODO - Challenger must set the promptCacheSha256
+                        // return #Err(#Other("The sha256 of the uploaded llm file is " # filesha256 # ", which does not match the expected value of " # expectedSha256));
+                    } else {
+                        D.print("Judge: judgeChallengeResponseDoIt_ - filesha256 matches expectedSha256 = " # debug_show (expectedSha256));
+                    };
+                };
+            };
+
+            // -----
+            // Save the prompt cache for reuse with next submission using the same prompt
+            try {
+                let copyPromptCacheInputRecord : Types.CopyPromptCacheInputRecord = { 
+                    from = promptCache; 
+                    to =  promptSaveCache
+                };
+                D.print("Judge: judgeChallengeResponseDoIt_ - calling copy_prompt_cache to save the uploaded promptCache (" # promptCache # ") to promptSaveCache: " # promptSaveCache);
+                let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.copy_prompt_cache(copyPromptCacheInputRecord);
+                D.print("Judge: judgeChallengeResponseDoIt_ - returned from copy_prompt_cache with statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
+                switch (statusCodeRecordResult) {
+                    case (#Err(error)) {
+                        D.print("Judge: judgeChallengeResponseDoIt_ - ERROR - statusCodeRecordResult:" # debug_show (fileUploadRecordResult));
+                        return #Err(error);
+                    };
+                    case (#Ok(_)) {
+                        foundPromptSaveCache := true;
+                    };
+                };                
+            } catch (error : Error) {
+                // Handle errors, such as llm canister not responding
+                D.print("Judge: judgeChallengeResponseDoIt_ - catch error when calling copy_prompt_cache : " # Error.message(error));
+                return #Err(
+                    #Other(
+                        "Failed call to copy_prompt_cache of " # Principal.toText(Principal.fromActor(llmCanister)) #
+                        " with error: " # Error.message(error)
+                    )
+                );
+            };
         };
 
         // ----------------------------------------------------------------------
@@ -428,7 +595,7 @@ actor class JudgeCtrlbCanister() = this {
                 promptCache,
             ];
             let inputRecord : Types.InputRecord = { args = args };
-            D.print("Judge: calling new_chat...");
+            D.print("Judge: judgeChallengeResponseDoIt_ - calling new_chat...");
             // D.print(debug_show (args));
             num_update_calls += 1;
             let outputRecordResult : Types.OutputRecordResult = await llmCanister.new_chat(inputRecord);
@@ -447,18 +614,17 @@ actor class JudgeCtrlbCanister() = this {
                     error := outputRecord.error;
                     prompt_remaining := outputRecord.prompt_remaining;
                     generated_eog := outputRecord.generated_eog;
-                    // D.print("Judge: status_code      : " # debug_show (status_code));
-                    D.print("Judge: output           : " # debug_show (output));
-                    // D.print("Judge: conversation     : " # debug_show (conversation));
-                    // D.print("Judge: error            : " # debug_show (error));
-                    // D.print("Judge: prompt_remaining : " # debug_show (prompt_remaining));
-                    // D.print("Judge: generated_eog    : " # debug_show (generated_eog));
+                    // D.print("Judge: judgeChallengeResponseDoIt_ - status_code      : " # debug_show (status_code));
+                    D.print("Judge: judgeChallengeResponseDoIt_ - output           : " # debug_show (output));
+                    // D.print("Judge: judgeChallengeResponseDoIt_ - conversation     : " # debug_show (conversation));
+                    // D.print("Judge: judgeChallengeResponseDoIt_ - error            : " # debug_show (error));
+                    // D.print("Judge: judgeChallengeResponseDoIt_ - prompt_remaining : " # debug_show (prompt_remaining));
+                    // D.print("Judge: judgeChallengeResponseDoIt_ - generated_eog    : " # debug_show (generated_eog));
                 };
             };
         } catch (error : Error) {
             // Handle errors, such as llm canister not responding
-            D.print("Judge: catch error when calling new_chat : ");
-            D.print("Judge: error: " # Error.message(error));
+            D.print("Judge: judgeChallengeResponseDoIt_ - catch error when calling new_chat : " # Error.message(error));
             return #Err(
                 #Other(
                     "Failed call to new_chat of " # Principal.toText(Principal.fromActor(llmCanister)) #
@@ -496,16 +662,15 @@ actor class JudgeCtrlbCanister() = this {
                     prompt,
                 ];
                 let inputRecord : Types.InputRecord = { args = args };
-                D.print("Judge: calling run_update...");
+                D.print("Judge: judgeChallengeResponseDoIt_ - calling run_update...");
                 // D.print(debug_show (args));
                 num_update_calls += 1;
                 if (num_update_calls > 30) {
-                    D.print("Judge:  too many calls run_update - Breaking out of loop...");
+                    D.print("Judge: judgeChallengeResponseDoIt_ - too many calls run_update - Breaking out of loop...");
                     break continueLoop; // Protective break for endless loop.
                 };
                 let outputRecordResult : Types.OutputRecordResult = await llmCanister.run_update(inputRecord);
-                // D.print("Judge: INGESTING PROMPT:returned from run_update with outputRecordResult: ");
-                // D.print("Judge: " # debug_show (outputRecordResult));
+                // D.print("Judge: judgeChallengeResponseDoIt_ - INGESTING PROMPT:returned from run_update with outputRecordResult: " # debug_show (outputRecordResult));
 
                 switch (outputRecordResult) {
                     case (#Err(error)) {
@@ -519,15 +684,15 @@ actor class JudgeCtrlbCanister() = this {
                         error := outputRecord.error;
                         prompt_remaining := outputRecord.prompt_remaining;
                         generated_eog := outputRecord.generated_eog;
-                        // D.print("Judge: status_code      : " # debug_show (status_code));
-                        D.print("Judge: output           : " # debug_show (output));
-                        // D.print("Judge: conversation     : " # debug_show (conversation));
-                        // D.print("Judge: error            : " # debug_show (error));
-                        // D.print("Judge: prompt_remaining : " # debug_show (prompt_remaining));
-                        // D.print("Judge: generated_eog    : " # debug_show (generated_eog));
+                        // D.print("Judge: judgeChallengeResponseDoIt_ - status_code      : " # debug_show (status_code));
+                        D.print("Judge: judgeChallengeResponseDoIt_ - output           : " # debug_show (output));
+                        // D.print("Judge: judgeChallengeResponseDoIt_ - conversation     : " # debug_show (conversation));
+                        // D.print("Judge: judgeChallengeResponseDoIt_ - error            : " # debug_show (error));
+                        // D.print("Judge: judgeChallengeResponseDoIt_ - prompt_remaining : " # debug_show (prompt_remaining));
+                        // D.print("Judge: judgeChallengeResponseDoIt_ - generated_eog    : " # debug_show (generated_eog));
 
                         generationOutput := generationOutput # output;
-                        // D.print("Judge: generationOutput : " # debug_show (generationOutput));
+                        // D.print("Judge: judgeChallengeResponseDoIt_ - generationOutput : " # debug_show (generationOutput));
 
                         if (prompt_remaining == "") {
                             prompt := ""; // Send empty prompt - the prompt ingestion is done.
@@ -541,15 +706,15 @@ actor class JudgeCtrlbCanister() = this {
                                         from = promptCache; 
                                         to =  promptSaveCache
                                     };
-                                    D.print("Judge:  calling copy_prompt_cache to save the promptCache to promptSaveCache: " # promptSaveCache);
+                                    D.print("Judge: judgeChallengeResponseDoIt_ -  calling copy_prompt_cache to save the promptCache to promptSaveCache: " # promptSaveCache);
                                     num_update_calls += 1;
                                     let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.copy_prompt_cache(copyPromptCacheInputRecord);
-                                    D.print("Judge:  returned from copy_prompt_cache with statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
+                                    D.print("Judge: judgeChallengeResponseDoIt_ -  returned from copy_prompt_cache with statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
                                     // We do not care what the result is, as it is just a possible optimization operation
                                 } catch (error : Error) {
                                     // Handle errors, such as llm canister not responding
-                                    D.print("Judge:  catch error when calling copy_prompt_cache : ");
-                                    D.print("Judge:  error: " # Error.message(error));
+                                    D.print("Judge: judgeChallengeResponseDoIt_ -  catch error when calling copy_prompt_cache : ");
+                                    D.print("Judge: judgeChallengeResponseDoIt_ -  error: " # Error.message(error));
                                     return #Err(
                                         #Other(
                                             "Failed call to copy_prompt_cache of " # Principal.toText(Principal.fromActor(llmCanister)) #
@@ -566,8 +731,7 @@ actor class JudgeCtrlbCanister() = this {
                 };
             } catch (error : Error) {
                 // Handle errors, such as llm canister not responding
-                D.print("Judge: catch error when calling new_chat : ");
-                D.print("Judge: error: " # Error.message(error));
+                D.print("Judge: judgeChallengeResponseDoIt_ - catch error when calling new_chat : " # Error.message(error));
                 return #Err(
                     #Other(
                         "Failed call to run_update of " # Principal.toText(Principal.fromActor(llmCanister)) #
@@ -584,17 +748,15 @@ actor class JudgeCtrlbCanister() = this {
                 promptCache,
             ];
             let inputRecord : Types.InputRecord = { args = args };
-            // D.print("Judge: calling remove_prompt_cache with args: ");
+            // D.print("Judge: judgeChallengeResponseDoIt_ - calling remove_prompt_cache with args: ");
             // D.print(debug_show (args));
             num_update_calls += 1;
             let outputRecordResult : Types.OutputRecordResult = await llmCanister.remove_prompt_cache(inputRecord);
-            // D.print("Judge: returned from remove_prompt_cache with outputRecordResult: ");
-            // D.print(debug_show (outputRecordResult));
+            // D.print("Judge: judgeChallengeResponseDoIt_ - returned from remove_prompt_cache with outputRecordResult: " # debug_show (outputRecordResult));
 
         } catch (error : Error) {
             // Handle errors, such as llm canister not responding
-            D.print("Judge: catch error when calling remove_prompt_cache : ");
-            D.print("Judge: error: " # Error.message(error));
+            D.print("Judge: judgeChallengeResponseDoIt_ - catch error when calling remove_prompt_cache : " # Error.message(error));
             return #Err(
                 #Other(
                     "Failed call to remove_prompt_cache of " # Principal.toText(Principal.fromActor(llmCanister)) #
@@ -622,6 +784,48 @@ actor class JudgeCtrlbCanister() = this {
         return #Ok(scoringOutput);
     };
 
+    // Downloads a chunk of the Judge prompt cache file from the GameState canister
+    private func retryGameStateJudgePromptCacheChunkDownloadWithDelay(gameStateCanisterActor : Types.GameStateCanister_Actor, downloadJudgePromptCacheBytesChunkInput : Types.DownloadJudgePromptCacheBytesChunkInput, attempts : Nat, delay : Nat) : async Types.DownloadJudgePromptCacheBytesChunkRecordResult {
+        if (attempts > 0) {
+            try {
+                D.print("Judge: retryGameStateJudgePromptCacheChunkDownloadWithDelay - calling gameStateCanisterActor.downloadJudgePromptCacheBytesChunk for judgePromptId, chunkID = " # debug_show (downloadJudgePromptCacheBytesChunkInput.judgePromptId) # ", " # debug_show (downloadJudgePromptCacheBytesChunkInput.chunkID));
+                let downloadJudgePromptCacheBytesChunkRecordResult : Types.DownloadJudgePromptCacheBytesChunkRecordResult = await gameStateCanisterActor.downloadJudgePromptCacheBytesChunk(downloadJudgePromptCacheBytesChunkInput);
+                return downloadJudgePromptCacheBytesChunkRecordResult;
+                
+            } catch (e) {
+                D.print("Judge: retryGameStateJudgePromptCacheChunkDownloadWithDelay - gameStateCanisterActor.uploadJudgePromptCacheBytesChunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
+                
+                // TODO - Implementation: introduce a delay using a timer...
+                // Just retry immediately with decremented attempts
+                return await retryGameStateJudgePromptCacheChunkDownloadWithDelay(gameStateCanisterActor, downloadJudgePromptCacheBytesChunkInput, attempts - 1, delay);
+            };
+        } else {
+            D.print("Judge: retryGameStateJudgePromptCacheChunkDownloadWithDelay - retryGameStateJudgePromptCacheChunkDownloadWithDelay - Max retry attempts reached");
+            return #Err(#Other("Max retry attempts reached"));
+        };
+    };
+
+    // Uploads a chunk of the promptCache file to the LLM canister
+    private func retryLlmPrompCacheChunkUploadWithDelay(llmCanisterActor : Types.LLMCanister, uploadChunk : Types.UploadPromptCacheInputRecord, attempts : Nat, delay : Nat) : async Types.FileUploadRecordResult {
+        if (attempts > 0) {
+            try {
+                D.print("Judge: retryLlmPrompCacheChunkUploadWithDelay - calling upload_prompt_cache_chunk for chunksize, offset = " # debug_show (uploadChunk.chunksize) # ", " # debug_show (uploadChunk.offset));
+                let uploadModelFileResult : Types.FileUploadRecordResult = await llmCanisterActor.upload_prompt_cache_chunk(uploadChunk);
+                return uploadModelFileResult;
+                
+            } catch (e) {
+                D.print("Judge: retryLlmPrompCacheChunkUploadWithDelay - LLM upload_prompt_cache_chunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
+                
+                // TODO - Implementation: introduce a delay using a timer...
+                // Just retry immediately with decremented attempts
+                return await retryLlmPrompCacheChunkUploadWithDelay(llmCanisterActor, uploadChunk, attempts - 1, delay);
+            };
+        } else {
+            D.print("Max retry attempts reached");
+            return #Err(#Other("Max retry attempts reached"));
+        };
+    };
+
     // Score a mAIner's response to a challenge
     private func scoreNextSubmission() : async () {
         D.print("Judge: scoreNextSubmission - entered");
@@ -640,7 +844,7 @@ actor class JudgeCtrlbCanister() = this {
                 D.print(debug_show (submissionEntry));
 
                 // Sanity checks on submitted response
-                if (submissionEntry.submissionStatus != #Judging or submissionEntry.submissionId == "" or submissionEntry.challengeId == "" or submissionEntry.challengeQuestion == "" or submissionEntry.challengeAnswer == "") {
+                if (submissionEntry.submissionStatus != #Judging or submissionEntry.submissionId == "" or submissionEntry.judgePromptId == "" or submissionEntry.challengeId == "" or submissionEntry.challengeQuestion == "" or submissionEntry.challengeAnswer == "") {
                     D.print("Judge: scoreNextSubmission - 02 - submissionEntry error - submissionEntry: " # debug_show (submissionEntry));
                     // TODO - Error Handling: If this happens, we need to call the Game State canister to update the submissionStatus of the submission to #Error
                     return;

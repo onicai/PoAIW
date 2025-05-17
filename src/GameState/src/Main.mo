@@ -148,7 +148,7 @@ actor class GameStateCanister() = this {
     // mAIner agent wasm module hash that must match
         // TODO: implement way to manage this
         // -> For now, do not make it stable, so it can be updated via a canister upgrade
-    let officialMainerAgentCanisterWasmHash : Blob = "\C4\86\EE\36\2F\91\2B\58\0F\DC\15\83\D4\8C\44\F7\C0\BD\C7\86\FF\37\48\4C\9F\B6\4C\EF\34\CA\5D\07";
+    let officialMainerAgentCanisterWasmHash : Blob = "\5B\CA\BD\C2\0A\41\F8\6C\11\5D\14\EE\ED\94\35\CC\5A\2A\87\C9\57\F8\D9\FC\4C\6E\B3\6A\1B\D3\DD\AD";
     
     public shared (msg) func testMainerCodeIntegrityAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -896,6 +896,204 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Hashmap for Judge prompt & prompt cache storage, key=judgePromptId
+    stable var judgePromptsStable : [(Text, Types.JudgePrompt)] = [];
+    var judgePrompts : HashMap.HashMap<Text, Types.JudgePrompt> = HashMap.HashMap(0, Text.equal, Text.hash);
+
+    // Emepheral Hashmap for Judge prompt cache upload buffers for chunked uploads, key=judgePromptId
+    var judgePromptCacheUploadBuffers : HashMap.HashMap<Text, Buffer.Buffer<Blob>> = HashMap.HashMap(0, Text.equal, Text.hash);
+
+    // Function to be called by Challenger to start upload of the Judge prompt & prompt cache
+    public shared (msg) func startUploadJudgePromptCache() : async Types.StartUploadJudgePromptCacheRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Only official Challenger canisters may call this
+        switch (getChallengerCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?challengerEntry) {
+                // Verify consistency of the caller
+                if (challengerEntry.address != Principal.toText(msg.caller)) {
+                    return #Err(#Unauthorized);
+                };
+
+                let judgePromptId : Text = await Utils.newRandomUniqueId();
+                D.print("GameState: startUploadJudgePromptCache - judgePromptId: " # debug_show(judgePromptId));
+
+                // Initialize the prompt cache upload session for this Challenge
+                let judgePromptCacheUploadBuffer : Buffer.Buffer<Blob> = Buffer.Buffer<Blob>(0);
+                judgePromptCacheUploadBuffers.put(judgePromptId, judgePromptCacheUploadBuffer);
+                
+                return #Ok({ judgePromptId = judgePromptId });
+            };             
+        };
+    };
+
+    // Function to be called by Challenger to upload a chunk of the Judge prompt cache for a given challenge
+    public shared (msg) func uploadJudgePromptCacheBytesChunk(uploadJudgePromptCacheBytesChunkInput: Types.UploadJudgePromptCacheBytesChunkInput) : async Types.StatusCodeRecordResult {
+        let judgePromptId: Text = uploadJudgePromptCacheBytesChunkInput.judgePromptId;
+        let bytesChunk : Blob = uploadJudgePromptCacheBytesChunkInput.bytesChunk;
+        let chunkID : Nat = uploadJudgePromptCacheBytesChunkInput.chunkID;
+
+        D.print("GameState: uploadJudgePromptCacheBytesChunk - judgePromptId: " # debug_show(judgePromptId) # ", chunkID : " # debug_show(chunkID));
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Only official Challenger canisters may call this
+        switch (getChallengerCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?challengerEntry) {
+                // Verify consistency of the caller
+                if (challengerEntry.address != Principal.toText(msg.caller)) {
+                    return #Err(#Unauthorized);
+                };
+
+                switch (judgePromptCacheUploadBuffers.get(judgePromptId)) {
+                    case (null) { return #Err(#Other("No upload buffer found for judgePromptId: " # judgePromptId # "first call: startUploadJudgePromptCache")); };
+                    case (?judgePromptCacheUploadBuffer) { 
+                        let expectedChunkID = judgePromptCacheUploadBuffer.size();
+                        // Only process if this is the expected next chunk or a retry of a previous chunk
+                        if (chunkID < expectedChunkID) {
+                            // This is a retry of a chunk we've already processed
+                            return #Ok({ status_code = 200 });
+                        } else if (chunkID == expectedChunkID) {
+                            // This is the expected next chunk, so process it
+                            judgePromptCacheUploadBuffer.add(bytesChunk);
+                            return #Ok({ status_code = 200 });
+                        } else {
+                            // This is a chunk ahead of what we expect (gap in sequence)
+                            return #Err(#Other("Chunk ID " # Nat.toText(chunkID) # " is ahead of the expected chunk ID " # Nat.toText(expectedChunkID)));
+                        };
+                    };
+                };
+            };             
+        };
+    };
+
+    // Function to be called by Challenger to finish upload of the Judge prompt cache & store it with prompt text and sha256
+    public shared (msg) func finishUploadJudgePromptCache(finishUploadJudgePromptCacheInput : Types.FinishUploadJudgePromptCacheInput) : async Types.StatusCodeRecordResult {
+        let judgePromptId: Text = finishUploadJudgePromptCacheInput.judgePromptId;
+        let promptText: Text = finishUploadJudgePromptCacheInput.promptText;
+        let promptCacheSha256: Text = finishUploadJudgePromptCacheInput.promptCacheSha256;
+        let promptCacheFilename: Text = finishUploadJudgePromptCacheInput.promptCacheFilename;
+
+        D.print("GameState: finishUploadJudgePromptCache - judgePromptId: " # debug_show(judgePromptId));
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Only official Challenger canisters may call this
+        switch (getChallengerCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?challengerEntry) {
+                // Verify consistency of the caller
+                if (challengerEntry.address != Principal.toText(msg.caller)) {
+                    return #Err(#Unauthorized);
+                };
+
+                switch (judgePromptCacheUploadBuffers.get(judgePromptId)) {
+                    case (null) { return #Err(#Other("No upload buffer found for judgePromptId: " # judgePromptId)); };
+                    case (?judgePromptCacheUploadBuffer) { 
+                        // Store the Judge prompt & cache & sha256 for this Challenge
+                        let judgePrompt : Types.JudgePrompt = {
+                            promptText = promptText;
+                            promptCacheSha256 = promptCacheSha256;
+                            promptCacheFilename = promptCacheFilename;
+                            promptCacheNumberOfChunks = judgePromptCacheUploadBuffer.size();
+                            promptCacheChunks = Buffer.toArray<Blob>(judgePromptCacheUploadBuffer);
+                        };
+                        D.print("GameState: finishUploadJudgePromptCache - Storing judgePrompt for judgePromptId: " # debug_show(judgePromptId) # "\n" #
+                            "promptText: " # debug_show(promptText) # "\n" #
+                            "promptCacheSha256: " # debug_show(promptCacheSha256));
+                        judgePrompts.put(judgePromptId, judgePrompt);
+
+                        // Delete the prompt cache upload buffer for this Challenge
+                        let _ = judgePromptCacheUploadBuffers.remove(judgePromptId);
+
+                        return #Ok({ status_code = 200 });
+                    };
+                };
+            };             
+        };
+    };
+
+    // Function to be called by Judge to get the judge prompt info
+    public shared query (msg) func getJudgePromptInfo(judgePromptId : Text) : async Types.JudgePromptInfoResult {
+        D.print("GameState: getJudgePromptInfo - judgePromptId: " # debug_show(judgePromptId));
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Only official Judge canisters may call this
+        switch (getJudgeCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?judgeEntry) {
+                // Verify consistency of the caller
+                if (judgeEntry.address != Principal.toText(msg.caller)) {
+                    return #Err(#Unauthorized);
+                };
+                
+                switch (judgePrompts.get(judgePromptId)) {
+                    case (null) { return #Err(#Other("No judgePrompt found for judgePromptId: " # judgePromptId)); };
+                    case (?judgePrompt) { 
+                        // Store the Judge prompt & cache & sha256 for this Challenge
+                        let judgePromptInfo : Types.JudgePromptInfo = {
+                            promptText = judgePrompt.promptText;
+                            promptCacheSha256 = judgePrompt.promptCacheSha256;
+                            promptCacheFilename = judgePrompt.promptCacheFilename;
+                            promptCacheNumberOfChunks = judgePrompt.promptCacheNumberOfChunks;
+                        };
+                        D.print("GameState: getJudgePromptInfo - Returning judgePromptInfo for judgePromptId: " # debug_show(judgePromptId) # "\n" #
+                            "judgePromptInfo: " # debug_show(judgePromptInfo) );
+                        return #Ok(judgePromptInfo);
+                    };
+                };
+            };             
+        };
+    };
+
+    // Function to be called by Judge to get the judge prompt cache in chunks
+    public shared query (msg) func downloadJudgePromptCacheBytesChunk(downloadJudgePromptCacheBytesChunkInput : Types.DownloadJudgePromptCacheBytesChunkInput) : async Types.DownloadJudgePromptCacheBytesChunkRecordResult {
+        D.print("GameState: downloadJudgePromptCacheBytesChunk.");
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Only official Judge canisters may call this
+        switch (getJudgeCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?judgeEntry) {
+                // Verify consistency of the caller
+                if (judgeEntry.address != Principal.toText(msg.caller)) {
+                    return #Err(#Unauthorized);
+                };
+
+                let judgePromptId: Text = downloadJudgePromptCacheBytesChunkInput.judgePromptId;
+                let chunkID : Nat = downloadJudgePromptCacheBytesChunkInput.chunkID;
+                
+                switch (judgePrompts.get(judgePromptId)) {
+                    case (null) { return #Err(#Other("No judgePrompt found for judgePromptId: " # judgePromptId)); };
+                    case (?judgePrompt) { 
+                        let promptCacheChunks : [Blob] = judgePrompt.promptCacheChunks;
+                        if (chunkID >= promptCacheChunks.size()) {
+                            return #Err(#Other("Chunk ID " # Nat.toText(chunkID) # " is out of range for judgePromptId: " # judgePromptId));
+                        };
+                        let chunk : Blob = promptCacheChunks[chunkID];
+                        let downloadJudgePromptCacheBytesChunkRecord : Types.DownloadJudgePromptCacheBytesChunkRecord = {
+                            judgePromptId : Text = judgePromptId;
+                            chunkID : Nat = chunkID;
+                            bytesChunk : Blob = chunk;
+                        };
+
+                        return #Ok(downloadJudgePromptCacheBytesChunkRecord);
+                    };
+                };
+            };             
+        };
+    };
+
     // Submissions to challenges
     stable var submissionsStorageStable : [(Text, Types.ChallengeResponseSubmission)] = [];
     var submissionsStorage : HashMap.HashMap<Text, Types.ChallengeResponseSubmission> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -1362,6 +1560,7 @@ actor class GameStateCanister() = this {
                     challengeQuestion : Text = newChallenge.challengeQuestion;
                     challengeQuestionSeed : Nat32 = newChallenge.challengeQuestionSeed;
                     mainerPromptId : Text = newChallenge.mainerPromptId;
+                    judgePromptId : Text = newChallenge.judgePromptId;
                     challengeCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                     challengeCreatedBy : Types.CanisterAddress = challengerEntry.address;
                     challengeStatus : Types.ChallengeStatus = #Open;
@@ -2566,6 +2765,7 @@ actor class GameStateCanister() = this {
                     challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = challengeResponseSubmissionInput.challengeQuestionSeed;
                     mainerPromptId : Text = challengeResponseSubmissionInput.mainerPromptId;
+                    judgePromptId : Text = challengeResponseSubmissionInput.judgePromptId;
                     challengeId : Text = challengeResponseSubmissionInput.challengeId;
                     challengeCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeCreationTimestamp;
                     challengeCreatedBy : Types.CanisterAddress = challengeResponseSubmissionInput.challengeCreatedBy;
@@ -2654,6 +2854,7 @@ actor class GameStateCanister() = this {
                                             challengeQuestion : Text = submission.challengeQuestion;
                                             challengeQuestionSeed : Nat32 = submission.challengeQuestionSeed;
                                             mainerPromptId : Text = submission.mainerPromptId;
+                                            judgePromptId : Text = submission.judgePromptId;
                                             challengeId : Text = submission.challengeId;
                                             challengeCreationTimestamp : Nat64 = submission.challengeCreationTimestamp;
                                             challengeCreatedBy : Types.CanisterAddress = submission.challengeCreatedBy;
@@ -2840,6 +3041,7 @@ actor class GameStateCanister() = this {
                     challengeQuestion : Text = scoredResponseInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = scoredResponseInput.challengeQuestionSeed;
                     mainerPromptId : Text = scoredResponseInput.mainerPromptId;
+                    judgePromptId : Text = scoredResponseInput.judgePromptId;
                     challengeId : Text = scoredResponseInput.challengeId;
                     challengeCreationTimestamp : Nat64 = scoredResponseInput.challengeCreationTimestamp;
                     challengeCreatedBy : Types.CanisterAddress = scoredResponseInput.challengeCreatedBy;
@@ -2873,6 +3075,7 @@ actor class GameStateCanister() = this {
                     challengeQuestion : Text = scoredResponseInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = scoredResponseInput.challengeQuestionSeed;
                     mainerPromptId : Text = scoredResponseInput.mainerPromptId;
+                    judgePromptId : Text = scoredResponseInput.judgePromptId;
                     challengeId : Text = scoredResponseInput.challengeId;
                     challengeCreationTimestamp : Nat64 = scoredResponseInput.challengeCreationTimestamp;
                     challengeCreatedBy : Types.CanisterAddress = scoredResponseInput.challengeCreatedBy;
@@ -2982,6 +3185,7 @@ actor class GameStateCanister() = this {
                     challengeQuestion : Text = openChallenge.challengeQuestion;
                     challengeQuestionSeed : Nat32 = openChallenge.challengeQuestionSeed;
                     mainerPromptId : Text = openChallenge.mainerPromptId;
+                    judgePromptId : Text = openChallenge.judgePromptId;
                     challengeId : Text = openChallenge.challengeId;
                     challengeCreationTimestamp : Nat64 = openChallenge.challengeCreationTimestamp;
                     challengeCreatedBy : Types.CanisterAddress = openChallenge.challengeCreatedBy;
@@ -3016,6 +3220,7 @@ actor class GameStateCanister() = this {
                             challengeQuestion : Text = closedChallenge.challengeQuestion;
                             challengeQuestionSeed : Nat32 = closedChallenge.challengeQuestionSeed;
                             mainerPromptId : Text = closedChallenge.mainerPromptId;
+                            judgePromptId : Text = closedChallenge.judgePromptId;
                             challengeId : Text = closedChallenge.challengeId;
                             challengeCreationTimestamp : Nat64 = closedChallenge.challengeCreationTimestamp;
                             challengeCreatedBy : Types.CanisterAddress = closedChallenge.challengeCreatedBy;
@@ -3048,6 +3253,7 @@ actor class GameStateCanister() = this {
                             challengeQuestion : Text = "";
                             challengeQuestionSeed : Nat32 = 0;
                             mainerPromptId : Text = "submissionInput.mainerPromptId";
+                            judgePromptId : Text = "submissionInput.judgePromptId";
                             challengeId : Text = submissionInput.challengeId;
                             challengeCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                             challengeCreatedBy : Types.CanisterAddress = "";

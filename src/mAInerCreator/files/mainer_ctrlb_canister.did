@@ -170,6 +170,7 @@ type ChallengeResponseSubmissionInput =
    challengeTopicCreationTimestamp: nat64;
    challengeTopicId: text;
    challengeTopicStatus: ChallengeTopicStatus;
+   judgePromptId: text;
    mainerPromptId: text;
    submissionCyclesRequired: nat;
    submittedBy: principal;
@@ -193,6 +194,7 @@ type ChallengeResponseSubmission =
    challengeTopicCreationTimestamp: nat64;
    challengeTopicId: text;
    challengeTopicStatus: ChallengeTopicStatus;
+   judgePromptId: text;
    mainerPromptId: text;
    submissionCyclesRequired: nat;
    submissionId: text;
@@ -227,6 +229,7 @@ type ChallengeQueueInput =
    challengeTopicCreationTimestamp: nat64;
    challengeTopicId: text;
    challengeTopicStatus: ChallengeTopicStatus;
+   judgePromptId: text;
    mainerPromptId: text;
    submissionCyclesRequired: nat;
  };
