@@ -31,6 +31,10 @@ actor class GameStateCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
+    public shared query func getCanisterPrincipal() : async Text {
+        return Principal.toText(Principal.fromActor(this));
+    };
+
     // Token Ledger
     stable var TOKEN_LEDGER_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // TODO: update
 
@@ -1420,9 +1424,9 @@ actor class GameStateCanister() = this {
 
     stable let PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * CYCLES_TRILLION;
 
-    // Price to create a mAIner TODO - Implementation: finalize
-    stable var PRICE_OWN_MAINER : Nat64 = 12;
-    stable var PRICE_SHARED_MAINER : Nat64 = 10;
+    // Price to create a mAIner TODO - Implementation: finalize prices
+    stable var PRICE_OWN_MAINER : Nat64 = 0; //12;
+    stable var PRICE_SHARED_MAINER : Nat64 = 0; //10;
 
     // TODO - Implementation: function to set the price for creating a mAIner
         // TODO - Implementation: Set timer for once a day that calculates the creation price based on the ICP/cycles conversion rate
