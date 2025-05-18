@@ -158,7 +158,7 @@ actor class GameStateCanister() = this {
     // mAIner agent wasm module hash that must match
         // TODO - Implementation: finalize implementation, ensure it's all stable, and remove any code not needed for production
         // -> For now, do not make it stable, so it can be updated via a canister upgrade
-    var officialMainerAgentCanisterWasmHash : Blob = "\E3\75\AE\41\04\89\B5\1A\0D\76\3A\77\F9\27\A6\50\97\2C\30\BB\49\6A\02\8D\35\37\49\9A\3B\9E\2E\8A";
+    var officialMainerAgentCanisterWasmHash : Blob = "\f5\d5\ab\57\f4\be\2d\c1\b2\1e\eb\51\02\1f\95\74\1f\3f\72\39\c5\c9\31\b1\e9\15\7d\73\4c\fc\8e\d8";
     stable var officialMainerAgentCanisterWasmHashVersion : Nat = 0;
     stable var officialMainerAgentCanisterWasmHashRecord : Types.CanisterWasmHashRecord = {
         wasmHash : Blob = officialMainerAgentCanisterWasmHash;

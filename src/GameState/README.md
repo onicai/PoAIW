@@ -44,5 +44,22 @@ dfx canister call game_state_canister createUserMainerAgent '(record { paymentTr
 ### Copy the output from above command as the argument for next command
 dfx canister call game_state_canister spinUpMainerControllerCanister '(record {status = variant { Paid }; canisterType = variant { MainerAgent = variant { ShareAgent } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_076_185_351_556_204 : nat64; createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; mainerConfig = record {       selectedLLM = null; mainerAgentCanisterType = variant { ShareAgent }; }; address = ""; } )'
 # ----------------------------------------
+
+## Derive new mAIner wasm hash
+dfx canister call game_state_canister deriveNewMainerAgentCanisterWasmHashAdmin '(record {address = "canister id of new mAIner"; textNote = "Info on update"; } )'
+e.g.
+dfx canister call game_state_canister deriveNewMainerAgentCanisterWasmHashAdmin '(record {address = "dmalx-m4aaa-aaaaa-qaanq-cai"; textNote = "After new addCycle function"; } )'
+Response:
+(
+  variant {
+    Ok = record {
+      creationTimestamp = 1_747_586_744_041_181_103 : nat64;
+      wasmHash = blob "\f5\d5\ab\57\f4\be\2d\c1\b2\1e\eb\51\02\1f\95\74\1f\3f\72\39\c5\c9\31\b1\e9\15\7d\73\4c\fc\8e\d8";
+      createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe";
+      textNote = "After new addCycle function";
+      version = 1 : nat;
+    }
+  },
+)
 ```
 
