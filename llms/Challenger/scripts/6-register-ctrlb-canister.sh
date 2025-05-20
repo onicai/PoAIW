@@ -8,21 +8,14 @@
 # Default network type is local
 NETWORK_TYPE="local"
 NUM_LLMS_DEPLOYED=1
-# When deploying local, use CANISTER_ID_CHALLENGER_CTRLB_CANISTER ID from .env
-source ../../src/Challenger/.env
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
     case "$1" in
         --network)
             shift
-            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ]; then
+            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ]; then
                 NETWORK_TYPE=$1
-                if [ "$NETWORK_TYPE" = "ic" ]; then
-                    CANISTER_ID_CHALLENGER_CTRLB_CANISTER="lxb3x-jyaaa-aaaaj-azzta-cai"
-                elif [ "$NETWORK_TYPE" = "testing" ]; then
-                    CANISTER_ID_CHALLENGER_CTRLB_CANISTER='c66v7-piaaa-aaaaj-az77q-cai'
-                fi
             else
                 echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing'."
                 exit 1
@@ -38,9 +31,15 @@ while [ $# -gt 0 ]; do
 done
 
 echo "Using network type: $NETWORK_TYPE"
-if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ]; then
+
+if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ]; then
     NUM_LLMS_DEPLOYED=2
 fi
+
+cd ../../src/Challenger/
+CANISTER_ID_CHALLENGER_CTRLB_CANISTER=$(dfx canister --network $NETWORK_TYPE id challenger_ctrlb_canister)
+# go back
+cd ../../llms/Challenger/
 
 echo "NUM_LLMS_DEPLOYED : $NUM_LLMS_DEPLOYED"
 echo " "

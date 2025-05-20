@@ -511,9 +511,6 @@ actor class GameStateCanister() = this {
         // Create a new empty HashMap to replace the current one
         let emptyStorage : HashMap.HashMap<Text, Types.Challenge> = HashMap.HashMap(0, Text.equal, Text.hash);
         
-        // Get all current open challenges before replacing the storage
-        let allChallenges : [Types.Challenge] = Iter.toArray(openChallengesStorage.vals());
-        
         // Replace the openChallengesStorage with an empty HashMap
         openChallengesStorage := emptyStorage;
         
