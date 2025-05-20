@@ -3153,6 +3153,24 @@ actor class GameStateCanister() = this {
         return #Ok(TOTAL_PROTOCOL_CYCLES_BURNT);
     };
 
+    // TODO - Security: decide if kept in production
+    public shared query (msg) func getOfficialCanistersAdmin() : async [Types.OfficialProtocolCanister] {
+        if (not Principal.isController(msg.caller)) {
+            return [];
+        };
+        var officialCanisters : List.List<Types.OfficialProtocolCanister> = List.nil<Types.OfficialProtocolCanister>();
+        for (canisterEntry in mainerCreatorCanistersStorage.vals()) {
+            officialCanisters := List.push<Types.OfficialProtocolCanister>(canisterEntry, officialCanisters);    
+        };
+        for (canisterEntry in judgeCanistersStorage.vals()) {
+            officialCanisters := List.push<Types.OfficialProtocolCanister>(canisterEntry, officialCanisters);    
+        };
+        for (canisterEntry in challengerCanistersStorage.vals()) {
+            officialCanisters := List.push<Types.OfficialProtocolCanister>(canisterEntry, officialCanisters);    
+        };
+        return List.toArray(officialCanisters);        
+    };
+
 // Mockup functions (TODO - Testing: remove)
     // Function for frontend integration testing that returns mockup data
     public query (msg) func getScoreForSubmission_mockup(submissionInput : Types.SubmissionRetrievalInput) : async Types.ScoredResponseRetrievalResult {
