@@ -1614,17 +1614,7 @@ actor class GameStateCanister() = this {
             return #Err(#Unauthorized);
         };
 
-        // TODO - Implementation: ensure this transaction block hasn't been redeemed yet (no double spending)     
         let transactionToVerify = mainerCreationInput.paymentTransactionBlockId;
-        switch (checkExistingTransactionBlock(transactionToVerify)) {
-            case (false) {
-                // new transaction, continue
-            };
-            case (true) {
-                // already redeem transaction
-                return #Err(#Other("Already redeemd this transaction block")); // no double spending
-            };
-        };
 
         // Sanity checks on configuration of mAIner agent
         let mainerConfig : Types.MainerConfigurationInput = mainerCreationInput.mainerConfig;
@@ -1639,10 +1629,27 @@ actor class GameStateCanister() = this {
         };
         switch (mainerConfig.mainerAgentCanisterType) {
             case (#Own) {
-                // continue
+                // TODO - Implementation: ensure this transaction block hasn't been redeemed yet (no double spending)
+                switch (checkExistingTransactionBlock(transactionToVerify)) {
+                    case (false) {
+                        // new transaction, continue
+                    };
+                    case (true) {
+                        // already redeem transaction
+                        return #Err(#Other("Already redeemd this transaction block")); // no double spending
+                    };
+                };
             };
             case (#ShareAgent) {
-                // continue
+                switch (checkExistingTransactionBlock(transactionToVerify)) {
+                    case (false) {
+                        // new transaction, continue
+                    };
+                    case (true) {
+                        // already redeem transaction
+                        return #Err(#Other("Already redeemd this transaction block")); // no double spending
+                    };
+                };
             };
             case (#ShareService) {
                 // Only a controller is allowed to create a shared service canister
@@ -1748,8 +1755,17 @@ actor class GameStateCanister() = this {
             amount : Nat = amountPaid;
         };
 
-        let handleResponse = await handleIncomingFunds(newTransactionEntry);
-        //let handleResponse = #Ok(); // TODO - Testing
+        var handleResponse : Types.HandleIncomingFundsResult = #Err(#FailedOperation);
+        switch (mainerConfig.mainerAgentCanisterType) {
+            case (#ShareService) {
+                // Skip handling of funds in case of ShareService, which is created by an Admin (Controller)
+                handleResponse := #Ok({cyclesForMainer : Nat = 0; cyclesForProtocol : Nat = 0});
+            };
+            case (_) {
+                handleResponse := await handleIncomingFunds(newTransactionEntry);
+            };
+        };
+
         switch (handleResponse) {
             case (#Err(error)) {
                 return #Err(#FailedOperation);
