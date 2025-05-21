@@ -1419,8 +1419,10 @@ actor class GameStateCanister() = this {
     };
 
     // Payment memo to specify in transaction to Protocol
-    stable let MEMO_PAYMENT : Nat64 = 2940769044; // TODO - Security: double check value can be used
-    stable let PROTOCOL_PRINCIPAL_BLOB : Blob = Principal.toBlob(Principal.fromActor(this));
+    stable let MEMO_PAYMENT : Nat64 = 173; // TODO - Security: double check value can be used
+    //stable let PROTOCOL_PRINCIPAL_BLOB : Blob = Principal.toBlob(Principal.fromActor(this)); // TODO - Implementation: this doesn't seem to fit the address on the ledger
+    // this is for dev stage, verify with: https://dashboard.internetcomputer.org/account/c88ef9865df034927487e4178da1f80a1648ec5a764e4959cba513c372ceb520
+    let PROTOCOL_PRINCIPAL_BLOB : Blob = "\C8\8E\F9\86\5D\F0\34\92\74\87\E4\17\8D\A1\F8\0A\16\48\EC\5A\76\4E\49\59\CB\A5\13\C3\72\CE\B5\20";
 
     stable let PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * CYCLES_TRILLION;
 
@@ -1445,13 +1447,20 @@ actor class GameStateCanister() = this {
 
     // TODO - Implementation: new function to decide on usage of incoming funds (e.g. for mAIner creation or top ups)
     private func handleIncomingFunds(transactionEntry : Types.RedeemedTransactionBlock) : async Types.HandleIncomingFundsResult {
+        D.print("GameState: handleIncomingFunds - transactionEntry: "# debug_show(transactionEntry));
         // TODO - Implementation: Calculate cut for Protocol's operational expenses
+        D.print("GameState: handleIncomingFunds - Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT: "# debug_show(Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT));
+        D.print("GameState: handleIncomingFunds - Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT / 100: "# debug_show(Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT / 100));
         var amountToKeep : Nat = transactionEntry.amount * Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT / 100; // TODO - Implementation: ensure this math operation works
         let amountForMainer : Nat = transactionEntry.amount - amountToKeep;
         var amountToConvert : Nat = 0;
+        D.print("GameState: handleIncomingFunds - amountToKeep: "# debug_show(amountToKeep));
+        D.print("GameState: handleIncomingFunds - amountForMainer: "# debug_show(amountForMainer));       
         // TODO - Implementation: if cycle balance > security buffer: take cycles from cycle balance
         switch (transactionEntry.redeemedFor) {
             case (#MainerCreation(#Own)) {
+                D.print("GameState: handleIncomingFunds - #MainerCreation(#Own) PROTOCOL_CYCLES_BALANCE_BUFFER: "# debug_show(PROTOCOL_CYCLES_BALANCE_BUFFER)); 
+                D.print("GameState: handleIncomingFunds - #MainerCreation(#Own) Cycles.balance(): "# debug_show(Cycles.balance())); 
                 if (PROTOCOL_CYCLES_BALANCE_BUFFER > Cycles.balance()) {
                     // Cycles balance is lower than security threshold, so convert the payment to cycles
                     amountToConvert := transactionEntry.amount;
@@ -1461,6 +1470,8 @@ actor class GameStateCanister() = this {
                 };           
             };
             case (#MainerCreation(#ShareAgent)) {
+                D.print("GameState: handleIncomingFunds - #MainerCreation(#ShareAgent) PROTOCOL_CYCLES_BALANCE_BUFFER: "# debug_show(PROTOCOL_CYCLES_BALANCE_BUFFER)); 
+                D.print("GameState: handleIncomingFunds - #MainerCreation(#ShareAgent) Cycles.balance(): "# debug_show(Cycles.balance())); 
                 if (PROTOCOL_CYCLES_BALANCE_BUFFER > Cycles.balance()) {
                     // Cycles balance is lower than security threshold, so convert the payment to cycles
                     amountToConvert := transactionEntry.amount;
@@ -1470,10 +1481,13 @@ actor class GameStateCanister() = this {
                 };
             };
             case (#MainerTopUp(mainerCanisterAddress)) {
+                D.print("GameState: handleIncomingFunds - #MainerTopUp(mainerCanisterAddress): "# debug_show(mainerCanisterAddress)); 
                 amountToConvert := amountForMainer; // Always convert mAIner's share of payment into cycles
             };
             case (_) { return #Err(#Other("Unsupported")); }
         };
+        D.print("GameState: handleIncomingFunds - amountToKeep: "# debug_show(amountToKeep));
+        D.print("GameState: handleIncomingFunds - amountToConvert: "# debug_show(amountToConvert));
         // TODO - Implementation: Otherwise: convert amountToConvert to cycles via Cycles Minting Canister (mint cycles to itself)
         // Send ICP to Cycles Minting Canister
         let cmcAccount : TokenLedger.Account = {
@@ -1490,16 +1504,20 @@ actor class GameStateCanister() = this {
             amount : Nat = amountToConvert;
         };
         let transferResult : TokenLedger.Result = await ICP_LEDGER_ACTOR.icrc1_transfer(transferArg);
+        D.print("GameState: handleIncomingFunds - transferResult: "# debug_show(transferResult));
         switch (transferResult) {
             case (#Ok(transactionBlockId)) {
+                D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId): "# debug_show(transactionBlockId));
                 // Then notify Cycles Minting Canister to credit the corresponding cycles to this canister
                 let notifyTopUpArg : CMC.NotifyTopUpArg = {
                     block_index : CMC.BlockIndex = Nat64.fromNat(transactionBlockId);
                     canister_id : Principal = Principal.fromActor(this); // Game State (Protocol); Note: cycles will be sent to mAIner via direct calls as part of dedicated functions (e.g. for creation or for top ups)
                 };
                 let notifyTopUpResult : CMC.NotifyTopUpResult = await CMC_ACTOR.notify_top_up(notifyTopUpArg);
+                D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult: "# debug_show(notifyTopUpResult));
                 switch (notifyTopUpResult) {
                     case (#Ok(cyclesReceived)) {
+                        D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult cyclesReceived: "# debug_show(cyclesReceived));
                         if (PROTOCOL_CYCLES_BALANCE_BUFFER < Cycles.balance()) {
                             // TODO - Implementation: Convert amountToKeep to FUNNAI
                         };
@@ -1520,6 +1538,7 @@ actor class GameStateCanister() = this {
                         };
 
                         // Sanity check
+                        D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult cyclesForMainer: "# debug_show(cyclesForMainer));
                         if (cyclesForMainer > cyclesReceived) {
                             // This should never happen
                             return #Err(#Other("cyclesForMainer > cyclesReceived"));                            
@@ -1529,15 +1548,18 @@ actor class GameStateCanister() = this {
                             cyclesForProtocol: Nat = cyclesForProtocol;
                             cyclesForMainer : Nat = cyclesForMainer;
                         };
+                        D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult response: "# debug_show(response));
                         return #Ok(response);               
                     };
                     case (#Err(topUpError)) {
+                        D.print("GameState: handleIncomingFunds - transferResult notifyTopUpResult #Err(topUpError): "# debug_show(topUpError));
                         return #Err(#Other("Error during CMC notify top up: " # debug_show(topUpError)));
                     };
                     case (_) { return #Err(#FailedOperation); }
                 };              
             };
             case (#Err(transferError)) {
+                D.print("GameState: handleIncomingFunds - transferResult #Err(transferError): "# debug_show(transferError));
                 return #Err(#Other("Error during ICP transfer: " # debug_show(transferError)));
             };
             case (_) { return #Err(#FailedOperation); }
@@ -1553,37 +1575,55 @@ actor class GameStateCanister() = this {
             start : Nat64 = transactionEntry.paymentTransactionBlockId;
             length : Nat64 = 1;
         };
+        D.print("GameState: verifyIncomingPayment - getBlocksArgs: "# debug_show(getBlocksArgs));
         let queryBlocksResponse : TokenLedger.QueryBlocksResponse = await ICP_LEDGER_ACTOR.query_blocks(getBlocksArgs);
+        D.print("GameState: verifyIncomingPayment - queryBlocksResponse.blocks: "# debug_show(queryBlocksResponse.blocks));
         // Verify transaction exists
         if (queryBlocksResponse.blocks.size() < 1) {
             return #Err(#InvalidId);
         };
+        D.print("GameState: verifyIncomingPayment - queryBlocksResponse.blocks.size(): "# debug_show(queryBlocksResponse.blocks.size()));
         let retrievedTransaction : TokenLedger.CandidTransaction = queryBlocksResponse.blocks[0].transaction;
+        D.print("GameState: verifyIncomingPayment - retrievedTransaction: "# debug_show(retrievedTransaction));
         // Verify transaction memo
-        if (Nat64.notEqual(retrievedTransaction.memo, MEMO_PAYMENT)) {
+        D.print("GameState: verifyIncomingPayment - retrievedTransaction.memo: "# debug_show(retrievedTransaction.memo));
+        D.print("GameState: verifyIncomingPayment - MEMO_PAYMENT: "# debug_show(MEMO_PAYMENT));
+        /* if (Nat64.notEqual(retrievedTransaction.memo, MEMO_PAYMENT)) {
             return #Err(#Other("Unsupported Memo"));
-        };        
+        }; */ // TODO - Implementation: check if needed
         // Verify transaction went to Protocol's account
+        D.print("GameState: verifyIncomingPayment - retrievedTransaction.operation: "# debug_show(retrievedTransaction.operation));
         switch (retrievedTransaction.operation) {
             case (null) {
+                D.print("GameState: verifyIncomingPayment - retrievedTransaction.operation: null");
                 return #Err(#Other("Couldn't verify transaction operation details"));  
             };
             case (?transactionOperation) {
+                D.print("GameState: verifyIncomingPayment - transactionOperation: "# debug_show(transactionOperation));
                 switch (transactionOperation) {
                     case (#Transfer(transferDetails)) {
+                        D.print("GameState: verifyIncomingPayment - #Transfer transferDetails: "# debug_show(transferDetails));
+                        D.print("GameState: verifyIncomingPayment - transferDetails.to: "# debug_show(transferDetails.to));
+                        D.print("GameState: verifyIncomingPayment - PROTOCOL_PRINCIPAL_BLOB: "# debug_show(PROTOCOL_PRINCIPAL_BLOB));
                         if (Blob.notEqual(transferDetails.to, PROTOCOL_PRINCIPAL_BLOB)) {
                             return #Err(#Other("Transaction didn't go to Protocol's address")); 
                         };
                         // TODO - Implementation: ensure that paid amount equals price
+                        D.print("GameState: verifyIncomingPayment - transactionEntry.redeemedFor: "# debug_show(transactionEntry.redeemedFor));
                         switch (transactionEntry.redeemedFor) {
                             case (#MainerCreation(mainerAgentCanisterType)) {
+                                D.print("GameState: verifyIncomingPayment - #MainerCreation mainerAgentCanisterType: "# debug_show(mainerAgentCanisterType));
                                 switch (mainerAgentCanisterType) {
                                     case (#Own) {
+                                        D.print("GameState: verifyIncomingPayment - #MainerCreation Own transferDetails.amount.e8s: "# debug_show(transferDetails.amount.e8s));
+                                        D.print("GameState: verifyIncomingPayment - #MainerCreation Own PRICE_OWN_MAINER: "# debug_show(PRICE_OWN_MAINER));
                                         if (transferDetails.amount.e8s < PRICE_OWN_MAINER) {
                                             return #Err(#Other("Transaction didn't pay full price"));
                                         };                              
                                     };
                                     case (#ShareAgent) {
+                                        D.print("GameState: verifyIncomingPayment - #MainerCreation ShareAgent transferDetails.amount.e8s: "# debug_show(transferDetails.amount.e8s));
+                                        D.print("GameState: verifyIncomingPayment - #MainerCreation ShareAgent PRICE_SHARED_MAINER: "# debug_show(PRICE_SHARED_MAINER));
                                         if (transferDetails.amount.e8s < PRICE_SHARED_MAINER) {
                                             return #Err(#Other("Transaction didn't pay full price"));
                                         };                                
@@ -1592,11 +1632,14 @@ actor class GameStateCanister() = this {
                                 };                             
                             };
                             case (#MainerTopUp(_)) {
+                                D.print("GameState: verifyIncomingPayment - #MainerTopUp ");
                                 // continue as there is no fixed price                             
                             };
                             case (_) { return #Err(#Other("Unsupported")); }
                         };
+                        D.print("GameState: verifyIncomingPayment - verified: ");
                         let amountPaid = Nat64.toNat(transferDetails.amount.e8s);
+                        D.print("GameState: verifyIncomingPayment - amountPaid: "# debug_show(amountPaid));
                         return #Ok({
                             amountPaid : Nat = amountPaid;
                             verified : Bool = true;
@@ -1615,6 +1658,7 @@ actor class GameStateCanister() = this {
         };
 
         let transactionToVerify = mainerCreationInput.paymentTransactionBlockId;
+        D.print("GameState: createUserMainerAgent - transactionToVerify: "# debug_show(transactionToVerify));
 
         // Sanity checks on configuration of mAIner agent
         let mainerConfig : Types.MainerConfigurationInput = mainerCreationInput.mainerConfig;
@@ -1659,6 +1703,8 @@ actor class GameStateCanister() = this {
             };
             case (_) { return #Err(#Other("Unsupported")); }
         };
+
+        D.print("GameState: createUserMainerAgent - mainerConfig: "# debug_show(mainerConfig));
 
         // TODO - Implementation: verify that the user has an unlocked mAIner entry of the mainerAgentCanisterType type (thus is allowed to create the new mAIner)
         /* switch (getUserMainerAgents(msg.caller)) {
@@ -1720,8 +1766,10 @@ actor class GameStateCanister() = this {
                     redeemedFor : Types.RedeemedForOptions = redeemedFor;
                     amount : Nat = amountPaid; // to be updated
                 };
+                D.print("GameState: createUserMainerAgent - transactionEntryToVerify: "# debug_show(transactionEntryToVerify));
 
                 let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify);
+                D.print("GameState: createUserMainerAgent - verificationResponse: "# debug_show(verificationResponse));
                 switch (verificationResponse) {
                     case (#Ok(verificationResult)) {
                         verifiedPayment := verificationResult.verified;
@@ -1754,6 +1802,7 @@ actor class GameStateCanister() = this {
             redeemedFor : Types.RedeemedForOptions = redeemedFor;
             amount : Nat = amountPaid;
         };
+        D.print("GameState: createUserMainerAgent - canisterEntry: "# debug_show(canisterEntry));
 
         var handleResponse : Types.HandleIncomingFundsResult = #Err(#FailedOperation);
         switch (mainerConfig.mainerAgentCanisterType) {
@@ -1762,9 +1811,11 @@ actor class GameStateCanister() = this {
                 handleResponse := #Ok({cyclesForMainer : Nat = 0; cyclesForProtocol : Nat = 0});
             };
             case (_) {
+                D.print("GameState: createUserMainerAgent - mainerConfig.mainerAgentCanisterType: "# debug_show(mainerConfig.mainerAgentCanisterType));
                 handleResponse := await handleIncomingFunds(newTransactionEntry);
             };
         };
+        D.print("GameState: createUserMainerAgent - handleResponse: "# debug_show(handleResponse));
 
         switch (handleResponse) {
             case (#Err(error)) {
@@ -1773,18 +1824,22 @@ actor class GameStateCanister() = this {
             case (#Ok(handleResult)) {
                 switch (putUserMainerAgent(canisterEntry)) {
                     case (true) {
+                        D.print("GameState: createUserMainerAgent - putUserMainerAgent: true");
                         // TODO - Implementation: track redeemed transaction blocks to ensure no double spending
                         switch (putRedeemedTransactionBlock(newTransactionEntry)) {
                             case (false) {
                                 // TODO - Error Handling: likely retry
+                                D.print("GameState: createUserMainerAgent - putRedeemedTransactionBlock: false");
                             };
                             case (true) {
                                 // continue
+                                D.print("GameState: createUserMainerAgent - putRedeemedTransactionBlock: true");
                             };
                         };
                         return #Ok(canisterEntry);
                     };
                     case (false) {
+                        D.print("GameState: createUserMainerAgent - putUserMainerAgent: false");
                         // TODO - Error Handling: likely retry
                         return #Err(#FailedOperation);
                     }
