@@ -26,6 +26,9 @@ while [ $# -gt 0 ]; do
                 elif [ "$NETWORK_TYPE" = "testing" ]; then
                     CANISTER_ID_GAME_STATE_CANISTER='cc2po-yiaaa-aaaaj-az75q-cai' 
                 fi
+                elif [ "$NETWORK_TYPE" = "development" ]; then
+                    CANISTER_ID_GAME_STATE_CANISTER='ciqqv-4iaaa-aaaag-auara-cai' 
+                fi
             else
                 echo "Invalid network type: $1. Use 'local', 'development' or 'ic' or 'testing."
                 exit 1
