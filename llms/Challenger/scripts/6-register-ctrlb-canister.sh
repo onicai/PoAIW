@@ -22,7 +22,6 @@ while [ $# -gt 0 ]; do
                     CANISTER_ID_CHALLENGER_CTRLB_CANISTER="lxb3x-jyaaa-aaaaj-azzta-cai"
                 elif [ "$NETWORK_TYPE" = "testing" ]; then
                     CANISTER_ID_CHALLENGER_CTRLB_CANISTER='c66v7-piaaa-aaaaj-az77q-cai'
-                fi
                 elif [ "$NETWORK_TYPE" = "development" ]; then
                     CANISTER_ID_CHALLENGER_CTRLB_CANISTER='sx25d-4yaaa-aaaai-atiaq-cai'
                 fi

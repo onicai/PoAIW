@@ -24,8 +24,7 @@ while [ $# -gt 0 ]; do
                     CANISTER_ID_LLM_1='l6cql-7qaaa-aaaaj-azzsq-cai'  
                 elif [ "$NETWORK_TYPE" = "testing" ]; then
                     CANISTER_ID_LLM_0='cq4yx-uyaaa-aaaaj-az76q-cai'
-                    CANISTER_ID_LLM_1='cz7tl-cqaaa-aaaaj-az77a-cai' 
-                fi
+                    CANISTER_ID_LLM_1='cz7tl-cqaaa-aaaaj-az77a-cai'
                 elif [ "$NETWORK_TYPE" = "development" ]; then
                     CANISTER_ID_LLM_0='fgyjy-mqaaa-aaaak-quhxq-cai'
                     CANISTER_ID_LLM_1='4gwp4-nyaaa-aaaae-qfcqq-cai' 

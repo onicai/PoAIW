@@ -28,7 +28,6 @@ while [ $# -gt 0 ]; do
                     CANISTER_ID_GAME_STATE_CANISTER='xzpy6-hiaaa-aaaaj-az4pq-cai' 
                 elif [ "$NETWORK_TYPE" = "testing" ]; then
                     CANISTER_ID_GAME_STATE_CANISTER='cc2po-yiaaa-aaaaj-az75q-cai'
-                fi
                 elif [ "$NETWORK_TYPE" = "development" ]; then
                     CANISTER_ID_GAME_STATE_CANISTER='ciqqv-4iaaa-aaaag-auara-cai' 
                 fi
