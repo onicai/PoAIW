@@ -18,6 +18,7 @@ import { setTimer; recurringTimer } = "mo:base/Timer";
 import Timer "mo:base/Timer";
 
 import Types "../../common/Types";
+import Constants "../../common/Constants";
 import Utils "Utils";
 
 actor class ChallengerCtrlbCanister() {

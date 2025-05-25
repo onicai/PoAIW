@@ -15,6 +15,7 @@ import Error "mo:base/Error";
 
 import Types "../../common/Types";
 import ICManagementCanister "../../common/ICManagementCanister";
+import Constants "../../common/Constants";
 
 actor class CanisterCreationCanister() = this {
 
@@ -30,19 +31,6 @@ actor class CanisterCreationCanister() = this {
     };
 
     let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
-
-    // TODO: Cycles burnt per operation    
-    stable let _CYCLES_MILLION = 1_000_000;
-    stable let CYCLES_BILLION = 1_000_000_000;
-    stable let CYCLES_TRILLION = 1_000_000_000_000;
-
-
-    // TODO: Keep in sync with SUBMISSION_CYCLES_REQUIRED in mAInerCreator
-    let MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED = 5 * CYCLES_TRILLION; // TODO: Update to actual values
-    let MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED = 5 * CYCLES_TRILLION; // TODO: Update to actual values
-    // Margin for the mAInerCreator canister for creation operations
-    let MAINER_CREATOR_CTRLB_CREATION_CYCLES_MARGIN = 10 * CYCLES_BILLION;
-    let MAINER_CREATOR_LLM_CREATION_CYCLES_MARGIN = 1 * CYCLES_TRILLION;
 
     // -------------------------------------------------------------------------------
     // Canister Endpoints
@@ -350,14 +338,14 @@ actor class CanisterCreationCanister() = this {
                 };
 
                 // Accept required cycles for canister creation
-                let cyclesAcceptedForMainerAgentCtrlbCreation = Cycles.accept<system>(MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED);
-                if (cyclesAcceptedForMainerAgentCtrlbCreation != MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED) {
+                let cyclesAcceptedForMainerAgentCtrlbCreation = Cycles.accept<system>(cyclesCreateMainerGsMc);
+                if (cyclesAcceptedForMainerAgentCtrlbCreation != cyclesCreateMainerGsMc) {
                     // Sanity check: At this point, this should never fail
                     D.print("mAInerCreator: createCanister - should never fail checking cyclesAcceptedForMainerAgentCtrlbCreation");
                     return #Err(#Unauthorized);                    
                 };
 
-                let cyclesAdded = MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED - MAINER_CREATOR_CTRLB_CREATION_CYCLES_MARGIN;  // (TODO - adjust) (creation costs 1T, so canister will end up with 3T in balance)
+                let cyclesAdded = cyclesCreateMainerGsMc - CyclesFlows.MAINER_CREATOR_CTRLB_CREATION_CYCLES_MARGIN;  // (TODO - adjust) (creation costs 1T, so canister will end up with 3T in balance)
                 Cycles.add<system>(cyclesAdded);
 
                 let createdControllerCanister = await IC0.create_canister({
@@ -421,14 +409,14 @@ actor class CanisterCreationCanister() = this {
                                 // Create mAIner LLM (and add it to a mAIner controller)
 
                                 // Accept required cycles for canister creation
-                                let cyclesAcceptedForMainerAgentLlmCreation = Cycles.accept<system>(MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED);
-                                if (cyclesAcceptedForMainerAgentLlmCreation != MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED) {
+                                let cyclesAcceptedForMainerAgentLlmCreation = Cycles.accept<system>(CyclesFlows.MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED);
+                                if (cyclesAcceptedForMainerAgentLlmCreation != CyclesFlows.MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED) {
                                     // Sanity check: At this point, this should never fail
                                     D.print("mAInerCreator: createCanister - should never fail checking cyclesAcceptedForMainerAgentLlmCreation");
                                     return #Err(#Unauthorized);                    
                                 };
 
-                                let cyclesAdded = MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED - MAINER_CREATOR_LLM_CREATION_CYCLES_MARGIN;  // (TODO - adjust) (creation costs 1T, so canister will end up with 3T in balance)
+                                let cyclesAdded = CyclesFlows.MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED - CyclesFlows.MAINER_CREATOR_LLM_CREATION_CYCLES_MARGIN;  // (TODO - adjust) (creation costs 1T, so canister will end up with 3T in balance)
                                 Cycles.add<system>(cyclesAdded); // (TODO - adjust based on cycles user paid for (and are being sent from Game State)
 
                                 let createdLlmCanister = await IC0.create_canister({

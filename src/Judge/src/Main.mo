@@ -18,6 +18,7 @@ import { setTimer; recurringTimer } = "mo:base/Timer";
 import Timer "mo:base/Timer";
 
 import Types "../../common/Types";
+import Constants "../../common/Constants";
 import Utils "Utils";
 
 actor class JudgeCtrlbCanister() = this {
@@ -193,7 +194,7 @@ actor class JudgeCtrlbCanister() = this {
             challengeCreatedBy : Types.CanisterAddress = scoredResponse.challengeCreatedBy;
             challengeStatus : Types.ChallengeStatus = scoredResponse.challengeStatus;
             challengeClosedTimestamp : ?Nat64 = scoredResponse.challengeClosedTimestamp;
-            submissionCyclesRequired : Nat = scoredResponse.submissionCyclesRequired;
+            cyclesSubmitResponse : Nat = scoredResponse.cyclesSubmitResponse;
             challengeQueuedId : Text = scoredResponse.challengeQueuedId;
             challengeQueuedBy : Principal = scoredResponse.challengeQueuedBy;
             challengeQueuedTo : Principal = scoredResponse.challengeQueuedTo;
@@ -249,7 +250,7 @@ actor class JudgeCtrlbCanister() = this {
                     challengeCreatedBy : Types.CanisterAddress = submissionEntry.challengeCreatedBy;
                     challengeStatus : Types.ChallengeStatus = submissionEntry.challengeStatus;
                     challengeClosedTimestamp : ?Nat64 = submissionEntry.challengeClosedTimestamp;
-                    submissionCyclesRequired : Nat = submissionEntry.submissionCyclesRequired;
+                    cyclesSubmitResponse : Nat = submissionEntry.cyclesSubmitResponse;
                     challengeQueuedId : Text = submissionEntry.challengeQueuedId;
                     challengeQueuedBy : Principal = submissionEntry.challengeQueuedBy;
                     challengeQueuedTo : Principal = submissionEntry.challengeQueuedTo;
@@ -289,7 +290,7 @@ actor class JudgeCtrlbCanister() = this {
                             challengeCreatedBy : Types.CanisterAddress = submissionEntry.challengeCreatedBy;
                             challengeStatus : Types.ChallengeStatus = submissionEntry.challengeStatus;
                             challengeClosedTimestamp : ?Nat64 = submissionEntry.challengeClosedTimestamp;
-                            submissionCyclesRequired : Nat = submissionEntry.submissionCyclesRequired;
+                            cyclesSubmitResponse : Nat = submissionEntry.cyclesSubmitResponse;
                             challengeQueuedId : Text = submissionEntry.challengeQueuedId;
                             challengeQueuedBy : Principal = submissionEntry.challengeQueuedBy;
                             challengeQueuedTo : Principal = submissionEntry.challengeQueuedTo;

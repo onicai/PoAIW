@@ -43,6 +43,166 @@ module Types {
     public type GameStateTresholdsResult = Result<GameStateTresholds, ApiError>;
 
     //-------------------------------------------------------------------------
+    // Type for storing all cycles flow values
+    public type CyclesFlow = {
+        // mAIner creation
+        cyclesCreateMainerMarginGs : Nat;
+        cyclesCreatemMainerMarginMc : Nat;
+        cyclesCreateMainerLlmTargetBalance : Nat;
+        costCreateMainerLlm : Nat;
+
+        cyclesCreateMainerUserGs : Nat;
+        cyclesCreateMainerctrlGsMc : Nat;
+        cyclesCreateMainerllmGsMc : Nat;
+        cyclesCreateMainerMcMainerllm : Nat;
+        cyclesCreateMainerMcMainerctrl : Nat;
+
+        // Generations
+        dailyChallenges : Nat;
+        dailySubmissionsPerOwnLOW : Nat;
+        dailySubmissionsPerOwnMEDIUM : Nat;
+        dailySubmissionsPerOwnHIGH : Nat;
+        dailySubmissionsPerShareLOW : Nat;
+        dailySubmissionsPerShareMEDIUM : Nat;
+        dailySubmissionsPerShareHIGH : Nat;
+        dailySubmissionsAllOwn : Nat;
+        dailySubmissionsAllShare : Nat;
+        marginFailedSubmissionCut : Nat;
+        marginCost : Nat;
+        submissionFee : Nat;
+
+        numChallengerLlms : Nat;
+        numJudgeLlms : Nat;
+        numShareServiceLlms : Nat;
+
+        costIdleBurnRateGs : Nat;
+        costIdleBurnRateMc : Nat;
+        costIdleBurnRateChctrl : Nat;
+        costIdleBurnRateChllm : Nat;
+        costIdleBurnRateJuctrl : Nat;
+        costIdleBurnRateJullm : Nat;
+        costIdleBurnRateSsctrl : Nat;
+        costIdleBurnRateSsllm : Nat;
+
+        costIdleBurnRateSactrl : Nat;
+        costIdleBurnRateSallm : Nat;
+        costIdleBurnRateOwnctrl : Nat;
+        costIdleBurnRateOwnllm : Nat;
+
+        costGenerateChallengeGs : Nat;
+        costGenerateChallengeChctrl : Nat;
+        costGenerateChallengeChllm : Nat;
+        costGenerateScoreGs : Nat;
+        costGenerateScoreJuctrl : Nat;
+        costGenerateScoreJullm : Nat;
+        costGenerateResponseOwnGs : Nat;
+        costGenerateResponseOwnctrl : Nat;
+        costGenerateResponseOwnllm : Nat;
+        costGenerateResponseShareGs : Nat;
+        costGenerateResponseSactrl : Nat;
+        costGenerateResponseSsctrl : Nat;
+        costGenerateResponseSsllm : Nat;
+
+        cyclesGenerateChallengeGsChctrl : Nat;
+        cyclesGenerateChallengeChctrlChllm : Nat;
+        cyclesBurntChallengeGeneration : Nat;
+        cyclesGenerateScoreGsJuctrl : Nat;
+        cyclesGenerateScoreJuctrlJullm : Nat;
+        cyclesBurntJudgeScoring : Nat;
+        cyclesGenerateResponseOwnctrlGs : Nat;
+        cyclesGenerateResponseOwnctrlOwnllmLOW : Nat;
+        cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat;
+        cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat;
+        cyclesGenerateResponseSactrlSsctrl : Nat;
+        cyclesGenerateResponseSsctrlGs : Nat;
+        cyclesGenerateResponseSsctrlSsllm : Nat;
+        cyclesBurntResponseGenerationOwn : Nat;
+        cyclesBurntResponseGenerationShare : Nat;
+        cyclesSubmitResponse : Nat;
+        cyclesFailedSubmissionCut : Nat;
+    };
+    public type CyclesFlowResult = Result<CyclesFlow, ApiError>;
+
+    // Type for selectively setting cycles flow values by Admin
+    public type CyclesFlowSettings = {
+        // mAIner creation
+        cyclesCreateMainerMarginGs : ?Nat;
+        cyclesCreatemMainerMarginMc : ?Nat;
+        cyclesCreateMainerLlmTargetBalance : ?Nat;
+        costCreateMainerLlm : ?Nat;
+
+        cyclesCreateMainerUserGs : ?Nat;
+        cyclesCreateMainerctrlGsMc : ?Nat;
+        cyclesCreateMainerllmGsMc : ?Nat;
+        cyclesCreateMainerMcMainerllm : ?Nat;
+        cyclesCreateMainerMcMainerctrl : ?Nat;
+
+        // Generations
+        dailyChallenges : ?Nat;
+        dailySubmissionsPerOwnLOW : ?Nat;
+        dailySubmissionsPerOwnMEDIUM : ?Nat;
+        dailySubmissionsPerOwnHIGH : ?Nat;
+        dailySubmissionsPerShareLOW : ?Nat;
+        dailySubmissionsPerShareMEDIUM : ?Nat;
+        dailySubmissionsPerShareHIGH : ?Nat;
+        dailySubmissionsAllOwn : ?Nat;
+        dailySubmissionsAllShare : ?Nat;
+        marginFailedSubmissionCut : ?Nat;
+        marginCost : ?Nat;
+        submissionFee : ?Nat;
+
+        numChallengerLlms : ?Nat;
+        numJudgeLlms : ?Nat;
+        numShareServiceLlms : ?Nat;
+
+        costIdleBurnRateGs : ?Nat;
+        costIdleBurnRateMc : ?Nat;
+        costIdleBurnRateChctrl : ?Nat;
+        costIdleBurnRateChllm : ?Nat;
+        costIdleBurnRateJuctrl : ?Nat;
+        costIdleBurnRateJullm : ?Nat;
+        costIdleBurnRateSsctrl : ?Nat;
+        costIdleBurnRateSsllm : ?Nat;
+
+        costIdleBurnRateSactrl : ?Nat;
+        costIdleBurnRateSallm : ?Nat;
+        costIdleBurnRateOwnctrl : ?Nat;
+        costIdleBurnRateOwnllm : ?Nat;
+
+        costGenerateChallengeGs : ?Nat;
+        costGenerateChallengeChctrl : ?Nat;
+        costGenerateChallengeChllm : ?Nat;
+        costGenerateScoreGs : ?Nat;
+        costGenerateScoreJuctrl : ?Nat;
+        costGenerateScoreJullm : ?Nat;
+        costGenerateResponseOwnGs : ?Nat;
+        costGenerateResponseOwnctrl : ?Nat;
+        costGenerateResponseOwnllm : ?Nat;
+        costGenerateResponseShareGs : ?Nat;
+        costGenerateResponseSactrl : ?Nat;
+        costGenerateResponseSsctrl : ?Nat;
+        costGenerateResponseSsllm : ?Nat;
+
+        cyclesGenerateChallengeGsChctrl : ?Nat;
+        cyclesGenerateChallengeChctrlChllm : ?Nat;
+        cyclesBurntChallengeGeneration : ?Nat;
+        cyclesGenerateScoreGsJuctrl : ?Nat;
+        cyclesGenerateScoreJuctrlJullm : ?Nat;
+        cyclesBurntJudgeScoring : ?Nat;
+        cyclesGenerateResponseOwnctrlGs : ?Nat;
+        cyclesGenerateResponseOwnctrlOwnllmLOW : ?Nat;
+        cyclesGenerateResponseOwnctrlOwnllmMEDIUM : ?Nat;
+        cyclesGenerateResponseOwnctrlOwnllmHIGH : ?Nat;
+        cyclesGenerateResponseSactrlSsctrl : ?Nat;
+        cyclesGenerateResponseSsctrlGs : ?Nat;
+        cyclesGenerateResponseSsctrlSsllm : ?Nat;
+        cyclesBurntResponseGenerationOwn : ?Nat;
+        cyclesBurntResponseGenerationShare : ?Nat;
+        cyclesSubmitResponse : ?Nat;
+        cyclesFailedSubmissionCut : ?Nat;
+    };
+
+    //-------------------------------------------------------------------------
     public type ProtocolCanisterType = {
         #Challenger;
         #Judge;
@@ -195,7 +355,7 @@ module Types {
         challengeCreatedBy : CanisterAddress;
         challengeStatus : ChallengeStatus;
         challengeClosedTimestamp : ?Nat64;
-        submissionCyclesRequired : Nat;
+        cyclesSubmitResponse : Nat;
     };
 
     public type ChallengeAdditionResult = Result<Challenge, ApiError>;
