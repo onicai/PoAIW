@@ -16,6 +16,9 @@ import Order "mo:base/Order";
 import Error "mo:base/Error";
 import Blob "mo:base/Blob";
 import Hash "mo:base/Hash";
+import Nat8 "mo:base/Nat8";
+import Array "mo:base/Array";
+import Buffer "mo:base/Buffer";
 
 import Types "../../common/Types";
 import ICManagementCanister "../../common/ICManagementCanister";
@@ -1420,11 +1423,11 @@ actor class GameStateCanister() = this {
 
     // Payment memo to specify in transaction to Protocol
     stable let MEMO_PAYMENT : Nat64 = 173; // TODO - Security: double check value can be used
-    //stable let PROTOCOL_PRINCIPAL_BLOB : Blob = Principal.toBlob(Principal.fromActor(this)); // TODO - Implementation: this doesn't seem to fit the address on the ledger
-    // this is for dev stage, verify with: https://dashboard.internetcomputer.org/account/c88ef9865df034927487e4178da1f80a1648ec5a764e4959cba513c372ceb520
-    let PROTOCOL_PRINCIPAL_BLOB : Blob = "\C8\8E\F9\86\5D\F0\34\92\74\87\E4\17\8D\A1\F8\0A\16\48\EC\5A\76\4E\49\59\CB\A5\13\C3\72\CE\B5\20";
+    let PROTOCOL_PRINCIPAL_BLOB : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null); // TODO - Implementation: this doesn't seem to fit the address on the ledger
+    // e.g. this is for dev stage, verify with: https://dashboard.internetcomputer.org/account/c88ef9865df034927487e4178da1f80a1648ec5a764e4959cba513c372ceb520
+    //let PROTOCOL_PRINCIPAL_BLOB : Blob = "\C8\8E\F9\86\5D\F0\34\92\74\87\E4\17\8D\A1\F8\0A\16\48\EC\5A\76\4E\49\59\CB\A5\13\C3\72\CE\B5\20";
 
-    stable let PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * CYCLES_TRILLION;
+    let PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * CYCLES_TRILLION;
 
     // Price to create a mAIner TODO - Implementation: finalize prices
     stable var PRICE_OWN_MAINER : Nat64 = 0; //12;
@@ -1490,9 +1493,25 @@ actor class GameStateCanister() = this {
         D.print("GameState: handleIncomingFunds - amountToConvert: "# debug_show(amountToConvert));
         // TODO - Implementation: Otherwise: convert amountToConvert to cycles via Cycles Minting Canister (mint cycles to itself)
         // Send ICP to Cycles Minting Canister
+        // Construct subaccount for the canister
+        func principalToSubaccount(principal : Principal) : Blob {
+            let sub = Buffer.Buffer<Nat8>(32);
+            let subaccount_blob = Principal.toBlob(principal);
+
+            sub.add(Nat8.fromNat(subaccount_blob.size()));
+            sub.append(Buffer.fromArray<Nat8>(Blob.toArray(subaccount_blob)));
+            while (sub.size() < 32) {
+                sub.add(0);
+            };
+
+            Blob.fromArray(Buffer.toArray(sub));
+        };
+        //let subaccount : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null);
+        let subaccount : Blob = principalToSubaccount(Principal.fromActor(this));
+        D.print("GameState: handleIncomingFunds - subaccount: "# debug_show(subaccount));
         let cmcAccount : TokenLedger.Account = {
             owner : Principal = Principal.fromActor(CMC_ACTOR);
-            subaccount : ?Blob = null;
+            subaccount : ?Blob = ?subaccount; // needs to match canister to credit cycles to in notify_top_up call, thus this canister
         };
         let notifyTopUpMemo : ?Blob = ?"\54\50\55\50\00\00\00\00"; // TODO - Implementation: double check
         let transferArg : TokenLedger.TransferArg = {
@@ -1529,6 +1548,7 @@ actor class GameStateCanister() = this {
                             };
                             case (#MainerCreation(#ShareAgent)) {
                                 cyclesForMainer := MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED;
+                                cyclesForMainer := 0; // TODO - Testing: remove this line
                             };
                             case (#MainerTopUp(mainerCanisterAddress)) {
                                 cyclesForProtocol := cyclesReceived * Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT / 100;
@@ -1605,6 +1625,7 @@ actor class GameStateCanister() = this {
                         D.print("GameState: verifyIncomingPayment - #Transfer transferDetails: "# debug_show(transferDetails));
                         D.print("GameState: verifyIncomingPayment - transferDetails.to: "# debug_show(transferDetails.to));
                         D.print("GameState: verifyIncomingPayment - PROTOCOL_PRINCIPAL_BLOB: "# debug_show(PROTOCOL_PRINCIPAL_BLOB));
+                        D.print("GameState: verifyIncomingPayment - toLedgerAccount: "# debug_show(Principal.toLedgerAccount(Principal.fromActor(this), null)));
                         if (Blob.notEqual(transferDetails.to, PROTOCOL_PRINCIPAL_BLOB)) {
                             return #Err(#Other("Transaction didn't go to Protocol's address")); 
                         };
@@ -2015,8 +2036,11 @@ actor class GameStateCanister() = this {
                                 D.print("GameState: spinUpMainerControllerCanister - cycles added   to mAInerCreator (" # debug_show(mainerCreatorEntry.address) #  ")                              = " # debug_show(cyclesAdded) );
                                 D.print("GameState: spinUpMainerControllerCanister - cycles used    by mAInerCreator (" # debug_show(mainerCreatorEntry.address) #  ")                              = " # debug_show(cyclesUsed) );
 
+                                D.print("GameState: spinUpMainerControllerCanister - createCanister result: "# debug_show(result));
+
                                 switch (result) {
                                     case (#Ok(canisterCreationRecord)) {
+                                        D.print("GameState: spinUpMainerControllerCanister - createCanister canisterCreationRecord: "# debug_show(canisterCreationRecord));
                                         // Setup the controller canister (install code & configurations)
                                         ignore creatorCanisterActor.setupCanister(canisterCreationRecord.newCanisterId, canisterCreationInput);
 
@@ -2633,11 +2657,14 @@ actor class GameStateCanister() = this {
                             amount : Nat = amountPaid;
                         };
                         let handleResponse : Types.HandleIncomingFundsResult = await handleIncomingFunds(newTransactionEntry);
+                        D.print("GameState: topUpCyclesForMainerAgent - handleResponse: " # debug_show(handleResponse));
                         switch (handleResponse) {
                             case (#Err(error)) {
+                                D.print("GameState: topUpCyclesForMainerAgent - handleResponse FailedOperation: " # debug_show(error));
                                 return #Err(#FailedOperation);
                             };
                             case (#Ok(handleResult)) {
+                                D.print("GameState: topUpCyclesForMainerAgent - handleResult: " # debug_show(handleResult));
                                 // TODO - Implementation: credit mAIner agent with cycles (the user paid for)
                                 try {
                                     let Mainer_Actor : Types.MainerAgentCtrlbCanister = actor (userMainerEntry.address);
@@ -2645,11 +2672,14 @@ actor class GameStateCanister() = this {
                                     Cycles.add<system>(handleResult.cyclesForMainer);
                                     // TODO - Implementation: Add these cycles via dedicated function on mAIner
                                     let addCyclesResponse = await Mainer_Actor.addCycles();
+                                    D.print("GameState: topUpCyclesForMainerAgent - addCyclesResponse: " # debug_show(addCyclesResponse));
                                     switch (addCyclesResponse) {
                                         case (#Err(error)) {
+                                            D.print("GameState: topUpCyclesForMainerAgent - addCyclesResponse FailedOperation: " # debug_show(error));
                                             return #Err(#FailedOperation);
                                         };
                                         case (#Ok(addCyclesResult)) {
+                                            D.print("GameState: topUpCyclesForMainerAgent - addCyclesResult: " # debug_show(addCyclesResult));
                                             //TODO - Design: decide whether a top up history should be kept
                                             // TODO - Implementation: track redeemed transaction blocks to ensure no double spending
                                             switch (putRedeemedTransactionBlock(newTransactionEntry)) {
