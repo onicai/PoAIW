@@ -170,9 +170,16 @@ type ChallengeResponseSubmissionInput =
    challengeTopicCreationTimestamp: nat64;
    challengeTopicId: text;
    challengeTopicStatus: ChallengeTopicStatus;
+   cyclesGenerateResponseOwnctrlGs: nat;
+   cyclesGenerateResponseOwnctrlOwnllmHIGH: nat;
+   cyclesGenerateResponseOwnctrlOwnllmLOW: nat;
+   cyclesGenerateResponseOwnctrlOwnllmMEDIUM: nat;
+   cyclesGenerateResponseSactrlSsctrl: nat;
+   cyclesGenerateResponseSsctrlGs: nat;
+   cyclesGenerateResponseSsctrlSsllm: nat;
+   cyclesSubmitResponse: nat;
    judgePromptId: text;
    mainerPromptId: text;
-   submissionCyclesRequired: nat;
    submittedBy: principal;
  };
 type ChallengeResponseSubmission = 
@@ -194,9 +201,16 @@ type ChallengeResponseSubmission =
    challengeTopicCreationTimestamp: nat64;
    challengeTopicId: text;
    challengeTopicStatus: ChallengeTopicStatus;
+   cyclesGenerateResponseOwnctrlGs: nat;
+   cyclesGenerateResponseOwnctrlOwnllmHIGH: nat;
+   cyclesGenerateResponseOwnctrlOwnllmLOW: nat;
+   cyclesGenerateResponseOwnctrlOwnllmMEDIUM: nat;
+   cyclesGenerateResponseSactrlSsctrl: nat;
+   cyclesGenerateResponseSsctrlGs: nat;
+   cyclesGenerateResponseSsctrlSsllm: nat;
+   cyclesSubmitResponse: nat;
    judgePromptId: text;
    mainerPromptId: text;
-   submissionCyclesRequired: nat;
    submissionId: text;
    submissionStatus: ChallengeResponseSubmissionStatus;
    submittedBy: principal;
@@ -229,9 +243,16 @@ type ChallengeQueueInput =
    challengeTopicCreationTimestamp: nat64;
    challengeTopicId: text;
    challengeTopicStatus: ChallengeTopicStatus;
+   cyclesGenerateResponseOwnctrlGs: nat;
+   cyclesGenerateResponseOwnctrlOwnllmHIGH: nat;
+   cyclesGenerateResponseOwnctrlOwnllmLOW: nat;
+   cyclesGenerateResponseOwnctrlOwnllmMEDIUM: nat;
+   cyclesGenerateResponseSactrlSsctrl: nat;
+   cyclesGenerateResponseSsctrlGs: nat;
+   cyclesGenerateResponseSsctrlSsllm: nat;
+   cyclesSubmitResponse: nat;
    judgePromptId: text;
    mainerPromptId: text;
-   submissionCyclesRequired: nat;
  };
 type CanisterStatus = 
  variant {

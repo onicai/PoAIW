@@ -227,16 +227,20 @@ actor class MainerAgentCtrlbCanister() = this {
     stable var PAUSED_DUE_TO_LOW_CYCLE_BALANCE : Bool = false;
 
     // Internal functions to check if the canister has enough cycles
-    private func sufficientCyclesToProcessChallenge(cyclesSubmitResponse : Nat) : Bool {
+    private func sufficientCyclesToProcessChallenge(challenge : Types.Challenge) : Bool {
         // The ShareService canister does not Queue or Submit
         if (MAINER_AGENT_CANISTER_TYPE == #ShareService) {
             return true;
         };
 
         let availableCycles = Cycles.balance();
-        var requiredCycles = cyclesSubmitResponse + CYCLE_BALANCE_MINIMUM;
+        var requiredCycles = challenge.cyclesSubmitResponse + CYCLE_BALANCE_MINIMUM;
         if (MAINER_AGENT_CANISTER_TYPE == #ShareAgent) {
-            requiredCycles := requiredCycles + cyclesGenerateResponseSactrlSsctrl;
+            requiredCycles := requiredCycles + challenge.cyclesGenerateResponseSactrlSsctrl;
+        };
+        if (MAINER_AGENT_CANISTER_TYPE == #Own) {
+            // TODO: do calculation based on actual setting for LOW, MEDIUM, HIGH
+            requiredCycles := requiredCycles + challenge.cyclesGenerateResponseOwnctrlGs + challenge.cyclesGenerateResponseOwnctrlOwnllmHIGH;
         };
         if (availableCycles < requiredCycles) {
             D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): CYCLE BALANCE TOO LOW TO PROCESS CHALLENGE:");
@@ -627,6 +631,13 @@ actor class MainerAgentCtrlbCanister() = this {
                     challengeStatus : Types.ChallengeStatus = challengeQueueInput.challengeStatus;
                     challengeClosedTimestamp : ?Nat64 = challengeQueueInput.challengeClosedTimestamp;
                     cyclesSubmitResponse : Nat = challengeQueueInput.cyclesSubmitResponse;
+                    cyclesGenerateResponseSactrlSsctrl : Nat = challengeQueueInput.cyclesGenerateResponseSactrlSsctrl;
+                    cyclesGenerateResponseSsctrlGs : Nat = challengeQueueInput.cyclesGenerateResponseSsctrlGs;
+                    cyclesGenerateResponseSsctrlSsllm : Nat = challengeQueueInput.cyclesGenerateResponseSsctrlSsllm;
+                    cyclesGenerateResponseOwnctrlGs : Nat = challengeQueueInput.cyclesGenerateResponseOwnctrlGs;
+                    cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = challengeQueueInput.cyclesGenerateResponseOwnctrlOwnllmLOW;
+                    cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = challengeQueueInput.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+                    cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = challengeQueueInput.cyclesGenerateResponseOwnctrlOwnllmHIGH;
                     challengeQueuedId : Text = challengeQueueInput.challengeQueuedId;
                     challengeQueuedBy : Principal = challengeQueueInput.challengeQueuedBy;
                     challengeQueuedTo : Principal = challengeQueueInput.challengeQueuedTo;
@@ -746,6 +757,13 @@ actor class MainerAgentCtrlbCanister() = this {
                             challengeStatus : Types.ChallengeStatus = challengeResponseSubmissionInput.challengeStatus;
                             challengeClosedTimestamp : ?Nat64 = challengeResponseSubmissionInput.challengeClosedTimestamp;
                             cyclesSubmitResponse : Nat = challengeResponseSubmissionInput.cyclesSubmitResponse;
+                            cyclesGenerateResponseSactrlSsctrl : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSactrlSsctrl;
+                            cyclesGenerateResponseSsctrlGs : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSsctrlGs;
+                            cyclesGenerateResponseSsctrlSsllm : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSsctrlSsllm;
+                            cyclesGenerateResponseOwnctrlGs : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlGs;
+                            cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmLOW;
+                            cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+                            cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmHIGH;
                             challengeQueuedId : Text = challengeResponseSubmissionInput.challengeQueuedId;
                             challengeQueuedBy : Principal = challengeResponseSubmissionInput.challengeQueuedBy;
                             challengeQueuedTo : Principal = challengeResponseSubmissionInput.challengeQueuedTo;
@@ -1279,18 +1297,6 @@ actor class MainerAgentCtrlbCanister() = this {
             return;
         };
 
-        // // -----------------------------------------------------
-        // // Before doing anything, check if the canister has enough cycles
-        // if (not sufficientCyclesToProcessChallenge(cyclesSubmitResponse)) {
-        //     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - PAUSING RESPONSE GENERATION DUE TO LOW CYCLE BALANCE");
-        //     PAUSED_DUE_TO_LOW_CYCLE_BALANCE := true;
-        //     return;
-        // };
-        
-        // // -----------------------------------------------------
-        // // Ok,the canister has enough cycles
-        // PAUSED_DUE_TO_LOW_CYCLE_BALANCE := false;
-
         // -----------------------------------------------------
         // Check if the queue already has enough challenges
         if (List.size(challengeQueue) >= MAX_CHALLENGES_IN_QUEUE) {
@@ -1311,7 +1317,7 @@ actor class MainerAgentCtrlbCanister() = this {
             case (#Ok(challenge : Types.Challenge)) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - challenge = " # debug_show (challenge));
 
-                if (not sufficientCyclesToProcessChallenge(challenge.cyclesSubmitResponse)) {
+                if (not sufficientCyclesToProcessChallenge(challenge)) {
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - PAUSING RESPONSE GENERATION DUE TO LOW CYCLE BALANCE");
                     PAUSED_DUE_TO_LOW_CYCLE_BALANCE := true;
                     return;
@@ -1339,6 +1345,13 @@ actor class MainerAgentCtrlbCanister() = this {
                     challengeStatus : Types.ChallengeStatus = challenge.challengeStatus;
                     challengeClosedTimestamp : ?Nat64 = challenge.challengeClosedTimestamp;
                     cyclesSubmitResponse : Nat = challenge.cyclesSubmitResponse;
+                    cyclesGenerateResponseSactrlSsctrl : Nat = challenge.cyclesGenerateResponseSactrlSsctrl;
+                    cyclesGenerateResponseSsctrlGs : Nat = challenge.cyclesGenerateResponseSsctrlGs;
+                    cyclesGenerateResponseSsctrlSsllm : Nat = challenge.cyclesGenerateResponseSsctrlSsllm;
+                    cyclesGenerateResponseOwnctrlGs : Nat = challenge.cyclesGenerateResponseOwnctrlGs;
+                    cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = challenge.cyclesGenerateResponseOwnctrlOwnllmLOW;
+                    cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = challenge.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+                    cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = challenge.cyclesGenerateResponseOwnctrlOwnllmHIGH;
                     challengeQueuedId : Text = challengeQueuedId;
                     challengeQueuedBy : Principal = challengeQueuedBy;
                     challengeQueuedTo : Principal = challengeQueuedTo;
@@ -1348,7 +1361,8 @@ actor class MainerAgentCtrlbCanister() = this {
                 // A ShareAgent canister first sends the challenge to the Shared mAIner Service to be put in that canisters queue
                 if (MAINER_AGENT_CANISTER_TYPE == #ShareAgent) {
                     // Add the cycles required for the ShareService queue (We already checked there is enough)
-                    Cycles.add<system>(cyclesGenerateResponseSactrlSsctrl);
+                    Cycles.add<system>(challenge.cyclesGenerateResponseSactrlSsctrl);
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - Cycles sent to ShareService Controller = " # Nat.toText(challenge.cyclesGenerateResponseSactrlSsctrl));
 
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - calling addChallengeToShareServiceQueue of shareServiceCanisterActor = " # Principal.toText(Principal.fromActor(shareServiceCanisterActor)));
                     let challegeQueueInputResult = await shareServiceCanisterActor.addChallengeToShareServiceQueue(challengeQueueInput);
@@ -1393,10 +1407,8 @@ actor class MainerAgentCtrlbCanister() = this {
                 };
 
                 // Accept required cycles for queue input
-                let cyclesAcceptedForShareServiceQueue = Cycles.accept<system>(cyclesGenerateResponseSactrlSsctrl);
-                if (cyclesAcceptedForShareServiceQueue != cyclesGenerateResponseSactrlSsctrl) {
-                    return #Err(#Unauthorized);                    
-                };
+                let cyclesAcceptedForShareServiceQueue = Cycles.accept<system>(challengeQueueInput.cyclesGenerateResponseSactrlSsctrl);
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): addChallengeToShareServiceQueue - cyclesAcceptedForShareServiceQueue = " # Nat.toText(cyclesAcceptedForShareServiceQueue));
 
                 // Store it in the queue
                 let _pushResult_ = pushChallengeQueue(challengeQueueInput);
@@ -1414,18 +1426,6 @@ actor class MainerAgentCtrlbCanister() = this {
             return;
         };
 
-        // -----------------------------------------------------
-        // Before doing anything, check if the canister has enough cycles
-        if (not sufficientCyclesToProcessChallenge(cyclesSubmitResponse)) {
-            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge - PAUSING RESPONSE GENERATION DUE TO LOW CYCLE BALANCE");
-            PAUSED_DUE_TO_LOW_CYCLE_BALANCE := true;
-            return;
-        };
-
-        // -----------------------------------------------------
-        // Ok,the canister has enough cycles
-        PAUSED_DUE_TO_LOW_CYCLE_BALANCE := false;
-
         // Process the next challenge in the challengeQueue
         switch (popChallengeQueue()) {
             case (null) {
@@ -1436,7 +1436,7 @@ actor class MainerAgentCtrlbCanister() = this {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge - challengeQueueInput" # debug_show (challengeQueueInput));
 
                 // Check if the canister has enough cycles for this particular Challenge
-                if (not sufficientCyclesToProcessChallenge(challengeQueueInput.cyclesSubmitResponse)) {
+                if (not sufficientCyclesToProcessChallenge(challengeQueueInput)) {
                     // Note: do not set pause flag
                     return;
                 };

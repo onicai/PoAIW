@@ -43,14 +43,29 @@ module Types {
     public type GameStateTresholdsResult = Result<GameStateTresholds, ApiError>;
 
     //-------------------------------------------------------------------------
-    // Type for storing all cycles flow values
+    // Types for storing all cycles flow values
+
+    // variables sent by GameState to mAIner Creator
     public type CyclesCreateMainer = {
         cyclesCreateMainerctrlGsMc : Nat;
         cyclesCreateMainerllmGsMc : Nat;
         cyclesCreateMainerctrlMcMainerctrl : Nat;
         cyclesCreateMainerllmMcMainerllm   : Nat;
     };
-    public type CyclesFlow = {
+
+    // variables sent by GameState to mAIner Agent
+    public type CyclesGenerateResponse = {
+        cyclesSubmitResponse : Nat;
+        cyclesGenerateResponseSactrlSsctrl : Nat;
+        cyclesGenerateResponseSsctrlGs : Nat;
+        cyclesGenerateResponseSsctrlSsllm : Nat;
+        cyclesGenerateResponseOwnctrlGs : Nat;
+        cyclesGenerateResponseOwnctrlOwnllmLOW : Nat;
+        cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat;
+        cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat;
+    };
+
+    public type CyclesFlow = CyclesGenerateResponse and {
         // mAIner creation
         cyclesCreateMainerMarginGs : Nat;
         cyclesCreatemMainerMarginMc : Nat;
@@ -95,10 +110,10 @@ module Types {
         costGenerateScoreGs : Nat;
         costGenerateScoreJuctrl : Nat;
         costGenerateScoreJullm : Nat;
+        costGenerateResponseShareGs : Nat;
         costGenerateResponseOwnGs : Nat;
         costGenerateResponseOwnctrl : Nat;
         costGenerateResponseOwnllm : Nat;
-        costGenerateResponseShareGs : Nat;
         costGenerateResponseSactrl : Nat;
         costGenerateResponseSsctrl : Nat;
         costGenerateResponseSsllm : Nat;
@@ -109,16 +124,8 @@ module Types {
         cyclesGenerateScoreGsJuctrl : Nat;
         cyclesGenerateScoreJuctrlJullm : Nat;
         cyclesBurntJudgeScoring : Nat;
-        cyclesGenerateResponseOwnctrlGs : Nat;
-        cyclesGenerateResponseOwnctrlOwnllmLOW : Nat;
-        cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat;
-        cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat;
-        cyclesGenerateResponseSactrlSsctrl : Nat;
-        cyclesGenerateResponseSsctrlGs : Nat;
-        cyclesGenerateResponseSsctrlSsllm : Nat;
         cyclesBurntResponseGenerationOwn : Nat;
         cyclesBurntResponseGenerationShare : Nat;
-        cyclesSubmitResponse : Nat;
         cyclesFailedSubmissionCut : Nat;
     };
     public type CyclesFlowResult = Result<CyclesFlow, ApiError>;
@@ -357,8 +364,7 @@ module Types {
         challengeCreatedBy : CanisterAddress;
         challengeStatus : ChallengeStatus;
         challengeClosedTimestamp : ?Nat64;
-        cyclesSubmitResponse : Nat;
-    };
+    } and CyclesGenerateResponse;
 
     public type ChallengeAdditionResult = Result<Challenge, ApiError>;
 
