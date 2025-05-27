@@ -19,10 +19,10 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --network)
             shift
-            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ]; then
+            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ]; then
                 NETWORK_TYPE=$1
             else
-                echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing'."
+                echo "Invalid network type: $1. Use 'local', 'development' or 'ic' or 'testing'."
                 exit 1
             fi
             shift
@@ -53,7 +53,7 @@ echo " "
 echo "--------------------------------------------------"
 echo "Deploying the challenger_ctrlb_canister"
 
-if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ]; then
+if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ]; then
     if [ "$SUBNET" = "none" ]; then
         dfx deploy challenger_ctrlb_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
     else

@@ -23,7 +23,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --network)
             shift
-            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ]; then
+            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ]  || [ "$1" = "development" ]; then
                 NETWORK_TYPE=$1
                 if [ "$NETWORK_TYPE" = "ic" ]; then
                     CANISTER_ID_CHALLENGER_CTRLB_CANISTER='lxb3x-jyaaa-aaaaj-azzta-cai'
@@ -37,9 +37,15 @@ while [ $# -gt 0 ]; do
                     CANISTER_ID_MAINER_CTRLB_CANISTER_0='TODO: testing CANISTER_ID_MAINER_CTRLB_CANISTER_0'
                     CANISTER_ID_MAINER_CTRLB_CANISTER_1='TODO: testing CANISTER_ID_MAINER_CTRLB_CANISTER_1'
                     CANISTER_ID_MAINER_CTRLB_CANISTER_2='TODO: testing CANISTER_ID_MAINER_CTRLB_CANISTER_2'
+                elif [ "$NETWORK_TYPE" = "development" ]; then   
+                    CANISTER_ID_CHALLENGER_CTRLB_CANISTER='sx25d-4yaaa-aaaai-atiaq-cai'
+                    CANISTER_ID_JUDGE_CTRLB_CANISTER='tjr6j-qaaaa-aaaaj-qnpaa-cai'
+                    CANISTER_ID_MAINER_CTRLB_CANISTER_0='TODO: testing CANISTER_ID_MAINER_CTRLB_CANISTER_0'
+                    CANISTER_ID_MAINER_CTRLB_CANISTER_1='TODO: testing CANISTER_ID_MAINER_CTRLB_CANISTER_1'
+                    CANISTER_ID_MAINER_CTRLB_CANISTER_2='TODO: testing CANISTER_ID_MAINER_CTRLB_CANISTER_2'
                 fi
             else
-                echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing'."
+                echo "Invalid network type: $1. Use 'local', 'development' or 'ic' or 'testing'."
                 exit 1
             fi
             shift
