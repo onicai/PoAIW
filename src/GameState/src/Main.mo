@@ -1424,6 +1424,20 @@ actor class GameStateCanister() = this {
     // Payment memo to specify in transaction to Protocol
     stable let MEMO_PAYMENT : Nat64 = 173; // TODO - Security: double check value can be used
     let PROTOCOL_PRINCIPAL_BLOB : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null); // TODO - Implementation: this doesn't seem to fit the address on the ledger
+    // Construct subaccount for the canister principal
+    func principalToSubaccount(principal : Principal) : Blob {
+        let sub = Buffer.Buffer<Nat8>(32);
+        let subaccount_blob = Principal.toBlob(principal);
+
+        sub.add(Nat8.fromNat(subaccount_blob.size()));
+        sub.append(Buffer.fromArray<Nat8>(Blob.toArray(subaccount_blob)));
+        while (sub.size() < 32) {
+            sub.add(0);
+        };
+
+        Blob.fromArray(Buffer.toArray(sub));
+    };
+    let PROTOCOL_SUBACCOUNT : Blob = principalToSubaccount(Principal.fromActor(this));
     // e.g. this is for dev stage, verify with: https://dashboard.internetcomputer.org/account/c88ef9865df034927487e4178da1f80a1648ec5a764e4959cba513c372ceb520
     //let PROTOCOL_PRINCIPAL_BLOB : Blob = "\C8\8E\F9\86\5D\F0\34\92\74\87\E4\17\8D\A1\F8\0A\16\48\EC\5A\76\4E\49\59\CB\A5\13\C3\72\CE\B5\20";
 
@@ -1493,25 +1507,10 @@ actor class GameStateCanister() = this {
         D.print("GameState: handleIncomingFunds - amountToConvert: "# debug_show(amountToConvert));
         // TODO - Implementation: Otherwise: convert amountToConvert to cycles via Cycles Minting Canister (mint cycles to itself)
         // Send ICP to Cycles Minting Canister
-        // Construct subaccount for the canister
-        func principalToSubaccount(principal : Principal) : Blob {
-            let sub = Buffer.Buffer<Nat8>(32);
-            let subaccount_blob = Principal.toBlob(principal);
-
-            sub.add(Nat8.fromNat(subaccount_blob.size()));
-            sub.append(Buffer.fromArray<Nat8>(Blob.toArray(subaccount_blob)));
-            while (sub.size() < 32) {
-                sub.add(0);
-            };
-
-            Blob.fromArray(Buffer.toArray(sub));
-        };
-        //let subaccount : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null);
-        let subaccount : Blob = principalToSubaccount(Principal.fromActor(this));
-        D.print("GameState: handleIncomingFunds - subaccount: "# debug_show(subaccount));
+        D.print("GameState: handleIncomingFunds - subaccount: "# debug_show(PROTOCOL_SUBACCOUNT));
         let cmcAccount : TokenLedger.Account = {
             owner : Principal = Principal.fromActor(CMC_ACTOR);
-            subaccount : ?Blob = ?subaccount; // needs to match canister to credit cycles to in notify_top_up call, thus this canister
+            subaccount : ?Blob = ?PROTOCOL_SUBACCOUNT; // needs to match canister to credit cycles to in notify_top_up call, thus this canister
         };
         let notifyTopUpMemo : ?Blob = ?"\54\50\55\50\00\00\00\00"; // TODO - Implementation: double check
         let transferArg : TokenLedger.TransferArg = {
