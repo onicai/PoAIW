@@ -44,18 +44,18 @@ module Types {
 
     //-------------------------------------------------------------------------
     // Type for storing all cycles flow values
+    public type CyclesCreateMainer = {
+        cyclesCreateMainerctrlGsMc : Nat;
+        cyclesCreateMainerllmGsMc : Nat;
+        cyclesCreateMainerctrlMcMainerctrl : Nat;
+        cyclesCreateMainerllmMcMainerllm   : Nat;
+    };
     public type CyclesFlow = {
         // mAIner creation
         cyclesCreateMainerMarginGs : Nat;
         cyclesCreatemMainerMarginMc : Nat;
         cyclesCreateMainerLlmTargetBalance : Nat;
         costCreateMainerLlm : Nat;
-
-        cyclesCreateMainerUserGs : Nat;
-        cyclesCreateMainerctrlGsMc : Nat;
-        cyclesCreateMainerllmGsMc : Nat;
-        cyclesCreateMainerMcMainerllm : Nat;
-        cyclesCreateMainerMcMainerctrl : Nat;
 
         // Generations
         dailyChallenges : Nat;
@@ -298,11 +298,13 @@ module Types {
         mainerConfig : MainerConfigurationInput;
     };
 
-    public type CanisterCreationConfiguration = CanisterCreationConfigurationInput and {
+    public type CanisterCreationConfiguration = CanisterCreationConfigurationInput and 
+    {
         owner: Principal;
         userMainerEntryCreationTimestamp : Nat64; // References Controller - for deduplication by putUserMainerAgent
         userMainerEntryCanisterType : ProtocolCanisterType; // References Controller
-    };
+    } and 
+    CyclesCreateMainer;
 
     public type CanisterCreationRecord = {
         creationResult : Text;

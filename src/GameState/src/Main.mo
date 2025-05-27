@@ -279,17 +279,16 @@ actor class GameStateCanister() = this {
     stable var costCreateMainerLlm                : Nat  = DEFAULT_COST_CREATE_MAINER_LLM;
 
     // Calculate the cycles that will be sent to the mAIner Creator
-    stable var cyclesCreateMainerUserGs           : Nat  = 0;
-    stable var cyclesCreateMainerctrlGsMc         : Nat  = 0; // Cycles that will be sent to the mAIner Creator canister for the ctrl
-    stable var cyclesCreateMainerllmGsMc          : Nat  = 0; // Cycles that will be sent to the mAIner Creator canister for the llm
-    stable var cyclesCreateMainerctrlMcMainerctrl : Nat  = 0; // Cycles that will be sent to the mAIner Controller canister
-    stable var cyclesCreateMainerllmMcMainerllm   : Nat  = 0; // Cycles that will be sent to the mAIner LLM canister
-    private func setCyclesCreateMainer(cyclesFromUser : Nat, mainerType : Types.MainerAgentCanisterType) {
-        // Call this at start of every mAIner creation
+    
+    private func setCyclesCreateMainer(cyclesFromUser : Nat, mainerAgentCanisterType : Types.MainerAgentCanisterType) : Types.CyclesCreateMainer {
+        // Call this at start of every mAIner canister creation
 
-        cyclesCreateMainerUserGs       := cyclesFromUser ;
+        var cyclesCreateMainerctrlGsMc         : Nat  = 0; // Cycles that will be sent to the mAIner Creator canister for the ctrl
+        var cyclesCreateMainerllmGsMc          : Nat  = 0; // Cycles that will be sent to the mAIner Creator canister for the llm
+        var cyclesCreateMainerctrlMcMainerctrl : Nat  = 0; // Cycles that will be sent to the mAIner Controller canister
+        var cyclesCreateMainerllmMcMainerllm   : Nat  = 0; // Cycles that will be sent to the mAIner LLM canister
         
-        switch (mainerType) {
+        switch (mainerAgentCanisterType) {
             case (#ShareAgent) {
                 cyclesCreateMainerllmMcMainerllm := 0;
                 cyclesCreateMainerllmGsMc        := 0;
@@ -299,10 +298,10 @@ actor class GameStateCanister() = this {
                 cyclesCreateMainerllmGsMc         := cyclesCreateMainerllmMcMainerllm + cyclesCreatemMainerMarginMc;
             };
         };
-        cyclesCreateMainerctrlGsMc     := cyclesCreateMainerUserGs - cyclesCreateMainerllmGsMc - cyclesCreateMainerMarginGs;         
+        cyclesCreateMainerctrlGsMc     := cyclesFromUser - cyclesCreateMainerllmGsMc - cyclesCreateMainerMarginGs;         
         cyclesCreateMainerctrlMcMainerctrl := cyclesCreateMainerctrlGsMc - cyclesCreatemMainerMarginMc;
 
-        D.print("GameState: setCyclesCreateMainer - cyclesCreateMainerUserGs           : " # debug_show(cyclesCreateMainerUserGs));
+        D.print("GameState: setCyclesCreateMainer - cyclesFromUser                     : " # debug_show(cyclesFromUser));
         D.print("GameState: setCyclesCreateMainer - cyclesCreateMainerMarginGs         : " # debug_show(cyclesCreateMainerMarginGs));
         D.print("GameState: setCyclesCreateMainer - cyclesCreatemMainerMarginMc        : " # debug_show(cyclesCreatemMainerMarginMc));
         D.print("GameState: setCyclesCreateMainer - cyclesCreateMainerLlmTargetBalance : " # debug_show(cyclesCreateMainerLlmTargetBalance));
@@ -311,6 +310,14 @@ actor class GameStateCanister() = this {
         D.print("GameState: setCyclesCreateMainer - cyclesCreateMainerllmGsMc          : " # debug_show(cyclesCreateMainerllmGsMc));
         D.print("GameState: setCyclesCreateMainer - cyclesCreateMainerctrlMcMainerctrl : " # debug_show(cyclesCreateMainerctrlMcMainerctrl));
         D.print("GameState: setCyclesCreateMainer - cyclesCreateMainerllmMcMainerllm   : " # debug_show(cyclesCreateMainerllmMcMainerllm));
+        
+        let cyclesCreateMainer : Types.CyclesCreateMainer = {
+            cyclesCreateMainerctrlGsMc = cyclesCreateMainerctrlGsMc;
+            cyclesCreateMainerllmGsMc  = cyclesCreateMainerllmGsMc;
+            cyclesCreateMainerctrlMcMainerctrl = cyclesCreateMainerctrlMcMainerctrl;
+            cyclesCreateMainerllmMcMainerllm   = cyclesCreateMainerllmMcMainerllm;
+        };
+        return cyclesCreateMainer;
     };
 
     // Protocol parameters used in the Generation Cycles Flow calculations
@@ -619,12 +626,6 @@ actor class GameStateCanister() = this {
             cyclesCreatemMainerMarginMc = cyclesCreatemMainerMarginMc;
             cyclesCreateMainerLlmTargetBalance = cyclesCreateMainerLlmTargetBalance;
             costCreateMainerLlm = costCreateMainerLlm;
-
-            cyclesCreateMainerUserGs = cyclesCreateMainerUserGs;
-            cyclesCreateMainerctrlGsMc = cyclesCreateMainerctrlGsMc;
-            cyclesCreateMainerllmGsMc = cyclesCreateMainerllmGsMc;
-            cyclesCreateMainerMcMainerllm = cyclesCreateMainerllmMcMainerllm;
-            cyclesCreateMainerMcMainerctrl = cyclesCreateMainerctrlMcMainerctrl;
 
             // Generations
             dailyChallenges = dailyChallenges;
@@ -2491,14 +2492,18 @@ actor class GameStateCanister() = this {
                                 let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
 
                                 var associatedCanisterAddress : ?Types.CanisterAddress = null;
+                                var mainerAgentCanisterType : Types.MainerAgentCanisterType = #ShareAgent;
                                 switch (userMainerEntry.canisterType) {
                                     case (#MainerAgent(#Own)) {
                                         // continue
+                                        mainerAgentCanisterType := #Own;
                                     };
                                     case (#MainerAgent(#ShareService)) {
                                         // continue
+                                        mainerAgentCanisterType := #ShareService;
                                     };
                                     case (#MainerAgent(#ShareAgent)) {
+                                        mainerAgentCanisterType := #ShareAgent;
                                         // if of type ShareAgent, the shareServiceCanisterAddress is provided from the Game State info and added here as associatedCanisterAddress
                                         switch (getNextSharedServiceCanisterEntry()) {
                                             case (null) {
@@ -2513,6 +2518,9 @@ actor class GameStateCanister() = this {
                                     };
                                     case (_) { return #Err(#Other("Unsupported")); }
                                 };
+
+                                let cyclesFromUser : Nat = 10_000_000_000_000; // TODO - get from user payment
+                                let cyclesCreateMainer : Types.CyclesCreateMainer = setCyclesCreateMainer(cyclesFromUser, mainerAgentCanisterType);
                                 
                                 let canisterCreationInput : Types.CanisterCreationConfiguration = {
                                     canisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType;
@@ -2521,6 +2529,10 @@ actor class GameStateCanister() = this {
                                     mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                     userMainerEntryCreationTimestamp : Nat64 = userMainerEntry.creationTimestamp;
                                     userMainerEntryCanisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType;
+                                    cyclesCreateMainerctrlGsMc : Nat = cyclesCreateMainer.cyclesCreateMainerctrlGsMc;
+                                    cyclesCreateMainerllmGsMc : Nat = cyclesCreateMainer.cyclesCreateMainerllmGsMc;
+                                    cyclesCreateMainerctrlMcMainerctrl : Nat = cyclesCreateMainer.cyclesCreateMainerctrlMcMainerctrl;
+                                    cyclesCreateMainerllmMcMainerllm : Nat = cyclesCreateMainer.cyclesCreateMainerllmMcMainerllm;
                                 };
                                 
                                 // TODO - outcomment checks on cycles used during canister creation
@@ -2536,8 +2548,9 @@ actor class GameStateCanister() = this {
                                 };
                                 D.print("GameState: spinUpMainerControllerCanister - cycles balance of mAInerCreator ("# debug_show(mainerCreatorEntry.address) #  ") before calling createCanister = " # debug_show(cyclesBefore) );
 
-                                let cyclesAdded = cyclesCreateMainerctrlGsMc;
+                                let cyclesAdded = cyclesCreateMainer.cyclesCreateMainerctrlGsMc;
                                 Cycles.add<system>(cyclesAdded);
+                                D.print("GameState: spinUpMainerControllerCanister - cycles sent to mAInerCreator = " # debug_show(cyclesAdded) );
 
                                 // This only creates the canister and returns:
                                 // -> Use await, so we can return the controller's address to frontend
@@ -2642,12 +2655,15 @@ actor class GameStateCanister() = this {
                     };
                     case (?userMainerEntry) {
                         // Sanity checks on userMainerEntry (i.e. address provided is correct and matches entry info)
+                        var mainerAgentCanisterType : Types.MainerAgentCanisterType = #Own;
                         switch (userMainerEntry.canisterType) {
                             case (#MainerAgent(#Own)) {
+                                mainerAgentCanisterType := #Own;
                                 // mAIners of type Own may have dedicated LLMs attached
                                 // continue
                             };
                             case (#MainerAgent(#ShareService)) {
+                                mainerAgentCanisterType := #ShareService;
                                 // mAIners of type ShareService may have dedicated LLMs attached
                                 // continue
                             };
@@ -2701,6 +2717,10 @@ actor class GameStateCanister() = this {
                             };
                             case (?mainerCreatorEntry) {
                                 let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
+                                
+                                let cyclesFromUser : Nat = 10_000_000_000_000; // TODO - get from user payment
+                                let cyclesCreateMainer : Types.CyclesCreateMainer = setCyclesCreateMainer(cyclesFromUser, mainerAgentCanisterType);
+                                
                                 let canisterCreationInput : Types.CanisterCreationConfiguration = {
                                     canisterType : Types.ProtocolCanisterType = #MainerLlm;
                                     owner: Principal = userMainerEntry.ownedBy; // User
@@ -2708,6 +2728,10 @@ actor class GameStateCanister() = this {
                                     mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                     userMainerEntryCreationTimestamp : Nat64 = userMainerEntry.creationTimestamp; // Controller
                                     userMainerEntryCanisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType; // Controller
+                                    cyclesCreateMainerctrlGsMc : Nat = cyclesCreateMainer.cyclesCreateMainerctrlGsMc;
+                                    cyclesCreateMainerllmGsMc : Nat = cyclesCreateMainer.cyclesCreateMainerllmGsMc;
+                                    cyclesCreateMainerctrlMcMainerctrl : Nat = cyclesCreateMainer.cyclesCreateMainerctrlMcMainerctrl;
+                                    cyclesCreateMainerllmMcMainerllm : Nat = cyclesCreateMainer.cyclesCreateMainerllmMcMainerllm;
                                 };
 
                                 // TODO - outcomment checks on cycles used during canister creation
@@ -2723,8 +2747,9 @@ actor class GameStateCanister() = this {
                                 };
                                 D.print("GameState: setUpMainerLlmCanister - cycles balance of mAInerCreator " # debug_show(mainerCreatorEntry.address) # "before calling createCanister = " # debug_show(cyclesBefore) );  
 
-                                let cyclesAdded = cyclesCreateMainerllmGsMc; 
+                                let cyclesAdded = cyclesCreateMainer.cyclesCreateMainerllmGsMc; 
                                 Cycles.add<system>(cyclesAdded);
+                                D.print("GameState: setUpMainerLlmCanister - cycles sent to mAInerCreator = " # debug_show(cyclesAdded) );
 
                                 // This only creates the LLM canister and returns
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
@@ -2850,12 +2875,15 @@ actor class GameStateCanister() = this {
                     };
                     case (?userMainerEntry) {
                         // Sanity checks on userMainerEntry (i.e. address provided is correct and matches entry info)
+                        var mainerAgentCanisterType : Types.MainerAgentCanisterType = #Own;
                         switch (userMainerEntry.canisterType) {
                             case (#MainerAgent(#Own)) {
+                                mainerAgentCanisterType := #Own;
                                 // mAIners of type Own may have dedicated LLMs attached
                                 // continue
                             };
                             case (#MainerAgent(#ShareService)) {
+                                mainerAgentCanisterType := #ShareService;
                                 // mAIners of type ShareService may have dedicated LLMs attached
                                 // continue
                             };
@@ -2909,6 +2937,10 @@ actor class GameStateCanister() = this {
                             };
                             case (?mainerCreatorEntry) {
                                 let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
+
+                                let cyclesFromUser : Nat = 10_000_000_000_000; // TODO - get from user payment
+                                let cyclesCreateMainer : Types.CyclesCreateMainer = setCyclesCreateMainer(cyclesFromUser, mainerAgentCanisterType);
+                                
                                 let canisterCreationInput : Types.CanisterCreationConfiguration = {
                                     canisterType : Types.ProtocolCanisterType = #MainerLlm;
                                     owner: Principal = userMainerEntry.ownedBy; // User
@@ -2916,6 +2948,10 @@ actor class GameStateCanister() = this {
                                     mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                     userMainerEntryCreationTimestamp : Nat64 = userMainerEntry.creationTimestamp; // for deduplication by putUserMainerAgent
                                     userMainerEntryCanisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType;
+                                    cyclesCreateMainerctrlGsMc : Nat = cyclesCreateMainer.cyclesCreateMainerctrlGsMc;
+                                    cyclesCreateMainerllmGsMc : Nat = cyclesCreateMainer.cyclesCreateMainerllmGsMc;
+                                    cyclesCreateMainerctrlMcMainerctrl : Nat = cyclesCreateMainer.cyclesCreateMainerctrlMcMainerctrl;
+                                    cyclesCreateMainerllmMcMainerllm : Nat = cyclesCreateMainer.cyclesCreateMainerllmMcMainerllm;
                                 };
                                 // TODO - outcomment checks on cycles used during canister creation
                                 let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
@@ -2930,8 +2966,9 @@ actor class GameStateCanister() = this {
                                 };
                                 D.print("GameState: addLlmCanisterToMainer - cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") before calling createCanister = " # debug_show(cyclesBefore) );
 
-                                let cyclesAdded = cyclesCreateMainerllmGsMc;
+                                let cyclesAdded = cyclesCreateMainer.cyclesCreateMainerllmGsMc;
                                 Cycles.add<system>(cyclesAdded);
+                                D.print("GameState: addLlmCanisterToMainer - cycles sent to mAInerCreator = " # debug_show(cyclesAdded) );
 
                                 // This only creates the LLM canister and returns
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
