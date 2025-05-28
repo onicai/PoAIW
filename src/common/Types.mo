@@ -53,6 +53,18 @@ module Types {
         cyclesCreateMainerllmMcMainerllm   : Nat;
     };
 
+    // variables sent by GameState to Challenger
+    public type CyclesGenerateChallenge = {
+        cyclesGenerateChallengeGsChctrl : Nat;
+        cyclesGenerateChallengeChctrlChllm : Nat;
+    };
+
+    // variables sent by GameState to Judge
+    public type CyclesGenerateScore = {
+        cyclesGenerateScoreGsJuctrl : Nat;
+        cyclesGenerateScoreJuctrlJullm : Nat;
+    };
+
     // variables sent by GameState to mAIner Agent
     public type CyclesGenerateResponse = {
         cyclesSubmitResponse : Nat;
@@ -65,7 +77,8 @@ module Types {
         cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat;
     };
 
-    public type CyclesFlow = CyclesGenerateResponse and {
+    public type CyclesFlow = CyclesGenerateChallenge and 
+    CyclesGenerateScore and CyclesGenerateResponse and {
         // mAIner creation
         cyclesCreateMainerMarginGs : Nat;
         cyclesCreatemMainerMarginMc : Nat;
@@ -118,11 +131,7 @@ module Types {
         costGenerateResponseSsctrl : Nat;
         costGenerateResponseSsllm : Nat;
 
-        cyclesGenerateChallengeGsChctrl : Nat;
-        cyclesGenerateChallengeChctrlChllm : Nat;
         cyclesBurntChallengeGeneration : Nat;
-        cyclesGenerateScoreGsJuctrl : Nat;
-        cyclesGenerateScoreJuctrlJullm : Nat;
         cyclesBurntJudgeScoring : Nat;
         cyclesBurntResponseGenerationOwn : Nat;
         cyclesBurntResponseGenerationShare : Nat;
@@ -348,7 +357,7 @@ module Types {
         challengeTopicId : Text;
         challengeTopicCreationTimestamp : Nat64;
         challengeTopicStatus : ChallengeTopicStatus;
-    };
+    } and CyclesGenerateChallenge;
     public type ChallengeTopicResult = Result<ChallengeTopic, ApiError>;
 
     public type NewChallengeInput = ChallengeTopic and {

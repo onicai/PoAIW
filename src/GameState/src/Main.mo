@@ -26,6 +26,8 @@ import Utils "Utils";
 
 actor class GameStateCanister() = this {
 
+    let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
+
     // Function to verify that canister is up & running
     public shared query func health() : async Types.StatusCodeRecordResult {
         return #Ok({ status_code = 200 });
@@ -157,8 +159,6 @@ actor class GameStateCanister() = this {
             return #Err(#Unauthorized);
         };
 
-        let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
-
         let allMainerAgents : [Types.OfficialMainerAgentCanister] = getMainerAgents();
         let mainerAgentsIter : Iter.Iter<Types.OfficialMainerAgentCanister> = Iter.fromArray(allMainerAgents);
         
@@ -166,7 +166,7 @@ actor class GameStateCanister() = this {
             // Retrieve each mAIner agent canister's info
             for (agentEntry in mainerAgentsIter) {
                 try {
-                    let agentCanisterInfo = await IC_Management_Actor.canister_info({
+                    let agentCanisterInfo = await IC0.canister_info({
                         canister_id = Principal.fromText(agentEntry.address);
                         num_requested_changes = ?0;
                     });   
@@ -1974,6 +1974,9 @@ actor class GameStateCanister() = this {
             return #Err(#Unauthorized);
         };
         D.print("GameState: setInitialChallengeTopics - entered");
+        // Ensure the CyclesFlows are set for Challenge Generation
+        setCyclesFlow();
+
         // Start with some initial topics
         let initialTopics : [Text] = [
             "crypto",     "nature",      "space", "history", "science", 
@@ -1987,6 +1990,8 @@ actor class GameStateCanister() = this {
                 challengeTopicId : Text = challengeTopicId;
                 challengeTopicCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                 challengeTopicStatus : Types.ChallengeTopicStatus = #Open;
+                cyclesGenerateChallengeGsChctrl : Nat = cyclesGenerateChallengeGsChctrl;
+                cyclesGenerateChallengeChctrlChllm : Nat = cyclesGenerateChallengeChctrlChllm;
             };
 
             D.print("GameState: init - Adding challengeTopic: " # debug_show(challengeTopic));
@@ -2007,6 +2012,8 @@ actor class GameStateCanister() = this {
             challengeTopicId : Text = challengeTopicId;
             challengeTopicCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
             challengeTopicStatus : Types.ChallengeTopicStatus = #Open;
+            cyclesGenerateChallengeGsChctrl : Nat = cyclesGenerateChallengeGsChctrl;
+            cyclesGenerateChallengeChctrlChllm : Nat = cyclesGenerateChallengeChctrlChllm;
         };
 
         let _ = putOpenChallengeTopic(challengeTopicId, challengeTopic);
@@ -2074,7 +2081,25 @@ actor class GameStateCanister() = this {
                 let challengeTopicResult : ?Types.ChallengeTopic = await getRandomChallengeTopic(#Open);
                 switch (challengeTopicResult) {
                     case (?challengeTopic) {
-                        return #Ok(challengeTopic);                
+                        try {
+                            // First send cycles to the Challenger
+                            let cyclesAdded = cyclesGenerateChallengeGsChctrl;
+                            Cycles.add<system>(cyclesAdded);
+
+                            let deposit_cycles_args = { canister_id : Principal = msg.caller; };
+                            let result = await IC0.deposit_cycles(deposit_cycles_args);
+
+                            D.print("GameState: getRandomOpenChallengeTopic - Successfully deposited " # debug_show(cyclesAdded) # " cycles to Challenger canister " # Principal.toText(msg.caller) );
+
+                            // Now we can return the challenge topic
+                            return #Ok(challengeTopic);  
+
+                        } catch (e) {
+                            D.print("GameState: getRandomOpenChallengeTopic - Failed to deposit " # debug_show(cyclesGenerateChallengeGsChctrl) # " cycles to Challenger canister " # Principal.toText(msg.caller));
+                            D.print("GameState: getRandomOpenChallengeTopic - Failed to deposit error is" # Error.message(e));
+
+                            return #Err(#FailedOperation);
+                        };    
                     };
                     case (_) { return #Err(#FailedOperation); };
                 };             
@@ -2108,6 +2133,8 @@ actor class GameStateCanister() = this {
                     challengeTopicId : Text = newChallenge.challengeTopicId;
                     challengeTopicCreationTimestamp : Nat64 = newChallenge.challengeTopicCreationTimestamp;
                     challengeTopicStatus : Types.ChallengeTopicStatus = newChallenge.challengeTopicStatus;
+                    cyclesGenerateChallengeGsChctrl : Nat = newChallenge.cyclesGenerateChallengeGsChctrl;
+                    cyclesGenerateChallengeChctrlChllm : Nat = newChallenge.cyclesGenerateChallengeChctrlChllm;
                     challengeId : Text = challengeId;
                     challengeQuestion : Text = newChallenge.challengeQuestion;
                     challengeQuestionSeed : Nat32 = newChallenge.challengeQuestionSeed;
@@ -2543,11 +2570,10 @@ actor class GameStateCanister() = this {
                                 };
                                 
                                 // TODO - outcomment checks on cycles used during canister creation
-                                let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
                                 D.print("GameState: spinUpMainerControllerCanister - Get cycles balance of mAInerCreator ("# debug_show(mainerCreatorEntry.address) #  ") before calling createCanister.");
                                 var cyclesBefore : Nat = 0;
                                 try {
-                                    let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
+                                    let canisterStatus = await IC0.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
                                     cyclesBefore := canisterStatus.cycles;
                                 } catch (e) {
                                     D.print("GameState: spinUpMainerControllerCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
@@ -2566,7 +2592,7 @@ actor class GameStateCanister() = this {
                                 D.print("GameState: spinUpMainerControllerCanister - Get cycles balance of mAInerCreator ("# debug_show(mainerCreatorEntry.address) #  ") after calling createCanister.");
                                 var cyclesAfter : Nat = 0;
                                 try {
-                                    let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
+                                    let canisterStatus = await IC0.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
                                     cyclesAfter := canisterStatus.cycles;
                                 } catch (e) {
                                     D.print("GameState: spinUpMainerControllerCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
@@ -2742,11 +2768,10 @@ actor class GameStateCanister() = this {
                                 };
 
                                 // TODO - outcomment checks on cycles used during canister creation
-                                let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
                                 D.print("GameState: setUpMainerLlmCanister - Get cycles balance of mAInerCreator " # debug_show(mainerCreatorEntry.address) # "before calling createCanister.");
                                 var cyclesBefore : Nat = 0;
                                 try {
-                                    let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
+                                    let canisterStatus = await IC0.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
                                     cyclesBefore := canisterStatus.cycles;
                                 } catch (e) {
                                     D.print("GameState: setUpMainerLlmCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
@@ -2765,7 +2790,7 @@ actor class GameStateCanister() = this {
                                 D.print("GameState: setUpMainerLlmCanister - Get cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") after calling createCanister.");
                                 var cyclesAfter : Nat = 0;
                                 try {
-                                    let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
+                                    let canisterStatus = await IC0.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
                                     cyclesAfter := canisterStatus.cycles;
                                 } catch (e) {
                                     D.print("GameState: setUpMainerLlmCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
@@ -2961,11 +2986,10 @@ actor class GameStateCanister() = this {
                                     cyclesCreateMainerllmMcMainerllm : Nat = cyclesCreateMainer.cyclesCreateMainerllmMcMainerllm;
                                 };
                                 // TODO - outcomment checks on cycles used during canister creation
-                                let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
                                 D.print("GameState: addLlmCanisterToMainer - Get cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") before calling createCanister.");
                                 var cyclesBefore : Nat = 0;
                                 try {
-                                    let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
+                                    let canisterStatus = await IC0.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
                                     cyclesBefore := canisterStatus.cycles;
                                 } catch (e) {
                                     D.print("GameState: addLlmCanisterToMainer - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
@@ -2984,7 +3008,7 @@ actor class GameStateCanister() = this {
                                 D.print("GameState: addLlmCanisterToMainer - Get cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") after calling createCanister.");
                                 var cyclesAfter : Nat = 0;
                                 try {
-                                    let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
+                                    let canisterStatus = await IC0.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
                                     cyclesAfter := canisterStatus.cycles;
                                 } catch (e) {
                                     D.print("GameState: addLlmCanisterToMainer - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
@@ -3185,13 +3209,12 @@ actor class GameStateCanister() = this {
                         
                         // TODO - Implementation: credit mAIner agent with cycles (the user paid for)
                         // ALternative: credit via the CMC service
-                        let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
                         // Retrieve mAIner agent canister's info
                         D.print("GameState: topUpCyclesForMainerAgent - Verify agent canister's wasm module hash#####################################################################################################################################################################################");
                         try {
                             let deposit_cycles_args = { canister_id : Principal = Principal.fromText(userMainerEntry.address); };
                             // TODO - Implementation: charge call with cycles
-                            let result = await IC_Management_Actor.deposit_cycles(deposit_cycles_args);
+                            let result = await IC0.deposit_cycles(deposit_cycles_args);
                             //TODO - Design: decide whether a top up history should be kept
                             return #Ok(userMainerEntry);
                         } catch (e) {
@@ -3304,11 +3327,10 @@ actor class GameStateCanister() = this {
                 };
 
                 // Verify that the mAIner is running the official wasm code (untampered)
-                let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
                 // Retrieve mAIner agent canister's info
                 D.print("GameState: submitChallengeResponse - Verify agent canister's wasm module hash#####################################################################################################################################################################################");
                 try {
-                    let agentCanisterInfo = await IC_Management_Actor.canister_info({
+                    let agentCanisterInfo = await IC0.canister_info({
                         canister_id = challengeResponseSubmissionInput.submittedBy;
                         num_requested_changes = ?0;
                     });   
@@ -3354,6 +3376,8 @@ actor class GameStateCanister() = this {
                     challengeTopicId : Text = challengeResponseSubmissionInput.challengeTopicId;
                     challengeTopicCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeTopicCreationTimestamp;
                     challengeTopicStatus : Types.ChallengeTopicStatus = challengeResponseSubmissionInput.challengeTopicStatus;
+                    cyclesGenerateChallengeGsChctrl : Nat = challengeResponseSubmissionInput.cyclesGenerateChallengeGsChctrl;
+                    cyclesGenerateChallengeChctrlChllm : Nat = challengeResponseSubmissionInput.cyclesGenerateChallengeChctrlChllm;
                     challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = challengeResponseSubmissionInput.challengeQuestionSeed;
                     mainerPromptId : Text = challengeResponseSubmissionInput.mainerPromptId;
@@ -3450,6 +3474,8 @@ actor class GameStateCanister() = this {
                                             challengeTopicId : Text = submission.challengeTopicId;
                                             challengeTopicCreationTimestamp : Nat64 = submission.challengeTopicCreationTimestamp;
                                             challengeTopicStatus : Types.ChallengeTopicStatus = submission.challengeTopicStatus;
+                                            cyclesGenerateChallengeGsChctrl : Nat = submission.cyclesGenerateChallengeGsChctrl;
+                                            cyclesGenerateChallengeChctrlChllm : Nat = submission.cyclesGenerateChallengeChctrlChllm;
                                             challengeQuestion : Text = submission.challengeQuestion;
                                             challengeQuestionSeed : Nat32 = submission.challengeQuestionSeed;
                                             mainerPromptId : Text = submission.mainerPromptId;
@@ -3644,6 +3670,8 @@ actor class GameStateCanister() = this {
                     challengeTopicId : Text = scoredResponseInput.challengeTopicId;
                     challengeTopicCreationTimestamp : Nat64 = scoredResponseInput.challengeTopicCreationTimestamp;
                     challengeTopicStatus : Types.ChallengeTopicStatus = scoredResponseInput.challengeTopicStatus;
+                    cyclesGenerateChallengeGsChctrl : Nat = scoredResponseInput.cyclesGenerateChallengeGsChctrl;
+                    cyclesGenerateChallengeChctrlChllm : Nat = scoredResponseInput.cyclesGenerateChallengeChctrlChllm;
                     challengeQuestion : Text = scoredResponseInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = scoredResponseInput.challengeQuestionSeed;
                     mainerPromptId : Text = scoredResponseInput.mainerPromptId;
@@ -3685,6 +3713,8 @@ actor class GameStateCanister() = this {
                     challengeTopicId : Text = scoredResponseInput.challengeTopicId;
                     challengeTopicCreationTimestamp : Nat64 = scoredResponseInput.challengeTopicCreationTimestamp;
                     challengeTopicStatus : Types.ChallengeTopicStatus = scoredResponseInput.challengeTopicStatus;
+                    cyclesGenerateChallengeGsChctrl : Nat = scoredResponseInput.cyclesGenerateChallengeGsChctrl;
+                    cyclesGenerateChallengeChctrlChllm : Nat = scoredResponseInput.cyclesGenerateChallengeChctrlChllm;
                     challengeQuestion : Text = scoredResponseInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = scoredResponseInput.challengeQuestionSeed;
                     mainerPromptId : Text = scoredResponseInput.mainerPromptId;
@@ -3802,6 +3832,8 @@ actor class GameStateCanister() = this {
                     challengeTopicId : Text = openChallenge.challengeTopicId;
                     challengeTopicCreationTimestamp : Nat64 = openChallenge.challengeTopicCreationTimestamp;
                     challengeTopicStatus : Types.ChallengeTopicStatus = openChallenge.challengeTopicStatus;
+                    cyclesGenerateChallengeGsChctrl : Nat = openChallenge.cyclesGenerateChallengeGsChctrl;
+                    cyclesGenerateChallengeChctrlChllm : Nat = openChallenge.cyclesGenerateChallengeChctrlChllm;
                     challengeQuestion : Text = openChallenge.challengeQuestion;
                     challengeQuestionSeed : Nat32 = openChallenge.challengeQuestionSeed;
                     mainerPromptId : Text = openChallenge.mainerPromptId;
@@ -3844,6 +3876,8 @@ actor class GameStateCanister() = this {
                             challengeTopicId : Text = closedChallenge.challengeTopicId;
                             challengeTopicCreationTimestamp : Nat64 = closedChallenge.challengeTopicCreationTimestamp;
                             challengeTopicStatus : Types.ChallengeTopicStatus = closedChallenge.challengeTopicStatus;
+                            cyclesGenerateChallengeGsChctrl : Nat = closedChallenge.cyclesGenerateChallengeGsChctrl;
+                            cyclesGenerateChallengeChctrlChllm : Nat = closedChallenge.cyclesGenerateChallengeChctrlChllm;
                             challengeQuestion : Text = closedChallenge.challengeQuestion;
                             challengeQuestionSeed : Nat32 = closedChallenge.challengeQuestionSeed;
                             mainerPromptId : Text = closedChallenge.mainerPromptId;
@@ -3884,6 +3918,8 @@ actor class GameStateCanister() = this {
                             challengeTopicId : Text = "";
                             challengeTopicCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                             challengeTopicStatus : Types.ChallengeTopicStatus = #Archived;
+                            cyclesGenerateChallengeGsChctrl : Nat = cyclesGenerateChallengeGsChctrl;
+                            cyclesGenerateChallengeChctrlChllm : Nat = cyclesGenerateChallengeChctrlChllm;
                             challengeQuestion : Text = "";
                             challengeQuestionSeed : Nat32 = 0;
                             mainerPromptId : Text = "submissionInput.mainerPromptId";

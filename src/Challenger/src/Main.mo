@@ -16,12 +16,16 @@ import Time "mo:base/Time";
 import { print } = "mo:base/Debug";
 import { setTimer; recurringTimer } = "mo:base/Timer";
 import Timer "mo:base/Timer";
+import Cycles "mo:base/ExperimentalCycles";
 
 import Types "../../common/Types";
 import Constants "../../common/Constants";
+import ICManagementCanister "../../common/ICManagementCanister";
 import Utils "Utils";
 
 actor class ChallengerCtrlbCanister() {
+
+    let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
 
     public shared query (msg) func whoami() : async Principal {
         return msg.caller;
@@ -235,7 +239,7 @@ actor class ChallengerCtrlbCanister() {
             case (#Ok(challengeTopic : Types.ChallengeTopic)) {
                 D.print("Challenger: generateChallenge - challengeTopic = " # debug_show(challengeTopic));
 
-                let generatedChallengeOutput : Types.GeneratedChallengeResult = await challengeGenerationDoIt_(challengeTopic.challengeTopic);
+                let generatedChallengeOutput : Types.GeneratedChallengeResult = await challengeGenerationDoIt_(challengeTopic);
 
                 D.print("Challenger: generateChallenge generatedChallengeOutput");
                 print(debug_show (generatedChallengeOutput));
@@ -436,6 +440,8 @@ actor class ChallengerCtrlbCanister() {
                                             challengeTopicId : Text = challengeTopic.challengeTopicId;
                                             challengeTopicCreationTimestamp : Nat64 = challengeTopic.challengeTopicCreationTimestamp;
                                             challengeTopicStatus : Types.ChallengeTopicStatus = challengeTopic.challengeTopicStatus;
+                                            cyclesGenerateChallengeGsChctrl : Nat = challengeTopic.cyclesGenerateChallengeGsChctrl;
+                                            cyclesGenerateChallengeChctrlChllm : Nat = challengeTopic.cyclesGenerateChallengeChctrlChllm;
                                             challengeQuestion : Text = generatedChallenge.generatedChallengeText;
                                             challengeQuestionSeed : Nat32 = generatedChallenge.generationSeed;
                                             mainerPromptId : Text = mainerPromptId;
@@ -1237,7 +1243,7 @@ actor class ChallengerCtrlbCanister() {
         return #Ok(judgePromptGenerationRecord);
     };
 
-    private func challengeGenerationDoIt_(challengeTopic : Text) : async Types.GeneratedChallengeResult {
+    private func challengeGenerationDoIt_(challengeTopic : Types.ChallengeTopic) : async Types.GeneratedChallengeResult {
         let maxContinueLoopCount : Nat = 30; // After this many calls to run_update, we stop.
         let num_tokens : Nat64 = 1024;
         let temp : Float = 0.7;
@@ -1267,26 +1273,43 @@ actor class ChallengerCtrlbCanister() {
 
         var promptRepetitive : Text = "<|im_start|>user\nAsk a question that can be answered with common knowledge. Do NOT give the answer. Ask me a question about ";
         var prompt : Text = promptRepetitive #
-        challengeTopic # ", and start the question with " # challengePromptStartsWith # "." #
+        challengeTopic.challengeTopic # ", and start the question with " # challengePromptStartsWith # "." #
         "\n<|im_end|>\n<|im_start|>assistant\n";
 
         let llmCanister = _getRoundRobinCanister();
+        let llmCanisterPrincipal : Principal = Principal.fromActor(llmCanister);
 
-        D.print("Challenger: challengeGenerationDoIt_ - llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
+        D.print("Challenger: challengeGenerationDoIt_ - llmCanister = " # debug_show(llmCanisterPrincipal));
 
         // Check health of llmCanister
-        D.print("Challenger: calling health endpoint of LLM");
+        D.print("Challenger: challengeGenerationDoIt_ - calling health endpoint of LLM");
         let statusCodeRecordResult : Types.StatusCodeRecordResult = await llmCanister.health();
-        D.print("Challenger: returned from health endpoint of LLM with : ");
-        D.print("Challenger: statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
+        D.print("Challenger: challengeGenerationDoIt_ - returned from health endpoint of LLM with : ");
+        D.print("Challenger: challengeGenerationDoIt_ - statusCodeRecordResult: " # debug_show (statusCodeRecordResult));
         switch (statusCodeRecordResult) {
             case (#Err(error)) {
                 return #Err(error);
             };
             case (#Ok(_statusCodeRecord)) {
-                D.print("Challenger: LLM is healthy");
+                D.print("Challenger: challengeGenerationDoIt_ - LLM is healthy");
             };
         };
+
+        try {
+            // First send cycles to the LLM
+            let cyclesAdded = challengeTopic.cyclesGenerateChallengeChctrlChllm;
+            Cycles.add<system>(cyclesAdded);
+
+            let deposit_cycles_args = { canister_id : Principal = llmCanisterPrincipal; };
+            let _ = await IC0.deposit_cycles(deposit_cycles_args);
+
+            D.print("Challenger: challengeGenerationDoIt_ - Successfully deposited " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal) ); 
+        } catch (e) {
+            D.print("Challenger: challengeGenerationDoIt_ - Failed to deposit " # debug_show(challengeTopic.cyclesGenerateChallengeChctrlChllm) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal));
+            D.print("Challenger: challengeGenerationDoIt_ - Failed to deposit error is" # Error.message(e));
+
+            return #Err(#FailedOperation);
+        };    
 
         let generationId : Text = await Utils.newRandomUniqueId();
         

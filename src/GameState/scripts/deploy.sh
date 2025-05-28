@@ -75,6 +75,15 @@ else
     echo "game_state_canister is healthy."
 fi
 
+echo " "
+echo "--------------------------------------------------"
+echo "Calling setCyclesFlowAdmin to calculate the CyclesFlow variables"
+dfx canister call game_state_canister setCyclesFlowAdmin '(record {})'
+
+echo " "
+echo "Calling setCyclesFlowAdmin to get the CyclesFlow variables"
+dfx canister call game_state_canister getCyclesFlowAdmin
+
 if [ "$DEPLOY_MODE" != "upgrade" ]; then
     echo " "
     echo "--------------------------------------------------"
