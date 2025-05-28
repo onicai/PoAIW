@@ -78,11 +78,11 @@ fi
 echo " "
 echo "--------------------------------------------------"
 echo "Calling setCyclesFlowAdmin to calculate the CyclesFlow variables"
-dfx canister call game_state_canister setCyclesFlowAdmin '(record {})'
+dfx canister call game_state_canister setCyclesFlowAdmin '(record {})' --network $NETWORK_TYPE
 
 echo " "
 echo "Calling setCyclesFlowAdmin to get the CyclesFlow variables"
-dfx canister call game_state_canister getCyclesFlowAdmin
+dfx canister call game_state_canister getCyclesFlowAdmin --network $NETWORK_TYPE
 
 if [ "$DEPLOY_MODE" != "upgrade" ]; then
     echo " "

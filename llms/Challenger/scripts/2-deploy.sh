@@ -47,9 +47,10 @@ while [ $# -gt 0 ]; do
 done
 
 echo "Using network type: $NETWORK_TYPE"
-if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ]; then
-    NUM_LLMS_DEPLOYED=2
-fi
+# Switching to 1 LLM for the Challenger
+# if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ]; then
+#     NUM_LLMS_DEPLOYED=2
+# fi
 
 #######################################################################
 echo " "
