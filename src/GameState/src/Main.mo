@@ -239,22 +239,6 @@ actor class GameStateCanister() = this {
         ICP_FOR_SHARE_AGENT := icpForShareAgent;
         return #Ok({ status_code = 200 });
     };
-    stable var cyclesCreateSactrlUserGs   : Nat  = 0;
-    stable var cyclesCreateSactrlMarginGs : Nat  = 2_000_000_000  ; // Margin kept in GameState canister for the creation of the ShareAgent
-    stable var cyclesCreateSactrlMarginMc : Nat  = 2_000_000_000  ; // Margin kept in mAIner Creator canister for the creation of the ShareAgent
-    stable var cyclesCreateSactrlGsMc     : Nat  = 0;               // Cycles that will be sent to the mAIner Creator canister
-    stable var cyclesCreateSactrlMcSactrl : Nat  = 0;               // Cycles that will be sent to the mAIner agent canister
-    private func setCyclesCreateShareAgentMainer(cyclesFromUser : Nat) {
-        // Call this at start of every mAIner creation
-        cyclesCreateSactrlUserGs   := cyclesFromUser  ;
-        cyclesCreateSactrlGsMc     := cyclesCreateSactrlUserGs - cyclesCreateSactrlMarginGs;   
-        cyclesCreateSactrlMcSactrl := cyclesCreateSactrlGsMc - cyclesCreateSactrlMarginMc; 
-        D.print("GameState: setCyclesCreateShareAgent - cyclesCreateSactrlUserGs  : " # debug_show(cyclesCreateSactrlUserGs));
-        D.print("GameState: setCyclesCreateShareAgent - cyclesCreateSactrlMarginGs: " # debug_show(cyclesCreateSactrlMarginGs));
-        D.print("GameState: setCyclesCreateShareAgent - cyclesCreateSactrlMarginMc: " # debug_show(cyclesCreateSactrlMarginMc));
-        D.print("GameState: setCyclesCreateShareAgent - cyclesCreateSactrlGsMc    : " # debug_show(cyclesCreateSactrlGsMc));
-        D.print("GameState: setCyclesCreateShareAgent - cyclesCreateSactrlMcSactrl: " # debug_show(cyclesCreateSactrlMcSactrl));
-    };
 
     // Cycles for Own mAIner Creation 
     // Note: the ShareService mAIner will also use these values
@@ -294,7 +278,7 @@ actor class GameStateCanister() = this {
                 cyclesCreateMainerllmGsMc        := 0;
             };
             case (_) {
-                cyclesCreateMainerllmMcMainerllm  := cyclesCreateMainerLlmTargetBalance + costCreateMainerLlm - cyclesCreatemMainerMarginMc;
+                cyclesCreateMainerllmMcMainerllm  := cyclesCreateMainerLlmTargetBalance + costCreateMainerLlm;
                 cyclesCreateMainerllmGsMc         := cyclesCreateMainerllmMcMainerllm + cyclesCreatemMainerMarginMc;
             };
         };
