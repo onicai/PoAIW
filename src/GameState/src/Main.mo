@@ -152,7 +152,7 @@ actor class GameStateCanister() = this {
     // mAIner agent wasm module hash that must match
         // TODO: implement way to manage this
         // -> For now, do not make it stable, so it can be updated via a canister upgrade
-    let officialMainerAgentCanisterWasmHash : Blob = "\79\55\55\EC\DF\B8\6E\FB\F9\35\AB\5E\A0\A4\26\42\5C\2B\38\A1\A6\39\3A\A7\EA\A0\66\B8\0B\2C\A1\1D";
+    let officialMainerAgentCanisterWasmHash : Blob = "\8B\98\EC\4C\24\A4\8E\80\CF\AD\E0\9F\B4\46\9A\F4\B9\CC\4D\D7\74\8A\5E\D3\63\99\22\28\F1\B8\26\F2";
     
     public shared (msg) func testMainerCodeIntegrityAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
