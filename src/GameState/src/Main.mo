@@ -152,7 +152,7 @@ actor class GameStateCanister() = this {
     // mAIner agent wasm module hash that must match
         // TODO: implement way to manage this
         // -> For now, do not make it stable, so it can be updated via a canister upgrade
-    let officialMainerAgentCanisterWasmHash : Blob = "\5B\CA\BD\C2\0A\41\F8\6C\11\5D\14\EE\ED\94\35\CC\5A\2A\87\C9\57\F8\D9\FC\4C\6E\B3\6A\1B\D3\DD\AD";
+    let officialMainerAgentCanisterWasmHash : Blob = "\79\55\55\EC\DF\B8\6E\FB\F9\35\AB\5E\A0\A4\26\42\5C\2B\38\A1\A6\39\3A\A7\EA\A0\66\B8\0B\2C\A1\1D";
     
     public shared (msg) func testMainerCodeIntegrityAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -2081,13 +2081,12 @@ actor class GameStateCanister() = this {
                 let challengeTopicResult : ?Types.ChallengeTopic = await getRandomChallengeTopic(#Open);
                 switch (challengeTopicResult) {
                     case (?challengeTopic) {
+                        // First send cycles to the Challenger to pay for the challenge generation
+                        let cyclesAdded = cyclesGenerateChallengeGsChctrl;
+                        Cycles.add<system>(cyclesAdded);
                         try {
-                            // First send cycles to the Challenger
-                            let cyclesAdded = cyclesGenerateChallengeGsChctrl;
-                            Cycles.add<system>(cyclesAdded);
-
                             let deposit_cycles_args = { canister_id : Principal = msg.caller; };
-                            let result = await IC0.deposit_cycles(deposit_cycles_args);
+                            let _ = await IC0.deposit_cycles(deposit_cycles_args);
 
                             D.print("GameState: getRandomOpenChallengeTopic - Successfully deposited " # debug_show(cyclesAdded) # " cycles to Challenger canister " # Principal.toText(msg.caller) );
 
@@ -2095,7 +2094,7 @@ actor class GameStateCanister() = this {
                             return #Ok(challengeTopic);  
 
                         } catch (e) {
-                            D.print("GameState: getRandomOpenChallengeTopic - Failed to deposit " # debug_show(cyclesGenerateChallengeGsChctrl) # " cycles to Challenger canister " # Principal.toText(msg.caller));
+                            D.print("GameState: getRandomOpenChallengeTopic - Failed to deposit " # debug_show(cyclesAdded) # " cycles to Challenger canister " # Principal.toText(msg.caller));
                             D.print("GameState: getRandomOpenChallengeTopic - Failed to deposit error is" # Error.message(e));
 
                             return #Err(#FailedOperation);
@@ -3405,6 +3404,8 @@ actor class GameStateCanister() = this {
                     submissionId : Text = submissionId;
                     submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                     submissionStatus: Types.ChallengeResponseSubmissionStatus = #Submitted;
+                    cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
+                    cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
                 };
 
                 let putResult = putSubmission(submissionId, submissionAdded);
@@ -3412,6 +3413,8 @@ actor class GameStateCanister() = this {
                     submissionId : Text = submissionId;
                     submittedTimestamp : Nat64 = submissionAdded.submittedTimestamp;
                     submissionStatus: Types.ChallengeResponseSubmissionStatus = submissionAdded.submissionStatus;
+                    cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
+                    cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
                 };
                 D.print("GameState: submitChallengeResponse - submitted!");
                 return #Ok(submissionMetada);           
@@ -3466,7 +3469,24 @@ actor class GameStateCanister() = this {
 
                                 switch (foundKey, foundSubmission) {
                                     case (?key, ?submission) {
-                                        // (-) Found a submission with submissionStatus #Submitted
+                                        // Found a submission with submissionStatus #Submitted
+
+                                        // First send cycles to the Judge to pay for the score generation
+                                        let cyclesAdded = submission.cyclesGenerateScoreGsJuctrl;
+                                        Cycles.add<system>(cyclesAdded);
+                                        try {
+                                            let deposit_cycles_args = { canister_id : Principal = msg.caller; };
+                                            let _ = await IC0.deposit_cycles(deposit_cycles_args);
+
+                                            D.print("GameState: getNextSubmissionToJudge - Successfully deposited " # debug_show(cyclesAdded) # " cycles to Judge canister " # Principal.toText(msg.caller) );
+
+                                        } catch (e) {
+                                            D.print("GameState: getNextSubmissionToJudge - Failed to deposit " # debug_show(cyclesAdded) # " cycles to Judge canister " # Principal.toText(msg.caller));
+                                            D.print("GameState: getNextSubmissionToJudge - Failed to deposit error is" # Error.message(e));
+
+                                            return #Err(#FailedOperation);
+                                        };  
+
                                         // (-) Change submissionStatus to #Judging
                                         // (-) Return it to the Judge
                                         let updatedSubmission : Types.ChallengeResponseSubmission = {
@@ -3503,6 +3523,8 @@ actor class GameStateCanister() = this {
                                             submissionId : Text = submission.submissionId;
                                             submittedTimestamp : Nat64 = submission.submittedTimestamp;
                                             submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judging;
+                                            cyclesGenerateScoreGsJuctrl : Nat = submission.cyclesGenerateScoreGsJuctrl;
+                                            cyclesGenerateScoreJuctrlJullm : Nat = submission.cyclesGenerateScoreJuctrlJullm;
                                         };
                                         D.print("GameState: getNextSubmissionToJudge - updatedSubmission = " # debug_show(updatedSubmission));
                                         submissionsStorage.put(key, updatedSubmission);
@@ -3699,6 +3721,8 @@ actor class GameStateCanister() = this {
                     submissionId : Text = scoredResponseInput.submissionId;
                     submittedTimestamp : Nat64 = scoredResponseInput.submittedTimestamp;
                     submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                    cyclesGenerateScoreGsJuctrl : Nat = scoredResponseInput.cyclesGenerateScoreGsJuctrl;
+                    cyclesGenerateScoreJuctrlJullm : Nat = scoredResponseInput.cyclesGenerateScoreJuctrlJullm;
                 };
                 D.print("GameState: addScoredResponse - calling putSubmission (change submissionStatus to #Judged)");
                 D.print("GameState: addScoredResponse - submission = " # debug_show(submission));
@@ -3742,6 +3766,8 @@ actor class GameStateCanister() = this {
                     submissionId : Text = scoredResponseInput.submissionId;
                     submittedTimestamp : Nat64 = scoredResponseInput.submittedTimestamp;
                     submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                    cyclesGenerateScoreGsJuctrl : Nat = scoredResponseInput.cyclesGenerateScoreGsJuctrl;
+                    cyclesGenerateScoreJuctrlJullm : Nat = scoredResponseInput.cyclesGenerateScoreJuctrlJullm;
                     judgedBy: Principal = scoredResponseInput.judgedBy;
                     score: Nat = scoredResponseInput.score;
                     scoreSeed: Nat32 = scoredResponseInput.scoreSeed;
@@ -3861,6 +3887,8 @@ actor class GameStateCanister() = this {
                     submissionId : Text = submissionInput.submissionId;
                     submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                     submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                    cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
+                    cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
                     judgedBy: Principal = msg.caller;
                     score: Nat = 5;
                     scoreSeed: Nat32 = 0;
@@ -3905,6 +3933,8 @@ actor class GameStateCanister() = this {
                             submissionId : Text = submissionInput.submissionId;
                             submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                             submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                            cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
+                            cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
                             judgedBy: Principal = msg.caller;
                             score: Nat = 5;
                             scoreSeed: Nat32 = 0;
@@ -3947,6 +3977,8 @@ actor class GameStateCanister() = this {
                             submissionId : Text = submissionInput.submissionId;
                             submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                             submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                            cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
+                            cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
                             judgedBy: Principal = msg.caller;
                             score: Nat = 5;
                             scoreSeed: Nat32 = 0;

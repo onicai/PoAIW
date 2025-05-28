@@ -170,6 +170,8 @@ type ChallengeResponseSubmissionInput =
    challengeTopicCreationTimestamp: nat64;
    challengeTopicId: text;
    challengeTopicStatus: ChallengeTopicStatus;
+   cyclesGenerateChallengeChctrlChllm: nat;
+   cyclesGenerateChallengeGsChctrl: nat;
    cyclesGenerateResponseOwnctrlGs: nat;
    cyclesGenerateResponseOwnctrlOwnllmHIGH: nat;
    cyclesGenerateResponseOwnctrlOwnllmLOW: nat;
@@ -201,6 +203,8 @@ type ChallengeResponseSubmission =
    challengeTopicCreationTimestamp: nat64;
    challengeTopicId: text;
    challengeTopicStatus: ChallengeTopicStatus;
+   cyclesGenerateChallengeChctrlChllm: nat;
+   cyclesGenerateChallengeGsChctrl: nat;
    cyclesGenerateResponseOwnctrlGs: nat;
    cyclesGenerateResponseOwnctrlOwnllmHIGH: nat;
    cyclesGenerateResponseOwnctrlOwnllmLOW: nat;
@@ -208,6 +212,8 @@ type ChallengeResponseSubmission =
    cyclesGenerateResponseSactrlSsctrl: nat;
    cyclesGenerateResponseSsctrlGs: nat;
    cyclesGenerateResponseSsctrlSsllm: nat;
+   cyclesGenerateScoreGsJuctrl: nat;
+   cyclesGenerateScoreJuctrlJullm: nat;
    cyclesSubmitResponse: nat;
    judgePromptId: text;
    mainerPromptId: text;
@@ -243,6 +249,8 @@ type ChallengeQueueInput =
    challengeTopicCreationTimestamp: nat64;
    challengeTopicId: text;
    challengeTopicStatus: ChallengeTopicStatus;
+   cyclesGenerateChallengeChctrlChllm: nat;
+   cyclesGenerateChallengeGsChctrl: nat;
    cyclesGenerateResponseOwnctrlGs: nat;
    cyclesGenerateResponseOwnctrlOwnllmHIGH: nat;
    cyclesGenerateResponseOwnctrlOwnllmLOW: nat;

@@ -1295,9 +1295,9 @@ actor class ChallengerCtrlbCanister() {
             };
         };
 
+        // First send cycles to the LLM
+        let cyclesAdded = challengeTopic.cyclesGenerateChallengeChctrlChllm;
         try {
-            // First send cycles to the LLM
-            let cyclesAdded = challengeTopic.cyclesGenerateChallengeChctrlChllm;
             Cycles.add<system>(cyclesAdded);
 
             let deposit_cycles_args = { canister_id : Principal = llmCanisterPrincipal; };
@@ -1305,7 +1305,7 @@ actor class ChallengerCtrlbCanister() {
 
             D.print("Challenger: challengeGenerationDoIt_ - Successfully deposited " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal) ); 
         } catch (e) {
-            D.print("Challenger: challengeGenerationDoIt_ - Failed to deposit " # debug_show(challengeTopic.cyclesGenerateChallengeChctrlChllm) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal));
+            D.print("Challenger: challengeGenerationDoIt_ - Failed to deposit " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal));
             D.print("Challenger: challengeGenerationDoIt_ - Failed to deposit error is" # Error.message(e));
 
             return #Err(#FailedOperation);

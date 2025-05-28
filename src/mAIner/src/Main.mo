@@ -20,13 +20,14 @@ import { setTimer; recurringTimer } = "mo:base/Timer";
 import Timer "mo:base/Timer";
 
 import Types "../../common/Types";
-import Constants "../../common/Constants";     // TODO - Replace import of CyclesFlows with an approach to get the values from the GameState
-                                                   //        To avoid having to upgrade the mAIner canister when the values change
+import Constants "../../common/Constants";
+import ICManagementCanister "../../common/ICManagementCanister";
 import Utils "Utils";
 
 actor class MainerAgentCtrlbCanister() = this {
 
-    // -------------------------------
+    let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
+
     stable var MAINER_AGENT_CANISTER_TYPE : Types.MainerAgentCanisterType = #Own;
 
     public shared (msg) func setMainerCanisterType(_mainer_agent_canister_type : Types.MainerAgentCanisterType) : async Types.StatusCodeRecordResult {
@@ -778,6 +779,8 @@ actor class MainerAgentCtrlbCanister() = this {
                             submissionId : Text = submitMetada.submissionId;
                             submittedTimestamp : Nat64 = submitMetada.submittedTimestamp;
                             submissionStatus : Types.ChallengeResponseSubmissionStatus = submitMetada.submissionStatus;
+                            cyclesGenerateScoreGsJuctrl : Nat = submitMetada.cyclesGenerateScoreGsJuctrl;
+                            cyclesGenerateScoreJuctrlJullm : Nat = submitMetada.cyclesGenerateScoreJuctrlJullm;
                         };
                         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling putSubmittedResponse");
                         let putResult = putSubmittedResponse(challengeResponseSubmission);
@@ -844,6 +847,7 @@ actor class MainerAgentCtrlbCanister() = this {
 
         // --------------------------------------------------------
         let llmCanister = _getRoundRobinCanister();
+        let llmCanisterPrincipal : Principal = Principal.fromActor(llmCanister);
 
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
 
@@ -860,6 +864,25 @@ actor class MainerAgentCtrlbCanister() = this {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - LLM is healthy");
             };
         };
+
+        // First send cycles to the LLM
+        var cyclesAdded : Nat = challengeQueueInput.cyclesGenerateResponseSsctrlSsllm;
+        if (MAINER_AGENT_CANISTER_TYPE == #Own) {
+            cyclesAdded := challengeQueueInput.cyclesGenerateResponseOwnctrlOwnllmHIGH; // TODO: adjust for mAIners with setting LOW or MEDIUM
+        };
+        try {
+            Cycles.add<system>(cyclesAdded);
+
+            let deposit_cycles_args = { canister_id : Principal = llmCanisterPrincipal; };
+            let _ = await IC0.deposit_cycles(deposit_cycles_args);
+
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - Successfully deposited " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal) ); 
+        } catch (e) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - Failed to deposit " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal));
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - Failed to deposit error is" # Error.message(e));
+
+            return #Err(#FailedOperation);
+        };    
 
         let generationId : Text = await Utils.newRandomUniqueId();
 

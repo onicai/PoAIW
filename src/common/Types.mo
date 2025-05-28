@@ -59,12 +59,6 @@ module Types {
         cyclesGenerateChallengeChctrlChllm : Nat;
     };
 
-    // variables sent by GameState to Judge
-    public type CyclesGenerateScore = {
-        cyclesGenerateScoreGsJuctrl : Nat;
-        cyclesGenerateScoreJuctrlJullm : Nat;
-    };
-
     // variables sent by GameState to mAIner Agent
     public type CyclesGenerateResponse = {
         cyclesSubmitResponse : Nat;
@@ -75,6 +69,12 @@ module Types {
         cyclesGenerateResponseOwnctrlOwnllmLOW : Nat;
         cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat;
         cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat;
+    };
+
+    // variables sent by GameState to Judge
+    public type CyclesGenerateScore = {
+        cyclesGenerateScoreGsJuctrl : Nat;
+        cyclesGenerateScoreJuctrlJullm : Nat;
     };
 
     public type CyclesFlow = CyclesGenerateChallenge and 
@@ -485,7 +485,7 @@ module Types {
         submissionId : Text;
         submittedTimestamp : Nat64;
         submissionStatus : ChallengeResponseSubmissionStatus;
-    };
+    } and CyclesGenerateScore;
 
     public type ChallengeResponseSubmission = ChallengeResponseSubmissionInput and ChallengeResponseSubmissionMetadata;
 
