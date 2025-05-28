@@ -16,13 +16,17 @@ import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Order "mo:base/Order";
 import Error "mo:base/Error";
+import Float "mo:base/Float";
 
 import Types "../../common/Types";
 import ICManagementCanister "../../common/ICManagementCanister";
 import TokenLedger "../../common/icp-ledger-interface";
+import Constants "../../common/Constants";
 import Utils "Utils";
 
 actor class GameStateCanister() = this {
+
+    let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
 
     // Function to verify that canister is up & running
     public shared query func health() : async Types.StatusCodeRecordResult {
@@ -148,14 +152,12 @@ actor class GameStateCanister() = this {
     // mAIner agent wasm module hash that must match
         // TODO: implement way to manage this
         // -> For now, do not make it stable, so it can be updated via a canister upgrade
-    let officialMainerAgentCanisterWasmHash : Blob = "\5B\CA\BD\C2\0A\41\F8\6C\11\5D\14\EE\ED\94\35\CC\5A\2A\87\C9\57\F8\D9\FC\4C\6E\B3\6A\1B\D3\DD\AD";
+    let officialMainerAgentCanisterWasmHash : Blob = "\79\55\55\EC\DF\B8\6E\FB\F9\35\AB\5E\A0\A4\26\42\5C\2B\38\A1\A6\39\3A\A7\EA\A0\66\B8\0B\2C\A1\1D";
     
     public shared (msg) func testMainerCodeIntegrityAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
-
-        let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
 
         let allMainerAgents : [Types.OfficialMainerAgentCanister] = getMainerAgents();
         let mainerAgentsIter : Iter.Iter<Types.OfficialMainerAgentCanister> = Iter.fromArray(allMainerAgents);
@@ -164,7 +166,7 @@ actor class GameStateCanister() = this {
             // Retrieve each mAIner agent canister's info
             for (agentEntry in mainerAgentsIter) {
                 try {
-                    let agentCanisterInfo = await IC_Management_Actor.canister_info({
+                    let agentCanisterInfo = await IC0.canister_info({
                         canister_id = Principal.fromText(agentEntry.address);
                         num_requested_changes = ?0;
                     });   
@@ -226,38 +228,591 @@ actor class GameStateCanister() = this {
             thresholdScoredResponsesPerChallenge = THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE;
         };
         return #Ok(thresholds);
-    };  
+    };
 
+    // Cycles for ShareAgent mAIner Creation
+    stable var ICP_FOR_SHARE_AGENT : Nat  = 10                  ; // TODO: Set to cost of a ShareAgent, in ICP
+    public shared (msg) func setIcpForShareAgentAdmin(icpForShareAgent : Nat) : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        ICP_FOR_SHARE_AGENT := icpForShareAgent;
+        return #Ok({ status_code = 200 });
+    };
+    stable var cyclesCreateSactrlUserGs   : Nat  = 0;
+    stable var cyclesCreateSactrlMarginGs : Nat  = 2_000_000_000  ; // Margin kept in GameState canister for the creation of the ShareAgent
+    stable var cyclesCreateSactrlMarginMc : Nat  = 2_000_000_000  ; // Margin kept in mAIner Creator canister for the creation of the ShareAgent
+    stable var cyclesCreateSactrlGsMc     : Nat  = 0;               // Cycles that will be sent to the mAIner Creator canister
+    stable var cyclesCreateSactrlMcSactrl : Nat  = 0;               // Cycles that will be sent to the mAIner agent canister
+    private func setCyclesCreateShareAgentMainer(cyclesFromUser : Nat) {
+        // Call this at start of every mAIner creation
+        cyclesCreateSactrlUserGs   := cyclesFromUser  ;
+        cyclesCreateSactrlGsMc     := cyclesCreateSactrlUserGs - cyclesCreateSactrlMarginGs;   
+        cyclesCreateSactrlMcSactrl := cyclesCreateSactrlGsMc - cyclesCreateSactrlMarginMc; 
+        D.print("GameState: setCyclesCreateShareAgent - cyclesCreateSactrlUserGs  : " # debug_show(cyclesCreateSactrlUserGs));
+        D.print("GameState: setCyclesCreateShareAgent - cyclesCreateSactrlMarginGs: " # debug_show(cyclesCreateSactrlMarginGs));
+        D.print("GameState: setCyclesCreateShareAgent - cyclesCreateSactrlMarginMc: " # debug_show(cyclesCreateSactrlMarginMc));
+        D.print("GameState: setCyclesCreateShareAgent - cyclesCreateSactrlGsMc    : " # debug_show(cyclesCreateSactrlGsMc));
+        D.print("GameState: setCyclesCreateShareAgent - cyclesCreateSactrlMcSactrl: " # debug_show(cyclesCreateSactrlMcSactrl));
+    };
+
+    // Cycles for Own mAIner Creation 
+    // Note: the ShareService mAIner will also use these values
+    stable var ICP_FOR_OWN_MAINER : Nat  = 10                  ; // TODO: Set to cost of a Own mAIner, in ICP
+    public shared (msg) func setIcpForOwnMainerAdmin(icpForOwnMainer : Nat) : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        ICP_FOR_OWN_MAINER := icpForOwnMainer;
+        return #Ok({ status_code = 200 });
+    };
+
+    // Protocol parameters used in the mAIner Creation Cycles Flow calculations      
+    let DEFAULT_CYCLES_CREATE_MAINER_MARGIN_GS          : Nat  =     2_000_000_000; // Margin kept in GameState canister 
+    let DEFAULT_CYCLES_CREATE_MAINER_MARGIN_MC          : Nat  =   300_000_000_000; // Margin kept in mAIner Creator canister
+    let DEFAULT_CYCLES_CREATE_MAINER_LLM_TARGET_BALANCE : Nat  = 2_000_000_000_000; // Target balance for the Own LLM canister after creation
+    let DEFAULT_COST_CREATE_MAINER_LLM                  : Nat  =   813_798_796_586; // Cost of an LLM canister for it's creation
+
+    stable var cyclesCreateMainerMarginGs         : Nat  = DEFAULT_CYCLES_CREATE_MAINER_MARGIN_GS;
+    stable var cyclesCreatemMainerMarginMc        : Nat  = DEFAULT_CYCLES_CREATE_MAINER_MARGIN_MC;
+    stable var cyclesCreateMainerLlmTargetBalance : Nat  = DEFAULT_CYCLES_CREATE_MAINER_LLM_TARGET_BALANCE;
+    stable var costCreateMainerLlm                : Nat  = DEFAULT_COST_CREATE_MAINER_LLM;
+
+    // Calculate the cycles that will be sent to the mAIner Creator
+    
+    private func setCyclesCreateMainer(cyclesFromUser : Nat, mainerAgentCanisterType : Types.MainerAgentCanisterType) : Types.CyclesCreateMainer {
+        // Call this at start of every mAIner canister creation
+
+        var cyclesCreateMainerctrlGsMc         : Nat  = 0; // Cycles that will be sent to the mAIner Creator canister for the ctrl
+        var cyclesCreateMainerllmGsMc          : Nat  = 0; // Cycles that will be sent to the mAIner Creator canister for the llm
+        var cyclesCreateMainerctrlMcMainerctrl : Nat  = 0; // Cycles that will be sent to the mAIner Controller canister
+        var cyclesCreateMainerllmMcMainerllm   : Nat  = 0; // Cycles that will be sent to the mAIner LLM canister
+        
+        switch (mainerAgentCanisterType) {
+            case (#ShareAgent) {
+                cyclesCreateMainerllmMcMainerllm := 0;
+                cyclesCreateMainerllmGsMc        := 0;
+            };
+            case (_) {
+                cyclesCreateMainerllmMcMainerllm  := cyclesCreateMainerLlmTargetBalance + costCreateMainerLlm - cyclesCreatemMainerMarginMc;
+                cyclesCreateMainerllmGsMc         := cyclesCreateMainerllmMcMainerllm + cyclesCreatemMainerMarginMc;
+            };
+        };
+        cyclesCreateMainerctrlGsMc     := cyclesFromUser - cyclesCreateMainerllmGsMc - cyclesCreateMainerMarginGs;         
+        cyclesCreateMainerctrlMcMainerctrl := cyclesCreateMainerctrlGsMc - cyclesCreatemMainerMarginMc;
+
+        D.print("GameState: setCyclesCreateMainer - cyclesFromUser                     : " # debug_show(cyclesFromUser));
+        D.print("GameState: setCyclesCreateMainer - cyclesCreateMainerMarginGs         : " # debug_show(cyclesCreateMainerMarginGs));
+        D.print("GameState: setCyclesCreateMainer - cyclesCreatemMainerMarginMc        : " # debug_show(cyclesCreatemMainerMarginMc));
+        D.print("GameState: setCyclesCreateMainer - cyclesCreateMainerLlmTargetBalance : " # debug_show(cyclesCreateMainerLlmTargetBalance));
+        D.print("GameState: setCyclesCreateMainer - costCreateMainerLlm                : " # debug_show(costCreateMainerLlm));
+        D.print("GameState: setCyclesCreateMainer - cyclesCreateMainerctrlGsMc         : " # debug_show(cyclesCreateMainerctrlGsMc));
+        D.print("GameState: setCyclesCreateMainer - cyclesCreateMainerllmGsMc          : " # debug_show(cyclesCreateMainerllmGsMc));
+        D.print("GameState: setCyclesCreateMainer - cyclesCreateMainerctrlMcMainerctrl : " # debug_show(cyclesCreateMainerctrlMcMainerctrl));
+        D.print("GameState: setCyclesCreateMainer - cyclesCreateMainerllmMcMainerllm   : " # debug_show(cyclesCreateMainerllmMcMainerllm));
+        
+        let cyclesCreateMainer : Types.CyclesCreateMainer = {
+            cyclesCreateMainerctrlGsMc = cyclesCreateMainerctrlGsMc;
+            cyclesCreateMainerllmGsMc  = cyclesCreateMainerllmGsMc;
+            cyclesCreateMainerctrlMcMainerctrl = cyclesCreateMainerctrlMcMainerctrl;
+            cyclesCreateMainerllmMcMainerllm   = cyclesCreateMainerllmMcMainerllm;
+        };
+        return cyclesCreateMainer;
+    };
+
+    // Protocol parameters used in the Generation Cycles Flow calculations
+    let DEFAULT_DAILY_CHALLENGES                : Nat = 5;                      // TODO: set the actual value or let the GameState automatically update this on a daily basis
+    stable var dailyChallenges                  : Nat = DEFAULT_DAILY_CHALLENGES; // The lower the value, the more cycles are send with each challenge to the Challenger
+
+    let DEFAULT_DAILY_SUBMISSIONS_PER_OWN_LOW      : Nat =  24; // TODO: set the actual value 
+    stable var dailySubmissionsPerOwnLOW           : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_OWN_LOW;
+    let DEFAULT_DAILY_SUBMISSIONS_PER_OWN_MEDIUM   : Nat =  48; // TODO: set the actual value
+    stable var dailySubmissionsPerOwnMEDIUM        : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_OWN_MEDIUM;
+    let DEFAULT_DAILY_SUBMISSIONS_PER_OWN_HIGH     : Nat =  72; // TODO: set the actual value
+    stable var dailySubmissionsPerOwnHIGH          : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_OWN_HIGH;
+
+    let DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_LOW    : Nat =   1; // TODO: set the actual value 
+    stable var dailySubmissionsPerShareLOW         : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_LOW;
+    let DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_MEDIUM : Nat =   2; // TODO: set the actual value
+    stable var dailySubmissionsPerShareMEDIUM      : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_MEDIUM;
+    let DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_HIGH   : Nat =   3; // TODO: set the actual value
+    stable var dailySubmissionsPerShareHIGH        : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_HIGH;
+    
+    let DEFAULT_DAILY_SUBMISSIONS_ALL_OWN          : Nat =   0; // TODO = GameState automatically updates this on a daily basis
+    stable var dailySubmissionsAllOwn              : Nat = DEFAULT_DAILY_SUBMISSIONS_ALL_OWN;
+    let DEFAULT_DAILY_SUBMISSIONS_ALL_SHARE        : Nat = 100; // TODO = GameState automatically updates this on a daily basis
+    stable var dailySubmissionsAllShare            : Nat = DEFAULT_DAILY_SUBMISSIONS_ALL_SHARE;
+
+    let DEFAULT_MARGIN_FAILED_SUBMISSION_CUT       : Nat =  20; // % Margin for a Failed Submission Cut
+    stable var marginFailedSubmissionCut           : Nat = DEFAULT_MARGIN_FAILED_SUBMISSION_CUT;
+    let DEFAULT_MARGIN_COST                        : Nat =  10; // % Margin for all the cycles send to cover costs
+    stable var marginCost                          : Nat = DEFAULT_MARGIN_COST;
+    let DEFAULT_SUBMISSION_FEE                     : Nat =  75_187_969_924; // $0.10 Fee for the submission of a response to GameState
+    stable var submissionFee                       : Nat = DEFAULT_SUBMISSION_FEE;
+
+    // Number of protocol LLMs
+    let DEFAULT_NUM_CHALLENGER_LLMS                : Nat =   1; // Number of Challenger   LLMs     - TODO: update to actual value
+    stable var numChallengerLlms                   : Nat = DEFAULT_NUM_CHALLENGER_LLMS;
+    let DEFAULT_NUM_JUDGE_LLMS                     : Nat =  24; // Number of Judge        LLMs     - TODO: update to actual value
+    stable var numJudgeLlms                        : Nat = DEFAULT_NUM_JUDGE_LLMS;
+    let DEFAULT_NUM_SHARE_SERVICE_LLMS             : Nat =  16; // Number of ShareService LLMs     - TODO: update to actual value
+    stable var numShareServiceLlms                 : Nat = DEFAULT_NUM_SHARE_SERVICE_LLMS;
+    
+    // Cost of the idle burn rates for protocol canisters
+    let DEFAULT_COST_IDLE_BURN_RATE_GS             : Nat =     201_492_636; // GameState                cost for idle burn rate
+    stable var costIdleBurnRateGs                  : Nat = DEFAULT_COST_IDLE_BURN_RATE_GS;
+    let DEFAULT_COST_IDLE_BURN_RATE_MC             : Nat =  28_202_512_112; // mAIner Creator           cost for idle burn rate
+    stable var costIdleBurnRateMc                  : Nat = DEFAULT_COST_IDLE_BURN_RATE_MC;
+    let DEFAULT_COST_IDLE_BURN_RATE_CHCTRL         : Nat =     114_749_311; // Challenger Controller    cost for idle burn rate
+    stable var costIdleBurnRateChctrl              : Nat = DEFAULT_COST_IDLE_BURN_RATE_CHCTRL;
+    let DEFAULT_COST_IDLE_BURN_RATE_CHLLM          : Nat =  23_769_539_345; // One Challenger LLM       cost for idle burn rate
+    stable var costIdleBurnRateChllm               : Nat = DEFAULT_COST_IDLE_BURN_RATE_CHLLM;
+    let DEFAULT_COST_IDLE_BURN_RATE_JUCTRL         : Nat =     114_749_311; // Judge Controller         cost for idle burn rate
+    stable var costIdleBurnRateJuctrl              : Nat = DEFAULT_COST_IDLE_BURN_RATE_JUCTRL;
+    let DEFAULT_COST_IDLE_BURN_RATE_JULLM          : Nat =  23_769_539_345; // One Judge LLM            cost for idle burn rate
+    stable var costIdleBurnRateJullm               : Nat = DEFAULT_COST_IDLE_BURN_RATE_JULLM;
+    let DEFAULT_COST_IDLE_BURN_RATE_SSCTRL         : Nat =     156_736_586; // ShareService Controller  cost for idle burn rate
+    stable var costIdleBurnRateSsctrl              : Nat = DEFAULT_COST_IDLE_BURN_RATE_SSCTRL;
+    let DEFAULT_COST_IDLE_BURN_RATE_SSLLM          : Nat =  23_769_539_345; // One ShareService LLM     cost for idle burn rate
+    stable var costIdleBurnRateSsllm               : Nat = DEFAULT_COST_IDLE_BURN_RATE_SSLLM;
+
+    // Cost of the idle burn rates for user canisters
+    let DEFAULT_COST_IDLE_BURN_RATE_SACTRL         : Nat =     156_736_586; // ShareAgent Controller    cost for idle burn rate
+    stable var costIdleBurnRateSactrl              : Nat = DEFAULT_COST_IDLE_BURN_RATE_SACTRL;
+    let DEFAULT_COST_IDLE_BURN_RATE_SALLM          : Nat =  23_769_539_345; // One Share Service LLM    cost for idle burn rate
+    stable var costIdleBurnRateSallm               : Nat = DEFAULT_COST_IDLE_BURN_RATE_SALLM;
+    let DEFAULT_COST_IDLE_BURN_RATE_OWNCTRL        : Nat =     156_736_586; // Own Controller           cost for idle burn rate
+    stable var costIdleBurnRateOwnctrl             : Nat = DEFAULT_COST_IDLE_BURN_RATE_OWNCTRL;
+    let DEFAULT_COST_IDLE_BURN_RATE_OWNLLM         : Nat =  23_769_539_345; // Own LLM                  cost for idle burn rate
+    stable var costIdleBurnRateOwnllm              : Nat = DEFAULT_COST_IDLE_BURN_RATE_OWNLLM;
+    
+    // Cost of the generations
+    let DEFAULT_COST_GENERATE_CHALLENGE_GS         : Nat =     221_000_000; // GameState                cost for challenge generation
+    stable var costGenerateChallengeGs             : Nat = DEFAULT_COST_GENERATE_CHALLENGE_GS;
+    let DEFAULT_COST_GENERATE_CHALLENGE_CHCTRL     : Nat =  12_052_000_000; // Challenge Controller     cost for challenge generation
+    stable var costGenerateChallengeChctrl         : Nat = DEFAULT_COST_GENERATE_CHALLENGE_CHCTRL;
+    let DEFAULT_COST_GENERATE_CHALLENGE_CHLLM      : Nat = 305_810_000_000; // Challenge LLM            cost for challenge creation
+    stable var costGenerateChallengeChllm          : Nat = DEFAULT_COST_GENERATE_CHALLENGE_CHLLM;
+
+    let DEFAULT_COST_GENERATE_SCORE_GS             : Nat =     111_000_000; // GameState                cost for Score generation
+    stable var costGenerateScoreGs                 : Nat = DEFAULT_COST_GENERATE_SCORE_GS;
+    let DEFAULT_COST_GENERATE_SCORE_JUCTRL         : Nat =   5_702_000_000; // Judge Controller         cost for Score generation
+    stable var costGenerateScoreJuctrl             : Nat = DEFAULT_COST_GENERATE_SCORE_JUCTRL;
+    let DEFAULT_COST_GENERATE_SCORE_JULLM          : Nat = 115_615_000_000; // Judge LLM                cost for Score generation
+    stable var costGenerateScoreJullm              : Nat = DEFAULT_COST_GENERATE_SCORE_JULLM;
+
+    let DEFAULT_COST_GENERATE_RESPONSE_OWN_GS      : Nat =     150_000_000; // GameState                cost for Own response generation
+    stable var costGenerateResponseOwnGs           : Nat = DEFAULT_COST_GENERATE_RESPONSE_OWN_GS;
+    let DEFAULT_COST_GENERATE_RESPONSE_OWNCTRL     : Nat =   3_947_000_000; // Own Controller           cost for Own response generation
+    stable var costGenerateResponseOwnctrl         : Nat = DEFAULT_COST_GENERATE_RESPONSE_OWNCTRL;
+    let DEFAULT_COST_GENERATE_RESPONSE_OWNLLM      : Nat = 115_615_000_000; // Own LLM                  cost for Own response generation
+    stable var costGenerateResponseOwnllm          : Nat = DEFAULT_COST_GENERATE_RESPONSE_OWNLLM;
+
+    let DEFAULT_COST_GENERATE_RESPONSE_SHARE_GS    : Nat =     150_000_000; // GameState                cost for Share response generation
+    stable var costGenerateResponseShareGs         : Nat = DEFAULT_COST_GENERATE_RESPONSE_SHARE_GS;
+    let DEFAULT_COST_GENERATE_RESPONSE_SACTRL      : Nat =     100_000_000; // Share Agent   Controller cost for Share response generation
+    stable var costGenerateResponseSactrl          : Nat = DEFAULT_COST_GENERATE_RESPONSE_SACTRL;
+    let DEFAULT_COST_GENERATE_RESPONSE_SSCTRL      : Nat =   3_947_000_000; // Share Service Controller cost for Share response generation
+    stable var costGenerateResponseSsctrl          : Nat = DEFAULT_COST_GENERATE_RESPONSE_SSCTRL;
+    let DEFAULT_COST_GENERATE_RESPONSE_SSLLM       : Nat = 115_615_000_000; // Share Service LLM        cost for Share response generation
+    stable var costGenerateResponseSsllm           : Nat = DEFAULT_COST_GENERATE_RESPONSE_SSLLM;
+
+    // Calculate Cycles Flows for Challenge generation by Challenger
+    stable var cyclesGenerateChallengeGsChctrl     : Nat = 0;
+    stable var cyclesGenerateChallengeChctrlChllm  : Nat = 0;
+    stable var cyclesBurntChallengeGeneration        : Nat = 0;
+    private func setCyclesGenerateChallenge() {
+        // To be called each time a variable is updated by Admin or by the protocol itself
+        var cost : Nat = 0;
+
+        cost := costGenerateChallengeChllm + costIdleBurnRateChllm / dailyChallenges;
+        cyclesGenerateChallengeChctrlChllm  := cost + cost * marginCost / 100;
+
+        cost := costGenerateChallengeChctrl + costIdleBurnRateChctrl / dailyChallenges;
+        cyclesGenerateChallengeGsChctrl     := cyclesGenerateChallengeChctrlChllm +
+                                               cost + cost * marginCost / 100 ;
+
+        cyclesBurntChallengeGeneration        := costGenerateChallengeGs + costGenerateChallengeChctrl + costGenerateChallengeChllm;
+        D.print("GameState: setCyclesGenerateChallenge - cyclesGenerateChallengeGsChctrl    : " # debug_show(cyclesGenerateChallengeGsChctrl));
+        D.print("GameState: setCyclesGenerateChallenge - cyclesGenerateChallengeChctrlChllm : " # debug_show(cyclesGenerateChallengeChctrlChllm));
+        D.print("GameState: setCyclesGenerateChallenge - cyclesBurntChallengeGeneration       : " # debug_show(cyclesBurntChallengeGeneration));
+    };
+
+    // Calculate Cycles Flows for Score generation by Judge
+    stable var cyclesGenerateScoreGsJuctrl         : Nat = 0;
+    stable var cyclesGenerateScoreJuctrlJullm      : Nat = 0;
+    stable var cyclesBurntJudgeScoring             : Nat = 0;
+    private func setCyclesGenerateScore() {
+        // To be called each time a variable is updated by Admin or by the protocol itself
+        var cost : Nat = 0;
+
+        let dailySubmissions = dailySubmissionsAllOwn + dailySubmissionsAllShare;
+        cost := costGenerateScoreJullm + costIdleBurnRateJullm / dailySubmissions;
+        cyclesGenerateScoreJuctrlJullm      := cost + cost * marginCost / 100;
+
+        cost := costGenerateScoreJuctrl + costIdleBurnRateJuctrl / dailySubmissions;
+        cyclesGenerateScoreGsJuctrl         := cyclesGenerateScoreJuctrlJullm +
+                                               cost + cost * marginCost / 100 ;
+
+        cyclesBurntJudgeScoring             := costGenerateScoreGs + costGenerateScoreJuctrl + costGenerateScoreJullm;
+        D.print("GameState: setCyclesGenerateScore - dailySubmissionsAllOwn            : " # debug_show(dailySubmissionsAllOwn));
+        D.print("GameState: setCyclesGenerateScore - dailySubmissionsAllShare          : " # debug_show(dailySubmissionsAllShare));
+        D.print("GameState: setCyclesGenerateScore - cyclesGenerateScoreGsJuctrl       : " # debug_show(cyclesGenerateScoreGsJuctrl));
+        D.print("GameState: setCyclesGenerateScore - cyclesGenerateScoreJuctrlJullm    : " # debug_show(cyclesGenerateScoreJuctrlJullm));
+        D.print("GameState: setCyclesGenerateScore - cyclesBurntJudgeScoring           : " # debug_show(cyclesBurntJudgeScoring));
+    };
+
+    // Calculate Cycles Flows for Response generation by mAIners
+    stable var cyclesGenerateResponseOwnctrlGs           : Nat = 0; // Gs incurs cost for download of the prompt.cache
+    stable var cyclesGenerateResponseOwnctrlOwnllmLOW    : Nat = 0;
+    stable var cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = 0;
+    stable var cyclesGenerateResponseOwnctrlOwnllmHIGH   : Nat = 0;
+    stable var cyclesBurntResponseGenerationOwn          : Nat = 0; 
+
+    stable var cyclesGenerateResponseSactrlSsctrl  : Nat = 0;
+    stable var cyclesGenerateResponseSsctrlGs      : Nat = 0; // Gs incurs cost for download of the prompt.cache
+    stable var cyclesGenerateResponseSsctrlSsllm   : Nat = 0;
+    stable var cyclesBurntResponseGenerationShare  : Nat = 0; 
+
+    stable var cyclesSubmitResponse                : Nat = 0;
+    stable var cyclesFailedSubmissionCut           : Nat = 0; 
+
+    private func setCyclesGenerateResponse() {
+        // To be called each time a variable is updated by Admin or by the protocol itself
+        var cost : Nat = 0;
+
+        // Response generation by Own mAIner
+        cost := costGenerateResponseOwnGs;
+        cyclesGenerateResponseOwnctrlGs     := cost + cost * marginCost / 100;
+
+        cost := costGenerateResponseOwnllm + costIdleBurnRateOwnllm / dailySubmissionsPerOwnLOW;
+        cyclesGenerateResponseOwnctrlOwnllmLOW := cost + cost * marginCost / 100;
+
+        cost := costGenerateResponseOwnllm + costIdleBurnRateOwnllm / dailySubmissionsPerOwnMEDIUM;
+        cyclesGenerateResponseOwnctrlOwnllmMEDIUM := cost + cost * marginCost / 100;
+
+        cost := costGenerateResponseOwnllm + costIdleBurnRateOwnllm / dailySubmissionsPerOwnHIGH;
+        cyclesGenerateResponseOwnctrlOwnllmHIGH := cost + cost * marginCost / 100;
+
+        // Response generation by Shared mAIner
+        cost := costGenerateResponseShareGs;
+        cyclesGenerateResponseSsctrlGs      := cost + cost * marginCost / 100;
+
+        cost := costGenerateResponseSsctrl + costGenerateResponseSsllm +
+               (costIdleBurnRateSsctrl + numShareServiceLlms * costIdleBurnRateSsllm) / dailySubmissionsAllShare;
+        cyclesGenerateResponseSactrlSsctrl  := cyclesGenerateResponseSsctrlGs + 
+                                               cost + cost * marginCost / 100;
+
+        cost := costGenerateResponseSsllm + (numShareServiceLlms * costIdleBurnRateSsllm) / dailySubmissionsAllShare;
+        cyclesGenerateResponseSsctrlSsllm   := cost + cost * marginCost / 100;
+
+        // Total burnt cycles for response generation (excludes idle burn)
+        cyclesBurntResponseGenerationOwn    := costGenerateResponseOwnGs + costGenerateResponseOwnctrl + costGenerateResponseOwnllm;
+        cyclesBurntResponseGenerationShare  := costGenerateResponseShareGs + costGenerateResponseSactrl + costGenerateResponseSsctrl + costGenerateResponseSsllm;
+
+        // Submission of the response to GameState
+        // Cover cost of:
+        // -> GameState, Challenger & Judge for this response to a Challenge, including their idle burn rates
+        // -> The idle burn rate of the mAInerCreator
+        // Note that ShareService is not included here, as it's costs are already covered by the ShareAgent
+        //
+        let dailyIdleBurnRate = costIdleBurnRateGs + 
+                                costIdleBurnRateChctrl + numChallengerLlms * costIdleBurnRateChllm + 
+                                costIdleBurnRateJuctrl + numJudgeLlms      * costIdleBurnRateJullm +
+                                costIdleBurnRateMc;
+        let dailySubmissionsAll = dailySubmissionsAllOwn + dailySubmissionsAllShare;
+        cost := costGenerateScoreGs + costGenerateScoreJuctrl + costGenerateScoreJullm +
+               (costGenerateChallengeChctrl + costGenerateChallengeChllm) / THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE +
+                dailyIdleBurnRate / dailySubmissionsAll;
+        cyclesSubmitResponse                := submissionFee + cost + cost * marginCost / 100;
+        cyclesFailedSubmissionCut           := cyclesSubmitResponse * marginFailedSubmissionCut / 100;
+
+        D.print("GameState: setCyclesGenerateResponse - cyclesGenerateResponseOwnctrlGs           : " # debug_show(cyclesGenerateResponseOwnctrlGs));
+        D.print("GameState: setCyclesGenerateResponse - cyclesGenerateResponseOwnctrlOwnllmLOW    : " # debug_show(cyclesGenerateResponseOwnctrlOwnllmLOW));
+        D.print("GameState: setCyclesGenerateResponse - cyclesGenerateResponseOwnctrlOwnllmMEDIUM : " # debug_show(cyclesGenerateResponseOwnctrlOwnllmMEDIUM));
+        D.print("GameState: setCyclesGenerateResponse - cyclesGenerateResponseOwnctrlOwnllmHIGH   : " # debug_show(cyclesGenerateResponseOwnctrlOwnllmHIGH));
+        
+        D.print("GameState: setCyclesGenerateResponse - cyclesGenerateResponseSactrlSsctrl        : " # debug_show(cyclesGenerateResponseSactrlSsctrl));
+        D.print("GameState: setCyclesGenerateResponse - cyclesGenerateResponseSsctrlGs            : " # debug_show(cyclesGenerateResponseSsctrlGs));
+        D.print("GameState: setCyclesGenerateResponse - cyclesGenerateResponseSsctrlSsllm         : " # debug_show(cyclesGenerateResponseSsctrlSsllm));
+
+        D.print("GameState: setCyclesGenerateResponse - cyclesBurntResponseGenerationOwn          : " # debug_show(cyclesBurntResponseGenerationOwn));
+        D.print("GameState: setCyclesGenerateResponse - cyclesBurntResponseGenerationShare        : " # debug_show(cyclesBurntResponseGenerationShare));
+
+        D.print("GameState: setCyclesGenerateResponse - cyclesSubmitResponse                      : " # debug_show(cyclesSubmitResponse));
+        D.print("GameState: setCyclesGenerateResponse - cyclesFailedSubmissionCut                 : " # debug_show(cyclesFailedSubmissionCut));
+    };
+
+    private func resetCyclesFlow() {
+        // Reset all parameters to their default values
+        cyclesCreateMainerMarginGs         := DEFAULT_CYCLES_CREATE_MAINER_MARGIN_GS;
+        cyclesCreatemMainerMarginMc        := DEFAULT_CYCLES_CREATE_MAINER_MARGIN_MC;
+        cyclesCreateMainerLlmTargetBalance := DEFAULT_CYCLES_CREATE_MAINER_LLM_TARGET_BALANCE;
+        costCreateMainerLlm       := DEFAULT_COST_CREATE_MAINER_LLM;
+
+        dailyChallenges := DEFAULT_DAILY_CHALLENGES;
+        
+        dailySubmissionsPerOwnLOW := DEFAULT_DAILY_SUBMISSIONS_PER_OWN_LOW;
+        dailySubmissionsPerOwnMEDIUM := DEFAULT_DAILY_SUBMISSIONS_PER_OWN_MEDIUM;
+        dailySubmissionsPerOwnHIGH := DEFAULT_DAILY_SUBMISSIONS_PER_OWN_HIGH;
+        
+        dailySubmissionsPerShareLOW := DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_LOW;
+        dailySubmissionsPerShareMEDIUM := DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_MEDIUM;
+        dailySubmissionsPerShareHIGH := DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_HIGH;
+        
+        dailySubmissionsAllOwn := DEFAULT_DAILY_SUBMISSIONS_ALL_OWN;
+        dailySubmissionsAllShare := DEFAULT_DAILY_SUBMISSIONS_ALL_SHARE;
+        
+        marginFailedSubmissionCut := DEFAULT_MARGIN_FAILED_SUBMISSION_CUT;
+        marginCost := DEFAULT_MARGIN_COST;
+        submissionFee := DEFAULT_SUBMISSION_FEE;
+        
+        numChallengerLlms := DEFAULT_NUM_CHALLENGER_LLMS;
+        numJudgeLlms := DEFAULT_NUM_JUDGE_LLMS;
+        numShareServiceLlms := DEFAULT_NUM_SHARE_SERVICE_LLMS;
+        
+        costIdleBurnRateGs := DEFAULT_COST_IDLE_BURN_RATE_GS;
+        costIdleBurnRateMc := DEFAULT_COST_IDLE_BURN_RATE_MC;
+        costIdleBurnRateChctrl := DEFAULT_COST_IDLE_BURN_RATE_CHCTRL;
+        costIdleBurnRateChllm := DEFAULT_COST_IDLE_BURN_RATE_CHLLM;
+        costIdleBurnRateJuctrl := DEFAULT_COST_IDLE_BURN_RATE_JUCTRL;
+        costIdleBurnRateJullm := DEFAULT_COST_IDLE_BURN_RATE_JULLM;
+        costIdleBurnRateSsctrl := DEFAULT_COST_IDLE_BURN_RATE_SSCTRL;
+        costIdleBurnRateSsllm := DEFAULT_COST_IDLE_BURN_RATE_SSLLM;
+        
+        costIdleBurnRateSactrl := DEFAULT_COST_IDLE_BURN_RATE_SACTRL;
+        costIdleBurnRateSallm := DEFAULT_COST_IDLE_BURN_RATE_SALLM;
+        costIdleBurnRateOwnctrl := DEFAULT_COST_IDLE_BURN_RATE_OWNCTRL;
+        costIdleBurnRateOwnllm := DEFAULT_COST_IDLE_BURN_RATE_OWNLLM;
+        
+        costGenerateChallengeGs := DEFAULT_COST_GENERATE_CHALLENGE_GS;
+        costGenerateChallengeChctrl := DEFAULT_COST_GENERATE_CHALLENGE_CHCTRL;
+        costGenerateChallengeChllm := DEFAULT_COST_GENERATE_CHALLENGE_CHLLM;
+        
+        costGenerateScoreGs := DEFAULT_COST_GENERATE_SCORE_GS;
+        costGenerateScoreJuctrl := DEFAULT_COST_GENERATE_SCORE_JUCTRL;
+        costGenerateScoreJullm := DEFAULT_COST_GENERATE_SCORE_JULLM;
+        
+        costGenerateResponseOwnGs := DEFAULT_COST_GENERATE_RESPONSE_OWN_GS;
+        costGenerateResponseOwnctrl := DEFAULT_COST_GENERATE_RESPONSE_OWNCTRL;
+        costGenerateResponseOwnllm := DEFAULT_COST_GENERATE_RESPONSE_OWNLLM;
+        
+        costGenerateResponseShareGs := DEFAULT_COST_GENERATE_RESPONSE_SHARE_GS;
+        costGenerateResponseSactrl := DEFAULT_COST_GENERATE_RESPONSE_SACTRL;
+        costGenerateResponseSsctrl := DEFAULT_COST_GENERATE_RESPONSE_SSCTRL;
+        costGenerateResponseSsllm := DEFAULT_COST_GENERATE_RESPONSE_SSLLM;
+
+        // Then set all the cycles flows
+        setCyclesFlow();
+    };
+
+    private func setCyclesFlow() {
+        // Calculate the cycles flows
+        setCyclesGenerateChallenge();
+        setCyclesGenerateScore();
+        setCyclesGenerateResponse();
+    };
+    
+    // Cycle Flow Settings Admin Endpoints
+    public shared (msg) func getCyclesFlowAdmin() : async Types.CyclesFlowResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Return the current cycles flow settings
+        let cyclesFlow : Types.CyclesFlow = {
+            // mAIner creation
+            cyclesCreateMainerMarginGs = cyclesCreateMainerMarginGs;
+            cyclesCreatemMainerMarginMc = cyclesCreatemMainerMarginMc;
+            cyclesCreateMainerLlmTargetBalance = cyclesCreateMainerLlmTargetBalance;
+            costCreateMainerLlm = costCreateMainerLlm;
+
+            // Generations
+            dailyChallenges = dailyChallenges;
+            dailySubmissionsPerOwnLOW = dailySubmissionsPerOwnLOW;
+            dailySubmissionsPerOwnMEDIUM = dailySubmissionsPerOwnMEDIUM;
+            dailySubmissionsPerOwnHIGH = dailySubmissionsPerOwnHIGH;
+            dailySubmissionsPerShareLOW = dailySubmissionsPerShareLOW;
+            dailySubmissionsPerShareMEDIUM = dailySubmissionsPerShareMEDIUM;
+            dailySubmissionsPerShareHIGH = dailySubmissionsPerShareHIGH;
+            dailySubmissionsAllOwn = dailySubmissionsAllOwn;
+            dailySubmissionsAllShare = dailySubmissionsAllShare;
+            marginFailedSubmissionCut = marginFailedSubmissionCut;
+            marginCost = marginCost;
+            submissionFee = submissionFee;
+
+            numChallengerLlms = numChallengerLlms;
+            numJudgeLlms = numJudgeLlms;
+            numShareServiceLlms = numShareServiceLlms;
+
+            costIdleBurnRateGs = costIdleBurnRateGs;
+            costIdleBurnRateMc = costIdleBurnRateMc;
+            costIdleBurnRateChctrl = costIdleBurnRateChctrl;
+            costIdleBurnRateChllm = costIdleBurnRateChllm;
+            costIdleBurnRateJuctrl = costIdleBurnRateJuctrl;
+            costIdleBurnRateJullm = costIdleBurnRateJullm;
+            costIdleBurnRateSsctrl = costIdleBurnRateSsctrl;
+            costIdleBurnRateSsllm = costIdleBurnRateSsllm;
+
+            costIdleBurnRateSactrl = costIdleBurnRateSactrl;
+            costIdleBurnRateSallm = costIdleBurnRateSallm;
+            costIdleBurnRateOwnctrl = costIdleBurnRateOwnctrl;
+            costIdleBurnRateOwnllm = costIdleBurnRateOwnllm;
+
+            costGenerateChallengeGs = costGenerateChallengeGs;
+            costGenerateChallengeChctrl = costGenerateChallengeChctrl;
+            costGenerateChallengeChllm = costGenerateChallengeChllm;
+            costGenerateScoreGs = costGenerateScoreGs;
+            costGenerateScoreJuctrl = costGenerateScoreJuctrl;
+            costGenerateScoreJullm = costGenerateScoreJullm;
+            costGenerateResponseOwnGs = costGenerateResponseOwnGs;
+            costGenerateResponseOwnctrl = costGenerateResponseOwnctrl;
+            costGenerateResponseOwnllm = costGenerateResponseOwnllm;
+            costGenerateResponseShareGs = costGenerateResponseShareGs;
+            costGenerateResponseSactrl = costGenerateResponseSactrl;
+            costGenerateResponseSsctrl = costGenerateResponseSsctrl;
+            costGenerateResponseSsllm = costGenerateResponseSsllm;
+
+            cyclesGenerateChallengeGsChctrl = cyclesGenerateChallengeGsChctrl;
+            cyclesGenerateChallengeChctrlChllm = cyclesGenerateChallengeChctrlChllm;
+            cyclesBurntChallengeGeneration = cyclesBurntChallengeGeneration;
+            cyclesGenerateScoreGsJuctrl = cyclesGenerateScoreGsJuctrl;
+            cyclesGenerateScoreJuctrlJullm = cyclesGenerateScoreJuctrlJullm;
+            cyclesBurntJudgeScoring = cyclesBurntJudgeScoring;
+            cyclesGenerateResponseOwnctrlGs = cyclesGenerateResponseOwnctrlGs;
+            cyclesGenerateResponseOwnctrlOwnllmLOW = cyclesGenerateResponseOwnctrlOwnllmLOW;
+            cyclesGenerateResponseOwnctrlOwnllmMEDIUM = cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+            cyclesGenerateResponseOwnctrlOwnllmHIGH = cyclesGenerateResponseOwnctrlOwnllmHIGH;
+            cyclesGenerateResponseSactrlSsctrl = cyclesGenerateResponseSactrlSsctrl;
+            cyclesGenerateResponseSsctrlGs = cyclesGenerateResponseSsctrlGs;
+            cyclesGenerateResponseSsctrlSsllm = cyclesGenerateResponseSsctrlSsllm;
+            cyclesBurntResponseGenerationOwn = cyclesBurntResponseGenerationOwn;
+            cyclesBurntResponseGenerationShare = cyclesBurntResponseGenerationShare;
+            cyclesSubmitResponse = cyclesSubmitResponse;
+            cyclesFailedSubmissionCut = cyclesFailedSubmissionCut;
+        };
+
+        return #Ok(cyclesFlow);
+    };
+
+    public shared (msg) func resetCyclesFlowAdmin() : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        resetCyclesFlow();
+
+        return #Ok({ status_code = 200 });
+    };
+
+    public shared (msg) func setCyclesFlowAdmin(settings: Types.CyclesFlowSettings) : async Types.StatusCodeRecordResult {
+        // Function to allow the admin to set the parameters and the calculated values in stable memory
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Optionally, update the Protocol parameters
+        switch (settings.dailyChallenges) { case (null) {}; case (?value) { dailyChallenges := value; }; }; // TODO: remove this once we update it automatically
+        switch (settings.dailySubmissionsPerOwnLOW) { case (null) {}; case (?value) { dailySubmissionsPerOwnLOW := value; }; };
+        switch (settings.dailySubmissionsPerOwnMEDIUM) { case (null) {}; case (?value) { dailySubmissionsPerOwnMEDIUM := value; }; };
+        switch (settings.dailySubmissionsPerOwnHIGH) { case (null) {}; case (?value) { dailySubmissionsPerOwnHIGH := value; }; };
+        switch (settings.dailySubmissionsPerShareLOW) { case (null) {}; case (?value) { dailySubmissionsPerShareLOW := value; }; };
+        switch (settings.dailySubmissionsPerShareMEDIUM) { case (null) {}; case (?value) { dailySubmissionsPerShareMEDIUM := value; }; };
+        switch (settings.dailySubmissionsPerShareHIGH) { case (null) {}; case (?value) { dailySubmissionsPerShareHIGH := value; }; };
+        switch (settings.dailySubmissionsAllOwn) { case (null) {}; case (?value) { dailySubmissionsAllOwn := value; }; }; // TODO: remove this once we update it automatically
+        switch (settings.dailySubmissionsAllShare) { case (null) {}; case (?value) { dailySubmissionsAllShare := value; }; }; // TODO: remove this once we update it automatically
+        switch (settings.marginFailedSubmissionCut) { case (null) {}; case (?value) { marginFailedSubmissionCut := value; }; };
+        switch (settings.marginCost) { case (null) {}; case (?value) { marginCost := value; }; };
+        switch (settings.submissionFee) { case (null) {}; case (?value) { submissionFee := value; }; };
+
+        // Optionally, update the number of LLMs
+        // TODO: remove this once we update it automatically as part of the protocol
+        switch (settings.numChallengerLlms) { case (null) {}; case (?value) { numChallengerLlms := value; }; };
+        switch (settings.numJudgeLlms) { case (null) {}; case (?value) { numJudgeLlms := value; }; };
+        switch (settings.numShareServiceLlms) { case (null) {}; case (?value) { numShareServiceLlms := value; }; };
+
+        // Optionally, update the idle burn rates for protocol canisters
+        switch (settings.costIdleBurnRateGs) { case (null) {}; case (?value) { costIdleBurnRateGs := value; }; };
+        switch (settings.costIdleBurnRateMc) { case (null) {}; case (?value) { costIdleBurnRateMc := value; }; };
+        switch (settings.costIdleBurnRateChctrl) { case (null) {}; case (?value) { costIdleBurnRateChctrl := value; }; };
+        switch (settings.costIdleBurnRateChllm) { case (null) {}; case (?value) { costIdleBurnRateChllm := value; }; };
+        switch (settings.costIdleBurnRateJuctrl) { case (null) {}; case (?value) { costIdleBurnRateJuctrl := value; }; };
+        switch (settings.costIdleBurnRateJullm) { case (null) {}; case (?value) { costIdleBurnRateJullm := value; }; };
+        switch (settings.costIdleBurnRateSsctrl) { case (null) {}; case (?value) { costIdleBurnRateSsctrl := value; }; };
+        switch (settings.costIdleBurnRateSsllm) { case (null) {}; case (?value) { costIdleBurnRateSsllm := value; }; };
+
+        // Optionally, update the idle burn rates for user canisters
+        switch (settings.costIdleBurnRateSactrl) { case (null) {}; case (?value) { costIdleBurnRateSactrl := value; }; };
+        switch (settings.costIdleBurnRateSallm) { case (null) {}; case (?value) { costIdleBurnRateSallm := value; }; };
+        switch (settings.costIdleBurnRateOwnctrl) { case (null) {}; case (?value) { costIdleBurnRateOwnctrl := value; }; };
+        switch (settings.costIdleBurnRateOwnllm) { case (null) {}; case (?value) { costIdleBurnRateOwnllm := value; }; };
+        
+        // Optionally, update Generation cost
+        switch (settings.costGenerateChallengeGs) { case (null) {}; case (?value) { costGenerateChallengeGs := value; }; };
+        switch (settings.costGenerateChallengeChctrl) { case (null) {}; case (?value) { costGenerateChallengeChctrl := value; }; };
+        switch (settings.costGenerateChallengeChllm) { case (null) {}; case (?value) { costGenerateChallengeChllm := value; }; };
+        
+        switch (settings.costGenerateScoreGs) { case (null) {}; case (?value) { costGenerateScoreGs := value; }; };
+        switch (settings.costGenerateScoreJuctrl) { case (null) {}; case (?value) { costGenerateScoreJuctrl := value; }; };
+        switch (settings.costGenerateScoreJullm) { case (null) {}; case (?value) { costGenerateScoreJullm := value; }; };
+
+        switch (settings.costGenerateResponseOwnGs) { case (null) {}; case (?value) { costGenerateResponseOwnGs := value; }; };
+        switch (settings.costGenerateResponseOwnctrl) { case (null) {}; case (?value) { costGenerateResponseOwnctrl := value; }; };
+        switch (settings.costGenerateResponseOwnllm) { case (null) {}; case (?value) { costGenerateResponseOwnllm := value; }; };
+        
+        switch (settings.costGenerateResponseShareGs) { case (null) {}; case (?value) { costGenerateResponseShareGs := value; }; };
+        switch (settings.costGenerateResponseSactrl) { case (null) {}; case (?value) { costGenerateResponseSactrl := value; }; };
+        switch (settings.costGenerateResponseSsctrl) { case (null) {}; case (?value) { costGenerateResponseSsctrl := value; }; };
+        switch (settings.costGenerateResponseSsllm) { case (null) {}; case (?value) { costGenerateResponseSsllm := value; }; };
+
+        // Then calculate & set the cycles flow values
+        setCyclesFlow();
+
+        // Optionally, update calculated cycles flow values (these are computed, but can be overridden)
+        switch (settings.cyclesGenerateChallengeGsChctrl) { case (null) {}; case (?value) { cyclesGenerateChallengeGsChctrl := value; }; };
+        switch (settings.cyclesGenerateChallengeChctrlChllm) { case (null) {}; case (?value) { cyclesGenerateChallengeChctrlChllm := value; }; };
+        switch (settings.cyclesBurntChallengeGeneration) { case (null) {}; case (?value) { cyclesBurntChallengeGeneration := value; }; };
+        switch (settings.cyclesGenerateScoreGsJuctrl) { case (null) {}; case (?value) { cyclesGenerateScoreGsJuctrl := value; }; };
+        switch (settings.cyclesGenerateScoreJuctrlJullm) { case (null) {}; case (?value) { cyclesGenerateScoreJuctrlJullm := value; }; };
+        switch (settings.cyclesBurntJudgeScoring) { case (null) {}; case (?value) { cyclesBurntJudgeScoring := value; }; };
+        switch (settings.cyclesGenerateResponseOwnctrlGs) { case (null) {}; case (?value) { cyclesGenerateResponseOwnctrlGs := value; }; };
+        switch (settings.cyclesGenerateResponseOwnctrlOwnllmLOW) { case (null) {}; case (?value) { cyclesGenerateResponseOwnctrlOwnllmLOW := value; }; };
+        switch (settings.cyclesGenerateResponseOwnctrlOwnllmMEDIUM) { case (null) {}; case (?value) { cyclesGenerateResponseOwnctrlOwnllmMEDIUM := value; }; };
+        switch (settings.cyclesGenerateResponseOwnctrlOwnllmHIGH) { case (null) {}; case (?value) { cyclesGenerateResponseOwnctrlOwnllmHIGH := value; }; };
+        switch (settings.cyclesGenerateResponseSactrlSsctrl) { case (null) {}; case (?value) { cyclesGenerateResponseSactrlSsctrl := value; }; };
+        switch (settings.cyclesGenerateResponseSsctrlGs) { case (null) {}; case (?value) { cyclesGenerateResponseSsctrlGs := value; }; };
+        switch (settings.cyclesGenerateResponseSsctrlSsllm) { case (null) {}; case (?value) { cyclesGenerateResponseSsctrlSsllm := value; }; };
+        switch (settings.cyclesBurntResponseGenerationOwn) { case (null) {}; case (?value) { cyclesBurntResponseGenerationOwn := value; }; };
+        switch (settings.cyclesBurntResponseGenerationShare) { case (null) {}; case (?value) { cyclesBurntResponseGenerationShare := value; }; };
+        switch (settings.cyclesSubmitResponse) { case (null) {}; case (?value) { cyclesSubmitResponse := value; }; };
+        switch (settings.cyclesFailedSubmissionCut) { case (null) {}; case (?value) { cyclesFailedSubmissionCut := value; }; };
+
+        return #Ok({ status_code = 200 });
+    };
+
+    // The total daily idle burn rate of all the canisters
+    private func getDailyIdleBurnRate() : Nat {
+        let numOwnMainers : Nat = 0;   // TODO: use the actual value
+        let numShareMainers : Nat = 0; // TODO: use the actual value
+        let dailyIdleBurnRate : Nat = 
+                costIdleBurnRateGs + costIdleBurnRateMc + 
+                costIdleBurnRateChctrl + numChallengerLlms   * costIdleBurnRateChllm + 
+                costIdleBurnRateJuctrl + numJudgeLlms        * costIdleBurnRateJullm + 
+                costIdleBurnRateSsctrl + numShareServiceLlms * costIdleBurnRateSsllm +
+                numShareMainers *  costIdleBurnRateSactrl +
+                numOwnMainers   * (costIdleBurnRateOwnctrl + costIdleBurnRateOwnllm); // TODO: update once we allow an Own mAIner to have multiple LLMs
+        D.print("GameState: setDailyIdleBurnRate - dailyIdleBurnRate    : " # debug_show(dailyIdleBurnRate));
+        return dailyIdleBurnRate;
+    };
 
     // Statistics
     stable var TOTAL_PROTOCOL_CYCLES_BURNT : Nat = 0;
 
+    // TODO: once a day, add the dailyIdleBurnRate using getDailyIdleBurnRate()
     private func increaseTotalProtocolCyclesBurnt(cyclesBurntToAdd : Nat) : Bool {
         TOTAL_PROTOCOL_CYCLES_BURNT := TOTAL_PROTOCOL_CYCLES_BURNT + cyclesBurntToAdd;
         return true;
     };
-
-    // TODO: Cycles burnt per operation    
-    stable let _CYCLES_MILLION = 1_000_000;
-    stable let CYCLES_BILLION = 1_000_000_000;
-    stable let CYCLES_TRILLION = 1_000_000_000_000;
-
-
-    // TODO: Keep in sync with SUBMISSION_CYCLES_REQUIRED in mAInerCreator
-    let MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED = 5 * CYCLES_TRILLION; // TODO: Update to actual values
-    let MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED = 5 * CYCLES_TRILLION; // TODO: Update to actual values
-
-    // TODO: Keep in sync with SUBMISSION_CYCLES_REQUIRED in mAIner
-    // mAIner #Own & #ShareAgent -> GameState; Send with submission
-    let SUBMISSION_CYCLES_REQUIRED : Nat = 100 * CYCLES_BILLION; // TODO: determine how many cycles are needed to process one submission (incl. judge)
-    
-    let FAILED_SUBMISSION_CYCLES_CUT : Nat = SUBMISSION_CYCLES_REQUIRED / 5;
-    let _JUDGE_CYCLES_PROVISION_PER_SUBMISSION : Nat = 80 * CYCLES_BILLION; // TODO: determine how many cycles should be forwarded to judge per submission
-
-    // TODO: Update to actual values
-    let CYCLES_BURNT_CHALLENGE_CREATION : Nat = 110 * CYCLES_BILLION;
-    let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * CYCLES_BILLION;
-    let CYCLES_BURNT_JUDGE_SCORING : Nat = 300 * CYCLES_BILLION;
 
     // Official Challenger canisters
     stable var challengerCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
@@ -1419,6 +1974,9 @@ actor class GameStateCanister() = this {
             return #Err(#Unauthorized);
         };
         D.print("GameState: setInitialChallengeTopics - entered");
+        // Ensure the CyclesFlows are set for Challenge Generation
+        setCyclesFlow();
+
         // Start with some initial topics
         let initialTopics : [Text] = [
             "crypto",     "nature",      "space", "history", "science", 
@@ -1432,6 +1990,8 @@ actor class GameStateCanister() = this {
                 challengeTopicId : Text = challengeTopicId;
                 challengeTopicCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                 challengeTopicStatus : Types.ChallengeTopicStatus = #Open;
+                cyclesGenerateChallengeGsChctrl : Nat = cyclesGenerateChallengeGsChctrl;
+                cyclesGenerateChallengeChctrlChllm : Nat = cyclesGenerateChallengeChctrlChllm;
             };
 
             D.print("GameState: init - Adding challengeTopic: " # debug_show(challengeTopic));
@@ -1452,6 +2012,8 @@ actor class GameStateCanister() = this {
             challengeTopicId : Text = challengeTopicId;
             challengeTopicCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
             challengeTopicStatus : Types.ChallengeTopicStatus = #Open;
+            cyclesGenerateChallengeGsChctrl : Nat = cyclesGenerateChallengeGsChctrl;
+            cyclesGenerateChallengeChctrlChllm : Nat = cyclesGenerateChallengeChctrlChllm;
         };
 
         let _ = putOpenChallengeTopic(challengeTopicId, challengeTopic);
@@ -1519,7 +2081,24 @@ actor class GameStateCanister() = this {
                 let challengeTopicResult : ?Types.ChallengeTopic = await getRandomChallengeTopic(#Open);
                 switch (challengeTopicResult) {
                     case (?challengeTopic) {
-                        return #Ok(challengeTopic);                
+                        // First send cycles to the Challenger to pay for the challenge generation
+                        let cyclesAdded = cyclesGenerateChallengeGsChctrl;
+                        Cycles.add<system>(cyclesAdded);
+                        try {
+                            let deposit_cycles_args = { canister_id : Principal = msg.caller; };
+                            let _ = await IC0.deposit_cycles(deposit_cycles_args);
+
+                            D.print("GameState: getRandomOpenChallengeTopic - Successfully deposited " # debug_show(cyclesAdded) # " cycles to Challenger canister " # Principal.toText(msg.caller) );
+
+                            // Now we can return the challenge topic
+                            return #Ok(challengeTopic);  
+
+                        } catch (e) {
+                            D.print("GameState: getRandomOpenChallengeTopic - Failed to deposit " # debug_show(cyclesAdded) # " cycles to Challenger canister " # Principal.toText(msg.caller));
+                            D.print("GameState: getRandomOpenChallengeTopic - Failed to deposit error is" # Error.message(e));
+
+                            return #Err(#FailedOperation);
+                        };    
                     };
                     case (_) { return #Err(#FailedOperation); };
                 };             
@@ -1535,7 +2114,7 @@ actor class GameStateCanister() = this {
 
         // TODO - Implementation: require cycles for adding new challenge
 
-        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_CHALLENGE_CREATION);
+        ignore increaseTotalProtocolCyclesBurnt(cyclesBurntChallengeGeneration);
 
         // Only official Challenger canisters may call this
         switch (getChallengerCanister(Principal.toText(msg.caller))) {
@@ -1553,6 +2132,8 @@ actor class GameStateCanister() = this {
                     challengeTopicId : Text = newChallenge.challengeTopicId;
                     challengeTopicCreationTimestamp : Nat64 = newChallenge.challengeTopicCreationTimestamp;
                     challengeTopicStatus : Types.ChallengeTopicStatus = newChallenge.challengeTopicStatus;
+                    cyclesGenerateChallengeGsChctrl : Nat = newChallenge.cyclesGenerateChallengeGsChctrl;
+                    cyclesGenerateChallengeChctrlChllm : Nat = newChallenge.cyclesGenerateChallengeChctrlChllm;
                     challengeId : Text = challengeId;
                     challengeQuestion : Text = newChallenge.challengeQuestion;
                     challengeQuestionSeed : Nat32 = newChallenge.challengeQuestionSeed;
@@ -1562,7 +2143,14 @@ actor class GameStateCanister() = this {
                     challengeCreatedBy : Types.CanisterAddress = challengerEntry.address;
                     challengeStatus : Types.ChallengeStatus = #Open;
                     challengeClosedTimestamp : ?Nat64 = null;
-                    submissionCyclesRequired : Nat = SUBMISSION_CYCLES_REQUIRED;
+                    cyclesSubmitResponse : Nat = cyclesSubmitResponse;
+                    cyclesGenerateResponseSactrlSsctrl : Nat = cyclesGenerateResponseSactrlSsctrl;
+                    cyclesGenerateResponseSsctrlGs : Nat = cyclesGenerateResponseSsctrlGs;
+                    cyclesGenerateResponseSsctrlSsllm : Nat = cyclesGenerateResponseSsctrlSsllm;
+                    cyclesGenerateResponseOwnctrlGs : Nat = cyclesGenerateResponseOwnctrlGs;
+                    cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = cyclesGenerateResponseOwnctrlOwnllmLOW;
+                    cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+                    cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = cyclesGenerateResponseOwnctrlOwnllmHIGH;
                 };
 
                 let putResult = putOpenChallenge(challengeId, challengeAdded);
@@ -1937,14 +2525,18 @@ actor class GameStateCanister() = this {
                                 let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
 
                                 var associatedCanisterAddress : ?Types.CanisterAddress = null;
+                                var mainerAgentCanisterType : Types.MainerAgentCanisterType = #ShareAgent;
                                 switch (userMainerEntry.canisterType) {
                                     case (#MainerAgent(#Own)) {
                                         // continue
+                                        mainerAgentCanisterType := #Own;
                                     };
                                     case (#MainerAgent(#ShareService)) {
                                         // continue
+                                        mainerAgentCanisterType := #ShareService;
                                     };
                                     case (#MainerAgent(#ShareAgent)) {
+                                        mainerAgentCanisterType := #ShareAgent;
                                         // if of type ShareAgent, the shareServiceCanisterAddress is provided from the Game State info and added here as associatedCanisterAddress
                                         switch (getNextSharedServiceCanisterEntry()) {
                                             case (null) {
@@ -1959,6 +2551,9 @@ actor class GameStateCanister() = this {
                                     };
                                     case (_) { return #Err(#Other("Unsupported")); }
                                 };
+
+                                let cyclesFromUser : Nat = 10_000_000_000_000; // TODO - get from user payment
+                                let cyclesCreateMainer : Types.CyclesCreateMainer = setCyclesCreateMainer(cyclesFromUser, mainerAgentCanisterType);
                                 
                                 let canisterCreationInput : Types.CanisterCreationConfiguration = {
                                     canisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType;
@@ -1967,14 +2562,17 @@ actor class GameStateCanister() = this {
                                     mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                     userMainerEntryCreationTimestamp : Nat64 = userMainerEntry.creationTimestamp;
                                     userMainerEntryCanisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType;
+                                    cyclesCreateMainerctrlGsMc : Nat = cyclesCreateMainer.cyclesCreateMainerctrlGsMc;
+                                    cyclesCreateMainerllmGsMc : Nat = cyclesCreateMainer.cyclesCreateMainerllmGsMc;
+                                    cyclesCreateMainerctrlMcMainerctrl : Nat = cyclesCreateMainer.cyclesCreateMainerctrlMcMainerctrl;
+                                    cyclesCreateMainerllmMcMainerllm : Nat = cyclesCreateMainer.cyclesCreateMainerllmMcMainerllm;
                                 };
                                 
                                 // TODO - outcomment checks on cycles used during canister creation
-                                let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
                                 D.print("GameState: spinUpMainerControllerCanister - Get cycles balance of mAInerCreator ("# debug_show(mainerCreatorEntry.address) #  ") before calling createCanister.");
                                 var cyclesBefore : Nat = 0;
                                 try {
-                                    let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
+                                    let canisterStatus = await IC0.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
                                     cyclesBefore := canisterStatus.cycles;
                                 } catch (e) {
                                     D.print("GameState: spinUpMainerControllerCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
@@ -1982,9 +2580,9 @@ actor class GameStateCanister() = this {
                                 };
                                 D.print("GameState: spinUpMainerControllerCanister - cycles balance of mAInerCreator ("# debug_show(mainerCreatorEntry.address) #  ") before calling createCanister = " # debug_show(cyclesBefore) );
 
-                                // TODO - Implementation: charge with cycles (the user paid for)
-                                let cyclesAdded = MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED; // (TODO - adjust & sync with amount used by mAInerCreator)
+                                let cyclesAdded = cyclesCreateMainer.cyclesCreateMainerctrlGsMc;
                                 Cycles.add<system>(cyclesAdded);
+                                D.print("GameState: spinUpMainerControllerCanister - cycles sent to mAInerCreator = " # debug_show(cyclesAdded) );
 
                                 // This only creates the canister and returns:
                                 // -> Use await, so we can return the controller's address to frontend
@@ -1993,7 +2591,7 @@ actor class GameStateCanister() = this {
                                 D.print("GameState: spinUpMainerControllerCanister - Get cycles balance of mAInerCreator ("# debug_show(mainerCreatorEntry.address) #  ") after calling createCanister.");
                                 var cyclesAfter : Nat = 0;
                                 try {
-                                    let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
+                                    let canisterStatus = await IC0.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
                                     cyclesAfter := canisterStatus.cycles;
                                 } catch (e) {
                                     D.print("GameState: spinUpMainerControllerCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
@@ -2089,12 +2687,15 @@ actor class GameStateCanister() = this {
                     };
                     case (?userMainerEntry) {
                         // Sanity checks on userMainerEntry (i.e. address provided is correct and matches entry info)
+                        var mainerAgentCanisterType : Types.MainerAgentCanisterType = #Own;
                         switch (userMainerEntry.canisterType) {
                             case (#MainerAgent(#Own)) {
+                                mainerAgentCanisterType := #Own;
                                 // mAIners of type Own may have dedicated LLMs attached
                                 // continue
                             };
                             case (#MainerAgent(#ShareService)) {
+                                mainerAgentCanisterType := #ShareService;
                                 // mAIners of type ShareService may have dedicated LLMs attached
                                 // continue
                             };
@@ -2148,6 +2749,10 @@ actor class GameStateCanister() = this {
                             };
                             case (?mainerCreatorEntry) {
                                 let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
+                                
+                                let cyclesFromUser : Nat = 10_000_000_000_000; // TODO - get from user payment
+                                let cyclesCreateMainer : Types.CyclesCreateMainer = setCyclesCreateMainer(cyclesFromUser, mainerAgentCanisterType);
+                                
                                 let canisterCreationInput : Types.CanisterCreationConfiguration = {
                                     canisterType : Types.ProtocolCanisterType = #MainerLlm;
                                     owner: Principal = userMainerEntry.ownedBy; // User
@@ -2155,14 +2760,17 @@ actor class GameStateCanister() = this {
                                     mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                     userMainerEntryCreationTimestamp : Nat64 = userMainerEntry.creationTimestamp; // Controller
                                     userMainerEntryCanisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType; // Controller
+                                    cyclesCreateMainerctrlGsMc : Nat = cyclesCreateMainer.cyclesCreateMainerctrlGsMc;
+                                    cyclesCreateMainerllmGsMc : Nat = cyclesCreateMainer.cyclesCreateMainerllmGsMc;
+                                    cyclesCreateMainerctrlMcMainerctrl : Nat = cyclesCreateMainer.cyclesCreateMainerctrlMcMainerctrl;
+                                    cyclesCreateMainerllmMcMainerllm : Nat = cyclesCreateMainer.cyclesCreateMainerllmMcMainerllm;
                                 };
 
                                 // TODO - outcomment checks on cycles used during canister creation
-                                let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
                                 D.print("GameState: setUpMainerLlmCanister - Get cycles balance of mAInerCreator " # debug_show(mainerCreatorEntry.address) # "before calling createCanister.");
                                 var cyclesBefore : Nat = 0;
                                 try {
-                                    let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
+                                    let canisterStatus = await IC0.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
                                     cyclesBefore := canisterStatus.cycles;
                                 } catch (e) {
                                     D.print("GameState: setUpMainerLlmCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
@@ -2170,9 +2778,9 @@ actor class GameStateCanister() = this {
                                 };
                                 D.print("GameState: setUpMainerLlmCanister - cycles balance of mAInerCreator " # debug_show(mainerCreatorEntry.address) # "before calling createCanister = " # debug_show(cyclesBefore) );  
 
-                                // TODO - Implementation: charge with cycles (the user paid for)
-                                let cyclesAdded = MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED; // (TODO - adjust & sync with amount used by mAInerCreator)
+                                let cyclesAdded = cyclesCreateMainer.cyclesCreateMainerllmGsMc; 
                                 Cycles.add<system>(cyclesAdded);
+                                D.print("GameState: setUpMainerLlmCanister - cycles sent to mAInerCreator = " # debug_show(cyclesAdded) );
 
                                 // This only creates the LLM canister and returns
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
@@ -2181,7 +2789,7 @@ actor class GameStateCanister() = this {
                                 D.print("GameState: setUpMainerLlmCanister - Get cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") after calling createCanister.");
                                 var cyclesAfter : Nat = 0;
                                 try {
-                                    let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
+                                    let canisterStatus = await IC0.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
                                     cyclesAfter := canisterStatus.cycles;
                                 } catch (e) {
                                     D.print("GameState: setUpMainerLlmCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
@@ -2298,12 +2906,15 @@ actor class GameStateCanister() = this {
                     };
                     case (?userMainerEntry) {
                         // Sanity checks on userMainerEntry (i.e. address provided is correct and matches entry info)
+                        var mainerAgentCanisterType : Types.MainerAgentCanisterType = #Own;
                         switch (userMainerEntry.canisterType) {
                             case (#MainerAgent(#Own)) {
+                                mainerAgentCanisterType := #Own;
                                 // mAIners of type Own may have dedicated LLMs attached
                                 // continue
                             };
                             case (#MainerAgent(#ShareService)) {
+                                mainerAgentCanisterType := #ShareService;
                                 // mAIners of type ShareService may have dedicated LLMs attached
                                 // continue
                             };
@@ -2357,6 +2968,10 @@ actor class GameStateCanister() = this {
                             };
                             case (?mainerCreatorEntry) {
                                 let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
+
+                                let cyclesFromUser : Nat = 10_000_000_000_000; // TODO - get from user payment
+                                let cyclesCreateMainer : Types.CyclesCreateMainer = setCyclesCreateMainer(cyclesFromUser, mainerAgentCanisterType);
+                                
                                 let canisterCreationInput : Types.CanisterCreationConfiguration = {
                                     canisterType : Types.ProtocolCanisterType = #MainerLlm;
                                     owner: Principal = userMainerEntry.ownedBy; // User
@@ -2364,13 +2979,16 @@ actor class GameStateCanister() = this {
                                     mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                     userMainerEntryCreationTimestamp : Nat64 = userMainerEntry.creationTimestamp; // for deduplication by putUserMainerAgent
                                     userMainerEntryCanisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType;
+                                    cyclesCreateMainerctrlGsMc : Nat = cyclesCreateMainer.cyclesCreateMainerctrlGsMc;
+                                    cyclesCreateMainerllmGsMc : Nat = cyclesCreateMainer.cyclesCreateMainerllmGsMc;
+                                    cyclesCreateMainerctrlMcMainerctrl : Nat = cyclesCreateMainer.cyclesCreateMainerctrlMcMainerctrl;
+                                    cyclesCreateMainerllmMcMainerllm : Nat = cyclesCreateMainer.cyclesCreateMainerllmMcMainerllm;
                                 };
                                 // TODO - outcomment checks on cycles used during canister creation
-                                let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
                                 D.print("GameState: addLlmCanisterToMainer - Get cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") before calling createCanister.");
                                 var cyclesBefore : Nat = 0;
                                 try {
-                                    let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
+                                    let canisterStatus = await IC0.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
                                     cyclesBefore := canisterStatus.cycles;
                                 } catch (e) {
                                     D.print("GameState: addLlmCanisterToMainer - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
@@ -2378,9 +2996,9 @@ actor class GameStateCanister() = this {
                                 };
                                 D.print("GameState: addLlmCanisterToMainer - cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") before calling createCanister = " # debug_show(cyclesBefore) );
 
-                                // TODO - Implementation: charge with cycles (the user paid for)
-                                let cyclesAdded = MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED; // (TODO - adjust & sync with amount used by mAInerCreator)
+                                let cyclesAdded = cyclesCreateMainer.cyclesCreateMainerllmGsMc;
                                 Cycles.add<system>(cyclesAdded);
+                                D.print("GameState: addLlmCanisterToMainer - cycles sent to mAInerCreator = " # debug_show(cyclesAdded) );
 
                                 // This only creates the LLM canister and returns
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
@@ -2389,7 +3007,7 @@ actor class GameStateCanister() = this {
                                 D.print("GameState: addLlmCanisterToMainer - Get cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") after calling createCanister.");
                                 var cyclesAfter : Nat = 0;
                                 try {
-                                    let canisterStatus = await IC_Management_Actor.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
+                                    let canisterStatus = await IC0.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
                                     cyclesAfter := canisterStatus.cycles;
                                 } catch (e) {
                                     D.print("GameState: addLlmCanisterToMainer - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
@@ -2590,13 +3208,12 @@ actor class GameStateCanister() = this {
                         
                         // TODO - Implementation: credit mAIner agent with cycles (the user paid for)
                         // ALternative: credit via the CMC service
-                        let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
                         // Retrieve mAIner agent canister's info
                         D.print("GameState: topUpCyclesForMainerAgent - Verify agent canister's wasm module hash#####################################################################################################################################################################################");
                         try {
                             let deposit_cycles_args = { canister_id : Principal = Principal.fromText(userMainerEntry.address); };
                             // TODO - Implementation: charge call with cycles
-                            let result = await IC_Management_Actor.deposit_cycles(deposit_cycles_args);
+                            let result = await IC0.deposit_cycles(deposit_cycles_args);
                             //TODO - Design: decide whether a top up history should be kept
                             return #Ok(userMainerEntry);
                         } catch (e) {
@@ -2672,55 +3289,54 @@ actor class GameStateCanister() = this {
     public shared (msg) func submitChallengeResponse(challengeResponseSubmissionInput : Types.ChallengeResponseSubmissionInput) : async Types.ChallengeResponseSubmissionMetadataResult {
         D.print("GameState: submitChallengeResponse - entered");
         if (Principal.isAnonymous(msg.caller)) {
-            let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+            let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
             D.print("GameState: submitChallengeResponse - 01");
             return #Err(#Unauthorized);
         };
         // Verify that submission is charged with cycles
-        if (Cycles.available() < SUBMISSION_CYCLES_REQUIRED) {
-            let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+        if (Cycles.available() < cyclesSubmitResponse) {
+            let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
             D.print("GameState: submitChallengeResponse - 02");
             D.print("GameState: submitChallengeResponse - cycles available: " # debug_show(Cycles.available()));
-            D.print("GameState: submitChallengeResponse - cycles required : " # debug_show(SUBMISSION_CYCLES_REQUIRED));
-            return #Err(#InsuffientCycles(SUBMISSION_CYCLES_REQUIRED));                    
+            D.print("GameState: submitChallengeResponse - cycles required : " # debug_show(cyclesSubmitResponse));
+            return #Err(#InsuffientCycles(cyclesSubmitResponse));                    
         };
-        // TODO - Implementation: adapt cycles burnt stats
-        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
+        // TODO - Implementation: adapt cycles burnt stats based on the mAIner Type.
+        ignore increaseTotalProtocolCyclesBurnt(cyclesBurntResponseGenerationShare);
         // Only official mAIner agent canisters may call this
         switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
             case (null) {
-                let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
                 D.print("GameState: submitChallengeResponse - 03");
                 return #Err(#Unauthorized);
             };
             case (?_mainerAgentEntry) {
                 // Check that submission record looks correct
                 if (challengeResponseSubmissionInput.submittedBy != msg.caller) {
-                    let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                    let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
                     D.print("GameState: submitChallengeResponse - 04");
                     return #Err(#Unauthorized);
                 };
 
                 // Verify that challenge is open
                 if (not verifyChallenge(#Open, challengeResponseSubmissionInput.challengeId)) {
-                    let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                    let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
                     D.print("GameState: submitChallengeResponse - 05");
                     return #Err(#InvalidId);
                 };
 
                 // Verify that the mAIner is running the official wasm code (untampered)
-                let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
                 // Retrieve mAIner agent canister's info
                 D.print("GameState: submitChallengeResponse - Verify agent canister's wasm module hash#####################################################################################################################################################################################");
                 try {
-                    let agentCanisterInfo = await IC_Management_Actor.canister_info({
+                    let agentCanisterInfo = await IC0.canister_info({
                         canister_id = challengeResponseSubmissionInput.submittedBy;
                         num_requested_changes = ?0;
                     });   
                     // Verify agent canister's wasm module hash
                     switch (agentCanisterInfo.module_hash) {
                         case (null) {
-                            let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                            let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
                             D.print("GameState: submitChallengeResponse - agentCanisterInfo with null as module hash: " # debug_show(agentCanisterInfo)); 
                             // TODO - Design: further measurements?
                             return #Err(#Unauthorized);
@@ -2730,7 +3346,7 @@ actor class GameStateCanister() = this {
                                 D.print("GameState: testMainerCodeIntegrityAdmin - agentCanisterInfo with official module hash: " # debug_show(agentCanisterInfo));
                                 // continue as check passed
                             } else {
-                                let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                                let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
                                 D.print("GameState: submitChallengeResponse - agentCanisterInfo didn't pass verification: " # debug_show(agentCanisterInfo) # " - expected wasm hash = " # debug_show(officialMainerAgentCanisterWasmHash));
                                  
                                 // TODO - Design: further measurements?
@@ -2739,14 +3355,14 @@ actor class GameStateCanister() = this {
                         };
                     };
                 } catch (e) {
-                    let _cyclesKeptForFailedSubmission = Cycles.accept<system>(FAILED_SUBMISSION_CYCLES_CUT);
+                    let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
                     D.print("GameState: submitChallengeResponse - Failed to retrieve info for mAIner: " # debug_show(challengeResponseSubmissionInput) # Error.message(e));      
                     return #Err(#Other("GameState: testMainerCodeIntegrityAdmin - Failed to retrieve info for mAIner: " # debug_show(challengeResponseSubmissionInput) # Error.message(e)));
                 };
 
                 // Accept required cycles for submission
-                let cyclesAcceptedForSubmission = Cycles.accept<system>(SUBMISSION_CYCLES_REQUIRED);
-                if (cyclesAcceptedForSubmission != SUBMISSION_CYCLES_REQUIRED) {
+                let cyclesAcceptedForSubmission = Cycles.accept<system>(cyclesSubmitResponse);
+                if (cyclesAcceptedForSubmission != cyclesSubmitResponse) {
                     // Sanity check: At this point, this should never fail
                     D.print("GameState: submitChallengeResponse - 07");
                     return #Err(#Unauthorized);                    
@@ -2759,6 +3375,8 @@ actor class GameStateCanister() = this {
                     challengeTopicId : Text = challengeResponseSubmissionInput.challengeTopicId;
                     challengeTopicCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeTopicCreationTimestamp;
                     challengeTopicStatus : Types.ChallengeTopicStatus = challengeResponseSubmissionInput.challengeTopicStatus;
+                    cyclesGenerateChallengeGsChctrl : Nat = challengeResponseSubmissionInput.cyclesGenerateChallengeGsChctrl;
+                    cyclesGenerateChallengeChctrlChllm : Nat = challengeResponseSubmissionInput.cyclesGenerateChallengeChctrlChllm;
                     challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = challengeResponseSubmissionInput.challengeQuestionSeed;
                     mainerPromptId : Text = challengeResponseSubmissionInput.mainerPromptId;
@@ -2768,7 +3386,14 @@ actor class GameStateCanister() = this {
                     challengeCreatedBy : Types.CanisterAddress = challengeResponseSubmissionInput.challengeCreatedBy;
                     challengeStatus : Types.ChallengeStatus = challengeResponseSubmissionInput.challengeStatus;
                     challengeClosedTimestamp : ?Nat64 = challengeResponseSubmissionInput.challengeClosedTimestamp;
-                    submissionCyclesRequired : Nat = challengeResponseSubmissionInput.submissionCyclesRequired;
+                    cyclesSubmitResponse : Nat = challengeResponseSubmissionInput.cyclesSubmitResponse;
+                    cyclesGenerateResponseSactrlSsctrl : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSactrlSsctrl;
+                    cyclesGenerateResponseSsctrlGs : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSsctrlGs;
+                    cyclesGenerateResponseSsctrlSsllm : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSsctrlSsllm;
+                    cyclesGenerateResponseOwnctrlGs : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlGs;
+                    cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmLOW;
+                    cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+                    cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmHIGH;
                     challengeQueuedId : Text = challengeResponseSubmissionInput.challengeQueuedId;
                     challengeQueuedBy : Principal = challengeResponseSubmissionInput.challengeQueuedBy;
                     challengeQueuedTo : Principal = challengeResponseSubmissionInput.challengeQueuedTo;
@@ -2779,6 +3404,8 @@ actor class GameStateCanister() = this {
                     submissionId : Text = submissionId;
                     submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                     submissionStatus: Types.ChallengeResponseSubmissionStatus = #Submitted;
+                    cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
+                    cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
                 };
 
                 let putResult = putSubmission(submissionId, submissionAdded);
@@ -2786,6 +3413,8 @@ actor class GameStateCanister() = this {
                     submissionId : Text = submissionId;
                     submittedTimestamp : Nat64 = submissionAdded.submittedTimestamp;
                     submissionStatus: Types.ChallengeResponseSubmissionStatus = submissionAdded.submissionStatus;
+                    cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
+                    cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
                 };
                 D.print("GameState: submitChallengeResponse - submitted!");
                 return #Ok(submissionMetada);           
@@ -2840,7 +3469,24 @@ actor class GameStateCanister() = this {
 
                                 switch (foundKey, foundSubmission) {
                                     case (?key, ?submission) {
-                                        // (-) Found a submission with submissionStatus #Submitted
+                                        // Found a submission with submissionStatus #Submitted
+
+                                        // First send cycles to the Judge to pay for the score generation
+                                        let cyclesAdded = submission.cyclesGenerateScoreGsJuctrl;
+                                        Cycles.add<system>(cyclesAdded);
+                                        try {
+                                            let deposit_cycles_args = { canister_id : Principal = msg.caller; };
+                                            let _ = await IC0.deposit_cycles(deposit_cycles_args);
+
+                                            D.print("GameState: getNextSubmissionToJudge - Successfully deposited " # debug_show(cyclesAdded) # " cycles to Judge canister " # Principal.toText(msg.caller) );
+
+                                        } catch (e) {
+                                            D.print("GameState: getNextSubmissionToJudge - Failed to deposit " # debug_show(cyclesAdded) # " cycles to Judge canister " # Principal.toText(msg.caller));
+                                            D.print("GameState: getNextSubmissionToJudge - Failed to deposit error is" # Error.message(e));
+
+                                            return #Err(#FailedOperation);
+                                        };  
+
                                         // (-) Change submissionStatus to #Judging
                                         // (-) Return it to the Judge
                                         let updatedSubmission : Types.ChallengeResponseSubmission = {
@@ -2848,6 +3494,8 @@ actor class GameStateCanister() = this {
                                             challengeTopicId : Text = submission.challengeTopicId;
                                             challengeTopicCreationTimestamp : Nat64 = submission.challengeTopicCreationTimestamp;
                                             challengeTopicStatus : Types.ChallengeTopicStatus = submission.challengeTopicStatus;
+                                            cyclesGenerateChallengeGsChctrl : Nat = submission.cyclesGenerateChallengeGsChctrl;
+                                            cyclesGenerateChallengeChctrlChllm : Nat = submission.cyclesGenerateChallengeChctrlChllm;
                                             challengeQuestion : Text = submission.challengeQuestion;
                                             challengeQuestionSeed : Nat32 = submission.challengeQuestionSeed;
                                             mainerPromptId : Text = submission.mainerPromptId;
@@ -2857,7 +3505,14 @@ actor class GameStateCanister() = this {
                                             challengeCreatedBy : Types.CanisterAddress = submission.challengeCreatedBy;
                                             challengeStatus : Types.ChallengeStatus = submission.challengeStatus;
                                             challengeClosedTimestamp : ?Nat64 = submission.challengeClosedTimestamp;
-                                            submissionCyclesRequired : Nat = submission.submissionCyclesRequired;
+                                            cyclesSubmitResponse : Nat = submission.cyclesSubmitResponse;
+                                            cyclesGenerateResponseSactrlSsctrl : Nat = submission.cyclesGenerateResponseSactrlSsctrl;
+                                            cyclesGenerateResponseSsctrlGs : Nat = submission.cyclesGenerateResponseSsctrlGs;
+                                            cyclesGenerateResponseSsctrlSsllm : Nat = submission.cyclesGenerateResponseSsctrlSsllm;
+                                            cyclesGenerateResponseOwnctrlGs : Nat = submission.cyclesGenerateResponseOwnctrlGs;
+                                            cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = submission.cyclesGenerateResponseOwnctrlOwnllmLOW;
+                                            cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = submission.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+                                            cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = submission.cyclesGenerateResponseOwnctrlOwnllmHIGH;
                                             challengeQueuedId : Text = submission.challengeQueuedId;
                                             challengeQueuedBy : Principal = submission.challengeQueuedBy;
                                             challengeQueuedTo : Principal = submission.challengeQueuedTo;
@@ -2868,6 +3523,8 @@ actor class GameStateCanister() = this {
                                             submissionId : Text = submission.submissionId;
                                             submittedTimestamp : Nat64 = submission.submittedTimestamp;
                                             submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judging;
+                                            cyclesGenerateScoreGsJuctrl : Nat = submission.cyclesGenerateScoreGsJuctrl;
+                                            cyclesGenerateScoreJuctrlJullm : Nat = submission.cyclesGenerateScoreJuctrlJullm;
                                         };
                                         D.print("GameState: getNextSubmissionToJudge - updatedSubmission = " # debug_show(updatedSubmission));
                                         submissionsStorage.put(key, updatedSubmission);
@@ -3005,7 +3662,7 @@ actor class GameStateCanister() = this {
             return #Err(#Unauthorized);
         };
         // TODO - Implementation: adapt cycles burnt stats
-        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_JUDGE_SCORING);
+        ignore increaseTotalProtocolCyclesBurnt(cyclesBurntJudgeScoring);
         // Only official Judge canisters may call this
         switch (getJudgeCanister(Principal.toText(msg.caller))) {
             case (null) { 
@@ -3035,6 +3692,8 @@ actor class GameStateCanister() = this {
                     challengeTopicId : Text = scoredResponseInput.challengeTopicId;
                     challengeTopicCreationTimestamp : Nat64 = scoredResponseInput.challengeTopicCreationTimestamp;
                     challengeTopicStatus : Types.ChallengeTopicStatus = scoredResponseInput.challengeTopicStatus;
+                    cyclesGenerateChallengeGsChctrl : Nat = scoredResponseInput.cyclesGenerateChallengeGsChctrl;
+                    cyclesGenerateChallengeChctrlChllm : Nat = scoredResponseInput.cyclesGenerateChallengeChctrlChllm;
                     challengeQuestion : Text = scoredResponseInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = scoredResponseInput.challengeQuestionSeed;
                     mainerPromptId : Text = scoredResponseInput.mainerPromptId;
@@ -3044,7 +3703,14 @@ actor class GameStateCanister() = this {
                     challengeCreatedBy : Types.CanisterAddress = scoredResponseInput.challengeCreatedBy;
                     challengeStatus : Types.ChallengeStatus = scoredResponseInput.challengeStatus;
                     challengeClosedTimestamp : ?Nat64 = scoredResponseInput.challengeClosedTimestamp;
-                    submissionCyclesRequired : Nat = scoredResponseInput.submissionCyclesRequired;
+                    cyclesSubmitResponse : Nat = scoredResponseInput.cyclesSubmitResponse;
+                    cyclesGenerateResponseSactrlSsctrl : Nat = scoredResponseInput.cyclesGenerateResponseSactrlSsctrl;
+                    cyclesGenerateResponseSsctrlGs : Nat = scoredResponseInput.cyclesGenerateResponseSsctrlGs;
+                    cyclesGenerateResponseSsctrlSsllm : Nat = scoredResponseInput.cyclesGenerateResponseSsctrlSsllm;
+                    cyclesGenerateResponseOwnctrlGs : Nat = scoredResponseInput.cyclesGenerateResponseOwnctrlGs;
+                    cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = scoredResponseInput.cyclesGenerateResponseOwnctrlOwnllmLOW;
+                    cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = scoredResponseInput.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+                    cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = scoredResponseInput.cyclesGenerateResponseOwnctrlOwnllmHIGH;
                     challengeQueuedId : Text = scoredResponseInput.challengeQueuedId;
                     challengeQueuedBy : Principal = scoredResponseInput.challengeQueuedBy;
                     challengeQueuedTo : Principal = scoredResponseInput.challengeQueuedTo;
@@ -3055,6 +3721,8 @@ actor class GameStateCanister() = this {
                     submissionId : Text = scoredResponseInput.submissionId;
                     submittedTimestamp : Nat64 = scoredResponseInput.submittedTimestamp;
                     submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                    cyclesGenerateScoreGsJuctrl : Nat = scoredResponseInput.cyclesGenerateScoreGsJuctrl;
+                    cyclesGenerateScoreJuctrlJullm : Nat = scoredResponseInput.cyclesGenerateScoreJuctrlJullm;
                 };
                 D.print("GameState: addScoredResponse - calling putSubmission (change submissionStatus to #Judged)");
                 D.print("GameState: addScoredResponse - submission = " # debug_show(submission));
@@ -3069,6 +3737,8 @@ actor class GameStateCanister() = this {
                     challengeTopicId : Text = scoredResponseInput.challengeTopicId;
                     challengeTopicCreationTimestamp : Nat64 = scoredResponseInput.challengeTopicCreationTimestamp;
                     challengeTopicStatus : Types.ChallengeTopicStatus = scoredResponseInput.challengeTopicStatus;
+                    cyclesGenerateChallengeGsChctrl : Nat = scoredResponseInput.cyclesGenerateChallengeGsChctrl;
+                    cyclesGenerateChallengeChctrlChllm : Nat = scoredResponseInput.cyclesGenerateChallengeChctrlChllm;
                     challengeQuestion : Text = scoredResponseInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = scoredResponseInput.challengeQuestionSeed;
                     mainerPromptId : Text = scoredResponseInput.mainerPromptId;
@@ -3078,7 +3748,14 @@ actor class GameStateCanister() = this {
                     challengeCreatedBy : Types.CanisterAddress = scoredResponseInput.challengeCreatedBy;
                     challengeStatus : Types.ChallengeStatus = scoredResponseInput.challengeStatus;
                     challengeClosedTimestamp : ?Nat64 = scoredResponseInput.challengeClosedTimestamp;
-                    submissionCyclesRequired : Nat = scoredResponseInput.submissionCyclesRequired;
+                    cyclesSubmitResponse : Nat = scoredResponseInput.cyclesSubmitResponse;
+                    cyclesGenerateResponseSactrlSsctrl : Nat = scoredResponseInput.cyclesGenerateResponseSactrlSsctrl;
+                    cyclesGenerateResponseSsctrlGs : Nat = scoredResponseInput.cyclesGenerateResponseSsctrlGs;
+                    cyclesGenerateResponseSsctrlSsllm : Nat = scoredResponseInput.cyclesGenerateResponseSsctrlSsllm;
+                    cyclesGenerateResponseOwnctrlGs : Nat = scoredResponseInput.cyclesGenerateResponseOwnctrlGs;
+                    cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = scoredResponseInput.cyclesGenerateResponseOwnctrlOwnllmLOW;
+                    cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = scoredResponseInput.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+                    cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = scoredResponseInput.cyclesGenerateResponseOwnctrlOwnllmHIGH;
                     challengeQueuedId : Text = scoredResponseInput.challengeQueuedId;
                     challengeQueuedBy : Principal = scoredResponseInput.challengeQueuedBy;
                     challengeQueuedTo : Principal = scoredResponseInput.challengeQueuedTo;
@@ -3089,6 +3766,8 @@ actor class GameStateCanister() = this {
                     submissionId : Text = scoredResponseInput.submissionId;
                     submittedTimestamp : Nat64 = scoredResponseInput.submittedTimestamp;
                     submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                    cyclesGenerateScoreGsJuctrl : Nat = scoredResponseInput.cyclesGenerateScoreGsJuctrl;
+                    cyclesGenerateScoreJuctrlJullm : Nat = scoredResponseInput.cyclesGenerateScoreJuctrlJullm;
                     judgedBy: Principal = scoredResponseInput.judgedBy;
                     score: Nat = scoredResponseInput.score;
                     scoreSeed: Nat32 = scoredResponseInput.scoreSeed;
@@ -3179,6 +3858,8 @@ actor class GameStateCanister() = this {
                     challengeTopicId : Text = openChallenge.challengeTopicId;
                     challengeTopicCreationTimestamp : Nat64 = openChallenge.challengeTopicCreationTimestamp;
                     challengeTopicStatus : Types.ChallengeTopicStatus = openChallenge.challengeTopicStatus;
+                    cyclesGenerateChallengeGsChctrl : Nat = openChallenge.cyclesGenerateChallengeGsChctrl;
+                    cyclesGenerateChallengeChctrlChllm : Nat = openChallenge.cyclesGenerateChallengeChctrlChllm;
                     challengeQuestion : Text = openChallenge.challengeQuestion;
                     challengeQuestionSeed : Nat32 = openChallenge.challengeQuestionSeed;
                     mainerPromptId : Text = openChallenge.mainerPromptId;
@@ -3188,7 +3869,14 @@ actor class GameStateCanister() = this {
                     challengeCreatedBy : Types.CanisterAddress = openChallenge.challengeCreatedBy;
                     challengeStatus : Types.ChallengeStatus = openChallenge.challengeStatus;
                     challengeClosedTimestamp : ?Nat64 = openChallenge.challengeClosedTimestamp;
-                    submissionCyclesRequired : Nat = openChallenge.submissionCyclesRequired;
+                    cyclesSubmitResponse : Nat = openChallenge.cyclesSubmitResponse;
+                    cyclesGenerateResponseSactrlSsctrl : Nat = openChallenge.cyclesGenerateResponseSactrlSsctrl;
+                    cyclesGenerateResponseSsctrlGs : Nat = openChallenge.cyclesGenerateResponseSsctrlGs;
+                    cyclesGenerateResponseSsctrlSsllm : Nat = openChallenge.cyclesGenerateResponseSsctrlSsllm;
+                    cyclesGenerateResponseOwnctrlGs : Nat = openChallenge.cyclesGenerateResponseOwnctrlGs;
+                    cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = openChallenge.cyclesGenerateResponseOwnctrlOwnllmLOW;
+                    cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = openChallenge.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+                    cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = openChallenge.cyclesGenerateResponseOwnctrlOwnllmHIGH;
                     challengeQueuedId : Text = submissionInput.submissionId;
                     challengeQueuedBy : Principal = msg.caller;
                     challengeQueuedTo : Principal = msg.caller;
@@ -3199,6 +3887,8 @@ actor class GameStateCanister() = this {
                     submissionId : Text = submissionInput.submissionId;
                     submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                     submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                    cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
+                    cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
                     judgedBy: Principal = msg.caller;
                     score: Nat = 5;
                     scoreSeed: Nat32 = 0;
@@ -3214,6 +3904,8 @@ actor class GameStateCanister() = this {
                             challengeTopicId : Text = closedChallenge.challengeTopicId;
                             challengeTopicCreationTimestamp : Nat64 = closedChallenge.challengeTopicCreationTimestamp;
                             challengeTopicStatus : Types.ChallengeTopicStatus = closedChallenge.challengeTopicStatus;
+                            cyclesGenerateChallengeGsChctrl : Nat = closedChallenge.cyclesGenerateChallengeGsChctrl;
+                            cyclesGenerateChallengeChctrlChllm : Nat = closedChallenge.cyclesGenerateChallengeChctrlChllm;
                             challengeQuestion : Text = closedChallenge.challengeQuestion;
                             challengeQuestionSeed : Nat32 = closedChallenge.challengeQuestionSeed;
                             mainerPromptId : Text = closedChallenge.mainerPromptId;
@@ -3223,7 +3915,14 @@ actor class GameStateCanister() = this {
                             challengeCreatedBy : Types.CanisterAddress = closedChallenge.challengeCreatedBy;
                             challengeStatus : Types.ChallengeStatus = closedChallenge.challengeStatus;
                             challengeClosedTimestamp : ?Nat64 = closedChallenge.challengeClosedTimestamp;
-                            submissionCyclesRequired : Nat = closedChallenge.submissionCyclesRequired;
+                            cyclesSubmitResponse : Nat = closedChallenge.cyclesSubmitResponse;
+                            cyclesGenerateResponseSactrlSsctrl : Nat = closedChallenge.cyclesGenerateResponseSactrlSsctrl;
+                            cyclesGenerateResponseSsctrlGs : Nat = closedChallenge.cyclesGenerateResponseSsctrlGs;
+                            cyclesGenerateResponseSsctrlSsllm : Nat = closedChallenge.cyclesGenerateResponseSsctrlSsllm;
+                            cyclesGenerateResponseOwnctrlGs : Nat = closedChallenge.cyclesGenerateResponseOwnctrlGs;
+                            cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = closedChallenge.cyclesGenerateResponseOwnctrlOwnllmLOW;
+                            cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = closedChallenge.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+                            cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = closedChallenge.cyclesGenerateResponseOwnctrlOwnllmHIGH;
                             challengeQueuedId : Text = submissionInput.submissionId;
                             challengeQueuedBy : Principal = msg.caller;
                             challengeQueuedTo : Principal = msg.caller;
@@ -3234,6 +3933,8 @@ actor class GameStateCanister() = this {
                             submissionId : Text = submissionInput.submissionId;
                             submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                             submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                            cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
+                            cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
                             judgedBy: Principal = msg.caller;
                             score: Nat = 5;
                             scoreSeed: Nat32 = 0;
@@ -3247,6 +3948,8 @@ actor class GameStateCanister() = this {
                             challengeTopicId : Text = "";
                             challengeTopicCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                             challengeTopicStatus : Types.ChallengeTopicStatus = #Archived;
+                            cyclesGenerateChallengeGsChctrl : Nat = cyclesGenerateChallengeGsChctrl;
+                            cyclesGenerateChallengeChctrlChllm : Nat = cyclesGenerateChallengeChctrlChllm;
                             challengeQuestion : Text = "";
                             challengeQuestionSeed : Nat32 = 0;
                             mainerPromptId : Text = "submissionInput.mainerPromptId";
@@ -3256,7 +3959,14 @@ actor class GameStateCanister() = this {
                             challengeCreatedBy : Types.CanisterAddress = "";
                             challengeStatus : Types.ChallengeStatus = #Archived;
                             challengeClosedTimestamp : ?Nat64 = ?Nat64.fromNat(Int.abs(Time.now()));
-                            submissionCyclesRequired : Nat = SUBMISSION_CYCLES_REQUIRED;
+                            cyclesSubmitResponse : Nat = cyclesSubmitResponse;
+                            cyclesGenerateResponseSactrlSsctrl : Nat = cyclesGenerateResponseSactrlSsctrl;
+                            cyclesGenerateResponseSsctrlGs : Nat = cyclesGenerateResponseSsctrlGs;
+                            cyclesGenerateResponseSsctrlSsllm : Nat = cyclesGenerateResponseSsctrlSsllm;
+                            cyclesGenerateResponseOwnctrlGs : Nat = cyclesGenerateResponseOwnctrlGs;
+                            cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = cyclesGenerateResponseOwnctrlOwnllmLOW;
+                            cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+                            cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = cyclesGenerateResponseOwnctrlOwnllmHIGH;
                             challengeQueuedId : Text = submissionInput.submissionId;
                             challengeQueuedBy : Principal = msg.caller;
                             challengeQueuedTo : Principal = msg.caller;
@@ -3267,6 +3977,8 @@ actor class GameStateCanister() = this {
                             submissionId : Text = submissionInput.submissionId;
                             submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                             submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                            cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
+                            cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
                             judgedBy: Principal = msg.caller;
                             score: Nat = 5;
                             scoreSeed: Nat32 = 0;

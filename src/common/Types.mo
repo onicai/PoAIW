@@ -43,6 +43,182 @@ module Types {
     public type GameStateTresholdsResult = Result<GameStateTresholds, ApiError>;
 
     //-------------------------------------------------------------------------
+    // Types for storing all cycles flow values
+
+    // variables sent by GameState to mAIner Creator
+    public type CyclesCreateMainer = {
+        cyclesCreateMainerctrlGsMc : Nat;
+        cyclesCreateMainerllmGsMc : Nat;
+        cyclesCreateMainerctrlMcMainerctrl : Nat;
+        cyclesCreateMainerllmMcMainerllm   : Nat;
+    };
+
+    // variables sent by GameState to Challenger
+    public type CyclesGenerateChallenge = {
+        cyclesGenerateChallengeGsChctrl : Nat;
+        cyclesGenerateChallengeChctrlChllm : Nat;
+    };
+
+    // variables sent by GameState to mAIner Agent
+    public type CyclesGenerateResponse = {
+        cyclesSubmitResponse : Nat;
+        cyclesGenerateResponseSactrlSsctrl : Nat;
+        cyclesGenerateResponseSsctrlGs : Nat;
+        cyclesGenerateResponseSsctrlSsllm : Nat;
+        cyclesGenerateResponseOwnctrlGs : Nat;
+        cyclesGenerateResponseOwnctrlOwnllmLOW : Nat;
+        cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat;
+        cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat;
+    };
+
+    // variables sent by GameState to Judge
+    public type CyclesGenerateScore = {
+        cyclesGenerateScoreGsJuctrl : Nat;
+        cyclesGenerateScoreJuctrlJullm : Nat;
+    };
+
+    public type CyclesFlow = CyclesGenerateChallenge and 
+    CyclesGenerateScore and CyclesGenerateResponse and {
+        // mAIner creation
+        cyclesCreateMainerMarginGs : Nat;
+        cyclesCreatemMainerMarginMc : Nat;
+        cyclesCreateMainerLlmTargetBalance : Nat;
+        costCreateMainerLlm : Nat;
+
+        // Generations
+        dailyChallenges : Nat;
+        dailySubmissionsPerOwnLOW : Nat;
+        dailySubmissionsPerOwnMEDIUM : Nat;
+        dailySubmissionsPerOwnHIGH : Nat;
+        dailySubmissionsPerShareLOW : Nat;
+        dailySubmissionsPerShareMEDIUM : Nat;
+        dailySubmissionsPerShareHIGH : Nat;
+        dailySubmissionsAllOwn : Nat;
+        dailySubmissionsAllShare : Nat;
+        marginFailedSubmissionCut : Nat;
+        marginCost : Nat;
+        submissionFee : Nat;
+
+        numChallengerLlms : Nat;
+        numJudgeLlms : Nat;
+        numShareServiceLlms : Nat;
+
+        costIdleBurnRateGs : Nat;
+        costIdleBurnRateMc : Nat;
+        costIdleBurnRateChctrl : Nat;
+        costIdleBurnRateChllm : Nat;
+        costIdleBurnRateJuctrl : Nat;
+        costIdleBurnRateJullm : Nat;
+        costIdleBurnRateSsctrl : Nat;
+        costIdleBurnRateSsllm : Nat;
+
+        costIdleBurnRateSactrl : Nat;
+        costIdleBurnRateSallm : Nat;
+        costIdleBurnRateOwnctrl : Nat;
+        costIdleBurnRateOwnllm : Nat;
+
+        costGenerateChallengeGs : Nat;
+        costGenerateChallengeChctrl : Nat;
+        costGenerateChallengeChllm : Nat;
+        costGenerateScoreGs : Nat;
+        costGenerateScoreJuctrl : Nat;
+        costGenerateScoreJullm : Nat;
+        costGenerateResponseShareGs : Nat;
+        costGenerateResponseOwnGs : Nat;
+        costGenerateResponseOwnctrl : Nat;
+        costGenerateResponseOwnllm : Nat;
+        costGenerateResponseSactrl : Nat;
+        costGenerateResponseSsctrl : Nat;
+        costGenerateResponseSsllm : Nat;
+
+        cyclesBurntChallengeGeneration : Nat;
+        cyclesBurntJudgeScoring : Nat;
+        cyclesBurntResponseGenerationOwn : Nat;
+        cyclesBurntResponseGenerationShare : Nat;
+        cyclesFailedSubmissionCut : Nat;
+    };
+    public type CyclesFlowResult = Result<CyclesFlow, ApiError>;
+
+    // Type for selectively setting cycles flow values by Admin
+    public type CyclesFlowSettings = {
+        // mAIner creation
+        cyclesCreateMainerMarginGs : ?Nat;
+        cyclesCreatemMainerMarginMc : ?Nat;
+        cyclesCreateMainerLlmTargetBalance : ?Nat;
+        costCreateMainerLlm : ?Nat;
+
+        cyclesCreateMainerUserGs : ?Nat;
+        cyclesCreateMainerctrlGsMc : ?Nat;
+        cyclesCreateMainerllmGsMc : ?Nat;
+        cyclesCreateMainerMcMainerllm : ?Nat;
+        cyclesCreateMainerMcMainerctrl : ?Nat;
+
+        // Generations
+        dailyChallenges : ?Nat;
+        dailySubmissionsPerOwnLOW : ?Nat;
+        dailySubmissionsPerOwnMEDIUM : ?Nat;
+        dailySubmissionsPerOwnHIGH : ?Nat;
+        dailySubmissionsPerShareLOW : ?Nat;
+        dailySubmissionsPerShareMEDIUM : ?Nat;
+        dailySubmissionsPerShareHIGH : ?Nat;
+        dailySubmissionsAllOwn : ?Nat;
+        dailySubmissionsAllShare : ?Nat;
+        marginFailedSubmissionCut : ?Nat;
+        marginCost : ?Nat;
+        submissionFee : ?Nat;
+
+        numChallengerLlms : ?Nat;
+        numJudgeLlms : ?Nat;
+        numShareServiceLlms : ?Nat;
+
+        costIdleBurnRateGs : ?Nat;
+        costIdleBurnRateMc : ?Nat;
+        costIdleBurnRateChctrl : ?Nat;
+        costIdleBurnRateChllm : ?Nat;
+        costIdleBurnRateJuctrl : ?Nat;
+        costIdleBurnRateJullm : ?Nat;
+        costIdleBurnRateSsctrl : ?Nat;
+        costIdleBurnRateSsllm : ?Nat;
+
+        costIdleBurnRateSactrl : ?Nat;
+        costIdleBurnRateSallm : ?Nat;
+        costIdleBurnRateOwnctrl : ?Nat;
+        costIdleBurnRateOwnllm : ?Nat;
+
+        costGenerateChallengeGs : ?Nat;
+        costGenerateChallengeChctrl : ?Nat;
+        costGenerateChallengeChllm : ?Nat;
+        costGenerateScoreGs : ?Nat;
+        costGenerateScoreJuctrl : ?Nat;
+        costGenerateScoreJullm : ?Nat;
+        costGenerateResponseOwnGs : ?Nat;
+        costGenerateResponseOwnctrl : ?Nat;
+        costGenerateResponseOwnllm : ?Nat;
+        costGenerateResponseShareGs : ?Nat;
+        costGenerateResponseSactrl : ?Nat;
+        costGenerateResponseSsctrl : ?Nat;
+        costGenerateResponseSsllm : ?Nat;
+
+        cyclesGenerateChallengeGsChctrl : ?Nat;
+        cyclesGenerateChallengeChctrlChllm : ?Nat;
+        cyclesBurntChallengeGeneration : ?Nat;
+        cyclesGenerateScoreGsJuctrl : ?Nat;
+        cyclesGenerateScoreJuctrlJullm : ?Nat;
+        cyclesBurntJudgeScoring : ?Nat;
+        cyclesGenerateResponseOwnctrlGs : ?Nat;
+        cyclesGenerateResponseOwnctrlOwnllmLOW : ?Nat;
+        cyclesGenerateResponseOwnctrlOwnllmMEDIUM : ?Nat;
+        cyclesGenerateResponseOwnctrlOwnllmHIGH : ?Nat;
+        cyclesGenerateResponseSactrlSsctrl : ?Nat;
+        cyclesGenerateResponseSsctrlGs : ?Nat;
+        cyclesGenerateResponseSsctrlSsllm : ?Nat;
+        cyclesBurntResponseGenerationOwn : ?Nat;
+        cyclesBurntResponseGenerationShare : ?Nat;
+        cyclesSubmitResponse : ?Nat;
+        cyclesFailedSubmissionCut : ?Nat;
+    };
+
+    //-------------------------------------------------------------------------
     public type ProtocolCanisterType = {
         #Challenger;
         #Judge;
@@ -138,11 +314,13 @@ module Types {
         mainerConfig : MainerConfigurationInput;
     };
 
-    public type CanisterCreationConfiguration = CanisterCreationConfigurationInput and {
+    public type CanisterCreationConfiguration = CanisterCreationConfigurationInput and 
+    {
         owner: Principal;
         userMainerEntryCreationTimestamp : Nat64; // References Controller - for deduplication by putUserMainerAgent
         userMainerEntryCanisterType : ProtocolCanisterType; // References Controller
-    };
+    } and 
+    CyclesCreateMainer;
 
     public type CanisterCreationRecord = {
         creationResult : Text;
@@ -179,7 +357,7 @@ module Types {
         challengeTopicId : Text;
         challengeTopicCreationTimestamp : Nat64;
         challengeTopicStatus : ChallengeTopicStatus;
-    };
+    } and CyclesGenerateChallenge;
     public type ChallengeTopicResult = Result<ChallengeTopic, ApiError>;
 
     public type NewChallengeInput = ChallengeTopic and {
@@ -195,8 +373,7 @@ module Types {
         challengeCreatedBy : CanisterAddress;
         challengeStatus : ChallengeStatus;
         challengeClosedTimestamp : ?Nat64;
-        submissionCyclesRequired : Nat;
-    };
+    } and CyclesGenerateResponse;
 
     public type ChallengeAdditionResult = Result<Challenge, ApiError>;
 
@@ -308,7 +485,7 @@ module Types {
         submissionId : Text;
         submittedTimestamp : Nat64;
         submissionStatus : ChallengeResponseSubmissionStatus;
-    };
+    } and CyclesGenerateScore;
 
     public type ChallengeResponseSubmission = ChallengeResponseSubmissionInput and ChallengeResponseSubmissionMetadata;
 

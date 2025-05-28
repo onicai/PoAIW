@@ -27,7 +27,7 @@ while [ $# -gt 0 ]; do
                     CANISTER_ID_LLM_1='cz7tl-cqaaa-aaaaj-az77a-cai' 
                 fi
             else
-                echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing."
+                echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing' or 'development'."
                 exit 1
             fi
             shift

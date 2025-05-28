@@ -16,11 +16,16 @@ import Time "mo:base/Time";
 import Iter "mo:base/Iter";
 import { setTimer; recurringTimer } = "mo:base/Timer";
 import Timer "mo:base/Timer";
+import Cycles "mo:base/ExperimentalCycles";
 
 import Types "../../common/Types";
+import Constants "../../common/Constants";
+import ICManagementCanister "../../common/ICManagementCanister";
 import Utils "Utils";
 
 actor class JudgeCtrlbCanister() = this {
+
+    let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
 
     public shared query (msg) func whoami() : async Principal {
         return msg.caller;
@@ -184,6 +189,8 @@ actor class JudgeCtrlbCanister() = this {
             challengeTopicId : Text = scoredResponse.challengeTopicId;
             challengeTopicCreationTimestamp : Nat64 = scoredResponse.challengeTopicCreationTimestamp;
             challengeTopicStatus : Types.ChallengeTopicStatus = scoredResponse.challengeTopicStatus;
+            cyclesGenerateChallengeGsChctrl : Nat = scoredResponse.cyclesGenerateChallengeGsChctrl;
+            cyclesGenerateChallengeChctrlChllm : Nat = scoredResponse.cyclesGenerateChallengeChctrlChllm;
             challengeQuestion : Text = scoredResponse.challengeQuestion;
             challengeQuestionSeed : Nat32 = scoredResponse.challengeQuestionSeed;
             mainerPromptId : Text = scoredResponse.mainerPromptId;
@@ -193,7 +200,14 @@ actor class JudgeCtrlbCanister() = this {
             challengeCreatedBy : Types.CanisterAddress = scoredResponse.challengeCreatedBy;
             challengeStatus : Types.ChallengeStatus = scoredResponse.challengeStatus;
             challengeClosedTimestamp : ?Nat64 = scoredResponse.challengeClosedTimestamp;
-            submissionCyclesRequired : Nat = scoredResponse.submissionCyclesRequired;
+            cyclesSubmitResponse : Nat = scoredResponse.cyclesSubmitResponse;
+            cyclesGenerateResponseSactrlSsctrl : Nat = scoredResponse.cyclesGenerateResponseSactrlSsctrl;
+            cyclesGenerateResponseSsctrlGs : Nat = scoredResponse.cyclesGenerateResponseSsctrlGs;
+            cyclesGenerateResponseSsctrlSsllm : Nat = scoredResponse.cyclesGenerateResponseSsctrlSsllm;
+            cyclesGenerateResponseOwnctrlGs : Nat = scoredResponse.cyclesGenerateResponseOwnctrlGs;
+            cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = scoredResponse.cyclesGenerateResponseOwnctrlOwnllmLOW;
+            cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = scoredResponse.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+            cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = scoredResponse.cyclesGenerateResponseOwnctrlOwnllmHIGH;
             challengeQueuedId : Text = scoredResponse.challengeQueuedId;
             challengeQueuedBy : Principal = scoredResponse.challengeQueuedBy;
             challengeQueuedTo : Principal = scoredResponse.challengeQueuedTo;
@@ -204,6 +218,8 @@ actor class JudgeCtrlbCanister() = this {
             submissionId : Text = scoredResponse.submissionId;
             submittedTimestamp : Nat64 = scoredResponse.submittedTimestamp;
             submissionStatus: Types.ChallengeResponseSubmissionStatus = scoredResponse.submissionStatus;
+            cyclesGenerateScoreGsJuctrl : Nat = scoredResponse.cyclesGenerateScoreGsJuctrl;
+            cyclesGenerateScoreJuctrlJullm : Nat = scoredResponse.cyclesGenerateScoreJuctrlJullm;
             judgedBy : Principal = scoredResponse.judgedBy;
             score : Nat = scoredResponse.score;
             scoreSeed : Nat32 = scoredResponse.scoreSeed;
@@ -240,6 +256,8 @@ actor class JudgeCtrlbCanister() = this {
                     challengeTopicId : Text = submissionEntry.challengeTopicId;
                     challengeTopicCreationTimestamp : Nat64 = submissionEntry.challengeTopicCreationTimestamp;
                     challengeTopicStatus : Types.ChallengeTopicStatus = submissionEntry.challengeTopicStatus;
+                    cyclesGenerateChallengeGsChctrl : Nat = submissionEntry.cyclesGenerateChallengeGsChctrl;
+                    cyclesGenerateChallengeChctrlChllm : Nat = submissionEntry.cyclesGenerateChallengeChctrlChllm;
                     challengeQuestion : Text = submissionEntry.challengeQuestion;
                     challengeQuestionSeed : Nat32 = submissionEntry.challengeQuestionSeed;
                     mainerPromptId : Text = submissionEntry.mainerPromptId;
@@ -249,7 +267,14 @@ actor class JudgeCtrlbCanister() = this {
                     challengeCreatedBy : Types.CanisterAddress = submissionEntry.challengeCreatedBy;
                     challengeStatus : Types.ChallengeStatus = submissionEntry.challengeStatus;
                     challengeClosedTimestamp : ?Nat64 = submissionEntry.challengeClosedTimestamp;
-                    submissionCyclesRequired : Nat = submissionEntry.submissionCyclesRequired;
+                    cyclesSubmitResponse : Nat = submissionEntry.cyclesSubmitResponse;
+                    cyclesGenerateResponseSactrlSsctrl : Nat = submissionEntry.cyclesGenerateResponseSactrlSsctrl;
+                    cyclesGenerateResponseSsctrlGs : Nat = submissionEntry.cyclesGenerateResponseSsctrlGs;
+                    cyclesGenerateResponseSsctrlSsllm : Nat = submissionEntry.cyclesGenerateResponseSsctrlSsllm;
+                    cyclesGenerateResponseOwnctrlGs : Nat = submissionEntry.cyclesGenerateResponseOwnctrlGs;
+                    cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = submissionEntry.cyclesGenerateResponseOwnctrlOwnllmLOW;
+                    cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = submissionEntry.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+                    cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = submissionEntry.cyclesGenerateResponseOwnctrlOwnllmHIGH;
                     challengeQueuedId : Text = submissionEntry.challengeQueuedId;
                     challengeQueuedBy : Principal = submissionEntry.challengeQueuedBy;
                     challengeQueuedTo : Principal = submissionEntry.challengeQueuedTo;
@@ -260,6 +285,8 @@ actor class JudgeCtrlbCanister() = this {
                     submissionId : Text = submissionEntry.submissionId;
                     submittedTimestamp : Nat64 = submissionEntry.submittedTimestamp;
                     submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                    cyclesGenerateScoreGsJuctrl : Nat = submissionEntry.cyclesGenerateScoreGsJuctrl;
+                    cyclesGenerateScoreJuctrlJullm : Nat = submissionEntry.cyclesGenerateScoreJuctrlJullm;
                     judgedBy : Principal = Principal.fromActor(this);
                     score : Nat = scoringOutput.generatedScore;
                     scoreSeed : Nat32 = scoringOutput.generationSeed;
@@ -280,6 +307,8 @@ actor class JudgeCtrlbCanister() = this {
                             challengeTopicId : Text = submissionEntry.challengeTopicId;
                             challengeTopicCreationTimestamp : Nat64 = submissionEntry.challengeTopicCreationTimestamp;
                             challengeTopicStatus : Types.ChallengeTopicStatus = submissionEntry.challengeTopicStatus;
+                            cyclesGenerateChallengeGsChctrl : Nat = submissionEntry.cyclesGenerateChallengeGsChctrl;
+                            cyclesGenerateChallengeChctrlChllm : Nat = submissionEntry.cyclesGenerateChallengeChctrlChllm;
                             challengeQuestion : Text = submissionEntry.challengeQuestion;
                             challengeQuestionSeed : Nat32 = submissionEntry.challengeQuestionSeed;
                             mainerPromptId : Text = submissionEntry.mainerPromptId;
@@ -289,7 +318,14 @@ actor class JudgeCtrlbCanister() = this {
                             challengeCreatedBy : Types.CanisterAddress = submissionEntry.challengeCreatedBy;
                             challengeStatus : Types.ChallengeStatus = submissionEntry.challengeStatus;
                             challengeClosedTimestamp : ?Nat64 = submissionEntry.challengeClosedTimestamp;
-                            submissionCyclesRequired : Nat = submissionEntry.submissionCyclesRequired;
+                            cyclesSubmitResponse : Nat = submissionEntry.cyclesSubmitResponse;
+                            cyclesGenerateResponseSactrlSsctrl : Nat = submissionEntry.cyclesGenerateResponseSactrlSsctrl;
+                            cyclesGenerateResponseSsctrlGs : Nat = submissionEntry.cyclesGenerateResponseSsctrlGs;
+                            cyclesGenerateResponseSsctrlSsllm : Nat = submissionEntry.cyclesGenerateResponseSsctrlSsllm;
+                            cyclesGenerateResponseOwnctrlGs : Nat = submissionEntry.cyclesGenerateResponseOwnctrlGs;
+                            cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = submissionEntry.cyclesGenerateResponseOwnctrlOwnllmLOW;
+                            cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = submissionEntry.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+                            cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = submissionEntry.cyclesGenerateResponseOwnctrlOwnllmHIGH;
                             challengeQueuedId : Text = submissionEntry.challengeQueuedId;
                             challengeQueuedBy : Principal = submissionEntry.challengeQueuedBy;
                             challengeQueuedTo : Principal = submissionEntry.challengeQueuedTo;
@@ -300,6 +336,8 @@ actor class JudgeCtrlbCanister() = this {
                             submissionId : Text = submissionEntry.submissionId;
                             submittedTimestamp : Nat64 = submissionEntry.submittedTimestamp;
                             submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                            cyclesGenerateScoreGsJuctrl : Nat = submissionEntry.cyclesGenerateScoreGsJuctrl;
+                            cyclesGenerateScoreJuctrlJullm : Nat = submissionEntry.cyclesGenerateScoreJuctrlJullm;                            
                             judgedBy : Principal = Principal.fromActor(this);
                             score : Nat = scoringOutput.generatedScore;
                             scoreSeed : Nat32 = scoringOutput.generationSeed;
@@ -382,6 +420,7 @@ actor class JudgeCtrlbCanister() = this {
         };
 
         let llmCanister = _getRoundRobinCanister();
+        let llmCanisterPrincipal : Principal = Principal.fromActor(llmCanister);
 
         D.print("Judge: judgeChallengeResponseDoIt_ - llmCanister = " # Principal.toText(Principal.fromActor(llmCanister)));
 
@@ -400,6 +439,21 @@ actor class JudgeCtrlbCanister() = this {
                 D.print("Judge: judgeChallengeResponseDoIt_ - LLM is healthy");
             };
         };
+
+        // First send cycles to the LLM
+        let cyclesAdded = submissionEntry.cyclesGenerateScoreJuctrlJullm;
+        try {
+            Cycles.add<system>(cyclesAdded);
+            let deposit_cycles_args = { canister_id : Principal = llmCanisterPrincipal; };
+            let _ = await IC0.deposit_cycles(deposit_cycles_args);
+
+            D.print("Challenger: judgeChallengeResponseDoIt_ - Successfully deposited " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal) ); 
+        } catch (e) {
+            D.print("Challenger: judgeChallengeResponseDoIt_ - Failed to deposit " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal));
+            D.print("Challenger: judgeChallengeResponseDoIt_ - Failed to deposit error is" # Error.message(e));
+
+            return #Err(#FailedOperation);
+        };  
 
         let generationId : Text = await Utils.newRandomUniqueId();
         var generationOutput : Text = "";
