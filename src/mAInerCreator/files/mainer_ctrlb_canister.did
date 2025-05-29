@@ -42,7 +42,8 @@ type MainerConfigurationInput =
    mainerAgentCanisterType: MainerAgentCanisterType;
    selectedLLM: opt SelectableMainerLLMs;
  };
-type MainerAgentSettingsInput = record {cyclesBurnRate: CyclesBurnRate;};
+type MainerAgentSettingsInput = record {
+                                  cyclesBurnRate: CyclesBurnRateDefault;};
 type MainerAgentCtrlbCanister = 
  service {
    addChallengeResponseToShareAgent: (challengeResponseSubmissionInput:
@@ -55,6 +56,14 @@ type MainerAgentCtrlbCanister =
     OfficialMainerAgentCanister) -> (MainerAgentCanisterResult);
    add_llm_canister: (llmCanisterIdRecord: CanisterIDRecord) ->
     (StatusCodeRecordResult);
+   addChallengeToShareServiceQueue: (ChallengeQueueInput) ->
+    (ChallengeQueueInputResult);
+   addCycles: () -> (AddCyclesResult);
+   addMainerShareAgentCanister: (OfficialMainerAgentCanister) ->
+    (MainerAgentCanisterResult);
+   addMainerShareAgentCanisterAdmin: (OfficialMainerAgentCanister) ->
+    (MainerAgentCanisterResult);
+   add_llm_canister: (CanisterIDRecord) -> (StatusCodeRecordResult);
    amiController: () -> (StatusCodeRecordResult) query;
    checkAccessToLLMs: () -> (StatusCodeRecordResult);
    getChallengeQueueAdmin: () -> (ChallengeQueueInputsResult) query;
@@ -117,6 +126,14 @@ type IssueFlagsRetrievalResult =
    Ok: IssueFlagsRecord;
  };
 type IssueFlagsRecord = record {lowCycleBalance: bool;};
+type CyclesBurnRateDefault = 
+ variant {
+   Custom: CyclesBurnRate;
+   High;
+   Low;
+   Mid;
+   VeryHigh;
+ };
 type CyclesBurnRate = 
  record {
    cycles: nat;
@@ -301,5 +318,15 @@ type ApiError =
    StatusCode: StatusCode;
    Unauthorized;
    ZeroAddress;
+ };
+type AddCyclesResult = 
+ variant {
+   Err: ApiError;
+   Ok: AddCyclesRecord;
+ };
+type AddCyclesRecord = 
+ record {
+   added: bool;
+   amount: nat;
  };
 service : () -> MainerAgentCtrlbCanister

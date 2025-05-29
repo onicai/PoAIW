@@ -22,9 +22,11 @@ while [ $# -gt 0 ]; do
                     CANISTER_ID_JUDGE_CTRLB_CANISTER="xxnvw-4yaaa-aaaaj-az4oq-cai"
                 elif [ "$NETWORK_TYPE" = "testing" ]; then
                     CANISTER_ID_JUDGE_CTRLB_CANISTER='uln7r-5yaaa-aaaaj-a2aba-cai'
+                elif [ "$NETWORK_TYPE" = "development" ]; then
+                    CANISTER_ID_JUDGE_CTRLB_CANISTER='tjr6j-qaaaa-aaaaj-qnpaa-cai'
                 fi
             else
-                echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing'."
+                echo "Invalid network type: $1. Use 'local', 'development' or 'ic' or 'testing'."
                 exit 1
             fi
             shift

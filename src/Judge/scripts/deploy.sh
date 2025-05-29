@@ -22,7 +22,7 @@ while [ $# -gt 0 ]; do
             if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ]; then
                 NETWORK_TYPE=$1
             else
-                echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing'."
+                echo "Invalid network type: $1. Use 'local', 'development' or 'ic' or 'testing'."
                 exit 1
             fi
             shift

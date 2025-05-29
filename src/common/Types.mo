@@ -3,6 +3,10 @@ import Blob "mo:base/Blob";
 import Principal "mo:base/Principal";
 import Nat16 "mo:base/Nat16";
 import List "mo:base/List";
+import Prelude "mo:base/Prelude";
+
+import TokenLedger "./icp-ledger-interface";
+import CMC "./cycles-minting-canister-interface";
 
 module Types {
     //-------------------------------------------------------------------------
@@ -276,6 +280,7 @@ module Types {
         #ShareAgent;
         #ShareService;
     };
+
     public type MainerAgentCanisterTypeResult = Result<MainerAgentCanisterType, ApiError>;
 
     public type MainerAgentCanisterResult = Result<OfficialMainerAgentCanister, ApiError>;
@@ -291,6 +296,24 @@ module Types {
     public type CanisterRetrieveInput = {
         address : CanisterAddress;
     };
+
+    public type UpdateWasmHashInput = {
+        wasmHash : Blob;
+        textNote : Text;
+    };
+
+    public type CanisterWasmHashRecord = UpdateWasmHashInput and {
+        creationTimestamp : Nat64;
+        createdBy : Principal;
+        version : Nat;
+    };
+
+    public type DeriveWasmHashInput = {
+        address : CanisterAddress;
+        textNote : Text;
+    };
+
+    public type CanisterWasmHashRecordResult = Result<CanisterWasmHashRecord, ApiError>;
     
     //-------------------------------------------------------------------------
     public type SelectableMainerLLMs = {
@@ -300,6 +323,47 @@ module Types {
     public type MainerConfigurationInput = {
         mainerAgentCanisterType: MainerAgentCanisterType;
         selectedLLM : ?SelectableMainerLLMs;
+    };
+
+    public type RedeemedForOptions = {
+        #MainerCreation : MainerAgentCanisterType;
+        #MainerTopUp : CanisterAddress;
+    };
+
+    public type HandleIncomingFundsRecord = {
+        cyclesForProtocol: Nat;
+        cyclesForMainer : Nat;
+    };
+
+    public type HandleIncomingFundsResult = Result<HandleIncomingFundsRecord, ApiError>;
+
+    public type VerifyPaymentRecord = {
+        verified : Bool;
+        amountPaid : Nat;
+    };
+
+    public type VerifyPaymentResult = Result<VerifyPaymentRecord, ApiError>;
+
+    public type RedeemedTransactionBlock = {
+        paymentTransactionBlockId : Nat64;
+        creationTimestamp : Nat64;
+        redeemedBy : Principal;
+        redeemedFor : RedeemedForOptions;
+        amount : Nat;
+    };
+
+    public type AddCyclesRecord = {
+        added : Bool;
+        amount : Nat;
+    };
+
+    public type AddCyclesResult = Result<AddCyclesRecord, ApiError>;
+
+    public type OfficialMainerCycleTopUp = {
+        amountAdded : Nat;
+        newOfficialCycleBalance : Nat;
+        creationTimestamp : Nat64;
+        sentBy : Principal;
     };
 
     public type MainerCreationInput = {
@@ -528,8 +592,84 @@ module Types {
         timeInterval : TimeInterval;
     };
 
+    // TODO - Implementation: finalize implementation (likely: make this settable in Game State and then retrievable by mAIner)
+    // TODO - Design: finalize exact (initial) amounts
+    public let cyclesBurnRateDefaultLow : CyclesBurnRate = {
+        cycles : Nat = 1_000_000_000_000;
+        timeInterval : TimeInterval = #Daily;
+    };
+
+    public let cyclesBurnRateDefaultMid : CyclesBurnRate = {
+        cycles : Nat = 4_000_000_000_000;
+        timeInterval : TimeInterval = #Daily;
+    };
+
+    public let cyclesBurnRateDefaultHigh : CyclesBurnRate = {
+        cycles : Nat = 10_000_000_000_000;
+        timeInterval : TimeInterval = #Daily;
+    };
+
+    public let cyclesBurnRateDefaultVeryHigh : CyclesBurnRate = {
+        cycles : Nat = 20_000_000_000_000;
+        timeInterval : TimeInterval = #Daily;
+    };
+
+    public type CyclesBurnRateDefault = {
+        #Low;
+        #Mid;
+        #High;
+        #VeryHigh;
+        #Custom : CyclesBurnRate;
+    };
+
+    public func getCyclesBurnRate(cyclesBurnRateDefault : CyclesBurnRateDefault) : CyclesBurnRate {
+        switch (cyclesBurnRateDefault) {
+            case (#Low) {
+                return cyclesBurnRateDefaultLow;
+            };
+            case (#Mid) {
+                return cyclesBurnRateDefaultMid;
+            };
+            case (#High) {
+                return cyclesBurnRateDefaultHigh;
+            };
+            case (#VeryHigh) {
+                return cyclesBurnRateDefaultVeryHigh;
+            };
+            case (#Custom(customCyclesBurnRate)) {
+                return customCyclesBurnRate;
+            };
+            case (_) {
+                return cyclesBurnRateDefaultLow;
+            };
+        };
+    };
+
+    // TODO - Implementation: merge into common file and finalize numbers
+    public let PROTOCOL_OPERATION_FEES_CUT_PERCENT : Nat = 20;
+    let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200_000_000_000;
+    let SUBMISSION_CYCLES_REQUIRED : Nat = 100_000_000_000;
+    let secondsInMinute = 60;
+    let minutesInHour = 60;
+    let hoursInDay = 24;
+
+    public func getTimerRegularityForCyclesBurnRate(cyclesBurnRate : CyclesBurnRate) : Nat {
+        var timeIntervalDuration = secondsInMinute * minutesInHour * hoursInDay; // Daily as default, i.e. this gives the seconds per day
+        switch (cyclesBurnRate.timeInterval) {
+            case (#Daily) {
+                // use default
+            };
+        };
+        // Calculate how many responses can be generated with the cycles budget based on response costs (generation plus submission)
+        let submissionsInTimeInterval = cyclesBurnRate.cycles / (CYCLES_BURNT_RESPONSE_GENERATION + SUBMISSION_CYCLES_REQUIRED);
+        // Calculate how often to respond (in seconds)
+        let timerRegularity = timeIntervalDuration / submissionsInTimeInterval;
+
+        return timerRegularity;
+    };
+
     public type MainerAgentSettingsInput = {
-        cyclesBurnRate : CyclesBurnRate;
+        cyclesBurnRate : CyclesBurnRateDefault;
     };
 
     public type MainerAgentSettings = MainerAgentSettingsInput and {
@@ -646,19 +786,6 @@ module Types {
     public type MaxTokensRecord = {
         max_tokens_update : Nat64;
         max_tokens_query : Nat64;
-    };
-
-    public type MainerAgentCtrlbCanister = actor {
-        add_llm_canister: (CanisterIDRecord) -> async StatusCodeRecordResult;
-        health: query () -> async StatusCodeRecordResult;
-        setGameStateCanisterId: (Text) -> async StatusCodeRecordResult;
-        setRoundRobinLLMs: (Nat) -> async StatusCodeRecordResult;
-        set_llm_canister_id: (CanisterIDRecord) -> async StatusCodeRecordResult;
-        setMainerCanisterType: (MainerAgentCanisterType) -> async StatusCodeRecordResult;
-        getMainerCanisterType: () -> async MainerAgentCanisterTypeResult;
-        setShareServiceCanisterId: (Text) -> async StatusCodeRecordResult;
-        addMainerShareAgentCanister: (OfficialMainerAgentCanister) -> async MainerAgentCanisterResult;
-        startTimerExecutionAdmin: () -> async AuthRecordResult;
     };
 
     //-------------------------------------------------------------------------
@@ -859,6 +986,21 @@ module Types {
         setupCanister: shared SetupCanisterInput -> async CanisterCreationResult;
     };
 
+    // mAIner
+    public type MainerAgentCtrlbCanister = actor {
+        add_llm_canister: (CanisterIDRecord) -> async StatusCodeRecordResult;
+        health: query () -> async StatusCodeRecordResult;
+        setGameStateCanisterId: (Text) -> async StatusCodeRecordResult;
+        setRoundRobinLLMs: (Nat) -> async StatusCodeRecordResult;
+        set_llm_canister_id: (CanisterIDRecord) -> async StatusCodeRecordResult;
+        setMainerCanisterType: (MainerAgentCanisterType) -> async StatusCodeRecordResult;
+        getMainerCanisterType: () -> async MainerAgentCanisterTypeResult;
+        setShareServiceCanisterId: (Text) -> async StatusCodeRecordResult;
+        addMainerShareAgentCanister: (OfficialMainerAgentCanister) -> async MainerAgentCanisterResult;
+        startTimerExecutionAdmin: () -> async AuthRecordResult;
+        addCycles: () -> async AddCyclesResult;
+    };
+
     public type LLMCanister = actor {
         health : () -> async StatusCodeRecordResult;
         ready : () -> async StatusCodeRecordResult;
@@ -882,4 +1024,12 @@ module Types {
         addChallengeToShareServiceQueue : (ChallengeQueueInput) -> async ChallengeQueueInputResult;
         addChallengeResponseToShareAgent : (ChallengeResponseSubmissionInput) -> async StatusCodeRecordResult;
     };
+
+    // ICP Token Ledger
+    public let ICP_TOKEN_LEDGER_CANISTER_ID = "ryjl3-tyaaa-aaaaa-aaaba-cai";
+    public let IcpLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (ICP_TOKEN_LEDGER_CANISTER_ID);
+
+    // Cycles Minting Canister
+    public let CYCLES_MINTING_CANISTER_ID = "rkp4c-7iaaa-aaaaa-aaaca-cai";
+    public let CyclesMintingCanister_Actor : CMC.CYCLES_MINTING_CANISTER = actor (CYCLES_MINTING_CANISTER_ID);
 };

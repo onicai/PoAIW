@@ -1,4 +1,3 @@
-// import IcpLedger "canister:icp_ledger_canister"; https://github.com/dfinity/examples/blob/master/motoko/icp_transfer/src/icp_transfer_backend/main.mo
 import D "mo:base/Debug";
 import Buffer "mo:base/Buffer";
 import Array "mo:base/Array";
@@ -17,11 +16,18 @@ import Nat "mo:base/Nat";
 import Order "mo:base/Order";
 import Error "mo:base/Error";
 import Float "mo:base/Float";
+import Blob "mo:base/Blob";
+import Hash "mo:base/Hash";
+import Nat8 "mo:base/Nat8";
+import Array "mo:base/Array";
+import Buffer "mo:base/Buffer";
 
 import Types "../../common/Types";
 import ICManagementCanister "../../common/ICManagementCanister";
 import TokenLedger "../../common/icp-ledger-interface";
 import Constants "../../common/Constants";
+import CMC "../../common/cycles-minting-canister-interface";
+
 import Utils "Utils";
 
 actor class GameStateCanister() = this {
@@ -33,8 +39,16 @@ actor class GameStateCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
+    public shared query func getCanisterPrincipal() : async Text {
+        return Principal.toText(Principal.fromActor(this));
+    };
+
     // Token Ledger
     stable var TOKEN_LEDGER_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // TODO: update
+
+    stable let ICP_LEDGER_ACTOR : TokenLedger.TOKEN_LEDGER = Types.IcpLedger_Actor;
+
+    stable let CMC_ACTOR : CMC.CYCLES_MINTING_CANISTER = Types.CyclesMintingCanister_Actor;
 
     // TODO: remove this function before launching
     public shared (msg) func setTokenLedgerCanisterId(_token_ledger_canister_id : Text) : async Types.AuthRecordResult {
@@ -92,9 +106,9 @@ actor class GameStateCanister() = this {
     type TransferArgs = {
         amount : Tokens;
         toPrincipal : Principal;
-        toSubaccount : ?IcpLedger.SubAccount;
+        toSubaccount : ?TokenLedger.SubAccount;
     };
-    private func transfer(args : TransferArgs) : async Result.Result<IcpLedger.BlockIndex, Text> {
+    private func transfer(args : TransferArgs) : async Result.Result<TokenLedger.BlockIndex, Text> {
         Debug.print(
             "Transferring "
             # debug_show (args.amount)
@@ -104,7 +118,7 @@ actor class GameStateCanister() = this {
             # debug_show (args.toSubaccount)
         );
 
-        let transferArgs : IcpLedger.TransferArgs = {
+        let transferArgs : TokenLedger.TransferArgs = {
             // can be used to distinguish between transactions
             memo = 0;
             // the amount we want to transfer
@@ -121,7 +135,7 @@ actor class GameStateCanister() = this {
 
         try {
             // initiate the transfer
-            let transferResult = await IcpLedger.transfer(transferArgs);
+            let transferResult = await ICP_LEDGER_ACTOR.transfer(transferArgs);
 
             // check if the transfer was successfull
             switch (transferResult) {
@@ -136,11 +150,11 @@ actor class GameStateCanister() = this {
         };
     };
 
-    private func verify_payment(paymentBlockIndex : IcpLedger.BlockIndex) : async Result.Result<Text, Text> {
+    private func verify_payment(paymentBlockIndex : TokenLedger.BlockIndex) : async Result.Result<Text, Text> {
         // https://internetcomputer.org/docs/defi/token-ledgers/usage/icp_ledger_usage#receiving-icp
         let startIndex : Nat64 = paymentBlockIndex;
         let queryLength : Nat64 = 1;
-        let queryResult = await IcpLedger.get_blocks({
+        let queryResult = await ICP_LEDGER_ACTOR.get_blocks({
             start = startIndex;
             length = queryLength;
         });
@@ -150,9 +164,90 @@ actor class GameStateCanister() = this {
         // Users should not be able to tamper with the mAIner code
 
     // mAIner agent wasm module hash that must match
-        // TODO: implement way to manage this
+        // TODO - Implementation: finalize implementation, ensure it's all stable, and remove any code not needed for production
         // -> For now, do not make it stable, so it can be updated via a canister upgrade
-    let officialMainerAgentCanisterWasmHash : Blob = "\8B\98\EC\4C\24\A4\8E\80\CF\AD\E0\9F\B4\46\9A\F4\B9\CC\4D\D7\74\8A\5E\D3\63\99\22\28\F1\B8\26\F2";
+    var officialMainerAgentCanisterWasmHash : Blob = "\f5\d5\ab\57\f4\be\2d\c1\b2\1e\eb\51\02\1f\95\74\1f\3f\72\39\c5\c9\31\b1\e9\15\7d\73\4c\fc\8e\d8";
+    stable var officialMainerAgentCanisterWasmHashVersion : Nat = 0;
+    stable var officialMainerAgentCanisterWasmHashRecord : Types.CanisterWasmHashRecord = {
+        wasmHash : Blob = officialMainerAgentCanisterWasmHash;
+        creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+        createdBy : Principal = Principal.fromActor(this);
+        version : Nat = officialMainerAgentCanisterWasmHashVersion;
+        textNote : Text = "initial record";
+    };
+
+    stable var previousMainerAgentCanisterWasmHashRecords : List.List<Types.CanisterWasmHashRecord> = List.nil<Types.CanisterWasmHashRecord>();
+
+    // Update the wasm hash record for the mAIner with the new wasm hash as input
+    public shared (msg) func setOfficialMainerAgentCanisterWasmHashAdmin(updateWasmHashInput : Types.UpdateWasmHashInput) : async Types.CanisterWasmHashRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Increment version
+        officialMainerAgentCanisterWasmHashVersion := officialMainerAgentCanisterWasmHashVersion + 1;
+        // Archive current record
+        previousMainerAgentCanisterWasmHashRecords := List.push<Types.CanisterWasmHashRecord>(officialMainerAgentCanisterWasmHashRecord, previousMainerAgentCanisterWasmHashRecords);
+        // Update to new record
+        let newMainerAgentCanisterWasmHashRecord : Types.CanisterWasmHashRecord = {
+            wasmHash : Blob = updateWasmHashInput.wasmHash;
+            creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+            createdBy : Principal = msg.caller;
+            version : Nat = officialMainerAgentCanisterWasmHashVersion;
+            textNote : Text = updateWasmHashInput.textNote;
+        };
+        officialMainerAgentCanisterWasmHashRecord := newMainerAgentCanisterWasmHashRecord;
+        officialMainerAgentCanisterWasmHash := updateWasmHashInput.wasmHash;
+
+        return #Ok(newMainerAgentCanisterWasmHashRecord);
+    };
+
+    // Update the wasm hash record for the mAIner by getting the new wasm hash from a running mAIner
+    public shared (msg) func deriveNewMainerAgentCanisterWasmHashAdmin(deriveWasmHashInput : Types.DeriveWasmHashInput) : async Types.CanisterWasmHashRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Get the mAIner canister's wasm module hash
+        let IC_Management_Actor : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
+        try {
+            let agentCanisterInfo = await IC_Management_Actor.canister_info({
+                canister_id = Principal.fromText(deriveWasmHashInput.address);
+                num_requested_changes = ?0;
+            });  
+            // Verify agent canister's wasm module hash
+            switch (agentCanisterInfo.module_hash) {
+                case (null) {
+                    D.print("GameState: deriveOfficialMainerAgentCanisterWasmHashAdmin - canister has null as module hash: " # debug_show(deriveWasmHashInput));  
+                    D.print("GameState: deriveOfficialMainerAgentCanisterWasmHashAdmin - agentCanisterInfo with null as module hash: " # debug_show(agentCanisterInfo));
+                    return #Err(#Other("GameState: deriveOfficialMainerAgentCanisterWasmHashAdmin - canister has null as module hash: " # debug_show(deriveWasmHashInput)));
+                };
+                case (?agentModuleHash) {
+                    D.print("GameState: deriveOfficialMainerAgentCanisterWasmHashAdmin - canister has module hash: " # debug_show(deriveWasmHashInput));  
+                    D.print("GameState: deriveOfficialMainerAgentCanisterWasmHashAdmin - agentCanisterInfo with module hash: " # debug_show(agentCanisterInfo));
+                    // Increment version
+                    officialMainerAgentCanisterWasmHashVersion := officialMainerAgentCanisterWasmHashVersion + 1;
+                    // Archive current record
+                    previousMainerAgentCanisterWasmHashRecords := List.push<Types.CanisterWasmHashRecord>(officialMainerAgentCanisterWasmHashRecord, previousMainerAgentCanisterWasmHashRecords);
+                    // Update to new record
+                    let newMainerAgentCanisterWasmHashRecord : Types.CanisterWasmHashRecord = {
+                        wasmHash : Blob = agentModuleHash;
+                        creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                        createdBy : Principal = msg.caller;
+                        version : Nat = officialMainerAgentCanisterWasmHashVersion;
+                        textNote : Text = deriveWasmHashInput.textNote;
+                    };
+                    officialMainerAgentCanisterWasmHashRecord := newMainerAgentCanisterWasmHashRecord;
+                    officialMainerAgentCanisterWasmHash := agentModuleHash;
+
+                    return #Ok(newMainerAgentCanisterWasmHashRecord);
+                };
+            };
+        } catch (e) {
+            D.print("GameState: deriveOfficialMainerAgentCanisterWasmHashAdmin - Failed to retrieve info for mAIner: " # debug_show(deriveWasmHashInput) # Error.message(e));      
+            return #Err(#Other("GameState: deriveOfficialMainerAgentCanisterWasmHashAdmin - Failed to retrieve info for mAIner: " # debug_show(deriveWasmHashInput) # Error.message(e)));
+        };
+    };
     
     public shared (msg) func testMainerCodeIntegrityAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -169,7 +264,7 @@ actor class GameStateCanister() = this {
                     let agentCanisterInfo = await IC0.canister_info({
                         canister_id = Principal.fromText(agentEntry.address);
                         num_requested_changes = ?0;
-                    });   
+                    });  
                     // Verify agent canister's wasm module hash
                     switch (agentCanisterInfo.module_hash) {
                         case (null) {
@@ -177,7 +272,7 @@ actor class GameStateCanister() = this {
                             D.print("GameState: testMainerCodeIntegrityAdmin - agentCanisterInfo with null as module hash: " # debug_show(agentCanisterInfo)); 
                         };
                         case (?agentModuleHash) {
-                            if (Blob.equal(agentModuleHash, officialMainerAgentCanisterWasmHash)) {
+                            if (Blob.equal(agentModuleHash, officialMainerAgentCanisterWasmHashRecord.wasmHash)) {
                                 D.print("GameState: testMainerCodeIntegrityAdmin - agentEntry has official module hash: " # debug_show(agentEntry));  
                                 D.print("GameState: testMainerCodeIntegrityAdmin - agentCanisterInfo with official module hash: " # debug_show(agentCanisterInfo));
                             } else {
@@ -240,6 +335,8 @@ actor class GameStateCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
+    // Statistics 
+    stable var TOTAL_PROTOCOL_CYCLES_BURNT : Nat = 0; // TODO - Implementation: ensure all relevant events for cycle buring are captured and adjust cycle burning numbers below to actual values
     // Cycles for Own mAIner Creation 
     // Note: the ShareService mAIner will also use these values
     stable var ICP_FOR_OWN_MAINER : Nat  = 10                  ; // TODO: Set to cost of a Own mAIner, in ICP
@@ -360,6 +457,14 @@ actor class GameStateCanister() = this {
     let DEFAULT_COST_IDLE_BURN_RATE_SSLLM          : Nat =  23_769_539_345; // One ShareService LLM     cost for idle burn rate
     stable var costIdleBurnRateSsllm               : Nat = DEFAULT_COST_IDLE_BURN_RATE_SSLLM;
 
+    // TODO: Update to actual values
+    let CYCLES_BURNT_CHALLENGE_CREATION : Nat = 110 * CYCLES_BILLION;
+    let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * CYCLES_BILLION;
+    let CYCLES_BURNT_JUDGE_SCORING : Nat = 300 * CYCLES_BILLION;
+    let CYCLES_BURNT_CANISTER_CREATION : Nat = 300 * CYCLES_BILLION;
+    let CYCLES_BURNT_MAINER_CREATION : Nat = 300 * CYCLES_BILLION;
+    let CYCLES_BURNT_LLM_CREATION : Nat = 1300 * CYCLES_BILLION;
+    let CYCLES_BURNT_WINNER_DECLARATION : Nat = 100 * CYCLES_BILLION;
     // Cost of the idle burn rates for user canisters
     let DEFAULT_COST_IDLE_BURN_RATE_SACTRL         : Nat =     156_736_586; // ShareAgent Controller    cost for idle burn rate
     stable var costIdleBurnRateSactrl              : Nat = DEFAULT_COST_IDLE_BURN_RATE_SACTRL;
@@ -2098,8 +2203,6 @@ actor class GameStateCanister() = this {
 
         // TODO - Implementation: require cycles for adding new challenge
 
-        ignore increaseTotalProtocolCyclesBurnt(cyclesBurntChallengeGeneration);
-
         // Only official Challenger canisters may call this
         switch (getChallengerCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
@@ -2138,6 +2241,7 @@ actor class GameStateCanister() = this {
                 };
 
                 let putResult = putOpenChallenge(challengeId, challengeAdded);
+                ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_CHALLENGE_CREATION);
                 return #Ok(challengeAdded);                        
             };             
         };
@@ -2252,6 +2356,7 @@ actor class GameStateCanister() = this {
             };
             case (_) { return #Err(#Other("Unsupported")); }
         };
+        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_CANISTER_CREATION);
         return #Ok({ status_code = 200 });
     };
 
@@ -2316,11 +2421,294 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Helpers for payments
+    stable var redeemedTransactionBlocksStorageStable : [(Nat, Types.RedeemedTransactionBlock)] = [];
+    var redeemedTransactionBlocksStorage : HashMap.HashMap<Nat, Types.RedeemedTransactionBlock> = HashMap.HashMap(0, Nat.equal, Hash.hash);
+
+    func checkExistingTransactionBlock(transactionBlock : Nat64) : Bool {
+        switch (redeemedTransactionBlocksStorage.get(Nat64.toNat(transactionBlock))) {
+            case (null) {
+                return false;
+            };
+            case (?existingTransactionBlock) {
+                return true;
+            };
+        };
+    };
+
+    private func putRedeemedTransactionBlock(transactionEntry : Types.RedeemedTransactionBlock) : Bool {
+        switch (checkExistingTransactionBlock(transactionEntry.paymentTransactionBlockId)) {
+            case (false) {
+                // new entry
+                redeemedTransactionBlocksStorage.put(Nat64.toNat(transactionEntry.paymentTransactionBlockId), transactionEntry);
+                return true;
+            };
+            case (true) { 
+                //existing entry
+                return false;
+            }; 
+        };
+    };
+
+    // Payment memo to specify in transaction to Protocol
+    stable let MEMO_PAYMENT : Nat64 = 173; // TODO - Security: double check value can be used
+    let PROTOCOL_PRINCIPAL_BLOB : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null); // TODO - Implementation: this doesn't seem to fit the address on the ledger
+    // Construct subaccount for the canister principal
+    func principalToSubaccount(principal : Principal) : Blob {
+        let sub = Buffer.Buffer<Nat8>(32);
+        let subaccount_blob = Principal.toBlob(principal);
+
+        sub.add(Nat8.fromNat(subaccount_blob.size()));
+        sub.append(Buffer.fromArray<Nat8>(Blob.toArray(subaccount_blob)));
+        while (sub.size() < 32) {
+            sub.add(0);
+        };
+
+        Blob.fromArray(Buffer.toArray(sub));
+    };
+    let PROTOCOL_SUBACCOUNT : Blob = principalToSubaccount(Principal.fromActor(this));
+    // e.g. this is for dev stage, verify with: https://dashboard.internetcomputer.org/account/c88ef9865df034927487e4178da1f80a1648ec5a764e4959cba513c372ceb520
+    //let PROTOCOL_PRINCIPAL_BLOB : Blob = "\C8\8E\F9\86\5D\F0\34\92\74\87\E4\17\8D\A1\F8\0A\16\48\EC\5A\76\4E\49\59\CB\A5\13\C3\72\CE\B5\20";
+
+    let PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * CYCLES_TRILLION;
+
+    // Price to create a mAIner TODO - Implementation: finalize prices
+    stable var PRICE_OWN_MAINER : Nat64 = 0; //12;
+    stable var PRICE_SHARED_MAINER : Nat64 = 0; //10;
+
+    // TODO - Implementation: function to set the price for creating a mAIner
+        // TODO - Implementation: Set timer for once a day that calculates the creation price based on the ICP/cycles conversion rate
+    private func setPriceForCreatingMainer(newPrice : Nat64, mainerType : Types.MainerAgentCanisterType) : Bool {
+        switch (mainerType) {
+            case (#Own) {
+                PRICE_OWN_MAINER := newPrice;
+            };
+            case (#ShareAgent) {
+                PRICE_SHARED_MAINER := newPrice;
+            };
+            case (_) { return false; }
+        };
+        return true;
+    };
+
+    // TODO - Implementation: new function to decide on usage of incoming funds (e.g. for mAIner creation or top ups)
+    private func handleIncomingFunds(transactionEntry : Types.RedeemedTransactionBlock) : async Types.HandleIncomingFundsResult {
+        D.print("GameState: handleIncomingFunds - transactionEntry: "# debug_show(transactionEntry));
+        // TODO - Implementation: Calculate cut for Protocol's operational expenses
+        D.print("GameState: handleIncomingFunds - Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT: "# debug_show(Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT));
+        D.print("GameState: handleIncomingFunds - Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT / 100: "# debug_show(Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT / 100));
+        var amountToKeep : Nat = transactionEntry.amount * Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT / 100; // TODO - Implementation: ensure this math operation works
+        let amountForMainer : Nat = transactionEntry.amount - amountToKeep;
+        var amountToConvert : Nat = 0;
+        D.print("GameState: handleIncomingFunds - amountToKeep: "# debug_show(amountToKeep));
+        D.print("GameState: handleIncomingFunds - amountForMainer: "# debug_show(amountForMainer));       
+        // TODO - Implementation: if cycle balance > security buffer: take cycles from cycle balance
+        switch (transactionEntry.redeemedFor) {
+            case (#MainerCreation(#Own)) {
+                D.print("GameState: handleIncomingFunds - #MainerCreation(#Own) PROTOCOL_CYCLES_BALANCE_BUFFER: "# debug_show(PROTOCOL_CYCLES_BALANCE_BUFFER)); 
+                D.print("GameState: handleIncomingFunds - #MainerCreation(#Own) Cycles.balance(): "# debug_show(Cycles.balance())); 
+                if (PROTOCOL_CYCLES_BALANCE_BUFFER > Cycles.balance()) {
+                    // Cycles balance is lower than security threshold, so convert the payment to cycles
+                    amountToConvert := transactionEntry.amount;
+                } else {
+                    // No need to convert to cycles as cycle balance is high enough
+                    amountToKeep := transactionEntry.amount;
+                };           
+            };
+            case (#MainerCreation(#ShareAgent)) {
+                D.print("GameState: handleIncomingFunds - #MainerCreation(#ShareAgent) PROTOCOL_CYCLES_BALANCE_BUFFER: "# debug_show(PROTOCOL_CYCLES_BALANCE_BUFFER)); 
+                D.print("GameState: handleIncomingFunds - #MainerCreation(#ShareAgent) Cycles.balance(): "# debug_show(Cycles.balance())); 
+                if (PROTOCOL_CYCLES_BALANCE_BUFFER > Cycles.balance()) {
+                    // Cycles balance is lower than security threshold, so convert the payment to cycles
+                    amountToConvert := transactionEntry.amount;
+                } else {
+                    // No need to convert to cycles as cycle balance is high enough
+                    amountToKeep := transactionEntry.amount;
+                };
+            };
+            case (#MainerTopUp(mainerCanisterAddress)) {
+                D.print("GameState: handleIncomingFunds - #MainerTopUp(mainerCanisterAddress): "# debug_show(mainerCanisterAddress)); 
+                amountToConvert := amountForMainer; // Always convert mAIner's share of payment into cycles
+            };
+            case (_) { return #Err(#Other("Unsupported")); }
+        };
+        D.print("GameState: handleIncomingFunds - amountToKeep: "# debug_show(amountToKeep));
+        D.print("GameState: handleIncomingFunds - amountToConvert: "# debug_show(amountToConvert));
+        // TODO - Implementation: Otherwise: convert amountToConvert to cycles via Cycles Minting Canister (mint cycles to itself)
+        // Send ICP to Cycles Minting Canister
+        D.print("GameState: handleIncomingFunds - subaccount: "# debug_show(PROTOCOL_SUBACCOUNT));
+        let cmcAccount : TokenLedger.Account = {
+            owner : Principal = Principal.fromActor(CMC_ACTOR);
+            subaccount : ?Blob = ?PROTOCOL_SUBACCOUNT; // needs to match canister to credit cycles to in notify_top_up call, thus this canister
+        };
+        let notifyTopUpMemo : ?Blob = ?"\54\50\55\50\00\00\00\00"; // TODO - Implementation: double check
+        let transferArg : TokenLedger.TransferArg = {
+            to : TokenLedger.Account = cmcAccount;
+            fee : ?Nat = null;
+            memo : ?Blob = notifyTopUpMemo; // needed for CMC to accept top up
+            from_subaccount : ?Blob = null;
+            created_at_time : ?Nat64 = null;
+            amount : Nat = amountToConvert;
+        };
+        let transferResult : TokenLedger.Result = await ICP_LEDGER_ACTOR.icrc1_transfer(transferArg);
+        D.print("GameState: handleIncomingFunds - transferResult: "# debug_show(transferResult));
+        switch (transferResult) {
+            case (#Ok(transactionBlockId)) {
+                D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId): "# debug_show(transactionBlockId));
+                // Then notify Cycles Minting Canister to credit the corresponding cycles to this canister
+                let notifyTopUpArg : CMC.NotifyTopUpArg = {
+                    block_index : CMC.BlockIndex = Nat64.fromNat(transactionBlockId);
+                    canister_id : Principal = Principal.fromActor(this); // Game State (Protocol); Note: cycles will be sent to mAIner via direct calls as part of dedicated functions (e.g. for creation or for top ups)
+                };
+                let notifyTopUpResult : CMC.NotifyTopUpResult = await CMC_ACTOR.notify_top_up(notifyTopUpArg);
+                D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult: "# debug_show(notifyTopUpResult));
+                switch (notifyTopUpResult) {
+                    case (#Ok(cyclesReceived)) {
+                        D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult cyclesReceived: "# debug_show(cyclesReceived));
+                        if (PROTOCOL_CYCLES_BALANCE_BUFFER < Cycles.balance()) {
+                            // TODO - Implementation: Convert amountToKeep to FUNNAI
+                        };
+                        var cyclesForProtocol: Nat = cyclesReceived;
+                        var cyclesForMainer : Nat = 0;
+                        switch (transactionEntry.redeemedFor) {
+                            case (#MainerCreation(#Own)) {
+                                cyclesForMainer := MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED + MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED;                                      
+                            };
+                            case (#MainerCreation(#ShareAgent)) {
+                                cyclesForMainer := MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED;
+                                cyclesForMainer := 0; // TODO - Testing: remove this line
+                            };
+                            case (#MainerTopUp(mainerCanisterAddress)) {
+                                cyclesForProtocol := cyclesReceived * Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT / 100;
+                                cyclesForMainer := cyclesReceived - cyclesForProtocol;                              
+                            };
+                            case (_) { return #Err(#Other("Unsupported")); }
+                        };
+
+                        // Sanity check
+                        D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult cyclesForMainer: "# debug_show(cyclesForMainer));
+                        if (cyclesForMainer > cyclesReceived) {
+                            // This should never happen
+                            return #Err(#Other("cyclesForMainer > cyclesReceived"));                            
+                        };
+
+                        let response : Types.HandleIncomingFundsRecord = {
+                            cyclesForProtocol: Nat = cyclesForProtocol;
+                            cyclesForMainer : Nat = cyclesForMainer;
+                        };
+                        D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult response: "# debug_show(response));
+                        return #Ok(response);               
+                    };
+                    case (#Err(topUpError)) {
+                        D.print("GameState: handleIncomingFunds - transferResult notifyTopUpResult #Err(topUpError): "# debug_show(topUpError));
+                        return #Err(#Other("Error during CMC notify top up: " # debug_show(topUpError)));
+                    };
+                    case (_) { return #Err(#FailedOperation); }
+                };              
+            };
+            case (#Err(transferError)) {
+                D.print("GameState: handleIncomingFunds - transferResult #Err(transferError): "# debug_show(transferError));
+                return #Err(#Other("Error during ICP transfer: " # debug_show(transferError)));
+            };
+            case (_) { return #Err(#FailedOperation); }
+        };
+    };
+
+    // TODO - Implementation: new function to verify a payment to the Protocol (e.g. for mAIner creation or top ups)
+    private func verifyIncomingPayment(transactionEntry : Types.RedeemedTransactionBlock) : async Types.VerifyPaymentResult {
+        // Memo to add to transaction?
+        // Retrieve transaction from Ledger
+            // https://dashboard.internetcomputer.org/canister/ryjl3-tyaaa-aaaaa-aaaba-cai
+        let getBlocksArgs : TokenLedger.GetBlocksArgs = {
+            start : Nat64 = transactionEntry.paymentTransactionBlockId;
+            length : Nat64 = 1;
+        };
+        D.print("GameState: verifyIncomingPayment - getBlocksArgs: "# debug_show(getBlocksArgs));
+        let queryBlocksResponse : TokenLedger.QueryBlocksResponse = await ICP_LEDGER_ACTOR.query_blocks(getBlocksArgs);
+        D.print("GameState: verifyIncomingPayment - queryBlocksResponse.blocks: "# debug_show(queryBlocksResponse.blocks));
+        // Verify transaction exists
+        if (queryBlocksResponse.blocks.size() < 1) {
+            return #Err(#InvalidId);
+        };
+        D.print("GameState: verifyIncomingPayment - queryBlocksResponse.blocks.size(): "# debug_show(queryBlocksResponse.blocks.size()));
+        let retrievedTransaction : TokenLedger.CandidTransaction = queryBlocksResponse.blocks[0].transaction;
+        D.print("GameState: verifyIncomingPayment - retrievedTransaction: "# debug_show(retrievedTransaction));
+        // Verify transaction memo
+        D.print("GameState: verifyIncomingPayment - retrievedTransaction.memo: "# debug_show(retrievedTransaction.memo));
+        D.print("GameState: verifyIncomingPayment - MEMO_PAYMENT: "# debug_show(MEMO_PAYMENT));
+        /* if (Nat64.notEqual(retrievedTransaction.memo, MEMO_PAYMENT)) {
+            return #Err(#Other("Unsupported Memo"));
+        }; */ // TODO - Implementation: check if needed
+        // Verify transaction went to Protocol's account
+        D.print("GameState: verifyIncomingPayment - retrievedTransaction.operation: "# debug_show(retrievedTransaction.operation));
+        switch (retrievedTransaction.operation) {
+            case (null) {
+                D.print("GameState: verifyIncomingPayment - retrievedTransaction.operation: null");
+                return #Err(#Other("Couldn't verify transaction operation details"));  
+            };
+            case (?transactionOperation) {
+                D.print("GameState: verifyIncomingPayment - transactionOperation: "# debug_show(transactionOperation));
+                switch (transactionOperation) {
+                    case (#Transfer(transferDetails)) {
+                        D.print("GameState: verifyIncomingPayment - #Transfer transferDetails: "# debug_show(transferDetails));
+                        D.print("GameState: verifyIncomingPayment - transferDetails.to: "# debug_show(transferDetails.to));
+                        D.print("GameState: verifyIncomingPayment - PROTOCOL_PRINCIPAL_BLOB: "# debug_show(PROTOCOL_PRINCIPAL_BLOB));
+                        D.print("GameState: verifyIncomingPayment - toLedgerAccount: "# debug_show(Principal.toLedgerAccount(Principal.fromActor(this), null)));
+                        if (Blob.notEqual(transferDetails.to, PROTOCOL_PRINCIPAL_BLOB)) {
+                            return #Err(#Other("Transaction didn't go to Protocol's address")); 
+                        };
+                        // TODO - Implementation: ensure that paid amount equals price
+                        D.print("GameState: verifyIncomingPayment - transactionEntry.redeemedFor: "# debug_show(transactionEntry.redeemedFor));
+                        switch (transactionEntry.redeemedFor) {
+                            case (#MainerCreation(mainerAgentCanisterType)) {
+                                D.print("GameState: verifyIncomingPayment - #MainerCreation mainerAgentCanisterType: "# debug_show(mainerAgentCanisterType));
+                                switch (mainerAgentCanisterType) {
+                                    case (#Own) {
+                                        D.print("GameState: verifyIncomingPayment - #MainerCreation Own transferDetails.amount.e8s: "# debug_show(transferDetails.amount.e8s));
+                                        D.print("GameState: verifyIncomingPayment - #MainerCreation Own PRICE_OWN_MAINER: "# debug_show(PRICE_OWN_MAINER));
+                                        if (transferDetails.amount.e8s < PRICE_OWN_MAINER) {
+                                            return #Err(#Other("Transaction didn't pay full price"));
+                                        };                              
+                                    };
+                                    case (#ShareAgent) {
+                                        D.print("GameState: verifyIncomingPayment - #MainerCreation ShareAgent transferDetails.amount.e8s: "# debug_show(transferDetails.amount.e8s));
+                                        D.print("GameState: verifyIncomingPayment - #MainerCreation ShareAgent PRICE_SHARED_MAINER: "# debug_show(PRICE_SHARED_MAINER));
+                                        if (transferDetails.amount.e8s < PRICE_SHARED_MAINER) {
+                                            return #Err(#Other("Transaction didn't pay full price"));
+                                        };                                
+                                    };
+                                    case (_) { return #Err(#Other("Unsupported")); }
+                                };                             
+                            };
+                            case (#MainerTopUp(_)) {
+                                D.print("GameState: verifyIncomingPayment - #MainerTopUp ");
+                                // continue as there is no fixed price                             
+                            };
+                            case (_) { return #Err(#Other("Unsupported")); }
+                        };
+                        D.print("GameState: verifyIncomingPayment - verified: ");
+                        let amountPaid = Nat64.toNat(transferDetails.amount.e8s);
+                        D.print("GameState: verifyIncomingPayment - amountPaid: "# debug_show(amountPaid));
+                        return #Ok({
+                            amountPaid : Nat = amountPaid;
+                            verified : Bool = true;
+                        });
+                    };
+                    case (_) { return #Err(#Other("Transaction wasn't sent correctly")); }
+                };
+            };
+        };
+    };
+
     // Function for user to create a new mAIner agent
     public shared (msg) func createUserMainerAgent(mainerCreationInput : Types.MainerCreationInput) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized); 
+            return #Err(#Unauthorized);
         };
+
+        let transactionToVerify = mainerCreationInput.paymentTransactionBlockId;
+        D.print("GameState: createUserMainerAgent - transactionToVerify: "# debug_show(transactionToVerify));
+
         // Sanity checks on configuration of mAIner agent
         let mainerConfig : Types.MainerConfigurationInput = mainerCreationInput.mainerConfig;
         switch (mainerConfig.selectedLLM) {
@@ -2334,10 +2722,27 @@ actor class GameStateCanister() = this {
         };
         switch (mainerConfig.mainerAgentCanisterType) {
             case (#Own) {
-                // continue
+                // TODO - Implementation: ensure this transaction block hasn't been redeemed yet (no double spending)
+                switch (checkExistingTransactionBlock(transactionToVerify)) {
+                    case (false) {
+                        // new transaction, continue
+                    };
+                    case (true) {
+                        // already redeem transaction
+                        return #Err(#Other("Already redeemd this transaction block")); // no double spending
+                    };
+                };
             };
             case (#ShareAgent) {
-                // continue
+                switch (checkExistingTransactionBlock(transactionToVerify)) {
+                    case (false) {
+                        // new transaction, continue
+                    };
+                    case (true) {
+                        // already redeem transaction
+                        return #Err(#Other("Already redeemd this transaction block")); // no double spending
+                    };
+                };
             };
             case (#ShareService) {
                 // Only a controller is allowed to create a shared service canister
@@ -2347,6 +2752,8 @@ actor class GameStateCanister() = this {
             };
             case (_) { return #Err(#Other("Unsupported")); }
         };
+
+        D.print("GameState: createUserMainerAgent - mainerConfig: "# debug_show(mainerConfig));
 
         // TODO - Implementation: verify that the user has an unlocked mAIner entry of the mainerAgentCanisterType type (thus is allowed to create the new mAIner)
         /* switch (getUserMainerAgents(msg.caller)) {
@@ -2389,24 +2796,104 @@ actor class GameStateCanister() = this {
             };
         }; */
 
-        // TODO - Implementation: verify user's payment for this agent via mainerCreationInput.paymentTransactionBlockId https://github.com/bob-robert-ai/bob/blob/3c1d19c4f8ce7de5c74654855e7be44117973d19/minter-v2/src/main.rs#L134
-        //        Skip payment verification in case of ShareService, which is created by an Admin (Controller)
-        let transactionToVerify = mainerCreationInput.paymentTransactionBlockId;
+        // TODO - Implementation: verify user's payment for this agent via the TransactionBlockId
+        var verifiedPayment : Bool = false;
+        var amountPaid : Nat = 0;
+        let redeemedFor : Types.RedeemedForOptions = #MainerCreation(mainerConfig.mainerAgentCanisterType);
+        let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+        // TODO - Testing: comment out this switch statement for testing locally
+        switch (mainerConfig.mainerAgentCanisterType) {
+            case (#ShareService) {
+                // Skip payment verification in case of ShareService, which is created by an Admin (Controller)
+                verifiedPayment := true;
+            };
+            case (_) {
+                let transactionEntryToVerify : Types.RedeemedTransactionBlock = {
+                    paymentTransactionBlockId : Nat64 = transactionToVerify;
+                    creationTimestamp : Nat64 = creationTimestamp;
+                    redeemedBy : Principal = msg.caller;
+                    redeemedFor : Types.RedeemedForOptions = redeemedFor;
+                    amount : Nat = amountPaid; // to be updated
+                };
+                D.print("GameState: createUserMainerAgent - transactionEntryToVerify: "# debug_show(transactionEntryToVerify));
+
+                let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify);
+                D.print("GameState: createUserMainerAgent - verificationResponse: "# debug_show(verificationResponse));
+                switch (verificationResponse) {
+                    case (#Ok(verificationResult)) {
+                        verifiedPayment := verificationResult.verified;
+                        amountPaid := verificationResult.amountPaid;
+                    };
+                    case (_) {
+                        return #Err(#Other("Payment verification failed"));                      
+                    };
+                };
+            };
+        };
+
+        if (not verifiedPayment) {
+            return #Err(#Other("Payment couldn't be verified"));
+        }; // TODO - Testing: comment out this check for testing locally
 
         let canisterEntry : Types.OfficialMainerAgentCanister = {
             address : Text = ""; // To be assigned (when Controller canister was created)
             canisterType: Types.ProtocolCanisterType = #MainerAgent(mainerConfig.mainerAgentCanisterType);
-            creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+            creationTimestamp : Nat64 = creationTimestamp;
             createdBy : Principal = msg.caller; // User (Admin (controller) in case of ShareService)
             ownedBy : Principal = msg.caller; // User (Admin (controller) in case of ShareService)
-            status : Types.CanisterStatus = #Paid;
+            status : Types.CanisterStatus = #Paid; // TODO - Implementation: add transaction id to status #Paid or introduce new field
             mainerConfig : Types.MainerConfigurationInput = mainerConfig;
         };
-        switch (putUserMainerAgent(canisterEntry)) {
-            case (true) {
-                return #Ok(canisterEntry);
+        let newTransactionEntry : Types.RedeemedTransactionBlock = {
+            paymentTransactionBlockId : Nat64 = transactionToVerify;
+            creationTimestamp : Nat64 = canisterEntry.creationTimestamp;
+            redeemedBy : Principal = msg.caller;
+            redeemedFor : Types.RedeemedForOptions = redeemedFor;
+            amount : Nat = amountPaid;
+        };
+        D.print("GameState: createUserMainerAgent - canisterEntry: "# debug_show(canisterEntry));
+
+        var handleResponse : Types.HandleIncomingFundsResult = #Err(#FailedOperation);
+        switch (mainerConfig.mainerAgentCanisterType) {
+            case (#ShareService) {
+                // Skip handling of funds in case of ShareService, which is created by an Admin (Controller)
+                handleResponse := #Ok({cyclesForMainer : Nat = 0; cyclesForProtocol : Nat = 0});
             };
-            case (false) { return #Err(#FailedOperation); }
+            case (_) {
+                D.print("GameState: createUserMainerAgent - mainerConfig.mainerAgentCanisterType: "# debug_show(mainerConfig.mainerAgentCanisterType));
+                handleResponse := await handleIncomingFunds(newTransactionEntry);
+            };
+        };
+        D.print("GameState: createUserMainerAgent - handleResponse: "# debug_show(handleResponse));
+
+        switch (handleResponse) {
+            case (#Err(error)) {
+                return #Err(#FailedOperation);
+            };
+            case (#Ok(handleResult)) {
+                switch (putUserMainerAgent(canisterEntry)) {
+                    case (true) {
+                        D.print("GameState: createUserMainerAgent - putUserMainerAgent: true");
+                        // TODO - Implementation: track redeemed transaction blocks to ensure no double spending
+                        switch (putRedeemedTransactionBlock(newTransactionEntry)) {
+                            case (false) {
+                                // TODO - Error Handling: likely retry
+                                D.print("GameState: createUserMainerAgent - putRedeemedTransactionBlock: false");
+                            };
+                            case (true) {
+                                // continue
+                                D.print("GameState: createUserMainerAgent - putRedeemedTransactionBlock: true");
+                            };
+                        };
+                        return #Ok(canisterEntry);
+                    };
+                    case (false) {
+                        D.print("GameState: createUserMainerAgent - putUserMainerAgent: false");
+                        // TODO - Error Handling: likely retry
+                        return #Err(#FailedOperation);
+                    }
+                };
+            };
         };
     };
 
@@ -2586,8 +3073,11 @@ actor class GameStateCanister() = this {
                                 D.print("GameState: spinUpMainerControllerCanister - cycles added   to mAInerCreator (" # debug_show(mainerCreatorEntry.address) #  ")                              = " # debug_show(cyclesAdded) );
                                 D.print("GameState: spinUpMainerControllerCanister - cycles used    by mAInerCreator (" # debug_show(mainerCreatorEntry.address) #  ")                              = " # debug_show(cyclesUsed) );
 
+                                D.print("GameState: spinUpMainerControllerCanister - createCanister result: "# debug_show(result));
+
                                 switch (result) {
                                     case (#Ok(canisterCreationRecord)) {
+                                        D.print("GameState: spinUpMainerControllerCanister - createCanister canisterCreationRecord: "# debug_show(canisterCreationRecord));
                                         // Setup the controller canister (install code & configurations)
                                         let setupCanisterInput : Types.SetupCanisterInput = {
                                             newCanisterId : Text = canisterCreationRecord.newCanisterId;
@@ -2605,6 +3095,7 @@ actor class GameStateCanister() = this {
                                             mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                         };
                                         D.print("GameState: spinUpMainerControllerCanister - canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );
+                                        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_MAINER_CREATION);
                                         addMainerAgentCanister_(canisterEntryToAdd);
                                     };
                                     case (_) { return #Err(#FailedOperation); };
@@ -2802,7 +3293,8 @@ actor class GameStateCanister() = this {
                                             status : Types.CanisterStatus = #LlmSetupInProgress(#CanisterCreated); //This is status of the controller
                                             mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                         };
-                                        D.print("GameState: setUpMainerLlmCanister - returning canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );  
+                                        D.print("GameState: setUpMainerLlmCanister - returning canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );
+                                        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_LLM_CREATION);
                                         let _ = addMainerAgentCanister_(canisterEntryToAdd);
                                         return #Ok(
                                             {
@@ -3021,6 +3513,7 @@ actor class GameStateCanister() = this {
                                             mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                         };
                                         D.print("GameState: addLlmCanisterToMainer - returning canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );  
+                                        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_LLM_CREATION);
                                         let _ = addMainerAgentCanister_(canisterEntryToAdd);
                                         return #Ok(
                                             {
@@ -3086,7 +3579,7 @@ actor class GameStateCanister() = this {
         };
         let _ = putUserMainerAgent(canisterEntry);
         let _ = putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry);
-        D.print("GameState: addMainerAgentCanister - putMainerAgentCanister for canisterEntry: " # debug_show(canisterEntry) ); 
+        D.print("GameState: addMainerAgentCanister - putMainerAgentCanister for canisterEntry: " # debug_show(canisterEntry) );
         return #Ok(canisterEntry);
     };
 
@@ -3120,6 +3613,18 @@ actor class GameStateCanister() = this {
     public shared (msg) func topUpCyclesForMainerAgent(mainerTopUpInfo : Types.MainerAgentTopUpInput) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
+        };
+
+        // TODO - Implementation: ensure this transaction block hasn't been redeemed yet (no double spending)     
+        let transactionToVerify = mainerTopUpInfo.paymentTransactionBlockId;
+        switch (checkExistingTransactionBlock(transactionToVerify)) {
+            case (false) {
+                // new transaction, continue
+            };
+            case (true) {
+                // already redeem transaction
+                return #Err(#Other("Already redeemd this transaction block")); // no double spending
+            };
         };
 
         // Sanity checks on provided mAIner info
@@ -3187,23 +3692,82 @@ actor class GameStateCanister() = this {
                             case (_) { return #Err(#Other("Unsupported")); }
                         };
 
-                        // TODO - Implementation: verify user's payment for this agent via paymentTransactionBlockId https://github.com/bob-robert-ai/bob/blob/3c1d19c4f8ce7de5c74654855e7be44117973d19/minter-v2/src/main.rs#L134
-                        let transactionToVerify = mainerTopUpInfo.paymentTransactionBlockId;
-                        
-                        // TODO - Implementation: credit mAIner agent with cycles (the user paid for)
-                        // ALternative: credit via the CMC service
-                        // Retrieve mAIner agent canister's info
-                        D.print("GameState: topUpCyclesForMainerAgent - Verify agent canister's wasm module hash#####################################################################################################################################################################################");
-                        try {
-                            let deposit_cycles_args = { canister_id : Principal = Principal.fromText(userMainerEntry.address); };
-                            // TODO - Implementation: charge call with cycles
-                            let result = await IC0.deposit_cycles(deposit_cycles_args);
-                            //TODO - Design: decide whether a top up history should be kept
-                            return #Ok(userMainerEntry);
-                        } catch (e) {
-                            D.print("GameState: topUpCyclesForMainerAgent - Failed to credit cycles to mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e));      
-                            return #Err(#Other("GameState: topUpCyclesForMainerAgent - Failed to credit cycles to mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e)));
-                        };                        
+                        // TODO - Implementation: verify user's payment for this agent via the TransactionBlockId
+                        var verifiedPayment : Bool = false;
+                        var amountPaid : Nat = 0;
+                        let redeemedFor : Types.RedeemedForOptions = #MainerTopUp(userMainerEntry.address);
+                        let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                        let transactionEntryToVerify : Types.RedeemedTransactionBlock = {
+                            paymentTransactionBlockId : Nat64 = mainerTopUpInfo.paymentTransactionBlockId;
+                            creationTimestamp : Nat64 = creationTimestamp;
+                            redeemedBy : Principal = msg.caller;
+                            redeemedFor : Types.RedeemedForOptions = redeemedFor;
+                            amount : Nat = amountPaid; // to be updated
+                        };
+                        let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify);
+                        switch (verificationResponse) {
+                            case (#Ok(verificationResult)) {
+                                verifiedPayment := verificationResult.verified;
+                                amountPaid := verificationResult.amountPaid;
+                            };
+                            case (_) {
+                                return #Err(#Other("Payment verification failed"));                      
+                            };
+                        };
+                        if (not verifiedPayment) {
+                            return #Err(#Other("Payment couldn't be verified"));
+                        };
+
+                        let newTransactionEntry : Types.RedeemedTransactionBlock = {
+                            paymentTransactionBlockId : Nat64 = mainerTopUpInfo.paymentTransactionBlockId;
+                            creationTimestamp : Nat64 = creationTimestamp;
+                            redeemedBy : Principal = msg.caller;
+                            redeemedFor : Types.RedeemedForOptions = redeemedFor;
+                            amount : Nat = amountPaid;
+                        };
+                        let handleResponse : Types.HandleIncomingFundsResult = await handleIncomingFunds(newTransactionEntry);
+                        D.print("GameState: topUpCyclesForMainerAgent - handleResponse: " # debug_show(handleResponse));
+                        switch (handleResponse) {
+                            case (#Err(error)) {
+                                D.print("GameState: topUpCyclesForMainerAgent - handleResponse FailedOperation: " # debug_show(error));
+                                return #Err(#FailedOperation);
+                            };
+                            case (#Ok(handleResult)) {
+                                D.print("GameState: topUpCyclesForMainerAgent - handleResult: " # debug_show(handleResult));
+                                // TODO - Implementation: credit mAIner agent with cycles (the user paid for)
+                                try {
+                                    let Mainer_Actor : Types.MainerAgentCtrlbCanister = actor (userMainerEntry.address);
+                                    // TODO - Implementation: charge call with cycles
+                                    Cycles.add<system>(handleResult.cyclesForMainer);
+                                    // TODO - Implementation: Add these cycles via dedicated function on mAIner
+                                    let addCyclesResponse = await Mainer_Actor.addCycles();
+                                    D.print("GameState: topUpCyclesForMainerAgent - addCyclesResponse: " # debug_show(addCyclesResponse));
+                                    switch (addCyclesResponse) {
+                                        case (#Err(error)) {
+                                            D.print("GameState: topUpCyclesForMainerAgent - addCyclesResponse FailedOperation: " # debug_show(error));
+                                            return #Err(#FailedOperation);
+                                        };
+                                        case (#Ok(addCyclesResult)) {
+                                            D.print("GameState: topUpCyclesForMainerAgent - addCyclesResult: " # debug_show(addCyclesResult));
+                                            //TODO - Design: decide whether a top up history should be kept
+                                            // TODO - Implementation: track redeemed transaction blocks to ensure no double spending
+                                            switch (putRedeemedTransactionBlock(newTransactionEntry)) {
+                                                case (false) {
+                                                    // TODO - Error Handling: likely retry
+                                                };
+                                                case (true) {
+                                                    // continue
+                                                };
+                                            };
+                                            return #Ok(userMainerEntry);
+                                        };
+                                    };
+                                } catch (e) {
+                                    D.print("GameState: topUpCyclesForMainerAgent - Failed to credit cycles to mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e));      
+                                    return #Err(#Other("GameState: topUpCyclesForMainerAgent - Failed to credit cycles to mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e)));
+                                };
+                            };
+                        };                       
                     };
                 };
             };
@@ -3285,8 +3849,6 @@ actor class GameStateCanister() = this {
             D.print("GameState: submitChallengeResponse - cycles required : " # debug_show(cyclesSubmitResponse));
             return #Err(#InsuffientCycles(cyclesSubmitResponse));                    
         };
-        // TODO - Implementation: adapt cycles burnt stats based on the mAIner Type.
-        ignore increaseTotalProtocolCyclesBurnt(cyclesBurntResponseGenerationShare);
         // Only official mAIner agent canisters may call this
         switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
             case (null) {
@@ -3326,7 +3888,7 @@ actor class GameStateCanister() = this {
                             return #Err(#Unauthorized);
                         };
                         case (?agentModuleHash) {
-                            if (Blob.equal(agentModuleHash, officialMainerAgentCanisterWasmHash)) {
+                            if (Blob.equal(agentModuleHash, officialMainerAgentCanisterWasmHashRecord.wasmHash)) {
                                 D.print("GameState: testMainerCodeIntegrityAdmin - agentCanisterInfo with official module hash: " # debug_show(agentCanisterInfo));
                                 // continue as check passed
                             } else {
@@ -3344,9 +3906,9 @@ actor class GameStateCanister() = this {
                     return #Err(#Other("GameState: testMainerCodeIntegrityAdmin - Failed to retrieve info for mAIner: " # debug_show(challengeResponseSubmissionInput) # Error.message(e)));
                 };
 
-                // Accept required cycles for submission
-                let cyclesAcceptedForSubmission = Cycles.accept<system>(cyclesSubmitResponse);
-                if (cyclesAcceptedForSubmission != cyclesSubmitResponse) {
+                // Accept cycles for submission (submission fee plus any outstanding fees, e.g. cuts from unofficial top ups for Protocol's operational expenses)
+                let cyclesAcceptedForSubmission = Cycles.accept<system>(Cycles.available());
+                if (cyclesAcceptedForSubmission < cyclesSubmitResponse) {
                     // Sanity check: At this point, this should never fail
                     D.print("GameState: submitChallengeResponse - 07");
                     return #Err(#Unauthorized);                    
@@ -3401,6 +3963,8 @@ actor class GameStateCanister() = this {
                     cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
                 };
                 D.print("GameState: submitChallengeResponse - submitted!");
+                // TODO - Implementation: adapt cycles burnt stats
+                ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
                 return #Ok(submissionMetada);           
             };
         };
@@ -3630,6 +4194,8 @@ actor class GameStateCanister() = this {
                                 return false;
                             };
                             case (true) {
+                                // TODO - Implementation: adapt cycles burnt stats
+                                ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_WINNER_DECLARATION);
                                 return true;
                             };
                         };
@@ -3645,8 +4211,6 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        // TODO - Implementation: adapt cycles burnt stats
-        ignore increaseTotalProtocolCyclesBurnt(cyclesBurntJudgeScoring);
         // Only official Judge canisters may call this
         switch (getJudgeCanister(Principal.toText(msg.caller))) {
             case (null) { 
@@ -3759,6 +4323,8 @@ actor class GameStateCanister() = this {
                 };
                 D.print("GameState: addScoredResponse - All Good - calling putScoredResponseForChallenge");
                 D.print("GameState: addScoredResponse - scoredResponseEntry = " # debug_show(scoredResponseEntry));
+                // TODO - Implementation: adapt cycles burnt stats
+                ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_JUDGE_SCORING);
                 let numberOfScoredResponsesForChallenge : Nat = putScoredResponseForChallenge(scoredResponseEntry);
                 D.print("GameState: addScoredResponse - numberOfScoredResponsesForChallenge = " # debug_show(numberOfScoredResponsesForChallenge));
                 D.print("GameState: addScoredResponse - THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE = " # debug_show(THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE));
@@ -3830,6 +4396,24 @@ actor class GameStateCanister() = this {
 
     public query func getProtocolTotalCyclesBurnt() : async Types.CyclesBurntResult {
         return #Ok(TOTAL_PROTOCOL_CYCLES_BURNT);
+    };
+
+    // TODO - Security: decide if kept in production
+    public shared query (msg) func getOfficialCanistersAdmin() : async [Types.OfficialProtocolCanister] {
+        if (not Principal.isController(msg.caller)) {
+            return [];
+        };
+        var officialCanisters : List.List<Types.OfficialProtocolCanister> = List.nil<Types.OfficialProtocolCanister>();
+        for (canisterEntry in mainerCreatorCanistersStorage.vals()) {
+            officialCanisters := List.push<Types.OfficialProtocolCanister>(canisterEntry, officialCanisters);    
+        };
+        for (canisterEntry in judgeCanistersStorage.vals()) {
+            officialCanisters := List.push<Types.OfficialProtocolCanister>(canisterEntry, officialCanisters);    
+        };
+        for (canisterEntry in challengerCanistersStorage.vals()) {
+            officialCanisters := List.push<Types.OfficialProtocolCanister>(canisterEntry, officialCanisters);    
+        };
+        return List.toArray(officialCanisters);        
     };
 
 // Mockup functions (TODO - Testing: remove)
@@ -4077,6 +4661,7 @@ actor class GameStateCanister() = this {
         scoredResponsesPerChallengeStable := Iter.toArray(scoredResponsesPerChallenge.entries());
         winnerDeclarationForChallengeStable := Iter.toArray(winnerDeclarationForChallenge.entries());
         sharedServiceCanistersStorageStable := Iter.toArray(sharedServiceCanistersStorage.entries());
+        redeemedTransactionBlocksStorageStable := Iter.toArray(redeemedTransactionBlocksStorage.entries());
     };
 
     system func postupgrade() {
@@ -4104,5 +4689,7 @@ actor class GameStateCanister() = this {
         winnerDeclarationForChallengeStable := [];
         sharedServiceCanistersStorage := HashMap.fromIter(Iter.fromArray(sharedServiceCanistersStorageStable), sharedServiceCanistersStorageStable.size(), Text.equal, Text.hash);
         sharedServiceCanistersStorageStable := [];
+        redeemedTransactionBlocksStorage := HashMap.fromIter(Iter.fromArray(redeemedTransactionBlocksStorageStable), redeemedTransactionBlocksStorageStable.size(), Nat.equal, Hash.hash);
+        redeemedTransactionBlocksStorageStable := [];
     };
 };

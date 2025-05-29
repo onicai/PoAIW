@@ -1,10 +1,12 @@
 {
   "llm_0": {
     "ic": "xljph-lyaaa-aaaaj-az4mq-cai",
-    "testing": "ufpsz-giaaa-aaaaj-a2aaa-cai"
+    "testing": "ufpsz-giaaa-aaaaj-a2aaa-cai",
+    "development": "ttdeo-jyaaa-aaaac-atawa-cai"
   },
   "llm_1": {
     "ic": "xcke3-5qaaa-aaaaj-az4na-cai",
-    "testing": "ucoun-lqaaa-aaaaj-a2aaq-cai"
+    "testing": "ucoun-lqaaa-aaaaj-a2aaq-cai",
+    "development": "fhlsk-5aaaa-aaaaf-qapuq-cai"
   }
 }

@@ -24,10 +24,13 @@ while [ $# -gt 0 ]; do
                     CANISTER_ID_LLM_1='l6cql-7qaaa-aaaaj-azzsq-cai'  
                 elif [ "$NETWORK_TYPE" = "testing" ]; then
                     CANISTER_ID_LLM_0='cq4yx-uyaaa-aaaaj-az76q-cai'
-                    CANISTER_ID_LLM_1='cz7tl-cqaaa-aaaaj-az77a-cai' 
+                    CANISTER_ID_LLM_1='cz7tl-cqaaa-aaaaj-az77a-cai'
+                elif [ "$NETWORK_TYPE" = "development" ]; then
+                    CANISTER_ID_LLM_0='fgyjy-mqaaa-aaaak-quhxq-cai'
+                    CANISTER_ID_LLM_1='4gwp4-nyaaa-aaaae-qfcqq-cai' 
                 fi
             else
-                echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing' or 'development'."
+                echo "Invalid network type: $1. Use 'local', 'development' or 'ic' or 'testing."
                 exit 1
             fi
             shift
