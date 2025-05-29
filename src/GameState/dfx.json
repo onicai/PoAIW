@@ -2,7 +2,8 @@
   "version": 1,
   "canisters": {
     "game_state_canister": {
-      "main": "src/Main.mo"
+      "main": "src/Main.mo",
+      "type": "motoko"
     }
   },
   "output_env_file": ".env",

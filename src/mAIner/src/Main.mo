@@ -68,6 +68,36 @@ actor class MainerAgentCtrlbCanister() = this {
         return GAME_STATE_CANISTER_ID;
     };
 
+    // Official cycle balance
+    stable var officialCyclesBalance : Nat = Cycles.balance(); // TODO - Implementation: ensure this picks up the cycles the mAIner receives during creation
+    stable var officialCycleTopUpsStorage : List.List<Types.OfficialMainerCycleTopUp> = List.nil<Types.OfficialMainerCycleTopUp>();
+    
+    public shared (msg) func addCycles() : async Types.AddCyclesResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Accept the cycles the call is charged with
+        let cyclesAdded = Cycles.accept<system>(Cycles.available());
+
+        // Add to official cycle balance and store all official top ups
+        if (Principal.equal(msg.caller, Principal.fromText(GAME_STATE_CANISTER_ID))) {
+            // Game State can make official top ups (via its top up flow)
+            officialCyclesBalance := officialCyclesBalance + cyclesAdded;
+            let topUpEntry : Types.OfficialMainerCycleTopUp = {
+                amountAdded : Nat = cyclesAdded;
+                newOfficialCycleBalance : Nat = officialCyclesBalance;
+                creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                sentBy : Principal = msg.caller;
+            };
+            officialCycleTopUpsStorage := List.push<Types.OfficialMainerCycleTopUp>(topUpEntry, officialCycleTopUpsStorage);
+        };
+        
+        return #Ok({
+            added : Bool = true;
+            amount : Nat = cyclesAdded;
+        });
+    };
+
     // -------------------------------
     stable var SHARE_SERVICE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // Dummy value; Only used by ShareAgent
     stable var shareServiceCanisterActor = actor (SHARE_SERVICE_CANISTER_ID) : Types.MainerCanister_Actor;
@@ -278,20 +308,19 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Statistics
-    stable var TOTAL_MAINER_CYCLES_BURNT : Nat = 0;
+    stable var TOTAL_MAINER_CYCLES_BURNT : Nat = 100 * CYCLES_BILLION; // Initial value represents costs for creating this canister
 
+    // TODO - Implementation: ensure all relevant events for cycle buring are captured and adjust cycle burning numbers below to actual values
     private func increaseTotalCyclesBurnt(cyclesBurntToAdd : Nat) : Bool {
         TOTAL_MAINER_CYCLES_BURNT := TOTAL_MAINER_CYCLES_BURNT + cyclesBurntToAdd;
         return true;
     };
 
     // TODO - Implementation: llama_cpp_canister must return this number
-    stable var CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * CYCLES_BILLION;
+    stable let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * CYCLES_BILLION;
+    let CYCLES_BURNT_LLM_CREATION : Nat = 1300 * CYCLES_BILLION;
 
-    stable let CYCLES_BURN_RATE_DEFAULT : Types.CyclesBurnRate = {
-        cycles : Nat = 10 * CYCLES_TRILLION;
-        timeInterval : Types.TimeInterval = #Daily;
-    };
+    stable let CYCLES_BURN_RATE_DEFAULT : Types.CyclesBurnRate = Types.cyclesBurnRateDefaultLow;
 
     public query (msg) func getMainerStatisticsAdmin() : async Types.StatisticsRetrievalResult {
         // TODO - Security: put access checks in place
@@ -302,7 +331,7 @@ actor class MainerAgentCtrlbCanister() = this {
         switch (getCurrentAgentSettings()) {
             case (null) {};
             case (?agentSettings) {
-                cyclesBurnRateToReturn := agentSettings.cyclesBurnRate;
+                cyclesBurnRateToReturn := Types.getCyclesBurnRate(agentSettings.cyclesBurnRate);
             };
         };
         let response : Types.StatisticsRecord = {
@@ -448,6 +477,8 @@ actor class MainerAgentCtrlbCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
+        // TODO - Implementation: adapt cycles burnt stats
+        ignore increaseTotalCyclesBurnt(CYCLES_BURNT_LLM_CREATION);
         _add_llm_canister_id(llmCanisterIdRecord);
     };
     private func _add_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : Types.StatusCodeRecordResult {
@@ -565,8 +596,29 @@ actor class MainerAgentCtrlbCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
+        switch (settingsInput.cyclesBurnRate) {
+            case (#Low) {
+                // continue
+            };
+            case (#Mid) {
+                // continue
+            };
+            case (#High) {
+                // continue
+            };
+            case (#VeryHigh) {
+                // continue
+            };
+            case (#Custom(customCyclesBurnRate)) {
+                // currently not supported
+                return #Err(#StatusCode(401));
+            };
+            case (_) {
+                return #Err(#StatusCode(400));
+            };
+        };
         let settingsEntry : Types.MainerAgentSettings = {
-            cyclesBurnRate : Types.CyclesBurnRate = settingsInput.cyclesBurnRate;
+            cyclesBurnRate : Types.CyclesBurnRateDefault = settingsInput.cyclesBurnRate;
             creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
             createdBy : Principal = msg.caller;
         };
@@ -574,6 +626,11 @@ actor class MainerAgentCtrlbCanister() = this {
         if (not putResult) {
             return #Err(#StatusCode(500));
         };
+
+        // Restart the timers to apply the new settings
+        let stopResult = await stopTimerExecution();
+        ignore startTimerExecution();
+
         return #Ok({ status_code = 200 });
     };
 
@@ -717,8 +774,22 @@ actor class MainerAgentCtrlbCanister() = this {
                     return;
                 };
 
+                // Check if there were any unofficial cycle top ups and if so pay the appropriate fee for the Protocol's operational expenses
+                var cyclesToSend = challengeResponseSubmissionInput.submissionCyclesRequired;
+                if (officialCyclesBalance < Cycles.balance()) {
+                    // Unofficial top ups were made, thus pay the fee for these top ups to Game State now as a share of the balances difference
+                    try {
+                        let cyclesForOperationalExpenses = (Cycles.balance() - officialCyclesBalance) * Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT / 100;
+                        cyclesToSend := cyclesToSend + cyclesForOperationalExpenses;
+                    } catch (error : Error) {
+                        // Continue nevertheless
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - catch error when calculating fee to pay for unofficial top ups : ");
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - error: " # Error.message(error));
+                    };
+                };
+
                 // Add the required amount of cycles
-                Cycles.add<system>(challengeResponseSubmissionInput.submissionCyclesRequired);
+                Cycles.add<system>(cyclesToSend);
 
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling submitChallengeResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
                 let submitMetadaResult : Types.ChallengeResponseSubmissionMetadataResult = await gameStateCanisterActor.submitChallengeResponse(challengeResponseSubmissionInput);
@@ -755,6 +826,9 @@ actor class MainerAgentCtrlbCanister() = this {
                             submittedTimestamp : Nat64 = submitMetada.submittedTimestamp;
                             submissionStatus : Types.ChallengeResponseSubmissionStatus = submitMetada.submissionStatus;
                         };
+                        // Any outstanding top up fees were paid so reset official balance to reflect this
+                        officialCyclesBalance := Cycles.balance();
+
                         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling putSubmittedResponse");
                         let putResult = putSubmittedResponse(challengeResponseSubmission);
                         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - return from putSubmittedResponse");
@@ -1080,6 +1154,8 @@ actor class MainerAgentCtrlbCanister() = this {
                         };
                         case (#Ok(challengeQueueInput_)) {
                             D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - addChallengeToShareServiceQueue returned successfully : ");
+                            // TODO - Implementation: adapt cycles burnt stats
+                            ignore increaseTotalCyclesBurnt(SHARE_SERVICE_QUEUE_CYCLES_REQUIRED);
                             challengeQueueInput := challengeQueueInput_;
                         };
                     };
@@ -1292,10 +1368,27 @@ actor class MainerAgentCtrlbCanister() = this {
     
     private func startTimerExecution() : async Types.AuthRecordResult {
         var res = "You started the timers: ";
+        let TIMER_REGULARITY_DEFAULT = 5; // TODO - Implementation: move to common file
+        var timerRegularity = TIMER_REGULARITY_DEFAULT;
+
+        // Calculate timer regularity based on cycles burn rate for user's mAIner
+        if (MAINER_AGENT_CANISTER_TYPE == #Own or MAINER_AGENT_CANISTER_TYPE == #ShareAgent) {
+            var cyclesBurnRate = CYCLES_BURN_RATE_DEFAULT;
+            switch (getCurrentAgentSettings()) {
+                case (null) {
+                    // use default
+
+                };
+                case (?agentSettings) {
+                    cyclesBurnRate := Types.getCyclesBurnRate(agentSettings.cyclesBurnRate);
+                };
+            };
+            timerRegularity := Types.getTimerRegularityForCyclesBurnRate(cyclesBurnRate);
+        };
 
         if (MAINER_AGENT_CANISTER_TYPE == #Own or MAINER_AGENT_CANISTER_TYPE == #ShareAgent) {
             res := res # " 1, ";
-            ignore setTimer<system>(#seconds 5,
+            ignore setTimer<system>(#seconds timerRegularity,
                 func () : async () {
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer 1");
                     let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction1);
@@ -1307,7 +1400,7 @@ actor class MainerAgentCtrlbCanister() = this {
 
         if (MAINER_AGENT_CANISTER_TYPE == #Own or MAINER_AGENT_CANISTER_TYPE == #ShareService) {
             res := res # " 2";
-            ignore setTimer<system>(#seconds 5,
+            ignore setTimer<system>(#seconds timerRegularity,
                 func () : async () {
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer 2");
                     let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction2);
