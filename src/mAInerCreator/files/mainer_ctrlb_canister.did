@@ -39,6 +39,7 @@ type OfficialMainerAgentCanister =
  };
 type MainerConfigurationInput = 
  record {
+   cyclesForMainer: nat;
    mainerAgentCanisterType: MainerAgentCanisterType;
    selectedLLM: opt SelectableMainerLLMs;
  };
@@ -50,20 +51,13 @@ type MainerAgentCtrlbCanister =
     ChallengeResponseSubmissionInput) -> (StatusCodeRecordResult);
    addChallengeToShareServiceQueue: (challengeQueueInput:
     ChallengeQueueInput) -> (ChallengeQueueInputResult);
+   addCycles: () -> (AddCyclesResult);
    addMainerShareAgentCanister: (canisterEntryToAdd:
     OfficialMainerAgentCanister) -> (MainerAgentCanisterResult);
    addMainerShareAgentCanisterAdmin: (canisterEntryToAdd:
     OfficialMainerAgentCanister) -> (MainerAgentCanisterResult);
    add_llm_canister: (llmCanisterIdRecord: CanisterIDRecord) ->
     (StatusCodeRecordResult);
-   addChallengeToShareServiceQueue: (ChallengeQueueInput) ->
-    (ChallengeQueueInputResult);
-   addCycles: () -> (AddCyclesResult);
-   addMainerShareAgentCanister: (OfficialMainerAgentCanister) ->
-    (MainerAgentCanisterResult);
-   addMainerShareAgentCanisterAdmin: (OfficialMainerAgentCanister) ->
-    (MainerAgentCanisterResult);
-   add_llm_canister: (CanisterIDRecord) -> (StatusCodeRecordResult);
    amiController: () -> (StatusCodeRecordResult) query;
    checkAccessToLLMs: () -> (StatusCodeRecordResult);
    getChallengeQueueAdmin: () -> (ChallengeQueueInputsResult) query;
@@ -199,6 +193,7 @@ type ChallengeResponseSubmissionInput =
    cyclesSubmitResponse: nat;
    judgePromptId: text;
    mainerPromptId: text;
+   protocolOperationFeesCut: nat;
    submittedBy: principal;
  };
 type ChallengeResponseSubmission = 
@@ -234,6 +229,7 @@ type ChallengeResponseSubmission =
    cyclesSubmitResponse: nat;
    judgePromptId: text;
    mainerPromptId: text;
+   protocolOperationFeesCut: nat;
    submissionId: text;
    submissionStatus: ChallengeResponseSubmissionStatus;
    submittedBy: principal;
@@ -278,6 +274,7 @@ type ChallengeQueueInput =
    cyclesSubmitResponse: nat;
    judgePromptId: text;
    mainerPromptId: text;
+   protocolOperationFeesCut: nat;
  };
 type CanisterStatus = 
  variant {

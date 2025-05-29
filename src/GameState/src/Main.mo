@@ -16,11 +16,7 @@ import Nat "mo:base/Nat";
 import Order "mo:base/Order";
 import Error "mo:base/Error";
 import Float "mo:base/Float";
-import Blob "mo:base/Blob";
 import Hash "mo:base/Hash";
-import Nat8 "mo:base/Nat8";
-import Array "mo:base/Array";
-import Buffer "mo:base/Buffer";
 
 import Types "../../common/Types";
 import ICManagementCanister "../../common/ICManagementCanister";
@@ -337,6 +333,21 @@ actor class GameStateCanister() = this {
 
     // Statistics 
     stable var TOTAL_PROTOCOL_CYCLES_BURNT : Nat = 0; // TODO - Implementation: ensure all relevant events for cycle buring are captured and adjust cycle burning numbers below to actual values
+    // TODO: Update to actual values
+    let CYCLES_BURNT_CHALLENGE_CREATION : Nat = 110 * Constants.CYCLES_BILLION;
+    let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * Constants.CYCLES_BILLION;
+    let CYCLES_BURNT_JUDGE_SCORING : Nat = 300 * Constants.CYCLES_BILLION;
+    let CYCLES_BURNT_CANISTER_CREATION : Nat = 300 * Constants.CYCLES_BILLION;
+    let CYCLES_BURNT_MAINER_CREATION : Nat = 300 * Constants.CYCLES_BILLION;
+    let CYCLES_BURNT_LLM_CREATION : Nat = 1300 * Constants.CYCLES_BILLION;
+    let CYCLES_BURNT_WINNER_DECLARATION : Nat = 100 * Constants.CYCLES_BILLION;
+
+    // TODO: once a day, add the dailyIdleBurnRate using getDailyIdleBurnRate()
+    private func increaseTotalProtocolCyclesBurnt(cyclesBurntToAdd : Nat) : Bool {
+        TOTAL_PROTOCOL_CYCLES_BURNT := TOTAL_PROTOCOL_CYCLES_BURNT + cyclesBurntToAdd;
+        return true;
+    };
+
     // Cycles for Own mAIner Creation 
     // Note: the ShareService mAIner will also use these values
     stable var ICP_FOR_OWN_MAINER : Nat  = 10                  ; // TODO: Set to cost of a Own mAIner, in ICP
@@ -349,19 +360,24 @@ actor class GameStateCanister() = this {
     };
 
     // Protocol parameters used in the mAIner Creation Cycles Flow calculations      
-    let DEFAULT_CYCLES_CREATE_MAINER_MARGIN_GS          : Nat  =     2_000_000_000; // Margin kept in GameState canister 
-    let DEFAULT_CYCLES_CREATE_MAINER_MARGIN_MC          : Nat  =   300_000_000_000; // Margin kept in mAIner Creator canister
+    let DEFAULT_CYCLES_CREATE_MAINER_MARGIN_GS          : Nat  =    25_000_000_000; // Margin kept in GameState canister (includes actual costs)
+    let DEFAULT_CYCLES_CREATE_MAINER_MARGIN_MC          : Nat  =   300_000_000_000; // Margin kept in mAIner Creator canister (excludes actual costs)
     let DEFAULT_CYCLES_CREATE_MAINER_LLM_TARGET_BALANCE : Nat  = 2_000_000_000_000; // Target balance for the Own LLM canister after creation
-    let DEFAULT_COST_CREATE_MAINER_LLM                  : Nat  =   813_798_796_586; // Cost of an LLM canister for it's creation
+    let DEFAULT_COST_CREATE_MAINER_CTRL                 : Nat  =   602_000_000_000; // Cost of a Mainer Controller canister for it's creation
+    let DEFAULT_COST_CREATE_MAINER_LLM                  : Nat  =   814_000_000_000; // Cost of a LLM canister for it's creation
+    let DEFAULT_COST_MC_CREATE_MAINER_CTRL              : Nat  =       900_000_000; // Cost for the MC to create a Mainer Controller canister
+    let DEFAULT_COST_MC_CREATE_MAINER_LLM               : Nat  =   835_000_000_000; // Cost for the MC to create a LLM canister
 
     stable var cyclesCreateMainerMarginGs         : Nat  = DEFAULT_CYCLES_CREATE_MAINER_MARGIN_GS;
     stable var cyclesCreatemMainerMarginMc        : Nat  = DEFAULT_CYCLES_CREATE_MAINER_MARGIN_MC;
     stable var cyclesCreateMainerLlmTargetBalance : Nat  = DEFAULT_CYCLES_CREATE_MAINER_LLM_TARGET_BALANCE;
+    stable var costCreateMainerCtrl               : Nat  = DEFAULT_COST_CREATE_MAINER_CTRL;
     stable var costCreateMainerLlm                : Nat  = DEFAULT_COST_CREATE_MAINER_LLM;
+    stable var costCreateMcMainerCtrl             : Nat  = DEFAULT_COST_MC_CREATE_MAINER_CTRL; 
+    stable var costCreateMcMainerLlm              : Nat  = DEFAULT_COST_MC_CREATE_MAINER_LLM; 
 
     // Calculate the cycles that will be sent to the mAIner Creator
-    
-    private func setCyclesCreateMainer(cyclesFromUser : Nat, mainerAgentCanisterType : Types.MainerAgentCanisterType) : Types.CyclesCreateMainer {
+    private func calculateCyclesCreateMainer(cyclesFromUser : Nat, mainerAgentCanisterType : Types.MainerAgentCanisterType) : Types.CyclesCreateMainer {
         // Call this at start of every mAIner canister creation
 
         var cyclesCreateMainerctrlGsMc         : Nat  = 0; // Cycles that will be sent to the mAIner Creator canister for the ctrl
@@ -376,21 +392,22 @@ actor class GameStateCanister() = this {
             };
             case (_) {
                 cyclesCreateMainerllmMcMainerllm  := cyclesCreateMainerLlmTargetBalance + costCreateMainerLlm;
-                cyclesCreateMainerllmGsMc         := cyclesCreateMainerllmMcMainerllm + cyclesCreatemMainerMarginMc;
+                cyclesCreateMainerllmGsMc         := cyclesCreateMainerllmMcMainerllm + costCreateMcMainerLlm;
             };
         };
-        cyclesCreateMainerctrlGsMc     := cyclesFromUser - cyclesCreateMainerllmGsMc - cyclesCreateMainerMarginGs;         
+
+        cyclesCreateMainerctrlGsMc         := cyclesFromUser - cyclesCreateMainerMarginGs - cyclesCreateMainerllmGsMc;                 
         cyclesCreateMainerctrlMcMainerctrl := cyclesCreateMainerctrlGsMc - cyclesCreatemMainerMarginMc;
 
-        D.print("GameState: setCyclesCreateMainer - cyclesFromUser                     : " # debug_show(cyclesFromUser));
-        D.print("GameState: setCyclesCreateMainer - cyclesCreateMainerMarginGs         : " # debug_show(cyclesCreateMainerMarginGs));
-        D.print("GameState: setCyclesCreateMainer - cyclesCreatemMainerMarginMc        : " # debug_show(cyclesCreatemMainerMarginMc));
-        D.print("GameState: setCyclesCreateMainer - cyclesCreateMainerLlmTargetBalance : " # debug_show(cyclesCreateMainerLlmTargetBalance));
-        D.print("GameState: setCyclesCreateMainer - costCreateMainerLlm                : " # debug_show(costCreateMainerLlm));
-        D.print("GameState: setCyclesCreateMainer - cyclesCreateMainerctrlGsMc         : " # debug_show(cyclesCreateMainerctrlGsMc));
-        D.print("GameState: setCyclesCreateMainer - cyclesCreateMainerllmGsMc          : " # debug_show(cyclesCreateMainerllmGsMc));
-        D.print("GameState: setCyclesCreateMainer - cyclesCreateMainerctrlMcMainerctrl : " # debug_show(cyclesCreateMainerctrlMcMainerctrl));
-        D.print("GameState: setCyclesCreateMainer - cyclesCreateMainerllmMcMainerllm   : " # debug_show(cyclesCreateMainerllmMcMainerllm));
+        D.print("GameState: calculateCyclesCreateMainer - cyclesFromUser                     : " # debug_show(cyclesFromUser));
+        D.print("GameState: calculateCyclesCreateMainer - cyclesCreateMainerMarginGs         : " # debug_show(cyclesCreateMainerMarginGs));
+        D.print("GameState: calculateCyclesCreateMainer - cyclesCreatemMainerMarginMc        : " # debug_show(cyclesCreatemMainerMarginMc));
+        D.print("GameState: calculateCyclesCreateMainer - cyclesCreateMainerLlmTargetBalance : " # debug_show(cyclesCreateMainerLlmTargetBalance));
+        D.print("GameState: calculateCyclesCreateMainer - costCreateMainerLlm                : " # debug_show(costCreateMainerLlm));
+        D.print("GameState: calculateCyclesCreateMainer - cyclesCreateMainerctrlGsMc         : " # debug_show(cyclesCreateMainerctrlGsMc));
+        D.print("GameState: calculateCyclesCreateMainer - cyclesCreateMainerllmGsMc          : " # debug_show(cyclesCreateMainerllmGsMc));
+        D.print("GameState: calculateCyclesCreateMainer - cyclesCreateMainerctrlMcMainerctrl : " # debug_show(cyclesCreateMainerctrlMcMainerctrl));
+        D.print("GameState: calculateCyclesCreateMainer - cyclesCreateMainerllmMcMainerllm   : " # debug_show(cyclesCreateMainerllmMcMainerllm));
         
         let cyclesCreateMainer : Types.CyclesCreateMainer = {
             cyclesCreateMainerctrlGsMc = cyclesCreateMainerctrlGsMc;
@@ -424,6 +441,8 @@ actor class GameStateCanister() = this {
     let DEFAULT_DAILY_SUBMISSIONS_ALL_SHARE        : Nat = 100; // TODO = GameState automatically updates this on a daily basis
     stable var dailySubmissionsAllShare            : Nat = DEFAULT_DAILY_SUBMISSIONS_ALL_SHARE;
 
+    let DEFAULT_PROTOCOL_OPERATION_FEES_CUT        : Nat = 20; // % added to unofficial mAIner agent's cycle topups to cover protocol operation fees  
+    stable var protocolOperationFeesCut            : Nat = DEFAULT_PROTOCOL_OPERATION_FEES_CUT;
     let DEFAULT_MARGIN_FAILED_SUBMISSION_CUT       : Nat =  20; // % Margin for a Failed Submission Cut
     stable var marginFailedSubmissionCut           : Nat = DEFAULT_MARGIN_FAILED_SUBMISSION_CUT;
     let DEFAULT_MARGIN_COST                        : Nat =  10; // % Margin for all the cycles send to cover costs
@@ -457,14 +476,7 @@ actor class GameStateCanister() = this {
     let DEFAULT_COST_IDLE_BURN_RATE_SSLLM          : Nat =  23_769_539_345; // One ShareService LLM     cost for idle burn rate
     stable var costIdleBurnRateSsllm               : Nat = DEFAULT_COST_IDLE_BURN_RATE_SSLLM;
 
-    // TODO: Update to actual values
-    let CYCLES_BURNT_CHALLENGE_CREATION : Nat = 110 * CYCLES_BILLION;
-    let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * CYCLES_BILLION;
-    let CYCLES_BURNT_JUDGE_SCORING : Nat = 300 * CYCLES_BILLION;
-    let CYCLES_BURNT_CANISTER_CREATION : Nat = 300 * CYCLES_BILLION;
-    let CYCLES_BURNT_MAINER_CREATION : Nat = 300 * CYCLES_BILLION;
-    let CYCLES_BURNT_LLM_CREATION : Nat = 1300 * CYCLES_BILLION;
-    let CYCLES_BURNT_WINNER_DECLARATION : Nat = 100 * CYCLES_BILLION;
+    
     // Cost of the idle burn rates for user canisters
     let DEFAULT_COST_IDLE_BURN_RATE_SACTRL         : Nat =     156_736_586; // ShareAgent Controller    cost for idle burn rate
     stable var costIdleBurnRateSactrl              : Nat = DEFAULT_COST_IDLE_BURN_RATE_SACTRL;
@@ -595,7 +607,7 @@ actor class GameStateCanister() = this {
         cost := costGenerateResponseSsllm + (numShareServiceLlms * costIdleBurnRateSsllm) / dailySubmissionsAllShare;
         cyclesGenerateResponseSsctrlSsllm   := cost + cost * marginCost / 100;
 
-        // Total burnt cycles for response generation (excludes idle burn)
+        // Total burnt cycles for response generation by ALL canisters involved (excludes idle burn)
         cyclesBurntResponseGenerationOwn    := costGenerateResponseOwnGs + costGenerateResponseOwnctrl + costGenerateResponseOwnllm;
         cyclesBurntResponseGenerationShare  := costGenerateResponseShareGs + costGenerateResponseSactrl + costGenerateResponseSsctrl + costGenerateResponseSsllm;
 
@@ -637,7 +649,10 @@ actor class GameStateCanister() = this {
         cyclesCreateMainerMarginGs         := DEFAULT_CYCLES_CREATE_MAINER_MARGIN_GS;
         cyclesCreatemMainerMarginMc        := DEFAULT_CYCLES_CREATE_MAINER_MARGIN_MC;
         cyclesCreateMainerLlmTargetBalance := DEFAULT_CYCLES_CREATE_MAINER_LLM_TARGET_BALANCE;
-        costCreateMainerLlm       := DEFAULT_COST_CREATE_MAINER_LLM;
+        costCreateMainerCtrl               := DEFAULT_COST_CREATE_MAINER_CTRL;
+        costCreateMainerLlm                := DEFAULT_COST_CREATE_MAINER_LLM;        
+        costCreateMcMainerCtrl             := DEFAULT_COST_MC_CREATE_MAINER_CTRL;
+        costCreateMcMainerLlm              := DEFAULT_COST_MC_CREATE_MAINER_LLM;
 
         dailyChallenges := DEFAULT_DAILY_CHALLENGES;
         
@@ -714,7 +729,10 @@ actor class GameStateCanister() = this {
             cyclesCreateMainerMarginGs = cyclesCreateMainerMarginGs;
             cyclesCreatemMainerMarginMc = cyclesCreatemMainerMarginMc;
             cyclesCreateMainerLlmTargetBalance = cyclesCreateMainerLlmTargetBalance;
+            costCreateMainerCtrl = costCreateMainerCtrl;
             costCreateMainerLlm = costCreateMainerLlm;
+            costCreateMcMainerCtrl = costCreateMcMainerCtrl;
+            costCreateMcMainerLlm = costCreateMcMainerLlm;
 
             // Generations
             dailyChallenges = dailyChallenges;
@@ -778,6 +796,7 @@ actor class GameStateCanister() = this {
             cyclesBurntResponseGenerationOwn = cyclesBurntResponseGenerationOwn;
             cyclesBurntResponseGenerationShare = cyclesBurntResponseGenerationShare;
             cyclesSubmitResponse = cyclesSubmitResponse;
+            protocolOperationFeesCut = protocolOperationFeesCut;
             cyclesFailedSubmissionCut = cyclesFailedSubmissionCut;
         };
 
@@ -813,7 +832,17 @@ actor class GameStateCanister() = this {
         switch (settings.marginFailedSubmissionCut) { case (null) {}; case (?value) { marginFailedSubmissionCut := value; }; };
         switch (settings.marginCost) { case (null) {}; case (?value) { marginCost := value; }; };
         switch (settings.submissionFee) { case (null) {}; case (?value) { submissionFee := value; }; };
+        switch (settings.protocolOperationFeesCut) { case (null) {}; case (?value) { protocolOperationFeesCut := value; }; };
 
+        // ptionally, update the mAIner creation parameters
+        switch (settings.cyclesCreateMainerMarginGs) { case (null) {}; case (?value) { cyclesCreateMainerMarginGs := value; }; };
+        switch (settings.cyclesCreatemMainerMarginMc) { case (null) {}; case (?value) { cyclesCreatemMainerMarginMc := value; }; };
+        switch (settings.cyclesCreateMainerLlmTargetBalance) { case (null) {}; case (?value) { cyclesCreateMainerLlmTargetBalance := value; }; };
+        switch (settings.costCreateMainerCtrl) { case (null) {}; case (?value) { costCreateMainerCtrl := value; }; };
+        switch (settings.costCreateMainerLlm) { case (null) {}; case (?value) { costCreateMainerLlm := value; }; };
+        switch (settings.costCreateMcMainerCtrl) { case (null) {}; case (?value) { costCreateMcMainerCtrl := value; }; };
+        switch (settings.costCreateMcMainerLlm) { case (null) {}; case (?value) { costCreateMcMainerLlm := value; }; };
+            
         // Optionally, update the number of LLMs
         // TODO: remove this once we update it automatically as part of the protocol
         switch (settings.numChallengerLlms) { case (null) {}; case (?value) { numChallengerLlms := value; }; };
@@ -894,15 +923,7 @@ actor class GameStateCanister() = this {
         return dailyIdleBurnRate;
     };
 
-    // Statistics
-    stable var TOTAL_PROTOCOL_CYCLES_BURNT : Nat = 0;
-
-    // TODO: once a day, add the dailyIdleBurnRate using getDailyIdleBurnRate()
-    private func increaseTotalProtocolCyclesBurnt(cyclesBurntToAdd : Nat) : Bool {
-        TOTAL_PROTOCOL_CYCLES_BURNT := TOTAL_PROTOCOL_CYCLES_BURNT + cyclesBurntToAdd;
-        return true;
-    };
-
+    
     // Official Challenger canisters
     stable var challengerCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
     var challengerCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -2231,6 +2252,7 @@ actor class GameStateCanister() = this {
                     challengeStatus : Types.ChallengeStatus = #Open;
                     challengeClosedTimestamp : ?Nat64 = null;
                     cyclesSubmitResponse : Nat = cyclesSubmitResponse;
+                    protocolOperationFeesCut : Nat = protocolOperationFeesCut;
                     cyclesGenerateResponseSactrlSsctrl : Nat = cyclesGenerateResponseSactrlSsctrl;
                     cyclesGenerateResponseSsctrlGs : Nat = cyclesGenerateResponseSsctrlGs;
                     cyclesGenerateResponseSsctrlSsllm : Nat = cyclesGenerateResponseSsctrlSsllm;
@@ -2470,7 +2492,7 @@ actor class GameStateCanister() = this {
     // e.g. this is for dev stage, verify with: https://dashboard.internetcomputer.org/account/c88ef9865df034927487e4178da1f80a1648ec5a764e4959cba513c372ceb520
     //let PROTOCOL_PRINCIPAL_BLOB : Blob = "\C8\8E\F9\86\5D\F0\34\92\74\87\E4\17\8D\A1\F8\0A\16\48\EC\5A\76\4E\49\59\CB\A5\13\C3\72\CE\B5\20";
 
-    let PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * CYCLES_TRILLION;
+    let PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * Constants.CYCLES_TRILLION;
 
     // Price to create a mAIner TODO - Implementation: finalize prices
     stable var PRICE_OWN_MAINER : Nat64 = 0; //12;
@@ -2495,9 +2517,9 @@ actor class GameStateCanister() = this {
     private func handleIncomingFunds(transactionEntry : Types.RedeemedTransactionBlock) : async Types.HandleIncomingFundsResult {
         D.print("GameState: handleIncomingFunds - transactionEntry: "# debug_show(transactionEntry));
         // TODO - Implementation: Calculate cut for Protocol's operational expenses
-        D.print("GameState: handleIncomingFunds - Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT: "# debug_show(Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT));
-        D.print("GameState: handleIncomingFunds - Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT / 100: "# debug_show(Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT / 100));
-        var amountToKeep : Nat = transactionEntry.amount * Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT / 100; // TODO - Implementation: ensure this math operation works
+        D.print("GameState: handleIncomingFunds - protocolOperationFeesCut: "# debug_show(protocolOperationFeesCut));
+        D.print("GameState: handleIncomingFunds - protocolOperationFeesCut / 100: "# debug_show(protocolOperationFeesCut / 100));
+        var amountToKeep : Nat = transactionEntry.amount * protocolOperationFeesCut / 100; // TODO - Implementation: ensure this math operation works
         let amountForMainer : Nat = transactionEntry.amount - amountToKeep;
         var amountToConvert : Nat = 0;
         D.print("GameState: handleIncomingFunds - amountToKeep: "# debug_show(amountToKeep));
@@ -2572,14 +2594,17 @@ actor class GameStateCanister() = this {
                         var cyclesForMainer : Nat = 0;
                         switch (transactionEntry.redeemedFor) {
                             case (#MainerCreation(#Own)) {
-                                cyclesForMainer := MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED + MAINER_AGENT_LLM_CREATION_CYCLES_REQUIRED;                                      
+                                let cyclesCreateMainer : Types.CyclesCreateMainer = calculateCyclesCreateMainer(cyclesReceived, #Own);
+                                cyclesForMainer := cyclesCreateMainer.cyclesCreateMainerctrlGsMc + cyclesCreateMainer.cyclesCreateMainerllmGsMc;                                      
+                                cyclesForProtocol := cyclesReceived - cyclesForMainer; // Protocol gets the rest
                             };
                             case (#MainerCreation(#ShareAgent)) {
-                                cyclesForMainer := MAINER_AGENT_CTRLB_CREATION_CYCLES_REQUIRED;
-                                cyclesForMainer := 0; // TODO - Testing: remove this line
+                                let cyclesCreateMainer : Types.CyclesCreateMainer = calculateCyclesCreateMainer(cyclesReceived, #ShareAgent);
+                                cyclesForMainer := cyclesCreateMainer.cyclesCreateMainerctrlGsMc;
+                                cyclesForProtocol := cyclesReceived - cyclesForMainer; // Protocol gets the rest
                             };
                             case (#MainerTopUp(mainerCanisterAddress)) {
-                                cyclesForProtocol := cyclesReceived * Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT / 100;
+                                cyclesForProtocol := cyclesReceived * protocolOperationFeesCut / 100;
                                 cyclesForMainer := cyclesReceived - cyclesForProtocol;                              
                             };
                             case (_) { return #Err(#Other("Unsupported")); }
@@ -2835,33 +2860,24 @@ actor class GameStateCanister() = this {
             return #Err(#Other("Payment couldn't be verified"));
         }; // TODO - Testing: comment out this check for testing locally
 
-        let canisterEntry : Types.OfficialMainerAgentCanister = {
-            address : Text = ""; // To be assigned (when Controller canister was created)
-            canisterType: Types.ProtocolCanisterType = #MainerAgent(mainerConfig.mainerAgentCanisterType);
-            creationTimestamp : Nat64 = creationTimestamp;
-            createdBy : Principal = msg.caller; // User (Admin (controller) in case of ShareService)
-            ownedBy : Principal = msg.caller; // User (Admin (controller) in case of ShareService)
-            status : Types.CanisterStatus = #Paid; // TODO - Implementation: add transaction id to status #Paid or introduce new field
-            mainerConfig : Types.MainerConfigurationInput = mainerConfig;
-        };
-        let newTransactionEntry : Types.RedeemedTransactionBlock = {
-            paymentTransactionBlockId : Nat64 = transactionToVerify;
-            creationTimestamp : Nat64 = canisterEntry.creationTimestamp;
-            redeemedBy : Principal = msg.caller;
-            redeemedFor : Types.RedeemedForOptions = redeemedFor;
-            amount : Nat = amountPaid;
-        };
-        D.print("GameState: createUserMainerAgent - canisterEntry: "# debug_show(canisterEntry));
-
         var handleResponse : Types.HandleIncomingFundsResult = #Err(#FailedOperation);
         switch (mainerConfig.mainerAgentCanisterType) {
             case (#ShareService) {
                 // Skip handling of funds in case of ShareService, which is created by an Admin (Controller)
-                handleResponse := #Ok({cyclesForMainer : Nat = 0; cyclesForProtocol : Nat = 0});
+                // We do need a value for cyclesForMainer, because it is used by the creation process
+                let cyclesForMainer = costCreateMainerCtrl + cyclesCreateMainerMarginGs + cyclesCreatemMainerMarginMc;
+                handleResponse := #Ok({cyclesForMainer : Nat = cyclesForMainer; cyclesForProtocol : Nat = 0});
             };
             case (_) {
                 D.print("GameState: createUserMainerAgent - mainerConfig.mainerAgentCanisterType: "# debug_show(mainerConfig.mainerAgentCanisterType));
-                handleResponse := await handleIncomingFunds(newTransactionEntry);
+                let transactionEntry : Types.RedeemedTransactionBlock = {
+                    paymentTransactionBlockId : Nat64 = transactionToVerify;
+                    creationTimestamp : Nat64 = creationTimestamp;
+                    redeemedBy : Principal = msg.caller;
+                    redeemedFor : Types.RedeemedForOptions = redeemedFor;
+                    amount : Nat = amountPaid;
+                };
+                handleResponse := await handleIncomingFunds(transactionEntry);
             };
         };
         D.print("GameState: createUserMainerAgent - handleResponse: "# debug_show(handleResponse));
@@ -2871,6 +2887,28 @@ actor class GameStateCanister() = this {
                 return #Err(#FailedOperation);
             };
             case (#Ok(handleResult)) {
+                let updatedMainerConfig : Types.MainerConfigurationInput = {
+                    mainerAgentCanisterType: Types.MainerAgentCanisterType = mainerConfig.mainerAgentCanisterType;
+                    selectedLLM : ?Types.SelectableMainerLLMs = mainerConfig.selectedLLM;
+                    cyclesForMainer : Nat = handleResult.cyclesForMainer; // to be used by the creation process
+                };
+                let canisterEntry : Types.OfficialMainerAgentCanister = {
+                    address : Text = ""; // To be assigned (when Controller canister was created)
+                    canisterType: Types.ProtocolCanisterType = #MainerAgent(mainerConfig.mainerAgentCanisterType);
+                    creationTimestamp : Nat64 = creationTimestamp;
+                    createdBy : Principal = msg.caller; // User (Admin (controller) in case of ShareService)
+                    ownedBy : Principal = msg.caller; // User (Admin (controller) in case of ShareService)
+                    status : Types.CanisterStatus = #Paid; // TODO - Implementation: add transaction id to status #Paid or introduce new field
+                    mainerConfig : Types.MainerConfigurationInput = updatedMainerConfig;
+                };
+                let newTransactionEntry : Types.RedeemedTransactionBlock = {
+                    paymentTransactionBlockId : Nat64 = transactionToVerify;
+                    creationTimestamp : Nat64 = canisterEntry.creationTimestamp;
+                    redeemedBy : Principal = msg.caller;
+                    redeemedFor : Types.RedeemedForOptions = redeemedFor;
+                    amount : Nat = amountPaid;
+                };
+                D.print("GameState: createUserMainerAgent - canisterEntry: "# debug_show(canisterEntry));
                 switch (putUserMainerAgent(canisterEntry)) {
                     case (true) {
                         D.print("GameState: createUserMainerAgent - putUserMainerAgent: true");
@@ -3023,8 +3061,7 @@ actor class GameStateCanister() = this {
                                     case (_) { return #Err(#Other("Unsupported")); }
                                 };
 
-                                let cyclesFromUser : Nat = 10_000_000_000_000; // TODO - get from user payment
-                                let cyclesCreateMainer : Types.CyclesCreateMainer = setCyclesCreateMainer(cyclesFromUser, mainerAgentCanisterType);
+                                let cyclesCreateMainer : Types.CyclesCreateMainer = calculateCyclesCreateMainer(userMainerEntry.mainerConfig.cyclesForMainer, mainerAgentCanisterType);
                                 
                                 let canisterCreationInput : Types.CanisterCreationConfiguration = {
                                     canisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType;
@@ -3225,8 +3262,7 @@ actor class GameStateCanister() = this {
                             case (?mainerCreatorEntry) {
                                 let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
                                 
-                                let cyclesFromUser : Nat = 10_000_000_000_000; // TODO - get from user payment
-                                let cyclesCreateMainer : Types.CyclesCreateMainer = setCyclesCreateMainer(cyclesFromUser, mainerAgentCanisterType);
+                                let cyclesCreateMainer : Types.CyclesCreateMainer = calculateCyclesCreateMainer(userMainerEntry.mainerConfig.cyclesForMainer, mainerAgentCanisterType);
                                 
                                 let canisterCreationInput : Types.CanisterCreationConfiguration = {
                                     canisterType : Types.ProtocolCanisterType = #MainerLlm;
@@ -3445,8 +3481,7 @@ actor class GameStateCanister() = this {
                             case (?mainerCreatorEntry) {
                                 let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
 
-                                let cyclesFromUser : Nat = 10_000_000_000_000; // TODO - get from user payment
-                                let cyclesCreateMainer : Types.CyclesCreateMainer = setCyclesCreateMainer(cyclesFromUser, mainerAgentCanisterType);
+                                let cyclesCreateMainer : Types.CyclesCreateMainer = calculateCyclesCreateMainer(userMainerEntry.mainerConfig.cyclesForMainer, mainerAgentCanisterType);
                                 
                                 let canisterCreationInput : Types.CanisterCreationConfiguration = {
                                     canisterType : Types.ProtocolCanisterType = #MainerLlm;
@@ -3933,6 +3968,7 @@ actor class GameStateCanister() = this {
                     challengeStatus : Types.ChallengeStatus = challengeResponseSubmissionInput.challengeStatus;
                     challengeClosedTimestamp : ?Nat64 = challengeResponseSubmissionInput.challengeClosedTimestamp;
                     cyclesSubmitResponse : Nat = challengeResponseSubmissionInput.cyclesSubmitResponse;
+                    protocolOperationFeesCut : Nat = challengeResponseSubmissionInput.protocolOperationFeesCut;
                     cyclesGenerateResponseSactrlSsctrl : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSactrlSsctrl;
                     cyclesGenerateResponseSsctrlGs : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSsctrlGs;
                     cyclesGenerateResponseSsctrlSsllm : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSsctrlSsllm;
@@ -4054,6 +4090,7 @@ actor class GameStateCanister() = this {
                                             challengeStatus : Types.ChallengeStatus = submission.challengeStatus;
                                             challengeClosedTimestamp : ?Nat64 = submission.challengeClosedTimestamp;
                                             cyclesSubmitResponse : Nat = submission.cyclesSubmitResponse;
+                                            protocolOperationFeesCut : Nat = submission.protocolOperationFeesCut;
                                             cyclesGenerateResponseSactrlSsctrl : Nat = submission.cyclesGenerateResponseSactrlSsctrl;
                                             cyclesGenerateResponseSsctrlGs : Nat = submission.cyclesGenerateResponseSsctrlGs;
                                             cyclesGenerateResponseSsctrlSsllm : Nat = submission.cyclesGenerateResponseSsctrlSsllm;
@@ -4252,6 +4289,7 @@ actor class GameStateCanister() = this {
                     challengeStatus : Types.ChallengeStatus = scoredResponseInput.challengeStatus;
                     challengeClosedTimestamp : ?Nat64 = scoredResponseInput.challengeClosedTimestamp;
                     cyclesSubmitResponse : Nat = scoredResponseInput.cyclesSubmitResponse;
+                    protocolOperationFeesCut : Nat = scoredResponseInput.protocolOperationFeesCut;
                     cyclesGenerateResponseSactrlSsctrl : Nat = scoredResponseInput.cyclesGenerateResponseSactrlSsctrl;
                     cyclesGenerateResponseSsctrlGs : Nat = scoredResponseInput.cyclesGenerateResponseSsctrlGs;
                     cyclesGenerateResponseSsctrlSsllm : Nat = scoredResponseInput.cyclesGenerateResponseSsctrlSsllm;
@@ -4297,6 +4335,7 @@ actor class GameStateCanister() = this {
                     challengeStatus : Types.ChallengeStatus = scoredResponseInput.challengeStatus;
                     challengeClosedTimestamp : ?Nat64 = scoredResponseInput.challengeClosedTimestamp;
                     cyclesSubmitResponse : Nat = scoredResponseInput.cyclesSubmitResponse;
+                    protocolOperationFeesCut : Nat = scoredResponseInput.protocolOperationFeesCut;
                     cyclesGenerateResponseSactrlSsctrl : Nat = scoredResponseInput.cyclesGenerateResponseSactrlSsctrl;
                     cyclesGenerateResponseSsctrlGs : Nat = scoredResponseInput.cyclesGenerateResponseSsctrlGs;
                     cyclesGenerateResponseSsctrlSsllm : Nat = scoredResponseInput.cyclesGenerateResponseSsctrlSsllm;
@@ -4438,6 +4477,7 @@ actor class GameStateCanister() = this {
                     challengeStatus : Types.ChallengeStatus = openChallenge.challengeStatus;
                     challengeClosedTimestamp : ?Nat64 = openChallenge.challengeClosedTimestamp;
                     cyclesSubmitResponse : Nat = openChallenge.cyclesSubmitResponse;
+                    protocolOperationFeesCut : Nat = openChallenge.protocolOperationFeesCut;
                     cyclesGenerateResponseSactrlSsctrl : Nat = openChallenge.cyclesGenerateResponseSactrlSsctrl;
                     cyclesGenerateResponseSsctrlGs : Nat = openChallenge.cyclesGenerateResponseSsctrlGs;
                     cyclesGenerateResponseSsctrlSsllm : Nat = openChallenge.cyclesGenerateResponseSsctrlSsllm;
@@ -4484,6 +4524,7 @@ actor class GameStateCanister() = this {
                             challengeStatus : Types.ChallengeStatus = closedChallenge.challengeStatus;
                             challengeClosedTimestamp : ?Nat64 = closedChallenge.challengeClosedTimestamp;
                             cyclesSubmitResponse : Nat = closedChallenge.cyclesSubmitResponse;
+                            protocolOperationFeesCut : Nat = closedChallenge.protocolOperationFeesCut;
                             cyclesGenerateResponseSactrlSsctrl : Nat = closedChallenge.cyclesGenerateResponseSactrlSsctrl;
                             cyclesGenerateResponseSsctrlGs : Nat = closedChallenge.cyclesGenerateResponseSsctrlGs;
                             cyclesGenerateResponseSsctrlSsllm : Nat = closedChallenge.cyclesGenerateResponseSsctrlSsllm;
@@ -4528,6 +4569,7 @@ actor class GameStateCanister() = this {
                             challengeStatus : Types.ChallengeStatus = #Archived;
                             challengeClosedTimestamp : ?Nat64 = ?Nat64.fromNat(Int.abs(Time.now()));
                             cyclesSubmitResponse : Nat = cyclesSubmitResponse;
+                            protocolOperationFeesCut : Nat = protocolOperationFeesCut;
                             cyclesGenerateResponseSactrlSsctrl : Nat = cyclesGenerateResponseSactrlSsctrl;
                             cyclesGenerateResponseSsctrlGs : Nat = cyclesGenerateResponseSsctrlGs;
                             cyclesGenerateResponseSsctrlSsllm : Nat = cyclesGenerateResponseSsctrlSsllm;

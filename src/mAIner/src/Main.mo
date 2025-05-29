@@ -311,7 +311,8 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Statistics
-    stable var TOTAL_MAINER_CYCLES_BURNT : Nat = 100 * CYCLES_BILLION; // Initial value represents costs for creating this canister
+    // TODO - Implementation: set based on cycles flow data calculated in GameState
+    stable var TOTAL_MAINER_CYCLES_BURNT : Nat = 100 * Constants.CYCLES_BILLION; // Initial value represents costs for creating this canister
 
     // TODO - Implementation: ensure all relevant events for cycle buring are captured and adjust cycle burning numbers below to actual values
     private func increaseTotalCyclesBurnt(cyclesBurntToAdd : Nat) : Bool {
@@ -319,9 +320,8 @@ actor class MainerAgentCtrlbCanister() = this {
         return true;
     };
 
-    // TODO - Implementation: llama_cpp_canister must return this number
-    stable let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * CYCLES_BILLION;
-    let CYCLES_BURNT_LLM_CREATION : Nat = 1300 * CYCLES_BILLION;
+    // TODO - Implementation: set based on cycles flow data calculated in GameState
+    stable let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * Constants.CYCLES_BILLION;
 
     stable let CYCLES_BURN_RATE_DEFAULT : Types.CyclesBurnRate = Types.cyclesBurnRateDefaultLow;
 
@@ -480,8 +480,6 @@ actor class MainerAgentCtrlbCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
-        // TODO - Implementation: adapt cycles burnt stats
-        ignore increaseTotalCyclesBurnt(CYCLES_BURNT_LLM_CREATION);
         _add_llm_canister_id(llmCanisterIdRecord);
     };
     private func _add_llm_canister_id(llmCanisterIdRecord : Types.CanisterIDRecord) : Types.StatusCodeRecordResult {
@@ -691,6 +689,7 @@ actor class MainerAgentCtrlbCanister() = this {
                     challengeStatus : Types.ChallengeStatus = challengeQueueInput.challengeStatus;
                     challengeClosedTimestamp : ?Nat64 = challengeQueueInput.challengeClosedTimestamp;
                     cyclesSubmitResponse : Nat = challengeQueueInput.cyclesSubmitResponse;
+                    protocolOperationFeesCut : Nat = challengeQueueInput.protocolOperationFeesCut;
                     cyclesGenerateResponseSactrlSsctrl : Nat = challengeQueueInput.cyclesGenerateResponseSactrlSsctrl;
                     cyclesGenerateResponseSsctrlGs : Nat = challengeQueueInput.cyclesGenerateResponseSsctrlGs;
                     cyclesGenerateResponseSsctrlSsllm : Nat = challengeQueueInput.cyclesGenerateResponseSsctrlSsllm;
@@ -789,11 +788,12 @@ actor class MainerAgentCtrlbCanister() = this {
                 };
 
                 // Check if there were any unofficial cycle top ups and if so pay the appropriate fee for the Protocol's operational expenses
-                var cyclesToSend = challengeResponseSubmissionInput.submissionCyclesRequired;
+                var cyclesToSend = challengeResponseSubmissionInput.cyclesSubmitResponse;
                 if (officialCyclesBalance < Cycles.balance()) {
                     // Unofficial top ups were made, thus pay the fee for these top ups to Game State now as a share of the balances difference
+                    // Use protocolOperationFeesCut that was sent by the GameState canister with the Challenge
                     try {
-                        let cyclesForOperationalExpenses = (Cycles.balance() - officialCyclesBalance) * Types.PROTOCOL_OPERATION_FEES_CUT_PERCENT / 100;
+                        let cyclesForOperationalExpenses = (Cycles.balance() - officialCyclesBalance) * challengeResponseSubmissionInput.protocolOperationFeesCut / 100;
                         cyclesToSend := cyclesToSend + cyclesForOperationalExpenses;
                     } catch (error : Error) {
                         // Continue nevertheless
@@ -803,9 +803,7 @@ actor class MainerAgentCtrlbCanister() = this {
                 };
 
                 // Add the required amount of cycles
-                // TODO --- RESOLVE THIS...
                 Cycles.add<system>(cyclesToSend);
-                Cycles.add<system>(challengeResponseSubmissionInput.cyclesSubmitResponse);
 
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling submitChallengeResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
                 let submitMetadaResult : Types.ChallengeResponseSubmissionMetadataResult = await gameStateCanisterActor.submitChallengeResponse(challengeResponseSubmissionInput);
@@ -835,6 +833,7 @@ actor class MainerAgentCtrlbCanister() = this {
                             challengeStatus : Types.ChallengeStatus = challengeResponseSubmissionInput.challengeStatus;
                             challengeClosedTimestamp : ?Nat64 = challengeResponseSubmissionInput.challengeClosedTimestamp;
                             cyclesSubmitResponse : Nat = challengeResponseSubmissionInput.cyclesSubmitResponse;
+                            protocolOperationFeesCut : Nat = challengeResponseSubmissionInput.protocolOperationFeesCut;
                             cyclesGenerateResponseSactrlSsctrl : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSactrlSsctrl;
                             cyclesGenerateResponseSsctrlGs : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSsctrlGs;
                             cyclesGenerateResponseSsctrlSsllm : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSsctrlSsllm;
@@ -867,8 +866,8 @@ actor class MainerAgentCtrlbCanister() = this {
                                 // TODO - Error Handling
                             };
                             case (true) {
-                                // TODO - Implementation: adapt cycles burnt stats
-                                ignore increaseTotalCyclesBurnt(challengeResponseSubmissionInput.cyclesSubmitResponse);
+                                // TODO - Implementation: adapt cycles burnt stats - also, check we're not counting double...
+                                ignore increaseTotalCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
                             };
                         };
                     };
@@ -1450,6 +1449,7 @@ actor class MainerAgentCtrlbCanister() = this {
                     challengeStatus : Types.ChallengeStatus = challenge.challengeStatus;
                     challengeClosedTimestamp : ?Nat64 = challenge.challengeClosedTimestamp;
                     cyclesSubmitResponse : Nat = challenge.cyclesSubmitResponse;
+                    protocolOperationFeesCut : Nat = challenge.protocolOperationFeesCut;
                     cyclesGenerateResponseSactrlSsctrl : Nat = challenge.cyclesGenerateResponseSactrlSsctrl;
                     cyclesGenerateResponseSsctrlGs : Nat = challenge.cyclesGenerateResponseSsctrlGs;
                     cyclesGenerateResponseSsctrlSsllm : Nat = challenge.cyclesGenerateResponseSsctrlSsllm;
@@ -1480,8 +1480,6 @@ actor class MainerAgentCtrlbCanister() = this {
                         };
                         case (#Ok(challengeQueueInput_)) {
                             D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - addChallengeToShareServiceQueue returned successfully : ");
-                            // TODO - Implementation: adapt cycles burnt stats
-                            ignore increaseTotalCyclesBurnt(SHARE_SERVICE_QUEUE_CYCLES_REQUIRED);
                             challengeQueueInput := challengeQueueInput_;
                         };
                     };

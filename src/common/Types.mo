@@ -66,6 +66,7 @@ module Types {
     // variables sent by GameState to mAIner Agent
     public type CyclesGenerateResponse = {
         cyclesSubmitResponse : Nat;
+        protocolOperationFeesCut : Nat;
         cyclesGenerateResponseSactrlSsctrl : Nat;
         cyclesGenerateResponseSsctrlGs : Nat;
         cyclesGenerateResponseSsctrlSsllm : Nat;
@@ -87,7 +88,10 @@ module Types {
         cyclesCreateMainerMarginGs : Nat;
         cyclesCreatemMainerMarginMc : Nat;
         cyclesCreateMainerLlmTargetBalance : Nat;
+        costCreateMainerCtrl : Nat;
         costCreateMainerLlm : Nat;
+        costCreateMcMainerCtrl : Nat;
+        costCreateMcMainerLlm : Nat;
 
         // Generations
         dailyChallenges : Nat;
@@ -149,7 +153,10 @@ module Types {
         cyclesCreateMainerMarginGs : ?Nat;
         cyclesCreatemMainerMarginMc : ?Nat;
         cyclesCreateMainerLlmTargetBalance : ?Nat;
+        costCreateMainerCtrl : ?Nat;
         costCreateMainerLlm : ?Nat;
+        costCreateMcMainerCtrl : ?Nat;
+        costCreateMcMainerLlm : ?Nat;
 
         cyclesCreateMainerUserGs : ?Nat;
         cyclesCreateMainerctrlGsMc : ?Nat;
@@ -219,6 +226,7 @@ module Types {
         cyclesBurntResponseGenerationOwn : ?Nat;
         cyclesBurntResponseGenerationShare : ?Nat;
         cyclesSubmitResponse : ?Nat;
+        protocolOperationFeesCut : ?Nat;
         cyclesFailedSubmissionCut : ?Nat;
     };
 
@@ -323,6 +331,7 @@ module Types {
     public type MainerConfigurationInput = {
         mainerAgentCanisterType: MainerAgentCanisterType;
         selectedLLM : ?SelectableMainerLLMs;
+        cyclesForMainer : Nat; // initial amount of the user payment used to create the mAIner
     };
 
     public type RedeemedForOptions = {
@@ -646,7 +655,7 @@ module Types {
     };
 
     // TODO - Implementation: merge into common file and finalize numbers
-    public let PROTOCOL_OPERATION_FEES_CUT_PERCENT : Nat = 20;
+    
     let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200_000_000_000;
     let SUBMISSION_CYCLES_REQUIRED : Nat = 100_000_000_000;
     let secondsInMinute = 60;
