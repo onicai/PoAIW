@@ -2594,14 +2594,18 @@ actor class GameStateCanister() = this {
                         var cyclesForMainer : Nat = 0;
                         switch (transactionEntry.redeemedFor) {
                             case (#MainerCreation(#Own)) {
-                                let cyclesCreateMainer : Types.CyclesCreateMainer = calculateCyclesCreateMainer(cyclesReceived, #Own);
-                                cyclesForMainer := cyclesCreateMainer.cyclesCreateMainerctrlGsMc + cyclesCreateMainer.cyclesCreateMainerllmGsMc;                                      
-                                cyclesForProtocol := cyclesReceived - cyclesForMainer; // Protocol gets the rest
+                                // let cyclesCreateMainer : Types.CyclesCreateMainer = calculateCyclesCreateMainer(cyclesReceived, #Own);
+                                // cyclesForMainer := cyclesCreateMainer.cyclesCreateMainerctrlGsMc + cyclesCreateMainer.cyclesCreateMainerllmGsMc;                                      
+                                // cyclesForProtocol := cyclesReceived - cyclesForMainer; // Protocol gets the rest
+                                cyclesForMainer := cyclesReceived; // Everything goes towards mAIner creation - we take cuts during response submission
+                                cyclesForProtocol := 0; // Protocol gets nothing
                             };
                             case (#MainerCreation(#ShareAgent)) {
-                                let cyclesCreateMainer : Types.CyclesCreateMainer = calculateCyclesCreateMainer(cyclesReceived, #ShareAgent);
-                                cyclesForMainer := cyclesCreateMainer.cyclesCreateMainerctrlGsMc;
-                                cyclesForProtocol := cyclesReceived - cyclesForMainer; // Protocol gets the rest
+                                // let cyclesCreateMainer : Types.CyclesCreateMainer = calculateCyclesCreateMainer(cyclesReceived, #ShareAgent);
+                                // cyclesForMainer := cyclesCreateMainer.cyclesCreateMainerctrlGsMc;
+                                // cyclesForProtocol := cyclesReceived - cyclesForMainer; // Protocol gets the rest
+                                cyclesForMainer := cyclesReceived; // Everything goes towards mAIner creation - we take cuts during response submission
+                                cyclesForProtocol := 0; // Protocol gets nothing
                             };
                             case (#MainerTopUp(mainerCanisterAddress)) {
                                 cyclesForProtocol := cyclesReceived * protocolOperationFeesCut / 100;
