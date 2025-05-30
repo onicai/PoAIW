@@ -439,13 +439,13 @@ actor class GameStateCanister() = this {
     let DEFAULT_DAILY_SUBMISSIONS_ALL_SHARE        : Nat = 100; // TODO = GameState automatically updates this on a daily basis
     stable var dailySubmissionsAllShare            : Nat = DEFAULT_DAILY_SUBMISSIONS_ALL_SHARE;
 
-    let DEFAULT_PROTOCOL_OPERATION_FEES_CUT        : Nat = 20; // % added to unofficial mAIner agent's cycle topups to cover protocol operation fees  
+    let DEFAULT_PROTOCOL_OPERATION_FEES_CUT        : Nat =  20; // % added to unofficial mAIner agent's cycle topups to cover protocol operation fees  
     stable var protocolOperationFeesCut            : Nat = DEFAULT_PROTOCOL_OPERATION_FEES_CUT;
     let DEFAULT_MARGIN_FAILED_SUBMISSION_CUT       : Nat =  20; // % Margin for a Failed Submission Cut
     stable var marginFailedSubmissionCut           : Nat = DEFAULT_MARGIN_FAILED_SUBMISSION_CUT;
     let DEFAULT_MARGIN_COST                        : Nat =  10; // % Margin for all the cycles send to cover costs
     stable var marginCost                          : Nat = DEFAULT_MARGIN_COST;
-    let DEFAULT_SUBMISSION_FEE                     : Nat =  75_187_969_924; // $0.10 Fee for the submission of a response to GameState
+    let DEFAULT_SUBMISSION_FEE                     : Nat =  75 * Constants.CYCLES_BILLION; // $0.10 Fee for the submission of a response to GameState
     stable var submissionFee                       : Nat = DEFAULT_SUBMISSION_FEE;
 
     // Number of protocol LLMs
@@ -457,69 +457,69 @@ actor class GameStateCanister() = this {
     stable var numShareServiceLlms                 : Nat = DEFAULT_NUM_SHARE_SERVICE_LLMS;
     
     // Cost of the idle burn rates for protocol canisters
-    let DEFAULT_COST_IDLE_BURN_RATE_GS             : Nat =     201_492_636; // GameState                cost for idle burn rate
+    let DEFAULT_COST_IDLE_BURN_RATE_GS             : Nat = 201 * Constants.CYCLES_MILLION; // GameState                cost for idle burn rate
     stable var costIdleBurnRateGs                  : Nat = DEFAULT_COST_IDLE_BURN_RATE_GS;
-    let DEFAULT_COST_IDLE_BURN_RATE_MC             : Nat =  28_202_512_112; // mAIner Creator           cost for idle burn rate
+    let DEFAULT_COST_IDLE_BURN_RATE_MC             : Nat =  28 * Constants.CYCLES_BILLION; // mAIner Creator           cost for idle burn rate
     stable var costIdleBurnRateMc                  : Nat = DEFAULT_COST_IDLE_BURN_RATE_MC;
-    let DEFAULT_COST_IDLE_BURN_RATE_CHCTRL         : Nat =     114_749_311; // Challenger Controller    cost for idle burn rate
+    let DEFAULT_COST_IDLE_BURN_RATE_CHCTRL         : Nat = 115 * Constants.CYCLES_MILLION; // Challenger Controller    cost for idle burn rate
     stable var costIdleBurnRateChctrl              : Nat = DEFAULT_COST_IDLE_BURN_RATE_CHCTRL;
-    let DEFAULT_COST_IDLE_BURN_RATE_CHLLM          : Nat =  23_769_539_345; // One Challenger LLM       cost for idle burn rate
+    let DEFAULT_COST_IDLE_BURN_RATE_CHLLM          : Nat =  24 * Constants.CYCLES_BILLION; // One Challenger LLM       cost for idle burn rate
     stable var costIdleBurnRateChllm               : Nat = DEFAULT_COST_IDLE_BURN_RATE_CHLLM;
-    let DEFAULT_COST_IDLE_BURN_RATE_JUCTRL         : Nat =     114_749_311; // Judge Controller         cost for idle burn rate
+    let DEFAULT_COST_IDLE_BURN_RATE_JUCTRL         : Nat = 115 * Constants.CYCLES_MILLION; // Judge Controller         cost for idle burn rate
     stable var costIdleBurnRateJuctrl              : Nat = DEFAULT_COST_IDLE_BURN_RATE_JUCTRL;
-    let DEFAULT_COST_IDLE_BURN_RATE_JULLM          : Nat =  23_769_539_345; // One Judge LLM            cost for idle burn rate
+    let DEFAULT_COST_IDLE_BURN_RATE_JULLM          : Nat =  24 * Constants.CYCLES_BILLION; // One Judge LLM            cost for idle burn rate
     stable var costIdleBurnRateJullm               : Nat = DEFAULT_COST_IDLE_BURN_RATE_JULLM;
-    let DEFAULT_COST_IDLE_BURN_RATE_SSCTRL         : Nat =     156_736_586; // ShareService Controller  cost for idle burn rate
+    let DEFAULT_COST_IDLE_BURN_RATE_SSCTRL         : Nat = 157 * Constants.CYCLES_MILLION; // ShareService Controller  cost for idle burn rate
     stable var costIdleBurnRateSsctrl              : Nat = DEFAULT_COST_IDLE_BURN_RATE_SSCTRL;
-    let DEFAULT_COST_IDLE_BURN_RATE_SSLLM          : Nat =  23_769_539_345; // One ShareService LLM     cost for idle burn rate
+    let DEFAULT_COST_IDLE_BURN_RATE_SSLLM          : Nat =  24 * Constants.CYCLES_BILLION; // One ShareService LLM     cost for idle burn rate
     stable var costIdleBurnRateSsllm               : Nat = DEFAULT_COST_IDLE_BURN_RATE_SSLLM;
 
     
     // Cost of the idle burn rates for user canisters
-    let DEFAULT_COST_IDLE_BURN_RATE_SACTRL         : Nat =     156_736_586; // ShareAgent Controller    cost for idle burn rate
+    let DEFAULT_COST_IDLE_BURN_RATE_SACTRL         : Nat = 157 * Constants.CYCLES_MILLION; // ShareAgent Controller    cost for idle burn rate
     stable var costIdleBurnRateSactrl              : Nat = DEFAULT_COST_IDLE_BURN_RATE_SACTRL;
-    let DEFAULT_COST_IDLE_BURN_RATE_SALLM          : Nat =  23_769_539_345; // One Share Service LLM    cost for idle burn rate
+    let DEFAULT_COST_IDLE_BURN_RATE_SALLM          : Nat =  24 * Constants.CYCLES_BILLION; // One Share Service LLM    cost for idle burn rate
     stable var costIdleBurnRateSallm               : Nat = DEFAULT_COST_IDLE_BURN_RATE_SALLM;
-    let DEFAULT_COST_IDLE_BURN_RATE_OWNCTRL        : Nat =     156_736_586; // Own Controller           cost for idle burn rate
+    let DEFAULT_COST_IDLE_BURN_RATE_OWNCTRL        : Nat = 157 * Constants.CYCLES_MILLION; // Own Controller           cost for idle burn rate
     stable var costIdleBurnRateOwnctrl             : Nat = DEFAULT_COST_IDLE_BURN_RATE_OWNCTRL;
-    let DEFAULT_COST_IDLE_BURN_RATE_OWNLLM         : Nat =  23_769_539_345; // Own LLM                  cost for idle burn rate
+    let DEFAULT_COST_IDLE_BURN_RATE_OWNLLM         : Nat =  24 * Constants.CYCLES_BILLION; // Own LLM                  cost for idle burn rate
     stable var costIdleBurnRateOwnllm              : Nat = DEFAULT_COST_IDLE_BURN_RATE_OWNLLM;
     
     // Cost of the generations
-    let DEFAULT_COST_GENERATE_CHALLENGE_GS         : Nat =     221_000_000; // GameState                cost for challenge generation
+    let DEFAULT_COST_GENERATE_CHALLENGE_GS         : Nat = 221 * Constants.CYCLES_MILLION; // GameState                cost for challenge generation
     stable var costGenerateChallengeGs             : Nat = DEFAULT_COST_GENERATE_CHALLENGE_GS;
-    let DEFAULT_COST_GENERATE_CHALLENGE_CHCTRL     : Nat =  12_052_000_000; // Challenge Controller     cost for challenge generation
+    let DEFAULT_COST_GENERATE_CHALLENGE_CHCTRL     : Nat =  12 * Constants.CYCLES_BILLION; // Challenge Controller     cost for challenge generation
     stable var costGenerateChallengeChctrl         : Nat = DEFAULT_COST_GENERATE_CHALLENGE_CHCTRL;
-    let DEFAULT_COST_GENERATE_CHALLENGE_CHLLM      : Nat = 305_810_000_000; // Challenge LLM            cost for challenge creation
+    let DEFAULT_COST_GENERATE_CHALLENGE_CHLLM      : Nat = 305 * Constants.CYCLES_BILLION; // Challenge LLM            cost for challenge creation
     stable var costGenerateChallengeChllm          : Nat = DEFAULT_COST_GENERATE_CHALLENGE_CHLLM;
 
-    let DEFAULT_COST_GENERATE_SCORE_GS             : Nat =     111_000_000; // GameState                cost for Score generation
+    let DEFAULT_COST_GENERATE_SCORE_GS             : Nat = 111 * Constants.CYCLES_MILLION; // GameState                cost for Score generation
     stable var costGenerateScoreGs                 : Nat = DEFAULT_COST_GENERATE_SCORE_GS;
-    let DEFAULT_COST_GENERATE_SCORE_JUCTRL         : Nat =   5_702_000_000; // Judge Controller         cost for Score generation
+    let DEFAULT_COST_GENERATE_SCORE_JUCTRL         : Nat =   6 * Constants.CYCLES_BILLION; // Judge Controller         cost for Score generation
     stable var costGenerateScoreJuctrl             : Nat = DEFAULT_COST_GENERATE_SCORE_JUCTRL;
-    let DEFAULT_COST_GENERATE_SCORE_JULLM          : Nat = 115_615_000_000; // Judge LLM                cost for Score generation
+    let DEFAULT_COST_GENERATE_SCORE_JULLM          : Nat = 116 * Constants.CYCLES_BILLION; // Judge LLM                cost for Score generation
     stable var costGenerateScoreJullm              : Nat = DEFAULT_COST_GENERATE_SCORE_JULLM;
 
-    let DEFAULT_COST_GENERATE_RESPONSE_OWN_GS      : Nat =     150_000_000; // GameState                cost for Own response generation
+    let DEFAULT_COST_GENERATE_RESPONSE_OWN_GS      : Nat = 150 * Constants.CYCLES_MILLION; // GameState                cost for Own response generation
     stable var costGenerateResponseOwnGs           : Nat = DEFAULT_COST_GENERATE_RESPONSE_OWN_GS;
-    let DEFAULT_COST_GENERATE_RESPONSE_OWNCTRL     : Nat =   3_947_000_000; // Own Controller           cost for Own response generation
+    let DEFAULT_COST_GENERATE_RESPONSE_OWNCTRL     : Nat =   4 * Constants.CYCLES_BILLION; // Own Controller           cost for Own response generation
     stable var costGenerateResponseOwnctrl         : Nat = DEFAULT_COST_GENERATE_RESPONSE_OWNCTRL;
-    let DEFAULT_COST_GENERATE_RESPONSE_OWNLLM      : Nat = 115_615_000_000; // Own LLM                  cost for Own response generation
+    let DEFAULT_COST_GENERATE_RESPONSE_OWNLLM      : Nat = 116 * Constants.CYCLES_BILLION; // Own LLM                  cost for Own response generation
     stable var costGenerateResponseOwnllm          : Nat = DEFAULT_COST_GENERATE_RESPONSE_OWNLLM;
 
-    let DEFAULT_COST_GENERATE_RESPONSE_SHARE_GS    : Nat =     150_000_000; // GameState                cost for Share response generation
+    let DEFAULT_COST_GENERATE_RESPONSE_SHARE_GS    : Nat = 150 * Constants.CYCLES_MILLION; // GameState                cost for Share response generation
     stable var costGenerateResponseShareGs         : Nat = DEFAULT_COST_GENERATE_RESPONSE_SHARE_GS;
-    let DEFAULT_COST_GENERATE_RESPONSE_SACTRL      : Nat =     100_000_000; // Share Agent   Controller cost for Share response generation
+    let DEFAULT_COST_GENERATE_RESPONSE_SACTRL      : Nat = 100 * Constants.CYCLES_MILLION; // Share Agent   Controller cost for Share response generation
     stable var costGenerateResponseSactrl          : Nat = DEFAULT_COST_GENERATE_RESPONSE_SACTRL;
-    let DEFAULT_COST_GENERATE_RESPONSE_SSCTRL      : Nat =   3_947_000_000; // Share Service Controller cost for Share response generation
+    let DEFAULT_COST_GENERATE_RESPONSE_SSCTRL      : Nat =   4 * Constants.CYCLES_BILLION; // Share Service Controller cost for Share response generation
     stable var costGenerateResponseSsctrl          : Nat = DEFAULT_COST_GENERATE_RESPONSE_SSCTRL;
-    let DEFAULT_COST_GENERATE_RESPONSE_SSLLM       : Nat = 115_615_000_000; // Share Service LLM        cost for Share response generation
+    let DEFAULT_COST_GENERATE_RESPONSE_SSLLM       : Nat = 116 * Constants.CYCLES_BILLION; // Share Service LLM        cost for Share response generation
     stable var costGenerateResponseSsllm           : Nat = DEFAULT_COST_GENERATE_RESPONSE_SSLLM;
 
     // Calculate Cycles Flows for Challenge generation by Challenger
     stable var cyclesGenerateChallengeGsChctrl     : Nat = 0;
     stable var cyclesGenerateChallengeChctrlChllm  : Nat = 0;
-    stable var cyclesBurntChallengeGeneration        : Nat = 0;
+    stable var cyclesBurntChallengeGeneration      : Nat = 0;
     private func setCyclesGenerateChallenge() {
         // To be called each time a variable is updated by Admin or by the protocol itself
         var cost : Nat = 0;
