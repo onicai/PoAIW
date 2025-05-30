@@ -1,6 +1,5 @@
 import D "mo:base/Debug";
 import Buffer "mo:base/Buffer";
-import Array "mo:base/Array";
 import Principal "mo:base/Principal";
 import Text "mo:base/Text";
 import Blob "mo:base/Blob";
@@ -15,7 +14,6 @@ import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Order "mo:base/Order";
 import Error "mo:base/Error";
-import Float "mo:base/Float";
 import Hash "mo:base/Hash";
 
 import Types "../../common/Types";
@@ -2594,18 +2592,12 @@ actor class GameStateCanister() = this {
                         var cyclesForMainer : Nat = 0;
                         switch (transactionEntry.redeemedFor) {
                             case (#MainerCreation(#Own)) {
-                                // let cyclesCreateMainer : Types.CyclesCreateMainer = calculateCyclesCreateMainer(cyclesReceived, #Own);
-                                // cyclesForMainer := cyclesCreateMainer.cyclesCreateMainerctrlGsMc + cyclesCreateMainer.cyclesCreateMainerllmGsMc;                                      
-                                // cyclesForProtocol := cyclesReceived - cyclesForMainer; // Protocol gets the rest
-                                cyclesForMainer := cyclesReceived; // Everything goes towards mAIner creation - we take cuts during response submission
-                                cyclesForProtocol := 0; // Protocol gets nothing
+                                cyclesForProtocol := cyclesReceived * protocolOperationFeesCut / 100;
+                                cyclesForMainer := cyclesReceived - cyclesForProtocol;  
                             };
                             case (#MainerCreation(#ShareAgent)) {
-                                // let cyclesCreateMainer : Types.CyclesCreateMainer = calculateCyclesCreateMainer(cyclesReceived, #ShareAgent);
-                                // cyclesForMainer := cyclesCreateMainer.cyclesCreateMainerctrlGsMc;
-                                // cyclesForProtocol := cyclesReceived - cyclesForMainer; // Protocol gets the rest
-                                cyclesForMainer := cyclesReceived; // Everything goes towards mAIner creation - we take cuts during response submission
-                                cyclesForProtocol := 0; // Protocol gets nothing
+                                cyclesForProtocol := cyclesReceived * protocolOperationFeesCut / 100;
+                                cyclesForMainer := cyclesReceived - cyclesForProtocol;  
                             };
                             case (#MainerTopUp(mainerCanisterAddress)) {
                                 cyclesForProtocol := cyclesReceived * protocolOperationFeesCut / 100;
