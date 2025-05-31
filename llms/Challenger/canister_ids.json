@@ -1,12 +1,11 @@
 {
   "llm_0": {
+    "development": "fgyjy-mqaaa-aaaak-quhxq-cai",
     "ic": "lmehs-taaaa-aaaaj-azzrq-cai",
-    "testing": "cq4yx-uyaaa-aaaaj-az76q-cai",
-    "development": "fgyjy-mqaaa-aaaak-quhxq-cai"
+    "testing": "cb2ur-oyaaa-aaaaf-qaqbq-cai"
   },
   "llm_1": {
-    "ic": "l6cql-7qaaa-aaaaj-azzsq-cai",
-    "testing": "cz7tl-cqaaa-aaaaj-az77a-cai",
-    "development": "4gwp4-nyaaa-aaaae-qfcqq-cai"
+    "development": "4gwp4-nyaaa-aaaae-qfcqq-cai",
+    "ic": "l6cql-7qaaa-aaaaj-azzsq-cai"
   }
 }

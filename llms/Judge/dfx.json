@@ -10,6 +10,116 @@
             "type": "custom",
             "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
             "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_2": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_3": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_4": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_5": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_6": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_7": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_8": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_9": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_10": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_11": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_12": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_13": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_14": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_15": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_16": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_17": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_18": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_19": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_20": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_21": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_22": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
+        },
+        "llm_23": {
+            "type": "custom",
+            "candid": "../../../../llama_cpp_canister/build/llama_cpp.did",
+            "wasm": "../../../../llama_cpp_canister/build/llama_cpp.wasm"
         }
     },
     "networks": {

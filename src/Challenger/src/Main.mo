@@ -445,6 +445,9 @@ actor class ChallengerCtrlbCanister() {
                                             challengeQuestion : Text = generatedChallenge.generatedChallengeText;
                                             challengeQuestionSeed : Nat32 = generatedChallenge.generationSeed;
                                             mainerPromptId : Text = mainerPromptId;
+                                            mainerMaxContinueLoopCount : Nat = 3;
+                                            mainerNumTokens : Nat64 = 1024;
+                                            mainerTemp : Float = 0.8;
                                             judgePromptId : Text = judgePromptId;
                                         };
 

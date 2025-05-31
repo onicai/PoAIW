@@ -319,6 +319,80 @@ actor class GameStateCanister() = this {
         return #Ok(thresholds);
     };
 
+    // Admin is responsible for setting the subnet IDs via the setSubnetsAdmin function
+    stable var SUBNET_SHARE_AGENT_CTRL   : Text = "qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe";
+    stable var SUBNET_SHARE_SERVICE_CTRL : Text = "qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe";
+    stable var SUBNET_SHARE_SERVICE_LLM  : Text = "qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe";
+
+    public shared (msg) func setSubnetsAdmin(subnets : Types.SubnetIds) : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        try {
+            let _ = Principal.fromText(subnets.subnetShareAgentCtrl);
+            SUBNET_SHARE_AGENT_CTRL := subnets.subnetShareAgentCtrl;
+        } catch (e) {
+            // Ok, just continue, no need to set the subnet ID
+        };
+        try {
+            let _ = Principal.fromText(subnets.subnetShareServiceCtrl);
+            SUBNET_SHARE_SERVICE_CTRL := subnets.subnetShareServiceCtrl;
+        } catch (e) {
+            // Ok, just continue, no need to set the subnet ID
+        };
+        try {
+            let _ = Principal.fromText(subnets.subnetShareServiceLlm);
+            SUBNET_SHARE_SERVICE_LLM := subnets.subnetShareServiceLlm;
+        } catch (e) {
+            // Ok, just continue, no need to set the subnet ID
+        };
+        return #Ok({ status_code = 200 });
+    };
+
+    public shared query (msg) func getSubnetsAdmin() : async Types.SubnetIdsResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let subnets : Types.SubnetIds = {
+            subnetShareAgentCtrl = SUBNET_SHARE_AGENT_CTRL;
+            subnetShareServiceCtrl = SUBNET_SHARE_SERVICE_CTRL;
+            subnetShareServiceLlm = SUBNET_SHARE_SERVICE_LLM;
+        };
+        return #Ok(subnets);
+    };
+
+
+    // Helper function
+    private func getMainerSubnets(mainerAgentCanisterType : Types.MainerAgentCanisterType) : {subnetCtrl : Text; subnetLlm : Text} {       
+        switch (mainerAgentCanisterType) {
+            case (#Own) {
+                return {
+                    subnetCtrl = ""; // TODO
+                    subnetLlm = "";  // TODO
+                };
+            };
+            case (#ShareAgent) {
+                return {
+                    subnetCtrl = SUBNET_SHARE_AGENT_CTRL;
+                    subnetLlm = "";  // No LLM for ShareAgent
+                };
+            };
+            case (#ShareService) {
+                // ShareService mAIners should be on high-performance subnets
+                return {
+                    subnetCtrl = SUBNET_SHARE_SERVICE_CTRL;
+                    subnetLlm = SUBNET_SHARE_SERVICE_LLM;
+                };
+            };
+            case (#NA) {
+                return {
+                    subnetCtrl = "";
+                    subnetLlm = "";
+                };
+            };
+        };
+    };
+
     // Cycles for ShareAgent mAIner Creation
     stable var ICP_FOR_SHARE_AGENT : Nat  = 10                  ; // TODO: Set to cost of a ShareAgent, in ICP
     public shared (msg) func setIcpForShareAgentAdmin(icpForShareAgent : Nat) : async Types.StatusCodeRecordResult {
@@ -358,13 +432,13 @@ actor class GameStateCanister() = this {
     };
 
     // Protocol parameters used in the mAIner Creation Cycles Flow calculations      
-    let DEFAULT_CYCLES_CREATE_MAINER_MARGIN_GS          : Nat  =    25_000_000_000; // Margin kept in GameState canister (includes actual costs)
-    let DEFAULT_CYCLES_CREATE_MAINER_MARGIN_MC          : Nat  =   300_000_000_000; // Margin kept in mAIner Creator canister (excludes actual costs)
-    let DEFAULT_CYCLES_CREATE_MAINER_LLM_TARGET_BALANCE : Nat  = 2_000_000_000_000; // Target balance for the Own LLM canister after creation
-    let DEFAULT_COST_CREATE_MAINER_CTRL                 : Nat  =   602_000_000_000; // Cost of a Mainer Controller canister for it's creation
-    let DEFAULT_COST_CREATE_MAINER_LLM                  : Nat  =   814_000_000_000; // Cost of a LLM canister for it's creation
-    let DEFAULT_COST_MC_CREATE_MAINER_CTRL              : Nat  =       900_000_000; // Cost for the MC to create a Mainer Controller canister
-    let DEFAULT_COST_MC_CREATE_MAINER_LLM               : Nat  =   835_000_000_000; // Cost for the MC to create a LLM canister
+    let DEFAULT_CYCLES_CREATE_MAINER_MARGIN_GS          : Nat  =    25 * Constants.CYCLES_BILLION ; // Margin kept in GameState canister (includes actual costs)
+    let DEFAULT_CYCLES_CREATE_MAINER_MARGIN_MC          : Nat  =   300 * Constants.CYCLES_BILLION ; // Margin kept in mAIner Creator canister (excludes actual costs)
+    let DEFAULT_CYCLES_CREATE_MAINER_LLM_TARGET_BALANCE : Nat  =     2 * Constants.CYCLES_TRILLION; // Target balance for the Own LLM canister after creation
+    let DEFAULT_COST_CREATE_MAINER_CTRL                 : Nat  =     1 * Constants.CYCLES_TRILLION; // Cost of a Mainer Controller canister for it's creation
+    let DEFAULT_COST_CREATE_MAINER_LLM                  : Nat  =     1 * Constants.CYCLES_TRILLION; // Cost of a LLM canister for it's creation
+    let DEFAULT_COST_MC_CREATE_MAINER_CTRL              : Nat  =     1 * Constants.CYCLES_BILLION ; // Cost for the MC to create a Mainer Controller canister
+    let DEFAULT_COST_MC_CREATE_MAINER_LLM               : Nat  =   835 * Constants.CYCLES_BILLION ; // Cost for the MC to create a LLM canister
 
     stable var cyclesCreateMainerMarginGs         : Nat  = DEFAULT_CYCLES_CREATE_MAINER_MARGIN_GS;
     stable var cyclesCreatemMainerMarginMc        : Nat  = DEFAULT_CYCLES_CREATE_MAINER_MARGIN_MC;
@@ -394,18 +468,24 @@ actor class GameStateCanister() = this {
             };
         };
 
-        cyclesCreateMainerctrlGsMc         := cyclesFromUser - cyclesCreateMainerMarginGs - cyclesCreateMainerllmGsMc;                 
-        cyclesCreateMainerctrlMcMainerctrl := cyclesCreateMainerctrlGsMc - cyclesCreatemMainerMarginMc;
-
         D.print("GameState: calculateCyclesCreateMainer - cyclesFromUser                     : " # debug_show(cyclesFromUser));
+        D.print("GameState: calculateCyclesCreateMainer - costCreateMainerCtrl               : " # debug_show(costCreateMainerCtrl));
+        D.print("GameState: calculateCyclesCreateMainer - costCreateMainerLlm                : " # debug_show(costCreateMainerLlm));
         D.print("GameState: calculateCyclesCreateMainer - cyclesCreateMainerMarginGs         : " # debug_show(cyclesCreateMainerMarginGs));
         D.print("GameState: calculateCyclesCreateMainer - cyclesCreatemMainerMarginMc        : " # debug_show(cyclesCreatemMainerMarginMc));
         D.print("GameState: calculateCyclesCreateMainer - cyclesCreateMainerLlmTargetBalance : " # debug_show(cyclesCreateMainerLlmTargetBalance));
-        D.print("GameState: calculateCyclesCreateMainer - costCreateMainerLlm                : " # debug_show(costCreateMainerLlm));
-        D.print("GameState: calculateCyclesCreateMainer - cyclesCreateMainerctrlGsMc         : " # debug_show(cyclesCreateMainerctrlGsMc));
         D.print("GameState: calculateCyclesCreateMainer - cyclesCreateMainerllmGsMc          : " # debug_show(cyclesCreateMainerllmGsMc));
-        D.print("GameState: calculateCyclesCreateMainer - cyclesCreateMainerctrlMcMainerctrl : " # debug_show(cyclesCreateMainerctrlMcMainerctrl));
         D.print("GameState: calculateCyclesCreateMainer - cyclesCreateMainerllmMcMainerllm   : " # debug_show(cyclesCreateMainerllmMcMainerllm));
+
+        let cyclesNeeded = cyclesCreateMainerMarginGs + cyclesCreatemMainerMarginMc + costCreateMainerCtrl + cyclesCreateMainerllmGsMc;
+        if (cyclesFromUser < cyclesNeeded) {
+            D.trap("GameState: calculateCyclesCreateMainer - Not enough cycles provided by user: " # debug_show(cyclesFromUser) # " < required: " # debug_show(cyclesNeeded));
+        };
+        cyclesCreateMainerctrlGsMc         := cyclesFromUser - cyclesCreateMainerMarginGs - cyclesCreateMainerllmGsMc;                 
+        D.print("GameState: calculateCyclesCreateMainer - cyclesCreateMainerctrlGsMc         : " # debug_show(cyclesCreateMainerctrlGsMc));        
+
+        cyclesCreateMainerctrlMcMainerctrl := cyclesCreateMainerctrlGsMc - cyclesCreatemMainerMarginMc;
+        D.print("GameState: calculateCyclesCreateMainer - cyclesCreateMainerctrlMcMainerctrl : " # debug_show(cyclesCreateMainerctrlMcMainerctrl));
         
         let cyclesCreateMainer : Types.CyclesCreateMainer = {
             cyclesCreateMainerctrlGsMc = cyclesCreateMainerctrlGsMc;
@@ -2244,6 +2324,9 @@ actor class GameStateCanister() = this {
                     challengeQuestion : Text = newChallenge.challengeQuestion;
                     challengeQuestionSeed : Nat32 = newChallenge.challengeQuestionSeed;
                     mainerPromptId : Text = newChallenge.mainerPromptId;
+                    mainerMaxContinueLoopCount : Nat = newChallenge.mainerMaxContinueLoopCount;
+                    mainerNumTokens : Nat64 = newChallenge.mainerNumTokens;
+                    mainerTemp : Float = newChallenge.mainerTemp;
                     judgePromptId : Text = newChallenge.judgePromptId;
                     challengeCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                     challengeCreatedBy : Types.CanisterAddress = challengerEntry.address;
@@ -2321,6 +2404,7 @@ actor class GameStateCanister() = this {
             case (#Challenger) {
                 let canisterEntry : Types.OfficialProtocolCanister = {
                     address : Text = canisterEntryToAdd.address;
+                    subnet : Text = canisterEntryToAdd.subnet;
                     canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
                     creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                     createdBy : Principal = msg.caller;
@@ -2335,6 +2419,7 @@ actor class GameStateCanister() = this {
             case (#Judge) {
                 let canisterEntry : Types.OfficialProtocolCanister = {
                     address : Text = canisterEntryToAdd.address;
+                    subnet : Text = canisterEntryToAdd.subnet;
                     canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
                     creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                     createdBy : Principal = msg.caller;
@@ -2349,6 +2434,7 @@ actor class GameStateCanister() = this {
             case (#MainerCreator) {
                 let canisterEntry : Types.OfficialProtocolCanister = {
                     address : Text = canisterEntryToAdd.address;
+                    subnet : Text = canisterEntryToAdd.subnet;
                     canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
                     creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                     createdBy : Principal = msg.caller;
@@ -2363,6 +2449,7 @@ actor class GameStateCanister() = this {
             case (#MainerAgent(#ShareService)) {
                 let canisterEntry : Types.OfficialProtocolCanister = {
                     address : Text = canisterEntryToAdd.address;
+                    subnet : Text = canisterEntryToAdd.subnet;
                     canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
                     creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                     createdBy : Principal = msg.caller;
@@ -2425,7 +2512,8 @@ actor class GameStateCanister() = this {
         };
         
         let canisterEntry : Types.OfficialMainerAgentCanister = {
-            address : Text = ""; // To be assigned (when Controller canister was created)
+            address : Text = ""; // To be assigned (when Controller canister is created)
+            subnet : Text = ""; // To be assigned (when Controller canister is created)
             canisterType: Types.ProtocolCanisterType = #MainerAgent(mainerConfig.mainerAgentCanisterType);
             creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
             createdBy : Principal = msg.caller; // Controller (e.g. backend) or User
@@ -2861,7 +2949,9 @@ actor class GameStateCanister() = this {
             case (#ShareService) {
                 // Skip handling of funds in case of ShareService, which is created by an Admin (Controller)
                 // We do need a value for cyclesForMainer, because it is used by the creation process
-                let cyclesForMainer = costCreateMainerCtrl + cyclesCreateMainerMarginGs + cyclesCreatemMainerMarginMc;
+                let cyclesForMainer = cyclesCreateMainerLlmTargetBalance  + costCreateMainerLlm + 
+                                      costCreateMcMainerLlm + costCreateMainerCtrl + 
+                                      cyclesCreateMainerMarginGs + cyclesCreatemMainerMarginMc + 1 * Constants.CYCLES_MILLION; // 1M for calculation buffer
                 handleResponse := #Ok({cyclesForMainer : Nat = cyclesForMainer; cyclesForProtocol : Nat = 0});
             };
             case (_) {
@@ -2883,13 +2973,17 @@ actor class GameStateCanister() = this {
                 return #Err(#FailedOperation);
             };
             case (#Ok(handleResult)) {
+                let mainerSubnets = getMainerSubnets(mainerConfig.mainerAgentCanisterType); // the subnet where the mAIner Controller will be created
                 let updatedMainerConfig : Types.MainerConfigurationInput = {
                     mainerAgentCanisterType: Types.MainerAgentCanisterType = mainerConfig.mainerAgentCanisterType;
                     selectedLLM : ?Types.SelectableMainerLLMs = mainerConfig.selectedLLM;
                     cyclesForMainer : Nat = handleResult.cyclesForMainer; // to be used by the creation process
+                    subnetCtrl : Text = mainerSubnets.subnetCtrl; // the subnet where the mAIner Controller will be created
+                    subnetLlm : Text = mainerSubnets.subnetLlm; // the subnet where the mAIner LLM will be created
                 };
                 let canisterEntry : Types.OfficialMainerAgentCanister = {
-                    address : Text = ""; // To be assigned (when Controller canister was created)
+                    address : Text = ""; // To be assigned (when Controller canister is created)
+                    subnet : Text = ""; // To be assigned (when Controller canister is created)
                     canisterType: Types.ProtocolCanisterType = #MainerAgent(mainerConfig.mainerAgentCanisterType);
                     creationTimestamp : Nat64 = creationTimestamp;
                     createdBy : Principal = msg.caller; // User (Admin (controller) in case of ShareService)
@@ -2936,6 +3030,7 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        D.print("GameState: spinUpMainerControllerCanister - Entered with mainerInfo: "# debug_show(mainerInfo));
 
         // Sanity checks on mAIner info
         if (not Principal.equal(mainerInfo.ownedBy, msg.caller)) {
@@ -2979,6 +3074,7 @@ actor class GameStateCanister() = this {
                         return #Err(#InvalidId);
                     };
                     case (?userMainerEntry) {
+                        D.print("GameState: spinUpMainerControllerCanister - Found userMainerEntry: "# debug_show(userMainerEntry));
                         // Sanity checks on userMainerEntry (i.e. info provided is correct and matches entry info)
                         if (userMainerEntry.address != "") {
                             // At this point, no canister should have been created, i.e. no canister address
@@ -3006,6 +3102,7 @@ actor class GameStateCanister() = this {
                         };
                         let temporaryEntry : Types.OfficialMainerAgentCanister = {
                             address : Text = userMainerEntry.address;
+                            subnet : Text = userMainerEntry.subnet;
                             canisterType: Types.ProtocolCanisterType = userMainerEntry.canisterType;
                             creationTimestamp : Nat64 = userMainerEntry.creationTimestamp;
                             createdBy : Principal = userMainerEntry.createdBy;
@@ -3030,6 +3127,7 @@ actor class GameStateCanister() = this {
                                 let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
 
                                 var associatedCanisterAddress : ?Types.CanisterAddress = null;
+                                var associatedCanisterSubnet : Text = "";
                                 var mainerAgentCanisterType : Types.MainerAgentCanisterType = #ShareAgent;
                                 switch (userMainerEntry.canisterType) {
                                     case (#MainerAgent(#Own)) {
@@ -3051,6 +3149,7 @@ actor class GameStateCanister() = this {
                                             };
                                             case (?sharedServiceEntry) {
                                                 associatedCanisterAddress := ?sharedServiceEntry.address;
+                                                associatedCanisterSubnet := sharedServiceEntry.subnet;
                                             };
                                         };
                                     };
@@ -3063,6 +3162,7 @@ actor class GameStateCanister() = this {
                                     canisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType;
                                     owner: Principal = userMainerEntry.ownedBy; // User
                                     associatedCanisterAddress : ?Types.CanisterAddress = associatedCanisterAddress; // null for #Own, shareServiceCanisterAddress for ShareAgent
+                                    associatedCanisterSubnet : Text = associatedCanisterSubnet;
                                     mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                     userMainerEntryCreationTimestamp : Nat64 = userMainerEntry.creationTimestamp;
                                     userMainerEntryCanisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType;
@@ -3114,12 +3214,14 @@ actor class GameStateCanister() = this {
                                         // Setup the controller canister (install code & configurations)
                                         let setupCanisterInput : Types.SetupCanisterInput = {
                                             newCanisterId : Text = canisterCreationRecord.newCanisterId;
+                                            subnet : Text = canisterCreationRecord.subnet;
                                             configurationInput : Types.CanisterCreationConfiguration = canisterCreationInput;
                                         };
                                         ignore creatorCanisterActor.setupCanister(setupCanisterInput);
 
                                         let canisterEntryToAdd : Types.OfficialMainerAgentCanister = {
                                             address : Text = canisterCreationRecord.newCanisterId; // New mAIner Controller canister's id
+                                            subnet : Text = canisterCreationRecord.subnet; // New mAIner Controller canister's subnet
                                             canisterType: Types.ProtocolCanisterType = userMainerEntry.canisterType;
                                             creationTimestamp : Nat64 = userMainerEntry.creationTimestamp;
                                             createdBy : Principal = Principal.fromText(mainerCreatorEntry.address); // mAIner Creator
@@ -3233,6 +3335,7 @@ actor class GameStateCanister() = this {
                         // Update status of the controller (usermAInerEntry) to LlmSetupInProgress
                         let temporaryEntry : Types.OfficialMainerAgentCanister = {
                             address : Text = userMainerEntry.address;
+                            subnet : Text = userMainerEntry.subnet;
                             canisterType: Types.ProtocolCanisterType = userMainerEntry.canisterType;
                             creationTimestamp : Nat64 = userMainerEntry.creationTimestamp; // for deduplication by putUserMainerAgent
                             createdBy : Principal = userMainerEntry.createdBy;
@@ -3264,6 +3367,7 @@ actor class GameStateCanister() = this {
                                     canisterType : Types.ProtocolCanisterType = #MainerLlm;
                                     owner: Principal = userMainerEntry.ownedBy; // User
                                     associatedCanisterAddress : ?Types.CanisterAddress = ?userMainerEntry.address; // Controller address
+                                    associatedCanisterSubnet : Text = userMainerEntry.subnet; // Controller subnet
                                     mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                     userMainerEntryCreationTimestamp : Nat64 = userMainerEntry.creationTimestamp; // Controller
                                     userMainerEntryCanisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType; // Controller
@@ -3312,12 +3416,14 @@ actor class GameStateCanister() = this {
                                         // Setup the LLM canister (install code & configurations)
                                         let setupCanisterInput : Types.SetupCanisterInput = {
                                             newCanisterId : Text = canisterCreationRecord.newCanisterId;
+                                            subnet : Text = canisterCreationRecord.subnet;
                                             configurationInput : Types.CanisterCreationConfiguration = canisterCreationInput;
                                         };
                                         ignore creatorCanisterActor.setupCanister(setupCanisterInput);
 
                                         let canisterEntryToAdd : Types.OfficialMainerAgentCanister = {
                                             address : Text = userMainerEntry.address; // Controller 
+                                            subnet : Text = userMainerEntry.subnet;
                                             canisterType: Types.ProtocolCanisterType = userMainerEntry.canisterType;
                                             creationTimestamp : Nat64 = userMainerEntry.creationTimestamp;
                                             createdBy : Principal = Principal.fromText(mainerCreatorEntry.address); // mAIner Creator
@@ -3454,6 +3560,7 @@ actor class GameStateCanister() = this {
 
                         let temporaryEntry : Types.OfficialMainerAgentCanister = {
                             address : Text = userMainerEntry.address;
+                            subnet : Text = userMainerEntry.subnet;
                             canisterType: Types.ProtocolCanisterType = userMainerEntry.canisterType;
                             creationTimestamp : Nat64 = userMainerEntry.creationTimestamp; // for deduplication by putUserMainerAgent
                             createdBy : Principal = userMainerEntry.createdBy;
@@ -3483,6 +3590,7 @@ actor class GameStateCanister() = this {
                                     canisterType : Types.ProtocolCanisterType = #MainerLlm;
                                     owner: Principal = userMainerEntry.ownedBy; // User
                                     associatedCanisterAddress : ?Types.CanisterAddress = ?userMainerEntry.address; // Controller address
+                                    associatedCanisterSubnet : Text = userMainerEntry.subnet; // Controller subnet
                                     mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                     userMainerEntryCreationTimestamp : Nat64 = userMainerEntry.creationTimestamp; // for deduplication by putUserMainerAgent
                                     userMainerEntryCanisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType;
@@ -3530,12 +3638,14 @@ actor class GameStateCanister() = this {
                                         // Setup the LLM canister (install code & configurations)
                                         let setupCanisterInput : Types.SetupCanisterInput = {
                                             newCanisterId : Text = canisterCreationRecord.newCanisterId;
+                                            subnet : Text = canisterCreationRecord.subnet;
                                             configurationInput : Types.CanisterCreationConfiguration = canisterCreationInput;
                                         };
                                         ignore creatorCanisterActor.setupCanister(setupCanisterInput);
 
                                         let canisterEntryToAdd : Types.OfficialMainerAgentCanister = {
                                             address : Text = userMainerEntry.address; // Controller 
+                                            subnet : Text = userMainerEntry.subnet;
                                             canisterType: Types.ProtocolCanisterType = userMainerEntry.canisterType;
                                             creationTimestamp : Nat64 = userMainerEntry.creationTimestamp;
                                             createdBy : Principal = Principal.fromText(mainerCreatorEntry.address); // mAIner Creator
@@ -3601,6 +3711,7 @@ actor class GameStateCanister() = this {
         };
         let canisterEntry : Types.OfficialMainerAgentCanister = {
             address : Text = canisterEntryToAdd.address;
+            subnet : Text = canisterEntryToAdd.subnet;
             canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
             creationTimestamp : Nat64 = canisterEntryToAdd.creationTimestamp;
             createdBy : Principal = canisterEntryToAdd.createdBy;
@@ -3630,6 +3741,7 @@ actor class GameStateCanister() = this {
         };
         let canisterEntry : Types.OfficialMainerAgentCanister = {
             address : Text = canisterEntryToAdd.address;
+            subnet : Text = canisterEntryToAdd.subnet;
             canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
             creationTimestamp :  Nat64 = canisterEntryToAdd.creationTimestamp;
             createdBy : Principal = canisterEntryToAdd.createdBy;
@@ -3957,6 +4069,9 @@ actor class GameStateCanister() = this {
                     challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = challengeResponseSubmissionInput.challengeQuestionSeed;
                     mainerPromptId : Text = challengeResponseSubmissionInput.mainerPromptId;
+                    mainerMaxContinueLoopCount : Nat = challengeResponseSubmissionInput.mainerMaxContinueLoopCount;
+                    mainerNumTokens : Nat64 = challengeResponseSubmissionInput.mainerNumTokens;
+                    mainerTemp : Float = challengeResponseSubmissionInput.mainerTemp;
                     judgePromptId : Text = challengeResponseSubmissionInput.judgePromptId;
                     challengeId : Text = challengeResponseSubmissionInput.challengeId;
                     challengeCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeCreationTimestamp;
@@ -4079,6 +4194,9 @@ actor class GameStateCanister() = this {
                                             challengeQuestion : Text = submission.challengeQuestion;
                                             challengeQuestionSeed : Nat32 = submission.challengeQuestionSeed;
                                             mainerPromptId : Text = submission.mainerPromptId;
+                                            mainerMaxContinueLoopCount : Nat = submission.mainerMaxContinueLoopCount;
+                                            mainerNumTokens : Nat64 = submission.mainerNumTokens;
+                                            mainerTemp : Float = submission.mainerTemp;
                                             judgePromptId : Text = submission.judgePromptId;
                                             challengeId : Text = submission.challengeId;
                                             challengeCreationTimestamp : Nat64 = submission.challengeCreationTimestamp;
@@ -4278,6 +4396,9 @@ actor class GameStateCanister() = this {
                     challengeQuestion : Text = scoredResponseInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = scoredResponseInput.challengeQuestionSeed;
                     mainerPromptId : Text = scoredResponseInput.mainerPromptId;
+                    mainerMaxContinueLoopCount : Nat = scoredResponseInput.mainerMaxContinueLoopCount;
+                    mainerNumTokens : Nat64 = scoredResponseInput.mainerNumTokens;
+                    mainerTemp : Float = scoredResponseInput.mainerTemp;
                     judgePromptId : Text = scoredResponseInput.judgePromptId;
                     challengeId : Text = scoredResponseInput.challengeId;
                     challengeCreationTimestamp : Nat64 = scoredResponseInput.challengeCreationTimestamp;
@@ -4324,6 +4445,9 @@ actor class GameStateCanister() = this {
                     challengeQuestion : Text = scoredResponseInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = scoredResponseInput.challengeQuestionSeed;
                     mainerPromptId : Text = scoredResponseInput.mainerPromptId;
+                    mainerMaxContinueLoopCount : Nat = scoredResponseInput.mainerMaxContinueLoopCount;
+                    mainerNumTokens : Nat64 = scoredResponseInput.mainerNumTokens;
+                    mainerTemp : Float = scoredResponseInput.mainerTemp;
                     judgePromptId : Text = scoredResponseInput.judgePromptId;
                     challengeId : Text = scoredResponseInput.challengeId;
                     challengeCreationTimestamp : Nat64 = scoredResponseInput.challengeCreationTimestamp;
@@ -4466,6 +4590,9 @@ actor class GameStateCanister() = this {
                     challengeQuestion : Text = openChallenge.challengeQuestion;
                     challengeQuestionSeed : Nat32 = openChallenge.challengeQuestionSeed;
                     mainerPromptId : Text = openChallenge.mainerPromptId;
+                    mainerMaxContinueLoopCount : Nat = openChallenge.mainerMaxContinueLoopCount;
+                    mainerNumTokens : Nat64 = openChallenge.mainerNumTokens;
+                    mainerTemp : Float = openChallenge.mainerTemp;
                     judgePromptId : Text = openChallenge.judgePromptId;
                     challengeId : Text = openChallenge.challengeId;
                     challengeCreationTimestamp : Nat64 = openChallenge.challengeCreationTimestamp;
@@ -4513,6 +4640,9 @@ actor class GameStateCanister() = this {
                             challengeQuestion : Text = closedChallenge.challengeQuestion;
                             challengeQuestionSeed : Nat32 = closedChallenge.challengeQuestionSeed;
                             mainerPromptId : Text = closedChallenge.mainerPromptId;
+                            mainerMaxContinueLoopCount : Nat = closedChallenge.mainerMaxContinueLoopCount;
+                            mainerNumTokens : Nat64 = closedChallenge.mainerNumTokens;
+                            mainerTemp : Float = closedChallenge.mainerTemp;
                             judgePromptId : Text = closedChallenge.judgePromptId;
                             challengeId : Text = closedChallenge.challengeId;
                             challengeCreationTimestamp : Nat64 = closedChallenge.challengeCreationTimestamp;
@@ -4558,6 +4688,9 @@ actor class GameStateCanister() = this {
                             challengeQuestion : Text = "";
                             challengeQuestionSeed : Nat32 = 0;
                             mainerPromptId : Text = "submissionInput.mainerPromptId";
+                            mainerMaxContinueLoopCount : Nat = 3;
+                            mainerNumTokens : Nat64 = 1024;
+                            mainerTemp : Float = 0.8;
                             judgePromptId : Text = "submissionInput.judgePromptId";
                             challengeId : Text = submissionInput.challengeId;
                             challengeCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));

@@ -9,15 +9,13 @@ import Iter "mo:base/Iter";
 import D "mo:base/Debug";
 import Nat64 "mo:base/Nat64";
 import Nat "mo:base/Nat";
-import Int "mo:base/Int";
-import Time "mo:base/Time";
 import Error "mo:base/Error";
 
 import Types "../../common/Types";
 import ICManagementCanister "../../common/ICManagementCanister";
-import Constants "../../common/Constants";
+import CreateCanisterWithCMC "../../common/CreateCanisterWithCMC";
 
-actor class CanisterCreationCanister() = this {
+actor class MainerCreatorCanister() = this {
 
     stable var MASTER_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // Corresponds to Game State canister
 
@@ -346,39 +344,56 @@ actor class CanisterCreationCanister() = this {
                 //     return #Err(#Unauthorized);                    
                 // };
 
+                // The approach with IC0 does not allow to specify the subnet. Switching to a CMC based approach
                 // Add cycles to the controller canister (Margins & fees already calculated by GameState)
-                let cyclesAdded = configurationInput.cyclesCreateMainerctrlMcMainerctrl;
-                Cycles.add<system>(cyclesAdded);
-                D.print("mAInerCreator: createCanister - cyclesAdded for Mainer Controller = " # debug_show (cyclesAdded));
+                // let cyclesAdded = configurationInput.cyclesCreateMainerctrlMcMainerctrl;
+                // Cycles.add<system>(cyclesAdded);
+                // D.print("mAInerCreator: createCanister - cyclesAdded for Mainer Controller = " # debug_show (cyclesAdded));
+                // let createdControllerCanister = await IC0.create_canister({
+                //     sender_canister_version = null;
+                //     settings = ?{
+                //         freezing_threshold = null;
+                //         controllers = ?[Principal.fromActor(this), configurationInput.owner]; // TODO - implement: Remove owner as controller, but first implement upgrade/delete functionality in GameState->MainerCreator
+                //         memory_allocation = null;
+                //         compute_allocation = null;
+                //         log_visibility = null;
+                //         wasm_memory_limit  = null;
+                //     };
+                // });
 
-                let createdControllerCanister = await IC0.create_canister({
-                    sender_canister_version = null;
-                    settings = ?{
-                        freezing_threshold = null;
-                        controllers = ?[Principal.fromActor(this), configurationInput.owner]; // TODO - implement: Remove owner as controller, but first implement upgrade/delete functionality in GameState->MainerCreator
-                        memory_allocation = null;
-                        compute_allocation = null;
-                        log_visibility = null;
-                        reserved_cycles_limit = null;
-                        wasm_memory_limit  = null;
+                // CMC based approach, allows to specify the subnet
+                let subnetCtrl : Text = configurationInput.mainerConfig.subnetCtrl;
+                let cyclesToAttach : Nat = configurationInput.cyclesCreateMainerctrlMcMainerctrl;
+                let controllers : [Principal] = [Principal.fromActor(this), configurationInput.owner];
+                D.print("mAInerCreator: createCanister - Calling CMC.create_canister_on_subnet targeting subnet " # subnetCtrl # " with " # debug_show(cyclesToAttach) # " cycles.");
+                let createCanisterWithCMCResult = await CreateCanisterWithCMC.createCanisterOnSubnet(cyclesToAttach, subnetCtrl, ?controllers);
+                var canister_id = Principal.fromText("aaaaa-aa"); // Placeholder
+                switch (createCanisterWithCMCResult) {
+                    case (#Ok(newCanisterId)) {
+                        canister_id := newCanisterId;
                     };
-                });
+                    case (#Err(errorMessage)) {
+                        D.print("mAInerCreator: createCanister - CMC.create_canister_on_subnet failed with error: " # errorMessage);
+                        return #Err(#Other("mAInerCreator: createCanister - CMC.create_canister_on_subnet failed with error: " # errorMessage));
+                    };
+                };
 
                 var cyclesBalance : Nat = 0;
                 try {
-                    let canisterStatus = await IC0.canister_status({canister_id = createdControllerCanister.canister_id;});
+                    let canisterStatus = await IC0.canister_status({canister_id = canister_id;});
                     cyclesBalance := canisterStatus.cycles;
                 } catch (e) {
-                    D.print("mAInerCreator: createCanister - Failed to retrieve info for createdControllerCanister: " # debug_show(createdControllerCanister.canister_id)  # Error.message(e) );
-                    return #Err(#Other("mAInerCreator: createCanister - Failed to retrieve info for createdControllerCanister: " # debug_show(createdControllerCanister.canister_id) # Error.message(e)));
+                    D.print("mAInerCreator: createCanister - Failed to retrieve info for canister_id: " # debug_show(canister_id)  # Error.message(e) );
+                    return #Err(#Other("mAInerCreator: createCanister - Failed to retrieve info for canister_id: " # debug_show(canister_id) # Error.message(e)));
                 };
 
-                D.print("mAInerCreator: createCanister - createdControllerCanister = " # debug_show (createdControllerCanister) # "(cyclesBalance = " # debug_show (cyclesBalance) # ")");
+                D.print("mAInerCreator: createCanister - canister_id = " # debug_show (canister_id) # "(cyclesBalance = " # debug_show (cyclesBalance) # ")");
 
                 // --------------------------------------------------------------------
-                let creationRecord = {
-                    creationResult = "Success";
-                    newCanisterId = Principal.toText(createdControllerCanister.canister_id);
+                let creationRecord : Types.CanisterCreationRecord = {
+                    creationResult : Text = "Success";
+                    newCanisterId : Text = Principal.toText(canister_id);
+                    subnet : Text = subnetCtrl;
                 };
                 return #Ok(creationRecord);
             };
@@ -420,37 +435,57 @@ actor class CanisterCreationCanister() = this {
                                 //     return #Err(#Unauthorized);                    
                                 // };
 
-                                // Add cycles to the LLM canister (Margins & fees already calculated by GameState)
-                                let cyclesAdded = configurationInput.cyclesCreateMainerllmMcMainerllm;
-                                Cycles.add<system>(cyclesAdded);
-                                D.print("mAInerCreator: createCanister - cyclesAdded for Mainer LLM = " # debug_show (cyclesAdded));
+                                // // Add cycles to the LLM canister (Margins & fees already calculated by GameState)
+                                // let cyclesAdded = configurationInput.cyclesCreateMainerllmMcMainerllm;
+                                // Cycles.add<system>(cyclesAdded);
+                                // D.print("mAInerCreator: createCanister - cyclesAdded for Mainer LLM = " # debug_show (cyclesAdded));
 
-                                let createdLlmCanister = await IC0.create_canister({
-                                    sender_canister_version = null;
-                                    settings = ?{
-                                        freezing_threshold = null;
-                                        controllers = ?[Principal.fromText(associatedCanisterAddress), Principal.fromActor(this), configurationInput.owner]; // TODO - implement: Remove owner as controller, but first implement upgrade/delete functionality in GameState->MainerCreator
-                                        memory_allocation = null;
-                                        compute_allocation = null;
-                                        log_visibility = null;
-                                        reserved_cycles_limit = null;
-                                        wasm_memory_limit  = null;
+                                // let createdLlmCanister = await IC0.create_canister({
+                                //     sender_canister_version = null;
+                                //     settings = ?{
+                                //         freezing_threshold = null;
+                                //         controllers = ?[Principal.fromText(associatedCanisterAddress), Principal.fromActor(this), configurationInput.owner]; // TODO - implement: Remove owner as controller, but first implement upgrade/delete functionality in GameState->MainerCreator
+                                //         memory_allocation = null;
+                                //         compute_allocation = null;
+                                //         log_visibility = null;
+                                //         reserved_cycles_limit = null;
+                                //         wasm_memory_limit  = null;
+                                //     };
+                                // });
+
+                                // CMC based approach, allows to specify the subnet
+                                let subnetLlm : Text = configurationInput.mainerConfig.subnetLlm;
+                                let cyclesToAttach : Nat = configurationInput.cyclesCreateMainerllmMcMainerllm;
+                                let controllers : [Principal] = [Principal.fromActor(this), configurationInput.owner];
+                                D.print("mAInerCreator: createCanister - Calling CMC.create_canister_on_subnet targeting subnet " # subnetLlm # " with " # debug_show(cyclesToAttach) # " cycles.");
+                                let createCanisterWithCMCResult = await CreateCanisterWithCMC.createCanisterOnSubnet(cyclesToAttach, subnetLlm, ?controllers);
+                                var canister_id = Principal.fromText("aaaaa-aa"); // Placeholder
+                                switch (createCanisterWithCMCResult) {
+                                    case (#Ok(newCanisterId)) {
+                                        canister_id := newCanisterId;
                                     };
-                                });
-                                var cyclesBalance : Nat = 0;
-                                try {
-                                    let canisterStatus = await IC0.canister_status({canister_id = createdLlmCanister.canister_id;});
-                                    cyclesBalance := canisterStatus.cycles;
-                                } catch (e) {
-                                    D.print("mAInerCreator: createCanister - Failed to retrieve info for createdLlmCanister: " # debug_show(createdLlmCanister.canister_id)  # Error.message(e) );
-                                    return #Err(#Other("mAInerCreator: createCanister - Failed to retrieve info for createdLlmCanister: " # debug_show(createdLlmCanister.canister_id) # Error.message(e)));
+                                    case (#Err(errorMessage)) {
+                                        D.print("mAInerCreator: createCanister - CMC.create_canister_on_subnet failed with error: " # errorMessage);
+                                        return #Err(#Other("mAInerCreator: createCanister - CMC.create_canister_on_subnet failed with error: " # errorMessage));
+                                    };
                                 };
 
-                                D.print("mAInerCreator: createCanister - createdLlmCanister = " # debug_show (createdLlmCanister) # "(cyclesBalance = " # debug_show (cyclesBalance) # ")");
+
+                                var cyclesBalance : Nat = 0;
+                                try {
+                                    let canisterStatus = await IC0.canister_status({canister_id = canister_id;});
+                                    cyclesBalance := canisterStatus.cycles;
+                                } catch (e) {
+                                    D.print("mAInerCreator: createCanister - Failed to retrieve info for createdLlmCanister: " # debug_show(canister_id)  # Error.message(e) );
+                                    return #Err(#Other("mAInerCreator: createCanister - Failed to retrieve info for createdLlmCanister: " # debug_show(canister_id) # Error.message(e)));
+                                };
+
+                                D.print("mAInerCreator: createCanister - createdLlmCanister = " # debug_show(canister_id) # "(cyclesBalance = " # debug_show (cyclesBalance) # ")");
 
                                 let creationRecord = {
                                     creationResult = "Success";
-                                    newCanisterId = Principal.toText(createdLlmCanister.canister_id);
+                                    newCanisterId = Principal.toText(canister_id);
+                                    subnet = subnetLlm;
                                 };
                                 D.print("mAInerCreator: createCanister creationRecord");
                                 D.print(debug_show (creationRecord));
@@ -523,13 +558,19 @@ actor class CanisterCreationCanister() = this {
                 // --------------------------------------------------
                 // install code
                 D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): setupCanister - start installing code into ctrlb canister " # debug_show (newCanisterIdPrincipal));
-                let installControllerWasm = await IC0.install_code({
-                    arg = "";
-                    wasm_module = Blob.fromArray(mainerControllerCanisterWasm);
-                    mode = #install;
-                    canister_id = newCanisterIdPrincipal ;
-                    sender_canister_version = null;
-                });
+                try {
+                    let installControllerWasm = await IC0.install_code({
+                        arg = "";
+                        wasm_module = Blob.fromArray(mainerControllerCanisterWasm);
+                        mode = #install;
+                        canister_id = newCanisterIdPrincipal ;
+                        sender_canister_version = null;
+                    });
+                    D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): setupCanister - installControllerWasm " # debug_show (installControllerWasm));
+                } catch (e) {
+                    D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): setupCanister - Failed installing code into ctrlb canister " # debug_show (newCanisterIdPrincipal) # " Error: " # Error.message(e) );
+                    return #Err(#Other("mAInerCreator: setupCanister - Failed installing code into ctrlb canister: " # debug_show(newCanisterIdPrincipal ) # " Error: " # Error.message(e)));
+                };
                 D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): setupCanister - finished installing code into ctrlb canister " # debug_show (newCanisterIdPrincipal));
 
                 var cyclesUsed : Nat = 0;
@@ -545,11 +586,11 @@ actor class CanisterCreationCanister() = this {
                 " - cyclesUsed = " # debug_show (cyclesUsed) # 
                 " - cyclesBalance = " # debug_show (cyclesBalance));
                 
-                D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): setupCanister - installControllerWasm "# debug_show (installControllerWasm));
+                
 
                 // --------------------------------------------------
                 // Verify new canister is working
-                let controllerCanisterActor = actor (Principal.toText(newCanisterIdPrincipal )) : Types.MainerAgentCtrlbCanister;
+                let controllerCanisterActor = actor (newCanisterId) : Types.MainerAgentCtrlbCanister;
                 D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): setupCanister - calling createdControllerCanister.health()");
                 let readyControllerResult = await controllerCanisterActor.health();
                 D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): setupCanister - readyControllerResult " # debug_show (readyControllerResult));
@@ -605,7 +646,8 @@ actor class CanisterCreationCanister() = this {
                     status := #Running;
                 };
                 let mainerAgentCanisterInput : Types.OfficialMainerAgentCanister = {
-                    address = Principal.toText(newCanisterIdPrincipal );
+                    address : Text = setupCanisterInput.newCanisterId;
+                    subnet : Text = setupCanisterInput.subnet;
                     canisterType = configurationInput.canisterType;
                     creationTimestamp : Nat64 = configurationInput.userMainerEntryCreationTimestamp;
                     createdBy : Principal = msg.caller;
@@ -675,7 +717,8 @@ actor class CanisterCreationCanister() = this {
                 // --------------------------------------------------------------------
                 let creationRecord = {
                     creationResult = "Success";
-                    newCanisterId   = Principal.toText(newCanisterIdPrincipal );
+                    newCanisterId   = setupCanisterInput.newCanisterId;
+                    subnet : Text = setupCanisterInput.subnet;
                 };
                 return #Ok(creationRecord);
             };
@@ -722,6 +765,7 @@ actor class CanisterCreationCanister() = this {
                                 // Update the Controller Agent canister status with the Game State canister
                                 var mainerAgentCanisterInput : Types.OfficialMainerAgentCanister = {
                                     address = associatedCanisterAddress;
+                                    subnet = configurationInput.associatedCanisterSubnet;
                                     canisterType = configurationInput.userMainerEntryCanisterType;
                                     creationTimestamp : Nat64 = configurationInput.userMainerEntryCreationTimestamp;
                                     createdBy : Principal = msg.caller;
@@ -744,13 +788,19 @@ actor class CanisterCreationCanister() = this {
 
                                 // --------------------------------------------------
                                 // install code
-                                let installLlmWasm = await IC0.install_code({
-                                    arg = "";
-                                    wasm_module = Blob.fromArray(modelCreationArtefacts.canisterWasm);
-                                    mode = #install;
-                                    canister_id = newCanisterIdPrincipal ;
-                                    sender_canister_version = null;
-                                });
+                                try {
+                                    let installLlmWasm = await IC0.install_code({
+                                        arg = "";
+                                        wasm_module = Blob.fromArray(modelCreationArtefacts.canisterWasm);
+                                        mode = #install;
+                                        canister_id = newCanisterIdPrincipal ;
+                                        sender_canister_version = null;
+                                    });
+                                    D.print("mAInerCreator: setupCanister installLlmWasm" # debug_show (installLlmWasm));
+                                } catch (e) {
+                                    D.print("mAInerCreator (#MainerLlm): setupCanister - Failed installing code into llm canister " # debug_show (newCanisterIdPrincipal) # " Error: " # Error.message(e) );
+                                    return #Err(#Other("mAInerCreator: setupCanister - Failed installing code into llm canister: " # debug_show(newCanisterIdPrincipal ) # " Error: " # Error.message(e)));
+                                };
                                 var cyclesUsed : Nat = 0;
                                 try {
                                     let canisterStatus = await IC0.canister_status({canister_id = newCanisterIdPrincipal ;});
@@ -763,8 +813,7 @@ actor class CanisterCreationCanister() = this {
                                 D.print("mAInerCreator (#MainerLlm): setupCanister - install_code for createdLlmCanister = " # debug_show (newCanisterIdPrincipal ) # 
                                 " - cyclesUsed = " # debug_show (cyclesUsed) # 
                                 " - cyclesBalance = " # debug_show (cyclesBalance));
-                                D.print("mAInerCreator: setupCanister installLlmWasm" # debug_show (installLlmWasm));
-
+                            
                                 // --------------------------------------------------
                                 // Verify new canister is working
                                 let llmCanisterActor = actor (Principal.toText(newCanisterIdPrincipal )) : Types.LLMCanister;
@@ -812,6 +861,7 @@ actor class CanisterCreationCanister() = this {
                                         // Update the Controller Agent canister status with the Game State canister
                                         mainerAgentCanisterInput := {
                                             address = associatedCanisterAddress;
+                                            subnet = configurationInput.associatedCanisterSubnet;
                                             canisterType = configurationInput.userMainerEntryCanisterType;
                                             creationTimestamp : Nat64 = configurationInput.userMainerEntryCreationTimestamp;
                                             createdBy : Principal = msg.caller;
@@ -890,6 +940,7 @@ actor class CanisterCreationCanister() = this {
                                 // Update the Controller Agent canister status with the Game State canister
                                 mainerAgentCanisterInput := {
                                     address = associatedCanisterAddress;
+                                    subnet = configurationInput.associatedCanisterSubnet;
                                     canisterType = configurationInput.userMainerEntryCanisterType;
                                     creationTimestamp : Nat64 = configurationInput.userMainerEntryCreationTimestamp;
                                     createdBy : Principal = msg.caller;
@@ -1014,6 +1065,7 @@ actor class CanisterCreationCanister() = this {
                                 // Update the Controller Agent canister status with the Game State canister
                                 mainerAgentCanisterInput := {
                                     address = associatedCanisterAddress;
+                                    subnet = configurationInput.associatedCanisterSubnet;
                                     canisterType = configurationInput.userMainerEntryCanisterType;
                                     creationTimestamp : Nat64 = configurationInput.userMainerEntryCreationTimestamp;
                                     createdBy : Principal = msg.caller;
@@ -1037,7 +1089,8 @@ actor class CanisterCreationCanister() = this {
                                 // --------------------------------------------------------------------
                                 let creationRecord = {
                                     creationResult = "Success";
-                                    newCanisterId   = Principal.toText(newCanisterIdPrincipal );
+                                    newCanisterId   = setupCanisterInput.newCanisterId;
+                                    subnet : Text = setupCanisterInput.subnet;
                                 };
                                 D.print("mAInerCreator (#MainerLlm): setupCanister creationRecord");
                                 D.print(debug_show (creationRecord));
@@ -1056,6 +1109,27 @@ actor class CanisterCreationCanister() = this {
     
 
 // Admin 
+    // TODO: remove these helper Admin functions
+    public shared (msg) func getDefaultSubnetsAdmin() : async {
+        #Ok : [Principal];
+        #Err : {#Unauthorized};
+    } {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let subnets = await CreateCanisterWithCMC.getDefaultSubnets();
+        return #Ok(subnets);
+    };
+    public shared (msg) func isSubnetAvailableAdmin(subnet: Text) : async {
+            #Ok : Bool;
+            #Err : {#Unauthorized};
+        } {
+            if (not Principal.isController(msg.caller)) {
+                return #Err(#Unauthorized);
+            };
+            let result = await CreateCanisterWithCMC.isSubnetAvailable(subnet);
+            return #Ok(result);
+    };
     // TODO - REMOVE
     // // public shared (msg) func testCreateMainerControllerCanister(mainerAgentCanisterType : Types.MainerAgentCanisterType, shareServiceCanisterAddress : ?Types.CanisterAddress) : async Types.CanisterCreationResult {
     // public shared (msg) func testCreateMainerControllerCanister(testCreateMainerControllerCanister : Types.TestCreateMainerControllerCanister) : async Types.CanisterCreationResult {

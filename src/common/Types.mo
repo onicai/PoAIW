@@ -47,6 +47,15 @@ module Types {
     public type GameStateTresholdsResult = Result<GameStateTresholds, ApiError>;
 
     //-------------------------------------------------------------------------
+    public type SubnetIds = {
+        subnetShareAgentCtrl : Text;
+        subnetShareServiceCtrl : Text;
+        subnetShareServiceLlm : Text;
+    };
+
+    public type SubnetIdsResult = Result<SubnetIds, ApiError>;
+
+    //-------------------------------------------------------------------------
     // Types for storing all cycles flow values
 
     // variables sent by GameState to mAIner Creator
@@ -266,6 +275,7 @@ module Types {
 
     public type OfficialProtocolCanister = {
         address : CanisterAddress;
+        subnet : Text;
         canisterType: ProtocolCanisterType;
         creationTimestamp : Nat64;
         createdBy : Principal;
@@ -279,6 +289,7 @@ module Types {
 
     public type CanisterInput = {
         address : CanisterAddress;
+        subnet : Text;
         canisterType: ProtocolCanisterType;
     };
 
@@ -332,6 +343,8 @@ module Types {
         mainerAgentCanisterType: MainerAgentCanisterType;
         selectedLLM : ?SelectableMainerLLMs;
         cyclesForMainer : Nat; // initial amount of the user payment used to create the mAIner
+        subnetCtrl : Text; // the subnet where the mAIner Controller will be created
+        subnetLlm : Text;  // the subnet where the mAIner LLMs will be created
     };
 
     public type RedeemedForOptions = {
@@ -384,6 +397,7 @@ module Types {
     public type CanisterCreationConfigurationInput = {
         canisterType : ProtocolCanisterType;
         associatedCanisterAddress : ?CanisterAddress; // References Controller for an LLM, and ShareService for a ShareAgent
+        associatedCanisterSubnet : Text; // References subnet of Controller for an LLM, and ShareService for a ShareAgent
         mainerConfig : MainerConfigurationInput;
     };
 
@@ -398,6 +412,7 @@ module Types {
     public type CanisterCreationRecord = {
         creationResult : Text;
         newCanisterId : Text;
+        subnet: Text;
     };
 
     public type CanisterCreationResult = Result<CanisterCreationRecord, ApiError>;
@@ -437,6 +452,9 @@ module Types {
         challengeQuestion : Text;
         challengeQuestionSeed : Nat32;
         mainerPromptId : Text;
+        mainerMaxContinueLoopCount : Nat;
+        mainerNumTokens : Nat64;
+        mainerTemp : Float;
         judgePromptId : Text;
     };
 
@@ -584,6 +602,7 @@ module Types {
     };
     public type SetupCanisterInput = {
         newCanisterId : Text;
+        subnet : Text;
         configurationInput : CanisterCreationConfiguration;
     };
     public type TestCreateMainerControllerCanister = {

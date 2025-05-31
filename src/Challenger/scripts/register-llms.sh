@@ -9,8 +9,6 @@
 NETWORK_TYPE="local"
 NUM_LLMS_DEPLOYED=1
 NUM_LLMS_ROUND_ROBIN=1 # how many LLMs we actually use
-# When deploying local, use canister IDs from .env
-source ../../llms/Challenger/.env
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -19,16 +17,6 @@ while [ $# -gt 0 ]; do
             shift
             if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ]; then
                 NETWORK_TYPE=$1
-                if [ "$NETWORK_TYPE" = "ic" ]; then
-                    CANISTER_ID_LLM_0='lmehs-taaaa-aaaaj-azzrq-cai'
-                    CANISTER_ID_LLM_1='l6cql-7qaaa-aaaaj-azzsq-cai'  
-                elif [ "$NETWORK_TYPE" = "testing" ]; then
-                    CANISTER_ID_LLM_0='cq4yx-uyaaa-aaaaj-az76q-cai'
-                    CANISTER_ID_LLM_1='cz7tl-cqaaa-aaaaj-az77a-cai'
-                elif [ "$NETWORK_TYPE" = "development" ]; then
-                    CANISTER_ID_LLM_0='fgyjy-mqaaa-aaaak-quhxq-cai'
-                    CANISTER_ID_LLM_1='4gwp4-nyaaa-aaaae-qfcqq-cai' 
-                fi
             else
                 echo "Invalid network type: $1. Use 'local', 'development' or 'ic' or 'testing."
                 exit 1
@@ -66,35 +54,9 @@ fi
 echo " "
 echo "--------------------------------------------------"
 echo "Registering $NUM_LLMS_DEPLOYED llm canisterIDs with the challenger_ctrlb_canister"
-CANISTER_ID_LLMS=(
-    $CANISTER_ID_LLM_0
-    $CANISTER_ID_LLM_1
-    $CANISTER_ID_LLM_2
-    $CANISTER_ID_LLM_3
-    $CANISTER_ID_LLM_4
-    $CANISTER_ID_LLM_5
-    $CANISTER_ID_LLM_6
-    $CANISTER_ID_LLM_7
-    $CANISTER_ID_LLM_8
-    $CANISTER_ID_LLM_9
-    $CANISTER_ID_LLM_10
-    $CANISTER_ID_LLM_11
-)
+
 llm_id_start=0
 llm_id_end=$((NUM_LLMS_DEPLOYED - 1))
-
-for i in $(seq $llm_id_start $llm_id_end)
-do
-    CANISTER_ID_LLM=${CANISTER_ID_LLMS[$i]}
-    echo "CANISTER_ID_LLM_$i: $CANISTER_ID_LLM"
-done
-
-# # Ask user if this is correct, and continue when answer is yes
-# read -p "Proceed? (yes/no): " confirm
-# if [[ $confirm != "yes" ]]; then
-#     echo "Aborting script."
-#     exit 1
-# fi
 
 echo "Calling reset_llm_canisters."
 output=$(dfx canister call challenger_ctrlb_canister reset_llm_canisters --network $NETWORK_TYPE)
@@ -107,9 +69,14 @@ else
 fi
 
 for i in $(seq $llm_id_start $llm_id_end)
-do
-    CANISTER_ID_LLM=${CANISTER_ID_LLMS[$i]}
-    echo "Calling add_llm_canister for $CANISTER_ID_LLM."
+do    
+    # go to the llm folder to get the canister ID for llm_$i
+    cd ../../llms/Challenger/
+    CANISTER_ID_LLM=$(dfx canister --network $NETWORK_TYPE id llm_$i)
+    # go back to the current folder
+    cd ../../src/Challenger/
+
+    echo "Calling add_llm_canister for llm_$i - $CANISTER_ID_LLM."
     output=$(dfx canister call challenger_ctrlb_canister add_llm_canister "(record { canister_id = \"$CANISTER_ID_LLM\" })" --network $NETWORK_TYPE)
 
     if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then

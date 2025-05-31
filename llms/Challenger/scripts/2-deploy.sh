@@ -10,11 +10,6 @@ NETWORK_TYPE="local"
 NUM_LLMS_DEPLOYED=1
 DEPLOY_MODE="install"
 
-# When deploying to IC, we deploy to a specific subnet
-# none will not use subnet parameter in deploy to ic
-# SUBNET="none"
-SUBNET="qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe"
-
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -46,7 +41,19 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-echo "Using network type: $NETWORK_TYPE"
+if [ "$NETWORK_TYPE" = "ic" ]; then
+    SUBNET="csyj4-zmann-ys6ge-3kzi6-onexi-obayx-2fvak-zersm-euci4-6pslt-lae"
+elif [ "$NETWORK_TYPE" = "testing" ]; then
+    SUBNET="csyj4-zmann-ys6ge-3kzi6-onexi-obayx-2fvak-zersm-euci4-6pslt-lae"
+elif [ "$NETWORK_TYPE" = "development" ]; then
+    SUBNET="none"  # TODO
+else
+    SUBNET="none"  # No specific subnet for local
+fi
+
+echo "Using network type : $NETWORK_TYPE"
+echo "Deploying to subnet: $SUBNET"
+
 # Switching to 1 LLM for the Challenger
 # if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ]; then
 #     NUM_LLMS_DEPLOYED=2

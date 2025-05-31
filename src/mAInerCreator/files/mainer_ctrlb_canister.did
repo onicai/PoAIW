@@ -36,12 +36,15 @@ type OfficialMainerAgentCanister =
    mainerConfig: MainerConfigurationInput;
    ownedBy: principal;
    status: CanisterStatus;
+   subnet: text;
  };
 type MainerConfigurationInput = 
  record {
    cyclesForMainer: nat;
    mainerAgentCanisterType: MainerAgentCanisterType;
    selectedLLM: opt SelectableMainerLLMs;
+   subnetCtrl: text;
+   subnetLlm: text;
  };
 type MainerAgentSettingsInput = record {
                                   cyclesBurnRate: CyclesBurnRateDefault;};
@@ -192,7 +195,10 @@ type ChallengeResponseSubmissionInput =
    cyclesGenerateResponseSsctrlSsllm: nat;
    cyclesSubmitResponse: nat;
    judgePromptId: text;
+   mainerMaxContinueLoopCount: nat;
+   mainerNumTokens: nat64;
    mainerPromptId: text;
+   mainerTemp: float64;
    protocolOperationFeesCut: nat;
    submittedBy: principal;
  };
@@ -228,7 +234,10 @@ type ChallengeResponseSubmission =
    cyclesGenerateScoreJuctrlJullm: nat;
    cyclesSubmitResponse: nat;
    judgePromptId: text;
+   mainerMaxContinueLoopCount: nat;
+   mainerNumTokens: nat64;
    mainerPromptId: text;
+   mainerTemp: float64;
    protocolOperationFeesCut: nat;
    submissionId: text;
    submissionStatus: ChallengeResponseSubmissionStatus;
@@ -273,7 +282,10 @@ type ChallengeQueueInput =
    cyclesGenerateResponseSsctrlSsllm: nat;
    cyclesSubmitResponse: nat;
    judgePromptId: text;
+   mainerMaxContinueLoopCount: nat;
+   mainerNumTokens: nat64;
    mainerPromptId: text;
+   mainerTemp: float64;
    protocolOperationFeesCut: nat;
  };
 type CanisterStatus = 

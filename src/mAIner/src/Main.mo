@@ -682,6 +682,9 @@ actor class MainerAgentCtrlbCanister() = this {
                     challengeQuestion : Text = challengeQueueInput.challengeQuestion;
                     challengeQuestionSeed : Nat32 = challengeQueueInput.challengeQuestionSeed;
                     mainerPromptId : Text = challengeQueueInput.mainerPromptId;
+                    mainerMaxContinueLoopCount : Nat = challengeQueueInput.mainerMaxContinueLoopCount;
+                    mainerNumTokens : Nat64 = challengeQueueInput.mainerNumTokens;
+                    mainerTemp : Float = challengeQueueInput.mainerTemp;
                     judgePromptId : Text = challengeQueueInput.judgePromptId;
                     challengeId : Text = challengeQueueInput.challengeId;
                     challengeCreationTimestamp : Nat64 = challengeQueueInput.challengeCreationTimestamp;
@@ -826,6 +829,9 @@ actor class MainerAgentCtrlbCanister() = this {
                             challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
                             challengeQuestionSeed : Nat32 = challengeResponseSubmissionInput.challengeQuestionSeed;
                             mainerPromptId : Text = challengeResponseSubmissionInput.mainerPromptId;
+                            mainerMaxContinueLoopCount : Nat = challengeResponseSubmissionInput.mainerMaxContinueLoopCount;
+                            mainerNumTokens : Nat64 = challengeResponseSubmissionInput.mainerNumTokens;
+                            mainerTemp : Float = challengeResponseSubmissionInput.mainerTemp;
                             judgePromptId : Text = challengeResponseSubmissionInput.judgePromptId;
                             challengeId : Text = challengeResponseSubmissionInput.challengeId;
                             challengeCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeCreationTimestamp;
@@ -877,24 +883,9 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     private func respondToChallengeDoIt_(challengeQueueInput : Types.ChallengeQueueInput) : async Types.ChallengeResponseResult {
-        // TODO - Design: Make maxContinueLoopCount a parameter of the Challenge?
-        //        -> This sets the max number of times we allow the mAIner to call the LLM's run_update
-        //           (number of tokens generated = maxContinueLoopCount * max_tokens [13 for Qwen2.5] )
-        //
-        //        -> The number of update calls to the LLM determines the max cost of the response generation !!
-        // 
-        //        -> This then also determines the max cost of the scoring by the Judge,
-        //           because the Judge needs the same number of update calls to ingest
-        //           the response to score into it's prompt cache.
-        //
-        //        -> It might make sense to make this a parameter of the Challenge:
-        //           - certain challenges might require more tokens (update calls) to respond to
-        //           - this then drives the cost of the response generation & judge scoring
-        //           - we can then set cyclesSubmitResponse in the Challenge based on this max number
-        //
-        let maxContinueLoopCount : Nat = 3; // After this many calls to run_update, we stop.
-        let num_tokens : Nat64 = 1024; // Because we stop after 3 update calls (39 tokens), this is never actually used
-        let temp : Float = 0.8;
+        let maxContinueLoopCount : Nat = challengeQueueInput.mainerMaxContinueLoopCount; // After this many calls to run_update, we stop.
+        let num_tokens : Nat64 = challengeQueueInput.mainerNumTokens; // Mostly we stop after maxContinueLoopCount update calls & this is never actually used
+        let temp : Float = challengeQueueInput.mainerTemp;
 
         // --------------------------------------------------------
         // var promptRepetitive : Text = "<|im_start|>user\nAnswer the following question as brief as possible. This is the question: ";
@@ -1442,6 +1433,9 @@ actor class MainerAgentCtrlbCanister() = this {
                     challengeQuestion : Text = challenge.challengeQuestion;
                     challengeQuestionSeed : Nat32 = challenge.challengeQuestionSeed;
                     mainerPromptId : Text = challenge.mainerPromptId;
+                    mainerMaxContinueLoopCount : Nat = challenge.mainerMaxContinueLoopCount;
+                    mainerNumTokens : Nat64 = challenge.mainerNumTokens;
+                    mainerTemp : Float = challenge.mainerTemp;
                     judgePromptId : Text = challenge.judgePromptId;
                     challengeId : Text = challenge.challengeId;
                     challengeCreationTimestamp : Nat64 = challenge.challengeCreationTimestamp;
@@ -1618,6 +1612,7 @@ actor class MainerAgentCtrlbCanister() = this {
         //     case (?mainerCreatorEntry) {
         let canisterEntry : Types.OfficialMainerAgentCanister = {
             address : Text = canisterEntryToAdd.address;
+            subnet : Text = canisterEntryToAdd.subnet;
             canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
             creationTimestamp : Nat64 = canisterEntryToAdd.creationTimestamp;
             createdBy : Principal = canisterEntryToAdd.createdBy;
@@ -1646,6 +1641,7 @@ actor class MainerAgentCtrlbCanister() = this {
         };
         let canisterEntry : Types.OfficialMainerAgentCanister = {
             address : Text = canisterEntryToAdd.address;
+            subnet : Text = canisterEntryToAdd.subnet;
             canisterType: Types.ProtocolCanisterType = canisterEntryToAdd.canisterType;
             creationTimestamp : Nat64 = canisterEntryToAdd.creationTimestamp;
             createdBy : Principal = canisterEntryToAdd.createdBy;

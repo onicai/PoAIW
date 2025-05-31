@@ -30,8 +30,10 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ]; then
+if [ "$NETWORK_TYPE" = "development" ]; then
     NUM_LLMS_DEPLOYED=2
+elif [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ]; then
+    NUM_LLMS_DEPLOYED=3
 fi
 
 #######################################################################
