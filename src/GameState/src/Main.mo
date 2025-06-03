@@ -577,14 +577,14 @@ actor class GameStateCanister() = this {
     stable var costGenerateScoreGs                 : Nat = DEFAULT_COST_GENERATE_SCORE_GS;
     let DEFAULT_COST_GENERATE_SCORE_JUCTRL         : Nat =   6 * Constants.CYCLES_BILLION; // Judge Controller         cost for Score generation
     stable var costGenerateScoreJuctrl             : Nat = DEFAULT_COST_GENERATE_SCORE_JUCTRL;
-    let DEFAULT_COST_GENERATE_SCORE_JULLM          : Nat = 116 * Constants.CYCLES_BILLION; // Judge LLM                cost for Score generation
+    let DEFAULT_COST_GENERATE_SCORE_JULLM          : Nat = 125 * Constants.CYCLES_BILLION; // Judge LLM                cost for Score generation
     stable var costGenerateScoreJullm              : Nat = DEFAULT_COST_GENERATE_SCORE_JULLM;
 
     let DEFAULT_COST_GENERATE_RESPONSE_OWN_GS      : Nat = 150 * Constants.CYCLES_MILLION; // GameState                cost for Own response generation
     stable var costGenerateResponseOwnGs           : Nat = DEFAULT_COST_GENERATE_RESPONSE_OWN_GS;
     let DEFAULT_COST_GENERATE_RESPONSE_OWNCTRL     : Nat =   4 * Constants.CYCLES_BILLION; // Own Controller           cost for Own response generation
     stable var costGenerateResponseOwnctrl         : Nat = DEFAULT_COST_GENERATE_RESPONSE_OWNCTRL;
-    let DEFAULT_COST_GENERATE_RESPONSE_OWNLLM      : Nat = 116 * Constants.CYCLES_BILLION; // Own LLM                  cost for Own response generation
+    let DEFAULT_COST_GENERATE_RESPONSE_OWNLLM      : Nat = 125 * Constants.CYCLES_BILLION; // Own LLM                  cost for Own response generation
     stable var costGenerateResponseOwnllm          : Nat = DEFAULT_COST_GENERATE_RESPONSE_OWNLLM;
 
     let DEFAULT_COST_GENERATE_RESPONSE_SHARE_GS    : Nat = 150 * Constants.CYCLES_MILLION; // GameState                cost for Share response generation
@@ -2365,30 +2365,21 @@ actor class GameStateCanister() = this {
         }; 
     };
 
-    public shared (msg) func getOfficialSharedServiceCanisters() : async Types.AuthRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
+    public shared (msg) func getSharedServiceCanistersAdmin() : async Types.OfficialProtocolCanistersResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        let sharedServiceCanister : ?Types.OfficialProtocolCanister = getNextSharedServiceCanisterEntry();
-        switch (sharedServiceCanister) {
-            case (null) { return #Err(#InvalidId); };
-            case (?canisterEntry) { return #Ok({ auth = canisterEntry.address }); };
-        }; 
+        let sharedServiceCanisters : [Types.OfficialProtocolCanister] = Iter.toArray(sharedServiceCanistersStorage.vals());
+        return #Ok(sharedServiceCanisters);
     };
 
-    public shared (msg) func removeOfficialSharedServiceCanisters(canisterId : Text) : async Types.AuthRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
+    public shared (msg) func removeSharedServiceCanisterAdmin( {canisterId : Text} ) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
         switch (removeSharedServiceCanister(canisterId)) {
-            case (false) { return #Err(#InvalidId); };
-            case (true) { return #Ok({ auth = "Success" }); };
+            case (false) { return #Err(#Other("ShareService Canister ID not found: " # canisterId)); };
+            case (true) { return #Ok({ status_code = 200 }); };
         };
     };
 
@@ -2555,6 +2546,37 @@ actor class GameStateCanister() = this {
                 //existing entry
                 return false;
             }; 
+        };
+    };
+
+    // Function for Admin to get a RedeemedTransactionBlock in case something went wrong and it can then be retried
+    public shared (msg) func getRedeemedTransactionBlockAdmin(paymentTransactionBlockId : Types.PaymentTransactionBlockId) : async Types.RedeemedTransactionBlockResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        switch (redeemedTransactionBlocksStorage.get(Nat64.toNat(paymentTransactionBlockId.paymentTransactionBlockId))) {
+            case (null) {
+                return #Err(#Other("GameState: getRedeemedTransactionBlockAdmin - entry not found"));
+            };
+            case (?entry) {
+                return #Ok(entry);
+            };
+        };
+    };
+
+    // Function for Admin to clear a RedeemedTransactionBlock in case something went wrong and it can then be retried
+    public shared (msg) func removeRedeemedTransactionBlockAdmin(paymentTransactionBlockId : Types.PaymentTransactionBlockId) : async Types.TextResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        switch (redeemedTransactionBlocksStorage.remove(Nat64.toNat(paymentTransactionBlockId.paymentTransactionBlockId))) {
+            case (null) {
+                return #Err(#Other("GameState: getRedeemedTransactionBlockAdmin - entry not found"));
+            };
+            case (?entry) {
+                // Remove the entry
+                return #Ok("GameState: removeRedeemedTransactionBlock - Removed entry: " # debug_show(entry));
+            };
         };
     };
 
@@ -2838,7 +2860,7 @@ actor class GameStateCanister() = this {
                     };
                     case (true) {
                         // already redeem transaction
-                        return #Err(#Other("Already redeemd this transaction block")); // no double spending
+                        return #Err(#Other("Already redeemd this paymentTransactionBlockId " # debug_show(transactionToVerify) )); // no double spending
                     };
                 };
             };
@@ -2849,7 +2871,7 @@ actor class GameStateCanister() = this {
                     };
                     case (true) {
                         // already redeem transaction
-                        return #Err(#Other("Already redeemd this transaction block")); // no double spending
+                        return #Err(#Other("Already redeemd this paymentTransactionBlockId " # debug_show(transactionToVerify) )); // no double spending
                     };
                 };
             };
@@ -2910,10 +2932,14 @@ actor class GameStateCanister() = this {
         var amountPaid : Nat = 0;
         let redeemedFor : Types.RedeemedForOptions = #MainerCreation(mainerConfig.mainerAgentCanisterType);
         let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+        var continueForAdminWithoutPaymentVerification : Bool = false;
         // TODO - Testing: comment out this switch statement for testing locally
         switch (mainerConfig.mainerAgentCanisterType) {
             case (#ShareService) {
                 // Skip payment verification in case of ShareService, which is created by an Admin (Controller)
+                if (not Principal.isController(msg.caller)) {
+                    return #Err(#Unauthorized);
+                };
                 verifiedPayment := true;
             };
             case (_) {
@@ -2934,7 +2960,15 @@ actor class GameStateCanister() = this {
                         amountPaid := verificationResult.amountPaid;
                     };
                     case (_) {
-                        return #Err(#Other("Payment verification failed"));                      
+                        // TODO - Outcomment this for testing without actual ICP payment
+                        if (Principal.isController(msg.caller)) {
+                            verifiedPayment := true; 
+                            amountPaid := 3 * Constants.CYCLES_TRILLION; 
+                            continueForAdminWithoutPaymentVerification := true; // continue with creation
+                            D.print("GameState: createUserMainerAgent - Payment verification failed, but since caller is Admin (controller), we will continue with creation");
+                        } else {
+                            return #Err(#Other("Payment verification failed")); 
+                        };
                     };
                 };
             };
@@ -2949,6 +2983,10 @@ actor class GameStateCanister() = this {
             case (#ShareService) {
                 // Skip handling of funds in case of ShareService, which is created by an Admin (Controller)
                 // We do need a value for cyclesForMainer, because it is used by the creation process
+                if (not Principal.isController(msg.caller)) {
+                    D.print("GameState: createUserMainerAgent - ERROR: Not a controller. Only controllers can create a ShareService.");
+                    return #Err(#Unauthorized);
+                };
                 let cyclesForMainer = cyclesCreateMainerLlmTargetBalance  + costCreateMainerLlm + 
                                       costCreateMcMainerLlm + costCreateMainerCtrl + 
                                       cyclesCreateMainerMarginGs + cyclesCreatemMainerMarginMc + 1 * Constants.CYCLES_MILLION; // 1M for calculation buffer
@@ -2956,14 +2994,19 @@ actor class GameStateCanister() = this {
             };
             case (_) {
                 D.print("GameState: createUserMainerAgent - mainerConfig.mainerAgentCanisterType: "# debug_show(mainerConfig.mainerAgentCanisterType));
-                let transactionEntry : Types.RedeemedTransactionBlock = {
-                    paymentTransactionBlockId : Nat64 = transactionToVerify;
-                    creationTimestamp : Nat64 = creationTimestamp;
-                    redeemedBy : Principal = msg.caller;
-                    redeemedFor : Types.RedeemedForOptions = redeemedFor;
-                    amount : Nat = amountPaid;
+                if (Principal.isController(msg.caller) and continueForAdminWithoutPaymentVerification) {
+                    D.print("GameState: createUserMainerAgent - continueForAdminWithoutPaymentVerification: true");
+                    handleResponse := #Ok({cyclesForMainer : Nat = amountPaid; cyclesForProtocol : Nat = 0});
+                } else {
+                    let transactionEntry : Types.RedeemedTransactionBlock = {
+                        paymentTransactionBlockId : Nat64 = transactionToVerify;
+                        creationTimestamp : Nat64 = creationTimestamp;
+                        redeemedBy : Principal = msg.caller;
+                        redeemedFor : Types.RedeemedForOptions = redeemedFor;
+                        amount : Nat = amountPaid;
+                    };
+                    handleResponse := await handleIncomingFunds(transactionEntry);
                 };
-                handleResponse := await handleIncomingFunds(transactionEntry);
             };
         };
         D.print("GameState: createUserMainerAgent - handleResponse: "# debug_show(handleResponse));
@@ -3144,12 +3187,30 @@ actor class GameStateCanister() = this {
                                         switch (getNextSharedServiceCanisterEntry()) {
                                             case (null) {
                                                 // This should never happen as it indicates there isn't any Shared mAIning Service canister registered here
-                                                D.print("GameState: spinUpMainerControllerCanister - 08 ");
+                                                D.print("GameState: spinUpMainerControllerCanister - There is no Shared mAIning Service canister registered.");
                                                 return #Err(#Unauthorized);
                                             };
                                             case (?sharedServiceEntry) {
                                                 associatedCanisterAddress := ?sharedServiceEntry.address;
                                                 associatedCanisterSubnet := sharedServiceEntry.subnet;
+                                                try {
+                                                    // Make sure the associated ShareService canister actually exists
+                                                    let _ = Principal.fromText(sharedServiceEntry.address); // this will throw an error if it's not a valid canister address
+                                                    let associatedControllerCanisterActor = actor (sharedServiceEntry.address) : Types.MainerAgentCtrlbCanister;
+                                                    let healthResult = await associatedControllerCanisterActor.health();
+                                                    D.print("GameState: spinUpMainerControllerCanister - Associated ShareService canister healthResult" # debug_show (healthResult));
+                                                    switch (healthResult) {
+                                                        case (#Err(error)) {
+                                                            return #Err(error);
+                                                        };
+                                                        case _ {
+                                                            // all good, continue
+                                                        };
+                                                    };
+                                                } catch (e) {
+                                                    D.print("GameState: spinUpMainerControllerCanister -  failed to validate existence & health of associated ShareService canister: " # debug_show(sharedServiceEntry.address ) # " Error: " # Error.message(e) );
+                                                    return #Err(#Other("GameState: spinUpMainerControllerCanister -  failed to validate existence & health of associated ShareService canister: " # debug_show(sharedServiceEntry.address ) #  " Error: " # Error.message(e)));
+                                                };
                                             };
                                         };
                                     };
@@ -4828,6 +4889,7 @@ actor class GameStateCanister() = this {
         openChallengeTopicsStorageStable := Iter.toArray(openChallengeTopicsStorage.entries());
         openChallengesStorageStable := Iter.toArray(openChallengesStorage.entries());
         mainerPromptsStable := Iter.toArray(mainerPrompts.entries());
+        judgePromptsStable := Iter.toArray(judgePrompts.entries());
         submissionsStorageStable := Iter.toArray(submissionsStorage.entries());
         scoredResponsesPerChallengeStable := Iter.toArray(scoredResponsesPerChallenge.entries());
         winnerDeclarationForChallengeStable := Iter.toArray(winnerDeclarationForChallenge.entries());
@@ -4850,8 +4912,10 @@ actor class GameStateCanister() = this {
         openChallengeTopicsStorageStable := [];
         openChallengesStorage := HashMap.fromIter(Iter.fromArray(openChallengesStorageStable), openChallengesStorageStable.size(), Text.equal, Text.hash);
         openChallengesStorageStable := [];
-        mainerPrompts := HashMap.fromIter(Iter.fromArray(mainerPromptsStable), openChallengeTopicsStorageStable.size(), Text.equal, Text.hash);
+        mainerPrompts := HashMap.fromIter(Iter.fromArray(mainerPromptsStable), mainerPromptsStable.size(), Text.equal, Text.hash);
         mainerPromptsStable := [];
+        judgePrompts := HashMap.fromIter(Iter.fromArray(judgePromptsStable), judgePromptsStable.size(), Text.equal, Text.hash);
+        judgePromptsStable := [];
         submissionsStorage := HashMap.fromIter(Iter.fromArray(submissionsStorageStable), submissionsStorageStable.size(), Text.equal, Text.hash);
         submissionsStorageStable := [];
         scoredResponsesPerChallenge := HashMap.fromIter(Iter.fromArray(scoredResponsesPerChallengeStable), scoredResponsesPerChallengeStable.size(), Text.equal, Text.hash);

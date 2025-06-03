@@ -18,13 +18,6 @@ while [ $# -gt 0 ]; do
             shift
             if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ]; then
                 NETWORK_TYPE=$1
-                if [ "$NETWORK_TYPE" = "ic" ]; then
-                    CANISTER_ID_JUDGE_CTRLB_CANISTER="xxnvw-4yaaa-aaaaj-az4oq-cai"
-                elif [ "$NETWORK_TYPE" = "testing" ]; then
-                    CANISTER_ID_JUDGE_CTRLB_CANISTER='uln7r-5yaaa-aaaaj-a2aba-cai'
-                elif [ "$NETWORK_TYPE" = "development" ]; then
-                    CANISTER_ID_JUDGE_CTRLB_CANISTER='tjr6j-qaaaa-aaaaj-qnpaa-cai'
-                fi
             else
                 echo "Invalid network type: $1. Use 'local', 'development' or 'ic' or 'testing'."
                 exit 1
@@ -46,15 +39,16 @@ elif [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ]; then
     NUM_LLMS_DEPLOYED=3
 fi
 
+# go to the src folder to get the canister ID for judge_ctrlb_canister
+cd ../../src/Judge/
+CANISTER_ID_JUDGE_CTRLB_CANISTER=$(dfx canister --network $NETWORK_TYPE id judge_ctrlb_canister)
+# go back to the current folder
+cd ../../llms/Judge/
+
 echo "NUM_LLMS_DEPLOYED : $NUM_LLMS_DEPLOYED"
 echo " "
 echo "CANISTER_ID_JUDGE_CTRLB_CANISTER: $CANISTER_ID_JUDGE_CTRLB_CANISTER"
 echo "Making $CANISTER_ID_JUDGE_CTRLB_CANISTER a controller of LLMs"
-# read -p "Proceed? (yes/no): " confirm
-# if [[ $confirm != "yes" ]]; then
-#     echo "Aborting script."
-#     exit 1
-# fi
 
 #######################################################################
 llm_id_start=0

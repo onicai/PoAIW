@@ -35,7 +35,6 @@ module Types {
     //-------------------------------------------------------------------------
     public type NatResult = Result<Nat, ApiError>;
     public type TextResult = Result<Text, ApiError>;
-
     //-------------------------------------------------------------------------
     public type GameStateTresholds = {
         thresholdArchiveClosedChallenges : Nat;
@@ -283,6 +282,8 @@ module Types {
         status : CanisterStatus;
     };
 
+    public type OfficialProtocolCanistersResult = Result<[OfficialProtocolCanister], ApiError>;
+
     public type OfficialMainerAgentCanister = OfficialProtocolCanister and {
         mainerConfig : MainerConfigurationInput;
     };
@@ -374,6 +375,8 @@ module Types {
         amount : Nat;
     };
 
+    public type RedeemedTransactionBlockResult = Result<RedeemedTransactionBlock, ApiError>;
+
     public type AddCyclesRecord = {
         added : Bool;
         amount : Nat;
@@ -388,8 +391,11 @@ module Types {
         sentBy : Principal;
     };
 
-    public type MainerCreationInput = {
+    public type PaymentTransactionBlockId = {
         paymentTransactionBlockId : Nat64;
+    };
+
+    public type MainerCreationInput = PaymentTransactionBlockId and{
         mainerConfig : MainerConfigurationInput;
         owner: ?Principal;
     };
@@ -785,7 +791,7 @@ module Types {
 
     // data needed to create a new canister with the model
     public type ModelCreationArtefacts = {
-        canisterWasm : [Nat8];
+        canisterWasm : [Blob]; // Preserve the chunks, so we do not need to re-chunk during code installation
         modelFile : [Blob];
         modelFileSha256 : Text;
     };
