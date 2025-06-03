@@ -84,6 +84,9 @@ actor class MainerAgentCtrlbCanister() = this {
         // Accept the cycles the call is charged with
         let cyclesAdded = Cycles.accept<system>(Cycles.available());
 
+        // Unpause the mAIner if it was paused due to low cycle balance
+        PAUSED_DUE_TO_LOW_CYCLE_BALANCE := false;
+
         // Add to official cycle balance and store all official top ups
         if (Principal.equal(msg.caller, Principal.fromText(GAME_STATE_CANISTER_ID))) {
             // Game State can make official top ups (via its top up flow)
