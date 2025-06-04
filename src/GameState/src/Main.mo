@@ -1313,6 +1313,28 @@ actor class GameStateCanister() = this {
         return true;
     };
 
+    // Admin functions to get all closed challenges and their count
+    public shared query (msg) func getClosedChallengesAdmin() : async Types.ChallengesResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let closedChallengesArray : [Types.Challenge] = getClosedChallenges();
+
+        return #Ok(closedChallengesArray);
+    };
+
+    public shared query (msg) func getNumClosedChallengesAdmin() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let closedChallengesArray : [Types.Challenge] = getClosedChallenges();
+
+        return #Ok(closedChallengesArray.size());
+    };
+
+
     private func archiveClosedChallenges() : Bool {
         let numberOfClosedChallenges = List.size<Types.Challenge>(closedChallenges);
         if (numberOfClosedChallenges >= THRESHOLD_ARCHIVE_CLOSED_CHALLENGES) {
@@ -1363,6 +1385,27 @@ actor class GameStateCanister() = this {
     private func addArchivedChallenges(challengesToAdd : List.List<Types.Challenge>) : Bool {
         archivedChallenges := List.append<Types.Challenge>(challengesToAdd, archivedChallenges);
         return true;
+    };
+
+    // Admin functions to get all archived challenges and their count
+    public shared query (msg) func getArchivedChallengesAdmin() : async Types.ChallengesResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let archivedChallengesArray : [Types.Challenge] = getArchivedChallenges();
+
+        return #Ok(archivedChallengesArray);
+    };
+
+    public shared query (msg) func getNumArchivedChallengesAdmin() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let archivedChallengesArray : [Types.Challenge] = getArchivedChallenges();
+
+        return #Ok(archivedChallengesArray.size());
     };
 
     // Challenges helper functions
@@ -4327,17 +4370,17 @@ actor class GameStateCanister() = this {
 
             switch (result) {
                 case (#Ok(blockIndex)) {
-                    D.print("GameState: finalizeOpenChallenge - sending tokens successful: " # debug_show(blockIndex));
+                    D.print("GameState: mintRewardOnTokenLedger - sending tokens successful: " # debug_show(blockIndex));
                     return true;
                 };
                 case (#Err(err)) {
-                    D.print("GameState: finalizeOpenChallenge - Transfer error: " # debug_show(err));
+                    D.print("GameState: mintRewardOnTokenLedger - Transfer error: " # debug_show(err));
                     // TODO - Error Handling (e.g. put into queue and try again later)
                     return false;
                 };
             };
         } catch (e) {
-            D.print("GameState: finalizeOpenChallenge - Failed to call ledger: " # Error.message(e));
+            D.print("GameState: mintRewardOnTokenLedger - Failed to call ledger: " # Error.message(e));
             // TTODO - Error Handling (e.g. put into queue and try again later)
             return false;
         };
