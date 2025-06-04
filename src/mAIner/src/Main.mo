@@ -1508,6 +1508,7 @@ actor class MainerAgentCtrlbCanister() = this {
                     return #Err(#Unauthorized);
                 };
 
+                // TODO: make sure the cycles are sufficient
                 // Accept required cycles for queue input
                 let cyclesAcceptedForShareServiceQueue = Cycles.accept<system>(challengeQueueInput.cyclesGenerateResponseSactrlSsctrl);
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): addChallengeToShareServiceQueue - cyclesAcceptedForShareServiceQueue = " # Nat.toText(cyclesAcceptedForShareServiceQueue));
