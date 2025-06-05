@@ -17,9 +17,12 @@ module CreateCanisterWithCMC {
         #Ok : Principal;
         #Err : Text;
     } {
-        if (cycles_to_attach < 100_000_000_000) {
-        D.print("CreateCanisterWithCMC: createCanisterOnSubnet - Insufficient cycles provided. Must be at least 100 billion cycles.");
-        return #Err "Insufficient cycles for canister creation.";
+        // Check that the absolute minimum number of cycles are attached for the CMC to create a canister.
+        // - 500B cycles for a 13 node subnet (scales linear with subnet size)
+        // The actual check that sufficient cycles are attached according the the funnAI protocol settings is done by caller.
+        if (cycles_to_attach < 500_000_000_000) {
+            D.print("CreateCanisterWithCMC: createCanisterOnSubnet - Insufficient cycles provided. Must be at least 100 billion cycles.");
+            return #Err "Insufficient cycles for canister creation.";
         };
 
         let canisterSettings : CMC.CanisterSettings = {
