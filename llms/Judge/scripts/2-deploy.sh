@@ -10,11 +10,6 @@ NETWORK_TYPE="local"
 NUM_LLMS_DEPLOYED=1
 DEPLOY_MODE="install"
 
-# When deploying to IC, we deploy to a specific subnet
-# none will not use subnet parameter in deploy to ic
-# SUBNET="none"
-SUBNET="qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe"
-
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -47,26 +42,48 @@ while [ $# -gt 0 ]; do
 done
 
 echo "Using network type: $NETWORK_TYPE"
-if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ]; then
+if [ "$NETWORK_TYPE" = "development" ]; then
     NUM_LLMS_DEPLOYED=2
+    SUBNET_LLM_0="none"
+    SUBNET_LLM_1="none"
+elif [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ]; then
+    NUM_LLMS_DEPLOYED=3
+    # Deploy 3 LLMs per subnet
+    # https://docs.google.com/spreadsheets/d/1KeyylEYVs3cQvYXOc9RS0q5eWd_vWIW1UVycfDEIkBk/edit?gid=0#gid=0
+    # SUBNET-1-1
+    SUBNET_LLM_0="pae4o-o6dxf-xki7q-ezclx-znyd6-fnk6w-vkv5z-5lfwh-xym2i-otrrw-fqe"
+    SUBNET_LLM_1="pae4o-o6dxf-xki7q-ezclx-znyd6-fnk6w-vkv5z-5lfwh-xym2i-otrrw-fqe"
+    SUBNET_LLM_2="pae4o-o6dxf-xki7q-ezclx-znyd6-fnk6w-vkv5z-5lfwh-xym2i-otrrw-fqe"
 fi
+
+# go to the funnAI folder
+cd ../../../
+CANISTER_ID_GAME_STATE_CANISTER=$(dfx canister --network $NETWORK_TYPE id game_state_canister)
+# go back to the current folder
+cd PoAIW/llms/Judge/
+
+echo " "
+echo "--------------------------------------------------"
+echo "Calling Game State ($CANISTER_ID_GAME_STATE_CANISTER) setCyclesFlowAdmin to set numJudgeLlms to $NUM_LLMS_DEPLOYED & re-calculate the CyclesFlow variables"
+dfx canister call $CANISTER_ID_GAME_STATE_CANISTER setCyclesFlowAdmin "(record {numJudgeLlms = opt ($NUM_LLMS_DEPLOYED : nat);})" --network $NETWORK_TYPE
 
 #######################################################################
 echo " "
 echo "==================================================="
-echo "Deploying $NUM_LLMS_DEPLOYED llms to subnet $SUBNET"
+echo "Deploying $NUM_LLMS_DEPLOYED llms"
 llm_id_start=0
 llm_id_end=$((NUM_LLMS_DEPLOYED - 1))
 
 for i in $(seq $llm_id_start $llm_id_end)
 do
+    subnet_var="SUBNET_LLM_$i"
     echo "--------------------------------------------------"
-    echo "Deploying the wasm to llm_$i"
-    if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ]; then
-        if [ "$SUBNET" = "none" ]; then
+    echo "Deploying llm_$i to subnet ${!subnet_var}"
+    if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ]; then
+        if [ "${!subnet_var}" = "none" ]; then
             yes | dfx deploy llm_$i --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
         else
-            yes | dfx deploy llm_$i --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE --subnet $SUBNET
+            yes | dfx deploy llm_$i --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE --subnet ${!subnet_var}
         fi
         if [ "$DEPLOY_MODE" = "install" ]; then
             echo "Initial install to main-net: Waiting for 30 seconds before checking health endpoint for llm_$i"

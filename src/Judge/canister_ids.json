@@ -1,7 +1,7 @@
 {
   "judge_ctrlb_canister": {
+    "development": "tjr6j-qaaaa-aaaaj-qnpaa-cai",
     "ic": "xxnvw-4yaaa-aaaaj-az4oq-cai",
-    "testing": "uln7r-5yaaa-aaaaj-a2aba-cai",
-    "development": "tjr6j-qaaaa-aaaaj-qnpaa-cai"
+    "testing": "b7lt7-jiaaa-aaaaf-qaqiq-cai"
   }
 }

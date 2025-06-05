@@ -45,7 +45,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--chunksize",
         type=int,
-        default=2000000,
+        default=1000000, # 1MB is all that is allowed for cross-subnet code install; model upload can be 2000000 - set by script
         help="Chunk Size used during file download, in bytes",
     )
     parser.add_argument(

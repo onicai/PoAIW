@@ -8,15 +8,6 @@
 # Default network type is local
 NETWORK_TYPE="local"
 
-# When deploying local, use canister IDs from .env
-# Use this when deploying from funnAI
-source ../../../.env
-# Use this when deploying from PoAIW
-# source ../GameState/.env
-
-# none will not use subnet parameter in deploy to ic
-SUBNET="none"
-
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -24,13 +15,6 @@ while [ $# -gt 0 ]; do
             shift
             if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ]; then
                 NETWORK_TYPE=$1
-                if [ "$NETWORK_TYPE" = "ic" ]; then
-                    CANISTER_ID_GAME_STATE_CANISTER='xzpy6-hiaaa-aaaaj-az4pq-cai' 
-                elif [ "$NETWORK_TYPE" = "testing" ]; then
-                    CANISTER_ID_GAME_STATE_CANISTER='cc2po-yiaaa-aaaaj-az75q-cai'
-                elif [ "$NETWORK_TYPE" = "development" ]; then
-                    CANISTER_ID_GAME_STATE_CANISTER='ciqqv-4iaaa-aaaag-auara-cai' 
-                fi
             else
                 echo "Invalid network type: $1. Use 'local', 'development' or 'ic' or 'testing."
                 exit 1
@@ -46,6 +30,12 @@ while [ $# -gt 0 ]; do
 done
 
 echo "Using network type: $NETWORK_TYPE"
+
+# go to the funnAI folder
+cd ../../../
+CANISTER_ID_GAME_STATE_CANISTER=$(dfx canister --network $NETWORK_TYPE id game_state_canister)
+# go back to the current folder
+cd PoAIW/src/mAInerCreator/
 
 #######################################################################
 echo " "

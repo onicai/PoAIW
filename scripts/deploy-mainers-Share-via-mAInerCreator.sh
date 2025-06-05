@@ -14,7 +14,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --network)
             shift
-            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ]; then
+            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ]; then
                 NETWORK_TYPE=$1
             else
                 echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing'."
@@ -60,7 +60,7 @@ echo "--------------------------------------------------"
 echo "Deploying a mAInerController canister of type #ShareService"
 
 # Create a mAIner controller canister of type #ShareService
-output=$(dfx canister call mainer_creator_canister testCreateMainerControllerCanister '(variant {ShareService}, null)' --network $NETWORK_TYPE)
+output=$(dfx canister call mainer_creator_canister testCreateMainerControllerCanister '(record { mainerAgentCanisterType = variant {ShareService}, shareServiceCanisterAddress = null })' --network $NETWORK_TYPE)
 echo $output
 if [[ "$output" != *"Ok = record"* ]]; then
     echo "Failed to create mAIner controller canister of type #Own. Exiting."    
@@ -86,7 +86,7 @@ echo "Deploying a mAInerController canister of type #ShareAgent"
 
 # -> A ShareAgent canister uses the ShareService and not its own LLMs,
 #    so pass the ShareService canister id
-output=$(dfx canister call mainer_creator_canister testCreateMainerControllerCanister "(variant {ShareAgent}, opt \"$NEW_MAINER_SHARE_SERVICE_CANISTER\")" --network $NETWORK_TYPE)
+output=$(dfx canister call mainer_creator_canister testCreateMainerControllerCanister "( record { mainerAgentCanisterType = variant {ShareAgent}, shareServiceCanisterAddress = opt \"$NEW_MAINER_SHARE_SERVICE_CANISTER\"})" --network $NETWORK_TYPE)
 echo $output
 if [[ "$output" != *"Ok = record"* ]]; then
     echo "Failed to create mAIner controller canister of type #ShareAgent. Exiting."    
@@ -104,7 +104,7 @@ echo " "
 echo "--------------------------------------------------"
 echo "Deploying another mAInerController canister of type #ShareAgent"
 
-output=$(dfx canister call mainer_creator_canister testCreateMainerControllerCanister "(variant {ShareAgent}, opt \"$NEW_MAINER_SHARE_SERVICE_CANISTER\")" --network $NETWORK_TYPE)
+output=$(dfx canister call mainer_creator_canister testCreateMainerControllerCanister "( record { mainerAgentCanisterType = variant {ShareAgent}, shareServiceCanisterAddress = opt \"$NEW_MAINER_SHARE_SERVICE_CANISTER\"})" --network $NETWORK_TYPE)
 echo $output
 if [[ "$output" != *"Ok = record"* ]]; then
     echo "Failed to create mAIner controller canister of type #ShareAgent. Exiting."    

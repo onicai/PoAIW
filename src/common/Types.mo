@@ -1,3 +1,4 @@
+import Buffer "mo:base/Buffer";
 import Blob "mo:base/Blob";
 import Principal "mo:base/Principal";
 import Nat16 "mo:base/Nat16";
@@ -34,7 +35,6 @@ module Types {
     //-------------------------------------------------------------------------
     public type NatResult = Result<Nat, ApiError>;
     public type TextResult = Result<Text, ApiError>;
-
     //-------------------------------------------------------------------------
     public type GameStateTresholds = {
         thresholdArchiveClosedChallenges : Nat;
@@ -44,6 +44,217 @@ module Types {
     };
 
     public type GameStateTresholdsResult = Result<GameStateTresholds, ApiError>;
+
+    //-------------------------------------------------------------------------
+    public type SubnetIds = {
+        subnetShareAgentCtrl : Text;
+        subnetShareServiceCtrl : Text;
+        subnetShareServiceLlm : Text;
+    };
+
+    public type SubnetIdsResult = Result<SubnetIds, ApiError>;
+
+    //-------------------------------------------------------------------------
+    // Types for storing all cycles flow values
+
+    // variables sent by GameState to mAIner Creator
+    public type CyclesCreateMainer = {
+        cyclesCreateMainerctrlGsMc : Nat;
+        cyclesCreateMainerllmGsMc : Nat;
+        cyclesCreateMainerctrlMcMainerctrl : Nat;
+        cyclesCreateMainerllmMcMainerllm   : Nat;
+    };
+
+    // variables sent by GameState to mAIner Creator
+    public type CyclesUpgradeMainer = {
+        cyclesUpgradeMainerctrlGsMc : Nat;
+        cyclesUpgradeMainerllmGsMc : Nat;
+        cyclesUpgradeMainerctrlMcMainerctrl : Nat;
+        cyclesUpgradeMainerllmMcMainerllm   : Nat;
+    };
+
+    // variables sent by GameState to Challenger
+    public type CyclesGenerateChallenge = {
+        cyclesGenerateChallengeGsChctrl : Nat;
+        cyclesGenerateChallengeChctrlChllm : Nat;
+    };
+
+    // variables sent by GameState to mAIner Agent
+    public type CyclesGenerateResponse = {
+        cyclesSubmitResponse : Nat;
+        protocolOperationFeesCut : Nat;
+        cyclesGenerateResponseSactrlSsctrl : Nat;
+        cyclesGenerateResponseSsctrlGs : Nat;
+        cyclesGenerateResponseSsctrlSsllm : Nat;
+        cyclesGenerateResponseOwnctrlGs : Nat;
+        cyclesGenerateResponseOwnctrlOwnllmLOW : Nat;
+        cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat;
+        cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat;
+    };
+
+    // variables sent by GameState to Judge
+    public type CyclesGenerateScore = {
+        cyclesGenerateScoreGsJuctrl : Nat;
+        cyclesGenerateScoreJuctrlJullm : Nat;
+    };
+
+    public type CyclesFlow = CyclesGenerateChallenge and 
+    CyclesGenerateScore and CyclesGenerateResponse and {
+        // mAIner creation
+        cyclesCreateMainerMarginGs : Nat;
+        cyclesCreatemMainerMarginMc : Nat;
+        cyclesCreateMainerLlmTargetBalance : Nat;
+        costCreateMainerCtrl : Nat;
+        costCreateMainerLlm : Nat;
+        costCreateMcMainerCtrl : Nat;
+        costCreateMcMainerLlm : Nat;
+
+        costUpgradeMainerCtrl : Nat;
+        costUpgradeMainerLlm : Nat;
+        costUpgradeMcMainerCtrl : Nat;
+        costUpgradeMcMainerLlm : Nat;
+
+
+        // Generations
+        dailyChallenges : Nat;
+        dailySubmissionsPerOwnLOW : Nat;
+        dailySubmissionsPerOwnMEDIUM : Nat;
+        dailySubmissionsPerOwnHIGH : Nat;
+        dailySubmissionsPerShareLOW : Nat;
+        dailySubmissionsPerShareMEDIUM : Nat;
+        dailySubmissionsPerShareHIGH : Nat;
+        dailySubmissionsAllOwn : Nat;
+        dailySubmissionsAllShare : Nat;
+        marginFailedSubmissionCut : Nat;
+        marginCost : Nat;
+        submissionFee : Nat;
+
+        numChallengerLlms : Nat;
+        numJudgeLlms : Nat;
+        numShareServiceLlms : Nat;
+
+        costIdleBurnRateGs : Nat;
+        costIdleBurnRateMc : Nat;
+        costIdleBurnRateChctrl : Nat;
+        costIdleBurnRateChllm : Nat;
+        costIdleBurnRateJuctrl : Nat;
+        costIdleBurnRateJullm : Nat;
+        costIdleBurnRateSsctrl : Nat;
+        costIdleBurnRateSsllm : Nat;
+
+        costIdleBurnRateSactrl : Nat;
+        costIdleBurnRateSallm : Nat;
+        costIdleBurnRateOwnctrl : Nat;
+        costIdleBurnRateOwnllm : Nat;
+
+        costGenerateChallengeGs : Nat;
+        costGenerateChallengeChctrl : Nat;
+        costGenerateChallengeChllm : Nat;
+        costGenerateScoreGs : Nat;
+        costGenerateScoreJuctrl : Nat;
+        costGenerateScoreJullm : Nat;
+        costGenerateResponseShareGs : Nat;
+        costGenerateResponseOwnGs : Nat;
+        costGenerateResponseOwnctrl : Nat;
+        costGenerateResponseOwnllm : Nat;
+        costGenerateResponseSactrl : Nat;
+        costGenerateResponseSsctrl : Nat;
+        costGenerateResponseSsllm : Nat;
+
+        cyclesBurntChallengeGeneration : Nat;
+        cyclesBurntJudgeScoring : Nat;
+        cyclesBurntResponseGenerationOwn : Nat;
+        cyclesBurntResponseGenerationShare : Nat;
+        cyclesFailedSubmissionCut : Nat;
+    };
+    public type CyclesFlowResult = Result<CyclesFlow, ApiError>;
+
+    // Type for selectively setting cycles flow values by Admin
+    public type CyclesFlowSettings = {
+        // mAIner creation
+        cyclesCreateMainerMarginGs : ?Nat;
+        cyclesCreatemMainerMarginMc : ?Nat;
+        cyclesCreateMainerLlmTargetBalance : ?Nat;
+        costCreateMainerCtrl : ?Nat;
+        costCreateMainerLlm : ?Nat;
+        costCreateMcMainerCtrl : ?Nat;
+        costCreateMcMainerLlm : ?Nat;
+
+        costUpgradeMainerCtrl :?Nat;
+        costUpgradeMainerLlm : ?Nat;
+        costUpgradeMcMainerCtrl : ?Nat;
+        costUpgradeMcMainerLlm : ?Nat;
+
+        cyclesUpgradeMainerctrlGsMc : ?Nat;
+        cyclesUpgradeMainerllmGsMc : ?Nat;
+        cyclesUpgradeMainerctrlMcMainerctrl : ?Nat;
+        cyclesUpgradeMainerllmMcMainerllm   : ?Nat;
+
+        // Generations
+        dailyChallenges : ?Nat;
+        dailySubmissionsPerOwnLOW : ?Nat;
+        dailySubmissionsPerOwnMEDIUM : ?Nat;
+        dailySubmissionsPerOwnHIGH : ?Nat;
+        dailySubmissionsPerShareLOW : ?Nat;
+        dailySubmissionsPerShareMEDIUM : ?Nat;
+        dailySubmissionsPerShareHIGH : ?Nat;
+        dailySubmissionsAllOwn : ?Nat;
+        dailySubmissionsAllShare : ?Nat;
+        marginFailedSubmissionCut : ?Nat;
+        marginCost : ?Nat;
+        submissionFee : ?Nat;
+
+        numChallengerLlms : ?Nat;
+        numJudgeLlms : ?Nat;
+        numShareServiceLlms : ?Nat;
+
+        costIdleBurnRateGs : ?Nat;
+        costIdleBurnRateMc : ?Nat;
+        costIdleBurnRateChctrl : ?Nat;
+        costIdleBurnRateChllm : ?Nat;
+        costIdleBurnRateJuctrl : ?Nat;
+        costIdleBurnRateJullm : ?Nat;
+        costIdleBurnRateSsctrl : ?Nat;
+        costIdleBurnRateSsllm : ?Nat;
+
+        costIdleBurnRateSactrl : ?Nat;
+        costIdleBurnRateSallm : ?Nat;
+        costIdleBurnRateOwnctrl : ?Nat;
+        costIdleBurnRateOwnllm : ?Nat;
+
+        costGenerateChallengeGs : ?Nat;
+        costGenerateChallengeChctrl : ?Nat;
+        costGenerateChallengeChllm : ?Nat;
+        costGenerateScoreGs : ?Nat;
+        costGenerateScoreJuctrl : ?Nat;
+        costGenerateScoreJullm : ?Nat;
+        costGenerateResponseOwnGs : ?Nat;
+        costGenerateResponseOwnctrl : ?Nat;
+        costGenerateResponseOwnllm : ?Nat;
+        costGenerateResponseShareGs : ?Nat;
+        costGenerateResponseSactrl : ?Nat;
+        costGenerateResponseSsctrl : ?Nat;
+        costGenerateResponseSsllm : ?Nat;
+
+        cyclesGenerateChallengeGsChctrl : ?Nat;
+        cyclesGenerateChallengeChctrlChllm : ?Nat;
+        cyclesBurntChallengeGeneration : ?Nat;
+        cyclesGenerateScoreGsJuctrl : ?Nat;
+        cyclesGenerateScoreJuctrlJullm : ?Nat;
+        cyclesBurntJudgeScoring : ?Nat;
+        cyclesGenerateResponseOwnctrlGs : ?Nat;
+        cyclesGenerateResponseOwnctrlOwnllmLOW : ?Nat;
+        cyclesGenerateResponseOwnctrlOwnllmMEDIUM : ?Nat;
+        cyclesGenerateResponseOwnctrlOwnllmHIGH : ?Nat;
+        cyclesGenerateResponseSactrlSsctrl : ?Nat;
+        cyclesGenerateResponseSsctrlGs : ?Nat;
+        cyclesGenerateResponseSsctrlSsllm : ?Nat;
+        cyclesBurntResponseGenerationOwn : ?Nat;
+        cyclesBurntResponseGenerationShare : ?Nat;
+        cyclesSubmitResponse : ?Nat;
+        protocolOperationFeesCut : ?Nat;
+        cyclesFailedSubmissionCut : ?Nat;
+    };
 
     //-------------------------------------------------------------------------
     public type ProtocolCanisterType = {
@@ -81,6 +292,7 @@ module Types {
 
     public type OfficialProtocolCanister = {
         address : CanisterAddress;
+        subnet : Text;
         canisterType: ProtocolCanisterType;
         creationTimestamp : Nat64;
         createdBy : Principal;
@@ -88,12 +300,15 @@ module Types {
         status : CanisterStatus;
     };
 
+    public type OfficialProtocolCanistersResult = Result<[OfficialProtocolCanister], ApiError>;
+
     public type OfficialMainerAgentCanister = OfficialProtocolCanister and {
         mainerConfig : MainerConfigurationInput;
     };
 
     public type CanisterInput = {
         address : CanisterAddress;
+        subnet : Text;
         canisterType: ProtocolCanisterType;
     };
 
@@ -146,6 +361,9 @@ module Types {
     public type MainerConfigurationInput = {
         mainerAgentCanisterType: MainerAgentCanisterType;
         selectedLLM : ?SelectableMainerLLMs;
+        cyclesForMainer : Nat; // initial amount of the user payment used to create the mAIner
+        subnetCtrl : Text; // the subnet where the mAIner Controller will be created
+        subnetLlm : Text;  // the subnet where the mAIner LLMs will be created
     };
 
     public type RedeemedForOptions = {
@@ -175,6 +393,8 @@ module Types {
         amount : Nat;
     };
 
+    public type RedeemedTransactionBlockResult = Result<RedeemedTransactionBlock, ApiError>;
+
     public type AddCyclesRecord = {
         added : Bool;
         amount : Nat;
@@ -189,27 +409,38 @@ module Types {
         sentBy : Principal;
     };
 
-    public type MainerCreationInput = {
+    public type PaymentTransactionBlockId = {
         paymentTransactionBlockId : Nat64;
+    };
+
+    public type MainerCreationInput = PaymentTransactionBlockId and{
         mainerConfig : MainerConfigurationInput;
         owner: ?Principal;
+    };
+
+    public type MainerctrlUpgradeInput = {
+        canisterAddress : CanisterAddress;
     };
 
     public type CanisterCreationConfigurationInput = {
         canisterType : ProtocolCanisterType;
         associatedCanisterAddress : ?CanisterAddress; // References Controller for an LLM, and ShareService for a ShareAgent
+        associatedCanisterSubnet : Text; // References subnet of Controller for an LLM, and ShareService for a ShareAgent
         mainerConfig : MainerConfigurationInput;
     };
 
-    public type CanisterCreationConfiguration = CanisterCreationConfigurationInput and {
+    public type CanisterCreationConfiguration = CanisterCreationConfigurationInput and 
+    {
         owner: Principal;
         userMainerEntryCreationTimestamp : Nat64; // References Controller - for deduplication by putUserMainerAgent
         userMainerEntryCanisterType : ProtocolCanisterType; // References Controller
-    };
+    } and 
+    CyclesCreateMainer;
 
     public type CanisterCreationRecord = {
         creationResult : Text;
         newCanisterId : Text;
+        subnet: Text;
     };
 
     public type CanisterCreationResult = Result<CanisterCreationRecord, ApiError>;
@@ -242,12 +473,17 @@ module Types {
         challengeTopicId : Text;
         challengeTopicCreationTimestamp : Nat64;
         challengeTopicStatus : ChallengeTopicStatus;
-    };
+    } and CyclesGenerateChallenge;
     public type ChallengeTopicResult = Result<ChallengeTopic, ApiError>;
 
     public type NewChallengeInput = ChallengeTopic and {
         challengeQuestion : Text;
         challengeQuestionSeed : Nat32;
+        mainerPromptId : Text;
+        mainerMaxContinueLoopCount : Nat;
+        mainerNumTokens : Nat64;
+        mainerTemp : Float;
+        judgePromptId : Text;
     };
 
     public type Challenge = NewChallengeInput and {
@@ -256,8 +492,7 @@ module Types {
         challengeCreatedBy : CanisterAddress;
         challengeStatus : ChallengeStatus;
         challengeClosedTimestamp : ?Nat64;
-        submissionCyclesRequired : Nat;
-    };
+    } and CyclesGenerateResponse;
 
     public type ChallengeAdditionResult = Result<Challenge, ApiError>;
 
@@ -277,6 +512,7 @@ module Types {
     public type GeneratedChallengeResult = Result<GeneratedChallenge, ApiError>;
     public type GeneratedChallengesResult = Result<[GeneratedChallenge], ApiError>;
 
+// llama_cpp_canister endpoints data structures
     public type InputRecord = {
         args : [Text]; // the CLI args of llama.cpp/examples/main, as a list of strings
     };
@@ -292,6 +528,51 @@ module Types {
     };
 
     public type CanisterIDRecordResult = Result<CanisterIDRecord, ApiError>;
+
+    public type DownloadPromptCacheInputRecord = {
+        promptcache : Text;
+        chunksize : Nat64;
+        offset : Nat64;
+    };
+
+    public type UploadPromptCacheInputRecord = {
+        promptcache : Text;
+        chunk : [Nat8];
+        chunksize : Nat64;
+        offset : Nat64;
+    };
+
+    public type PromptCacheDetailsInputRecord = {
+        promptcache : Text;
+    };
+
+    // -----------------------------------------------------
+    public type FileDownloadInputRecord = {
+        filename : Text;
+        chunksize : Nat64;
+        offset : Nat64;
+    };
+    public type FileDownloadRecordResult = Result<FileDownloadRecord, ApiError>;
+
+    public type FileDownloadRecord = {
+        chunk : Blob; // the chunk read from the file, as a vec of bytes
+        chunksize : Nat64; // the chunksize in bytes
+        filesize : Nat64; // the total filesize in bytes
+        offset : Nat64; // the chunk starts here (bytes from beginning)
+        done : Bool; // true if there are no more bytes to read
+    };
+
+    // -----------------------------------------------------
+    public type FileDetailsInputRecord = {
+        filename : Text;
+    };
+    public type FileDetailsRecordResult = Result<FileDetailsRecord, ApiError>;
+
+    public type FileDetailsRecord = {
+        filename : Text;
+        filesize : Nat64; // the total filesize in bytes
+        filesha256 : Text; // the total filesize in bytes
+    };
 
 // mAIner
     public type ChallengeQueueInput = Challenge and {
@@ -323,13 +604,45 @@ module Types {
         submissionId : Text;
         submittedTimestamp : Nat64;
         submissionStatus : ChallengeResponseSubmissionStatus;
-    };
+    } and CyclesGenerateScore;
 
     public type ChallengeResponseSubmission = ChallengeResponseSubmissionInput and ChallengeResponseSubmissionMetadata;
 
     public type ChallengeResponseSubmissionMetadataResult = Result<ChallengeResponseSubmissionMetadata, ApiError>;
     public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmission, ApiError>;
     public type ChallengeResponseSubmissionsResult = Result<[ChallengeResponseSubmission], ApiError>;
+
+    public type UploadMainerLlmCanisterWasmBytesChunkInput = {
+        selectedModel : SelectableMainerLLMs;
+        bytesChunk : [Nat8];
+    };
+    public type AddModelCreationArtefactsEntry = {
+        selectedModel : SelectableMainerLLMs;
+        creationArtefacts : ModelCreationArtefacts;
+    };
+    public type FinishUploadMainerLlmInput = {
+        selectedModel : SelectableMainerLLMs;
+        modelFileSha256 : Text;
+    };
+    public type UploadMainerLlmBytesChunkInput = {
+        bytesChunk : Blob;
+        chunkID : Nat;
+    };
+    public type SetupCanisterInput = {
+        newCanisterId : Text;
+        subnet : Text;
+        configurationInput : CanisterCreationConfiguration;
+    };
+    public type UpgradeMainerctrlInput = {
+        mainerAgentEntry : Types.OfficialMainerAgentCanister; // Canister to upgrade
+        cyclesUpgradeMainerctrlGsMc : Nat;
+        cyclesUpgradeMainerctrlMcMainerctrl : Nat;
+    };
+
+    public type TestCreateMainerControllerCanister = {
+        mainerAgentCanisterType : MainerAgentCanisterType;
+        shareServiceCanisterAddress : ?CanisterAddress;
+    };
 
     // Agent Settings
     public type TimeInterval = {
@@ -392,29 +705,6 @@ module Types {
                 return cyclesBurnRateDefaultLow;
             };
         };
-    };
-
-    // TODO - Implementation: merge into common file and finalize numbers
-    public let PROTOCOL_OPERATION_FEES_CUT_PERCENT : Nat = 20;
-    let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200_000_000_000;
-    let SUBMISSION_CYCLES_REQUIRED : Nat = 100_000_000_000;
-    let secondsInMinute = 60;
-    let minutesInHour = 60;
-    let hoursInDay = 24;
-
-    public func getTimerRegularityForCyclesBurnRate(cyclesBurnRate : CyclesBurnRate) : Nat {
-        var timeIntervalDuration = secondsInMinute * minutesInHour * hoursInDay; // Daily as default, i.e. this gives the seconds per day
-        switch (cyclesBurnRate.timeInterval) {
-            case (#Daily) {
-                // use default
-            };
-        };
-        // Calculate how many responses can be generated with the cycles budget based on response costs (generation plus submission)
-        let submissionsInTimeInterval = cyclesBurnRate.cycles / (CYCLES_BURNT_RESPONSE_GENERATION + SUBMISSION_CYCLES_REQUIRED);
-        // Calculate how often to respond (in seconds)
-        let timerRegularity = timeIntervalDuration / submissionsInTimeInterval;
-
-        return timerRegularity;
     };
 
     public type MainerAgentSettingsInput = {
@@ -506,7 +796,7 @@ module Types {
 
     // data needed to create a new canister with the model
     public type ModelCreationArtefacts = {
-        canisterWasm : [Nat8];
+        canisterWasm : [Blob]; // Preserve the chunks, so we do not need to re-chunk during code installation
         modelFile : [Blob];
         modelFileSha256 : Text;
     };
@@ -602,6 +892,113 @@ module Types {
     public type CanisterIDRecord = { canister_id : Text };
 
     //-------------------------------------------------------------------------
+    // pre-calculated & ingested mAIner prompt & prompt cache
+    public type MainerPromptInfo = {
+        promptText : Text;
+        promptCacheSha256 : Text;
+        promptCacheFilename: Text;
+        promptCacheNumberOfChunks : Nat;
+    };
+    public type MainerPromptInfoResult = Result<MainerPromptInfo, ApiError>;
+
+
+    public type MainerPrompt = MainerPromptInfo and {
+        promptCacheChunks : [Blob];
+    };
+    public type MainerPromptGenerationInput = {
+        generatedChallenge : Types.GeneratedChallenge;
+        chunkSizePrompCacheDownload : Nat64;
+    };
+    public type MainerPromptGenerationRecord = {
+        generationId : Text;
+        generationSeed : Nat32;
+        generatedTimestamp : Nat64;
+        generatedByLlmId : Text;
+        generationPrompt : Text;
+        mainerPrompt: MainerPrompt;
+    };
+    public type MainerPromptGenerationRecordResult = Result<MainerPromptGenerationRecord, ApiError>;
+
+    public type StartUploadMainerPromptCacheRecord = {
+        mainerPromptId : Text;
+    };
+    public type StartUploadMainerPromptCacheRecordResult = Result<StartUploadMainerPromptCacheRecord, ApiError>;
+
+    public type UploadMainerPromptCacheBytesChunkInput = {
+        mainerPromptId : Text;
+        bytesChunk : Blob;
+        chunkID : Nat;
+    };
+    public type FinishUploadMainerPromptCacheInput = {
+        mainerPromptId : Text;
+        promptText: Text;
+        promptCacheSha256: Text;
+        promptCacheFilename: Text;
+    };
+
+    public type DownloadMainerPromptCacheBytesChunkInput = {
+        mainerPromptId : Text;
+        chunkID : Nat;
+    };
+    public type DownloadMainerPromptCacheBytesChunkRecord = DownloadMainerPromptCacheBytesChunkInput and {
+        bytesChunk : Blob;
+    };
+    public type DownloadMainerPromptCacheBytesChunkRecordResult = Result<DownloadMainerPromptCacheBytesChunkRecord, ApiError>;
+
+    //-------------------------------------------------------------------------
+    // pre-calculated & ingested Judge prompt & prompt cache
+    public type JudgePromptInfo = {
+        promptText : Text;
+        promptCacheSha256 : Text;
+        promptCacheFilename: Text;
+        promptCacheNumberOfChunks : Nat;
+    };
+    public type JudgePromptInfoResult = Result<JudgePromptInfo, ApiError>;
+
+    public type JudgePrompt = JudgePromptInfo and {
+        promptCacheChunks : [Blob];
+    };
+    public type JudgePromptGenerationInput = {
+        generatedChallenge : Types.GeneratedChallenge;
+        chunkSizePrompCacheDownload : Nat64;
+    };
+    public type JudgePromptGenerationRecord = {
+        generationId : Text;
+        generationSeed : Nat32;
+        generatedTimestamp : Nat64;
+        generatedByLlmId : Text;
+        generationPrompt : Text;
+        judgePrompt: JudgePrompt;
+    };
+    public type JudgePromptGenerationRecordResult = Result<JudgePromptGenerationRecord, ApiError>;
+
+    public type StartUploadJudgePromptCacheRecord = {
+        judgePromptId : Text;
+    };
+    public type StartUploadJudgePromptCacheRecordResult = Result<StartUploadJudgePromptCacheRecord, ApiError>;
+
+    public type UploadJudgePromptCacheBytesChunkInput = {
+        judgePromptId : Text;
+        bytesChunk : Blob;
+        chunkID : Nat;
+    };
+    public type FinishUploadJudgePromptCacheInput = {
+        judgePromptId : Text;
+        promptText: Text;
+        promptCacheSha256: Text;
+        promptCacheFilename: Text;
+    };
+
+    public type DownloadJudgePromptCacheBytesChunkInput = {
+        judgePromptId : Text;
+        chunkID : Nat;
+    };
+    public type DownloadJudgePromptCacheBytesChunkRecord = DownloadJudgePromptCacheBytesChunkInput and {
+        bytesChunk : Blob;
+    };
+    public type DownloadJudgePromptCacheBytesChunkRecordResult = Result<DownloadJudgePromptCacheBytesChunkRecord, ApiError>;
+
+    //-------------------------------------------------------------------------
 // Canister Actors
     public type GameStateCanister_Actor = actor {
         getRandomOpenChallengeTopic : () -> async ChallengeTopicResult;
@@ -611,11 +1008,23 @@ module Types {
         submitChallengeResponse : (ChallengeResponseSubmissionInput) -> async ChallengeResponseSubmissionMetadataResult;
         getRandomOpenChallenge : () -> async ChallengeResult;
         addMainerAgentCanister : (OfficialMainerAgentCanister) -> async MainerAgentCanisterResult;
+        startUploadMainerPromptCache : () -> async Types.StartUploadMainerPromptCacheRecordResult;
+        uploadMainerPromptCacheBytesChunk : (UploadMainerPromptCacheBytesChunkInput) -> async Types.StatusCodeRecordResult;
+        downloadMainerPromptCacheBytesChunk : (DownloadMainerPromptCacheBytesChunkInput) -> async Types.DownloadMainerPromptCacheBytesChunkRecordResult;
+        finishUploadMainerPromptCache : (FinishUploadMainerPromptCacheInput) -> async Types.StatusCodeRecordResult;
+        getMainerPromptInfo : (Text) -> async Types.MainerPromptInfoResult;
+        startUploadJudgePromptCache : () -> async Types.StartUploadJudgePromptCacheRecordResult;
+        uploadJudgePromptCacheBytesChunk : (UploadJudgePromptCacheBytesChunkInput) -> async Types.StatusCodeRecordResult;
+        downloadJudgePromptCacheBytesChunk : (DownloadJudgePromptCacheBytesChunkInput) -> async Types.DownloadJudgePromptCacheBytesChunkRecordResult;
+        finishUploadJudgePromptCache : (FinishUploadJudgePromptCacheInput) -> async Types.StatusCodeRecordResult;
+        getJudgePromptInfo : (Text) -> async Types.JudgePromptInfoResult;
+        getMainerCyclesUsedPerResponse : () -> async NatResult;
     };
 
     public type MainerCreator_Actor = actor {
         createCanister: shared CanisterCreationConfiguration -> async CanisterCreationResult;
-        setupCanister: shared (Text, CanisterCreationConfiguration) -> async CanisterCreationResult;
+        setupCanister: shared SetupCanisterInput -> async CanisterCreationResult;
+        upgradeMainerctrl: shared UpgradeMainerctrlInput -> async Types.StatusCodeRecordResult
     };
 
     // mAIner
@@ -641,6 +1050,9 @@ module Types {
         run_update : (InputRecord) -> async OutputRecordResult;
         remove_prompt_cache : (InputRecord) -> async OutputRecordResult;
         copy_prompt_cache : (CopyPromptCacheInputRecord) -> async StatusCodeRecordResult;
+        download_prompt_cache_chunk : (DownloadPromptCacheInputRecord) -> async FileDownloadRecordResult;
+        upload_prompt_cache_chunk : (UploadPromptCacheInputRecord) -> async FileUploadRecordResult;
+        uploaded_prompt_cache_details : (PromptCacheDetailsInputRecord) -> async FileDetailsRecordResult;
         load_model : (InputRecord) -> async OutputRecordResult;
         set_max_tokens : (MaxTokensRecord) -> async StatusCodeRecordResult;
         file_upload_chunk : (FileUploadInputRecord) -> async FileUploadRecordResult;

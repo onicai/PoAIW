@@ -40,8 +40,6 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-echo "Using network type: $NETWORK_TYPE"
-
 #######################################################################
 echo " "
 echo "**************************"

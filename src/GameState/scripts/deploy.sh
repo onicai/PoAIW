@@ -19,7 +19,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --network)
             shift
-            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ]; then
+            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ]; then
                 NETWORK_TYPE=$1
             else
                 echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing'."
@@ -53,7 +53,7 @@ echo " "
 echo "--------------------------------------------------"
 echo "Deploying the game_state_canister"
 
-if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ]; then
+if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ]; then
     if [ "$SUBNET" = "none" ]; then
         dfx deploy game_state_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
     else
@@ -74,6 +74,15 @@ if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; t
 else
     echo "game_state_canister is healthy."
 fi
+
+echo " "
+echo "--------------------------------------------------"
+echo "Calling setCyclesFlowAdmin to calculate the CyclesFlow variables"
+dfx canister call game_state_canister setCyclesFlowAdmin '(record {})' --network $NETWORK_TYPE
+
+echo " "
+echo "Calling setCyclesFlowAdmin to get the CyclesFlow variables"
+dfx canister call game_state_canister getCyclesFlowAdmin --network $NETWORK_TYPE
 
 if [ "$DEPLOY_MODE" != "upgrade" ]; then
     echo " "

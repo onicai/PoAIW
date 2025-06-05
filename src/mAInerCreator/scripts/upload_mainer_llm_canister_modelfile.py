@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import Generator
 from .calculate_sha256 import calculate_sha256
-from .ic_py_canister import get_canister
+from .ic_py_canister import get_canister, run_dfx_command
 from .parse_args_upload import parse_args
 
 ROOT_PATH = Path(__file__).parent.parent
@@ -58,6 +58,11 @@ def main() -> int:
     wasm_path = ROOT_PATH / args.wasm
 
     dfx_json_path = ROOT_PATH / "dfx.json"
+
+    if canister_id == "":
+        canister_id = run_dfx_command(
+            f"dfx canister --network {network} id {canister_name} "
+        )
 
     print(
         f"Summary:"
@@ -147,8 +152,10 @@ def main() -> int:
         for attempt in range(1, max_retries + 1):
             try:
                 # Send i as the chunkId
-                response = canister_creator.upload_mainer_llm_bytes_chunk(
-                    chunk, i
+                response = canister_creator.upload_mainer_llm_bytes_chunk({
+                    "bytesChunk" : chunk, 
+                    "chunkID" : i
+                    }
                 )  # pylint: disable=no-member
                 break  # Exit the loop if the request is successful
             except Exception as e:
@@ -171,9 +178,10 @@ def main() -> int:
 
     # ---------------------------------------------------------------------------
     # Store the expected sha256 hash of the model file
-    finishResponse = canister_creator.finish_upload_mainer_llm(
-        selectedModel,
-        modelFileSha256
+    finishResponse = canister_creator.finish_upload_mainer_llm({
+        "selectedModel" : selectedModel,
+        "modelFileSha256" : modelFileSha256
+    }
     )  # pylint: disable=no-member
     print(finishResponse)
     return 0

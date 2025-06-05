@@ -14,7 +14,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --network)
             shift
-            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ]; then
+            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ]; then
                 NETWORK_TYPE=$1
             else
                 echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing'."
@@ -59,7 +59,7 @@ fi
 echo " "
 echo "--------------------------------------------------"
 echo "Deploying a mAInerController canister of type #Own"
-output=$(dfx canister call mainer_creator_canister testCreateMainerControllerCanister '(variant {Own}, null)' --network $NETWORK_TYPE)
+output=$(dfx canister call mainer_creator_canister testCreateMainerControllerCanister '(record { mainerAgentCanisterType = variant {Own}, shareServiceCanisterAddress = null })' --network $NETWORK_TYPE)
 echo $output
 if [[ "$output" != *"Ok = record"* ]]; then
     echo "Failed to create mAIner controller canister of type #Own. Exiting."    
