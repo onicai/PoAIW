@@ -4160,14 +4160,6 @@ actor class GameStateCanister() = this {
             D.print("GameState: submitChallengeResponse - 01 - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
             return #Err(#Unauthorized);
         };
-        // Verify that submission is charged with cycles
-        if (Cycles.available() < cyclesSubmitResponse) {
-            let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
-            D.print("GameState: submitChallengeResponse - 02- kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
-            D.print("GameState: submitChallengeResponse - cycles available: " # debug_show(Cycles.available()));
-            D.print("GameState: submitChallengeResponse - cycles required : " # debug_show(cyclesSubmitResponse));
-            return #Err(#InsuffientCycles(cyclesSubmitResponse));                    
-        };
         // Only official mAIner agent canisters may call this
         switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
             case (null) {
@@ -4181,13 +4173,6 @@ actor class GameStateCanister() = this {
                     let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
                     D.print("GameState: submitChallengeResponse - 04 - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
                     return #Err(#Unauthorized);
-                };
-
-                // Verify that challenge is open
-                if (not verifyChallenge(#Open, challengeResponseSubmissionInput.challengeId)) {
-                    let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
-                    D.print("GameState: submitChallengeResponse - 05 - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
-                    return #Err(#InvalidId);
                 };
 
                 // Verify that the mAIner is running the official wasm code (untampered)
@@ -4228,71 +4213,94 @@ actor class GameStateCanister() = this {
                     return #Err(#Other("GameState: testMainerCodeIntegrityAdmin - Failed to retrieve info for mAIner: " # debug_show(challengeResponseSubmissionInput) # Error.message(e)));
                 };
 
-                // Accept cycles for submission (submission fee plus any outstanding fees, e.g. cuts from unofficial top ups for Protocol's operational expenses)
-                let cyclesAcceptedForSubmission = Cycles.accept<system>(Cycles.available());
-                D.print("GameState: submitChallengeResponse - Accepting cycles for successful submission: " # debug_show(cyclesAcceptedForSubmission) # " from caller " # Principal.toText(msg.caller));
-                if (cyclesAcceptedForSubmission < cyclesSubmitResponse) {
-                    // Sanity check: At this point, this should never fail
-                    D.print("GameState: submitChallengeResponse - 07");
-                    return #Err(#Unauthorized);                    
-                };
+                // Verify that challenge is open
+                // Verify the cyclesSubmitResponse for this Challenge
+                switch (getOpenChallenge(challengeResponseSubmissionInput.challengeId)) {
+                    case (null) { 
+                        let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
+                        D.print("GameState: submitChallengeResponse - 05 - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
+                        return #Err(#InvalidId);
+                    };
+                    case (?challengeEntry) {
+                        // Verify that submission is charged with sufficient cycles for this Challenge
+                        D.print("GameState: submitChallengeResponse - challengeEntry.cyclesSubmitResponse: " # debug_show(challengeEntry.cyclesSubmitResponse) # " Cycles");
+                        D.print("GameState: submitChallengeResponse - Cycles available: " # debug_show(Cycles.available()));
 
-                // Store the submission
-                let submissionId : Text = await Utils.newRandomUniqueId();
-                let submissionAdded : Types.ChallengeResponseSubmission = {
-                    challengeTopic : Text = challengeResponseSubmissionInput.challengeTopic;
-                    challengeTopicId : Text = challengeResponseSubmissionInput.challengeTopicId;
-                    challengeTopicCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeTopicCreationTimestamp;
-                    challengeTopicStatus : Types.ChallengeTopicStatus = challengeResponseSubmissionInput.challengeTopicStatus;
-                    cyclesGenerateChallengeGsChctrl : Nat = challengeResponseSubmissionInput.cyclesGenerateChallengeGsChctrl;
-                    cyclesGenerateChallengeChctrlChllm : Nat = challengeResponseSubmissionInput.cyclesGenerateChallengeChctrlChllm;
-                    challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
-                    challengeQuestionSeed : Nat32 = challengeResponseSubmissionInput.challengeQuestionSeed;
-                    mainerPromptId : Text = challengeResponseSubmissionInput.mainerPromptId;
-                    mainerMaxContinueLoopCount : Nat = challengeResponseSubmissionInput.mainerMaxContinueLoopCount;
-                    mainerNumTokens : Nat64 = challengeResponseSubmissionInput.mainerNumTokens;
-                    mainerTemp : Float = challengeResponseSubmissionInput.mainerTemp;
-                    judgePromptId : Text = challengeResponseSubmissionInput.judgePromptId;
-                    challengeId : Text = challengeResponseSubmissionInput.challengeId;
-                    challengeCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeCreationTimestamp;
-                    challengeCreatedBy : Types.CanisterAddress = challengeResponseSubmissionInput.challengeCreatedBy;
-                    challengeStatus : Types.ChallengeStatus = challengeResponseSubmissionInput.challengeStatus;
-                    challengeClosedTimestamp : ?Nat64 = challengeResponseSubmissionInput.challengeClosedTimestamp;
-                    cyclesSubmitResponse : Nat = challengeResponseSubmissionInput.cyclesSubmitResponse;
-                    protocolOperationFeesCut : Nat = challengeResponseSubmissionInput.protocolOperationFeesCut;
-                    cyclesGenerateResponseSactrlSsctrl : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSactrlSsctrl;
-                    cyclesGenerateResponseSsctrlGs : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSsctrlGs;
-                    cyclesGenerateResponseSsctrlSsllm : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSsctrlSsllm;
-                    cyclesGenerateResponseOwnctrlGs : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlGs;
-                    cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmLOW;
-                    cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
-                    cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmHIGH;
-                    challengeQueuedId : Text = challengeResponseSubmissionInput.challengeQueuedId;
-                    challengeQueuedBy : Principal = challengeResponseSubmissionInput.challengeQueuedBy;
-                    challengeQueuedTo : Principal = challengeResponseSubmissionInput.challengeQueuedTo;
-                    challengeQueuedTimestamp : Nat64 = challengeResponseSubmissionInput.challengeQueuedTimestamp;
-                    challengeAnswer : Text = challengeResponseSubmissionInput.challengeAnswer;
-                    challengeAnswerSeed : Nat32 = challengeResponseSubmissionInput.challengeAnswerSeed;
-                    submittedBy : Principal = challengeResponseSubmissionInput.submittedBy;
-                    submissionId : Text = submissionId;
-                    submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                    submissionStatus: Types.ChallengeResponseSubmissionStatus = #Submitted;
-                    cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
-                    cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
-                };
+                        if (Cycles.available() < challengeEntry.cyclesSubmitResponse) {
+                            let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
+                            D.print("GameState: submitChallengeResponse - 02- kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
+                            D.print("GameState: submitChallengeResponse - cycles available: " # debug_show(Cycles.available()));
+                            D.print("GameState: submitChallengeResponse - cycles required : " # debug_show(challengeEntry.cyclesSubmitResponse));
+                            return #Err(#InsuffientCycles(challengeEntry.cyclesSubmitResponse));                    
+                        };
 
-                let putResult = putSubmission(submissionId, submissionAdded);
-                let submissionMetada : Types.ChallengeResponseSubmissionMetadata = {
-                    submissionId : Text = submissionId;
-                    submittedTimestamp : Nat64 = submissionAdded.submittedTimestamp;
-                    submissionStatus: Types.ChallengeResponseSubmissionStatus = submissionAdded.submissionStatus;
-                    cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
-                    cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
-                };
-                D.print("GameState: submitChallengeResponse - submitted!");
-                // TODO - Implementation: adapt cycles burnt stats
-                ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
-                return #Ok(submissionMetada);           
+                        // Accept cycles for submission (submission fee plus any outstanding fees, e.g. cuts from unofficial top ups for Protocol's operational expenses)
+                        let cyclesAcceptedForSubmission = Cycles.accept<system>(Cycles.available());
+                        D.print("GameState: submitChallengeResponse - Accepting cycles for successful submission: " # debug_show(cyclesAcceptedForSubmission) # " from caller " # Principal.toText(msg.caller));
+                        if (cyclesAcceptedForSubmission < challengeEntry.cyclesSubmitResponse) {
+                            // Sanity check: At this point, this should never fail
+                            D.print("GameState: submitChallengeResponse - 07");
+                            return #Err(#Unauthorized);                    
+                        };
+
+                        // Store the submission
+                        let submissionId : Text = await Utils.newRandomUniqueId();
+                        let submissionAdded : Types.ChallengeResponseSubmission = {
+                            challengeTopic : Text = challengeResponseSubmissionInput.challengeTopic;
+                            challengeTopicId : Text = challengeResponseSubmissionInput.challengeTopicId;
+                            challengeTopicCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeTopicCreationTimestamp;
+                            challengeTopicStatus : Types.ChallengeTopicStatus = challengeResponseSubmissionInput.challengeTopicStatus;
+                            cyclesGenerateChallengeGsChctrl : Nat = challengeResponseSubmissionInput.cyclesGenerateChallengeGsChctrl;
+                            cyclesGenerateChallengeChctrlChllm : Nat = challengeResponseSubmissionInput.cyclesGenerateChallengeChctrlChllm;
+                            challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
+                            challengeQuestionSeed : Nat32 = challengeResponseSubmissionInput.challengeQuestionSeed;
+                            mainerPromptId : Text = challengeResponseSubmissionInput.mainerPromptId;
+                            mainerMaxContinueLoopCount : Nat = challengeResponseSubmissionInput.mainerMaxContinueLoopCount;
+                            mainerNumTokens : Nat64 = challengeResponseSubmissionInput.mainerNumTokens;
+                            mainerTemp : Float = challengeResponseSubmissionInput.mainerTemp;
+                            judgePromptId : Text = challengeResponseSubmissionInput.judgePromptId;
+                            challengeId : Text = challengeResponseSubmissionInput.challengeId;
+                            challengeCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeCreationTimestamp;
+                            challengeCreatedBy : Types.CanisterAddress = challengeResponseSubmissionInput.challengeCreatedBy;
+                            challengeStatus : Types.ChallengeStatus = challengeResponseSubmissionInput.challengeStatus;
+                            challengeClosedTimestamp : ?Nat64 = challengeResponseSubmissionInput.challengeClosedTimestamp;
+                            cyclesSubmitResponse : Nat = challengeResponseSubmissionInput.cyclesSubmitResponse;
+                            protocolOperationFeesCut : Nat = challengeResponseSubmissionInput.protocolOperationFeesCut;
+                            cyclesGenerateResponseSactrlSsctrl : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSactrlSsctrl;
+                            cyclesGenerateResponseSsctrlGs : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSsctrlGs;
+                            cyclesGenerateResponseSsctrlSsllm : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSsctrlSsllm;
+                            cyclesGenerateResponseOwnctrlGs : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlGs;
+                            cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmLOW;
+                            cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+                            cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmHIGH;
+                            challengeQueuedId : Text = challengeResponseSubmissionInput.challengeQueuedId;
+                            challengeQueuedBy : Principal = challengeResponseSubmissionInput.challengeQueuedBy;
+                            challengeQueuedTo : Principal = challengeResponseSubmissionInput.challengeQueuedTo;
+                            challengeQueuedTimestamp : Nat64 = challengeResponseSubmissionInput.challengeQueuedTimestamp;
+                            challengeAnswer : Text = challengeResponseSubmissionInput.challengeAnswer;
+                            challengeAnswerSeed : Nat32 = challengeResponseSubmissionInput.challengeAnswerSeed;
+                            submittedBy : Principal = challengeResponseSubmissionInput.submittedBy;
+                            submissionId : Text = submissionId;
+                            submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            submissionStatus: Types.ChallengeResponseSubmissionStatus = #Submitted;
+                            cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
+                            cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
+                        };
+
+                        let putResult = putSubmission(submissionId, submissionAdded);
+                        let submissionMetada : Types.ChallengeResponseSubmissionMetadata = {
+                            submissionId : Text = submissionId;
+                            submittedTimestamp : Nat64 = submissionAdded.submittedTimestamp;
+                            submissionStatus: Types.ChallengeResponseSubmissionStatus = submissionAdded.submissionStatus;
+                            cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
+                            cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
+                        };
+                        D.print("GameState: submitChallengeResponse - submitted!");
+                        // TODO - Implementation: adapt cycles burnt stats
+                        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
+                        return #Ok(submissionMetada);       
+                    };
+                };    
             };
         };
     };

@@ -77,6 +77,7 @@ type MainerAgentCtrlbCanister =
     (ChallengeResponseSubmissionsResult) query;
    health: () -> (StatusCodeRecordResult) query;
    ready: () -> (StatusCodeRecordResult);
+   resetChallengeQueueAdmin: () -> (StatusCodeRecordResult);
    reset_llm_canisters: () -> (StatusCodeRecordResult);
    setGameStateCanisterId: (_game_state_canister_id: text) ->
     (StatusCodeRecordResult);

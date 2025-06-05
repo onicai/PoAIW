@@ -398,6 +398,14 @@ actor class MainerAgentCtrlbCanister() = this {
         return #Ok(challengeQueueInputs);
     };
 
+    public shared (msg) func resetChallengeQueueAdmin() : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        challengeQueue := List.nil<Types.ChallengeQueueInput>();
+        return #Ok({ status_code = 200 });
+    };
+
     // Record of generated responses
     stable var generatedResponses : List.List<Types.ChallengeResponseSubmissionInput> = List.nil<Types.ChallengeResponseSubmissionInput>();
 
@@ -469,6 +477,7 @@ actor class MainerAgentCtrlbCanister() = this {
     // -------------------------------------------------------------------------------
     // The C++ LLM canisters that can be called
 
+    stable var llmCanistersStable : [Text] = [];
     private var llmCanisters : Buffer.Buffer<Types.LLMCanister> = Buffer.fromArray([]);
 
     // Resets llmCanisters
@@ -662,10 +671,16 @@ actor class MainerAgentCtrlbCanister() = this {
 
         switch (respondingResult) {
             case (#Err(error)) {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge error");
-                D.print(debug_show (error));
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge error" # debug_show (error));
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): WARNING - ShareService is likely broken & admin must call resetChallengeQueueAdmin of the ShareAgent " # debug_show(challengeQueueInput.challengeQueuedBy) # " once the ShareService is fixed");
                 // TODO - Error Handling
                 // TODO - Design: in case of ShareService, do we refund the cycles to the ShareAgent?
+                // NOTE:
+                // - We are NOT sending anything back to the ShareAgent.
+                // - This is the safest approach to avoid sucking all cycles out of the ShareAgent in case the ShareService is not working
+                // - The ShareAgent's challengeQueue will simply fill up with challenges that cannot be processed
+                //
+                // -> Admin must run a script to reset the challengeQueue of all the ShareAgent caniseters once the ShareService is fixed
             };
             case (#Ok(respondingOutput : Types.ChallengeResponse)) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - calling putGeneratedResponse");
@@ -1549,6 +1564,9 @@ actor class MainerAgentCtrlbCanister() = this {
                 // Check if the canister has enough cycles for this particular Challenge
                 if (not sufficientCyclesToProcessChallenge(challengeQueueInput)) {
                     // Note: do not set pause flag
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge - Not enough cycles to process challenge. Pushing it back on the queue to try later.");
+                    // Push the challenge back to the queue to try again later
+                    let _pushResult_ = pushChallengeQueue(challengeQueueInput);
                     return;
                 };
 
@@ -1823,6 +1841,13 @@ actor class MainerAgentCtrlbCanister() = this {
         mainerCreatorCanistersStorageStable := Iter.toArray(mainerCreatorCanistersStorage.entries());
         shareAgentCanistersStorageStable := Iter.toArray(shareAgentCanistersStorage.entries());
         userToShareAgentsStorageStable := Iter.toArray(userToShareAgentsStorage.entries());
+        
+        // Convert Buffer<LLMCanister> to [Text] for stable storage
+        let llmCanisterIds = Buffer.Buffer<Text>(llmCanisters.size());
+        for (llmCanister in llmCanisters.vals()) {
+            llmCanisterIds.add(Principal.toText(Principal.fromActor(llmCanister)));
+        };
+        llmCanistersStable := Buffer.toArray(llmCanisterIds);
     };
 
     system func postupgrade() {
@@ -1832,5 +1857,13 @@ actor class MainerAgentCtrlbCanister() = this {
         shareAgentCanistersStorageStable := [];
         userToShareAgentsStorage := HashMap.fromIter(Iter.fromArray(userToShareAgentsStorageStable), userToShareAgentsStorageStable.size(), Principal.equal, Principal.hash);
         userToShareAgentsStorageStable := [];
+        
+        // Reconstruct Buffer<LLMCanister> from [Text]
+        llmCanisters := Buffer.Buffer<Types.LLMCanister>(llmCanistersStable.size());
+        for (canisterId in llmCanistersStable.vals()) {
+            let llmCanister = actor (canisterId) : Types.LLMCanister;
+            llmCanisters.add(llmCanister);
+        };
+        llmCanistersStable := [];
     };
 };
