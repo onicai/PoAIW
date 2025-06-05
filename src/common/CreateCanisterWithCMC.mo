@@ -39,9 +39,10 @@ module CreateCanisterWithCMC {
             subnet_type = null; // subnet_type is null when subnet_selection is used with #Subnet
         };
 
+        D.print("CreateCanisterWithCMC: createCanisterOnSubnet - calling Cycles.add for = " # debug_show(cycles_to_attach) # " Cycles");
         Cycles.add<system>(cycles_to_attach);
-        D.print("CreateCanisterWithCMC: createCanisterOnSubnet - Calling CMC.create_canister targeting subnet " # subnet # " with " # debug_show(cycles_to_attach) # " cycles.");
 
+        D.print("CreateCanisterWithCMC: createCanisterOnSubnet - Calling CMC.create_canister targeting subnet " # subnet );
         let createCanisterResult = await CMC_ACTOR.create_canister(createCanisterArg);
 
         switch (createCanisterResult) {

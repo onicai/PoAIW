@@ -65,6 +65,14 @@ module Types {
         cyclesCreateMainerllmMcMainerllm   : Nat;
     };
 
+    // variables sent by GameState to mAIner Creator
+    public type CyclesUpgradeMainer = {
+        cyclesUpgradeMainerctrlGsMc : Nat;
+        cyclesUpgradeMainerllmGsMc : Nat;
+        cyclesUpgradeMainerctrlMcMainerctrl : Nat;
+        cyclesUpgradeMainerllmMcMainerllm   : Nat;
+    };
+
     // variables sent by GameState to Challenger
     public type CyclesGenerateChallenge = {
         cyclesGenerateChallengeGsChctrl : Nat;
@@ -100,6 +108,12 @@ module Types {
         costCreateMainerLlm : Nat;
         costCreateMcMainerCtrl : Nat;
         costCreateMcMainerLlm : Nat;
+
+        costUpgradeMainerCtrl : Nat;
+        costUpgradeMainerLlm : Nat;
+        costUpgradeMcMainerCtrl : Nat;
+        costUpgradeMcMainerLlm : Nat;
+
 
         // Generations
         dailyChallenges : Nat;
@@ -166,11 +180,15 @@ module Types {
         costCreateMcMainerCtrl : ?Nat;
         costCreateMcMainerLlm : ?Nat;
 
-        cyclesCreateMainerUserGs : ?Nat;
-        cyclesCreateMainerctrlGsMc : ?Nat;
-        cyclesCreateMainerllmGsMc : ?Nat;
-        cyclesCreateMainerMcMainerllm : ?Nat;
-        cyclesCreateMainerMcMainerctrl : ?Nat;
+        costUpgradeMainerCtrl :?Nat;
+        costUpgradeMainerLlm : ?Nat;
+        costUpgradeMcMainerCtrl : ?Nat;
+        costUpgradeMcMainerLlm : ?Nat;
+
+        cyclesUpgradeMainerctrlGsMc : ?Nat;
+        cyclesUpgradeMainerllmGsMc : ?Nat;
+        cyclesUpgradeMainerctrlMcMainerctrl : ?Nat;
+        cyclesUpgradeMainerllmMcMainerllm   : ?Nat;
 
         // Generations
         dailyChallenges : ?Nat;
@@ -400,6 +418,10 @@ module Types {
         owner: ?Principal;
     };
 
+    public type MainerctrlUpgradeInput = {
+        canisterAddress : CanisterAddress;
+    };
+
     public type CanisterCreationConfigurationInput = {
         canisterType : ProtocolCanisterType;
         associatedCanisterAddress : ?CanisterAddress; // References Controller for an LLM, and ShareService for a ShareAgent
@@ -611,6 +633,12 @@ module Types {
         subnet : Text;
         configurationInput : CanisterCreationConfiguration;
     };
+    public type UpgradeMainerctrlInput = {
+        mainerAgentEntry : Types.OfficialMainerAgentCanister; // Canister to upgrade
+        cyclesUpgradeMainerctrlGsMc : Nat;
+        cyclesUpgradeMainerctrlMcMainerctrl : Nat;
+    };
+
     public type TestCreateMainerControllerCanister = {
         mainerAgentCanisterType : MainerAgentCanisterType;
         shareServiceCanisterAddress : ?CanisterAddress;
@@ -677,29 +705,6 @@ module Types {
                 return cyclesBurnRateDefaultLow;
             };
         };
-    };
-
-    // TODO - Implementation: merge into common file and finalize numbers
-    
-    let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200_000_000_000;
-    let SUBMISSION_CYCLES_REQUIRED : Nat = 100_000_000_000;
-    let secondsInMinute = 60;
-    let minutesInHour = 60;
-    let hoursInDay = 24;
-
-    public func getTimerRegularityForCyclesBurnRate(cyclesBurnRate : CyclesBurnRate) : Nat {
-        var timeIntervalDuration = secondsInMinute * minutesInHour * hoursInDay; // Daily as default, i.e. this gives the seconds per day
-        switch (cyclesBurnRate.timeInterval) {
-            case (#Daily) {
-                // use default
-            };
-        };
-        // Calculate how many responses can be generated with the cycles budget based on response costs (generation plus submission)
-        let submissionsInTimeInterval = cyclesBurnRate.cycles / (CYCLES_BURNT_RESPONSE_GENERATION + SUBMISSION_CYCLES_REQUIRED);
-        // Calculate how often to respond (in seconds)
-        let timerRegularity = timeIntervalDuration / submissionsInTimeInterval;
-
-        return timerRegularity;
     };
 
     public type MainerAgentSettingsInput = {
@@ -1013,11 +1018,13 @@ module Types {
         downloadJudgePromptCacheBytesChunk : (DownloadJudgePromptCacheBytesChunkInput) -> async Types.DownloadJudgePromptCacheBytesChunkRecordResult;
         finishUploadJudgePromptCache : (FinishUploadJudgePromptCacheInput) -> async Types.StatusCodeRecordResult;
         getJudgePromptInfo : (Text) -> async Types.JudgePromptInfoResult;
+        getMainerCyclesUsedPerResponse : () -> async NatResult;
     };
 
     public type MainerCreator_Actor = actor {
         createCanister: shared CanisterCreationConfiguration -> async CanisterCreationResult;
         setupCanister: shared SetupCanisterInput -> async CanisterCreationResult;
+        upgradeMainerctrl: shared UpgradeMainerctrlInput -> async Types.StatusCodeRecordResult
     };
 
     // mAIner

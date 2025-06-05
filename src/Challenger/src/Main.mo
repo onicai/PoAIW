@@ -1301,6 +1301,7 @@ actor class ChallengerCtrlbCanister() {
         // First send cycles to the LLM
         let cyclesAdded = challengeTopic.cyclesGenerateChallengeChctrlChllm;
         try {
+            D.print("Challenger: challengeGenerationDoIt_ - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
             Cycles.add<system>(cyclesAdded);
 
             let deposit_cycles_args = { canister_id : Principal = llmCanisterPrincipal; };

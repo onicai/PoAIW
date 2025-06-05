@@ -455,14 +455,15 @@ actor class JudgeCtrlbCanister() = this {
         // First send cycles to the LLM
         let cyclesAdded = submissionEntry.cyclesGenerateScoreJuctrlJullm;
         try {
+            D.print("Judge: judgeChallengeResponseDoIt_ - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
             Cycles.add<system>(cyclesAdded);
             let deposit_cycles_args = { canister_id : Principal = llmCanisterPrincipal; };
             let _ = await IC0.deposit_cycles(deposit_cycles_args);
 
-            D.print("Challenger: judgeChallengeResponseDoIt_ - Successfully deposited " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal) ); 
+            D.print("Judge: judgeChallengeResponseDoIt_ - Successfully deposited " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal) ); 
         } catch (e) {
-            D.print("Challenger: judgeChallengeResponseDoIt_ - Failed to deposit " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal));
-            D.print("Challenger: judgeChallengeResponseDoIt_ - Failed to deposit error is" # Error.message(e));
+            D.print("Judge: judgeChallengeResponseDoIt_ - Failed to deposit " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal));
+            D.print("Judge: judgeChallengeResponseDoIt_ - Failed to deposit error is" # Error.message(e));
 
             return #Err(#FailedOperation);
         };  

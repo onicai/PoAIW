@@ -447,8 +447,9 @@ actor class GameStateCanister() = this {
     stable var costCreateMainerLlm                : Nat  = DEFAULT_COST_CREATE_MAINER_LLM;
     stable var costCreateMcMainerCtrl             : Nat  = DEFAULT_COST_MC_CREATE_MAINER_CTRL; 
     stable var costCreateMcMainerLlm              : Nat  = DEFAULT_COST_MC_CREATE_MAINER_LLM; 
+    
 
-    // Calculate the cycles that will be sent to the mAIner Creator
+    // Calculate the cycles that will be sent to the mAIner Creator once we know the user payment
     private func calculateCyclesCreateMainer(cyclesFromUser : Nat, mainerAgentCanisterType : Types.MainerAgentCanisterType) : Types.CyclesCreateMainer {
         // Call this at start of every mAIner canister creation
 
@@ -496,10 +497,47 @@ actor class GameStateCanister() = this {
         return cyclesCreateMainer;
     };
 
+    // Mainer Upgrade Cycles Flows are independent of user payments, so we can just set them
+    let DEFAULT_COST_UPGRADE_MAINER_CTRL          : Nat  = 10 * Constants.CYCLES_BILLION; // Cost of a Mainer Controller canister for it's upgrade
+    let DEFAULT_COST_UPGRADE_MAINER_LLM           : Nat  = 10 * Constants.CYCLES_BILLION; // Cost of a LLM canister for it's upgrade
+    let DEFAULT_COST_MC_UPGRADE_MAINER_CTRL       : Nat  =  1 * Constants.CYCLES_BILLION ; // Cost for the MC to upgrade a Mainer Controller canister
+    let DEFAULT_COST_MC_UPGRADE_MAINER_LLM        : Nat  =  1 * Constants.CYCLES_BILLION ; // Cost for the MC to upgrade a LLM canister
+                                                                                                    // -> Note: we are NOT re-uploading the LLM model, only installing the new wasm
+    stable var costUpgradeMainerCtrl              : Nat  = DEFAULT_COST_UPGRADE_MAINER_CTRL;
+    stable var costUpgradeMainerLlm               : Nat  = DEFAULT_COST_UPGRADE_MAINER_LLM;
+    stable var costUpgradeMcMainerCtrl            : Nat  = DEFAULT_COST_MC_UPGRADE_MAINER_CTRL;
+    stable var costUpgradeMcMainerLlm             : Nat  = DEFAULT_COST_MC_UPGRADE_MAINER_LLM;
+
+    stable var cyclesUpgradeMainerctrlGsMc         : Nat  = 0;
+    stable var cyclesUpgradeMainerllmGsMc          : Nat  = 0;
+    stable var cyclesUpgradeMainerctrlMcMainerctrl : Nat  = 0;
+    stable var cyclesUpgradeMainerllmMcMainerllm   : Nat  = 0;
+
+    private func setCyclesUpgradeMainer() {
+        // To be called each time a variable is updated by Admin or by the protocol itself
+        var cost : Nat = 0;
+
+        cost := costUpgradeMainerCtrl + costUpgradeMcMainerCtrl;
+        cyclesUpgradeMainerctrlGsMc         := cost + cost * marginCost / 100;
+
+        cost := costUpgradeMainerLlm + costUpgradeMcMainerLlm;
+        cyclesUpgradeMainerllmGsMc          := cost + cost * marginCost / 100;
+
+        cyclesUpgradeMainerctrlMcMainerctrl := costUpgradeMainerCtrl;
+        cyclesUpgradeMainerllmMcMainerllm   := costUpgradeMainerLlm;
+
+        D.print("GameState: setCyclesUpgradeMainer - cyclesUpgradeMainerctrlGsMc         : " # debug_show(cyclesUpgradeMainerctrlGsMc));
+        D.print("GameState: setCyclesUpgradeMainer - cyclesUpgradeMainerllmGsMc          : " # debug_show(cyclesUpgradeMainerllmGsMc));
+        D.print("GameState: setCyclesUpgradeMainer - cyclesUpgradeMainerctrlMcMainerctrl : " # debug_show(cyclesUpgradeMainerctrlMcMainerctrl));
+        D.print("GameState: setCyclesUpgradeMainer - cyclesUpgradeMainerllmMcMainerllm   : " # debug_show(cyclesUpgradeMainerllmMcMainerllm));
+    };
+
     // Protocol parameters used in the Generation Cycles Flow calculations
     let DEFAULT_DAILY_CHALLENGES                : Nat = 5;                      // TODO: set the actual value or let the GameState automatically update this on a daily basis
     stable var dailyChallenges                  : Nat = DEFAULT_DAILY_CHALLENGES; // The lower the value, the more cycles are send with each challenge to the Challenger
 
+    // -----------
+    // TODO -- REMOVE THIS LOGIC. IT IS NOT USED...
     let DEFAULT_DAILY_SUBMISSIONS_PER_OWN_LOW      : Nat =  24; // TODO: set the actual value 
     stable var dailySubmissionsPerOwnLOW           : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_OWN_LOW;
     let DEFAULT_DAILY_SUBMISSIONS_PER_OWN_MEDIUM   : Nat =  48; // TODO: set the actual value
@@ -513,6 +551,7 @@ actor class GameStateCanister() = this {
     stable var dailySubmissionsPerShareMEDIUM      : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_MEDIUM;
     let DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_HIGH   : Nat =   3; // TODO: set the actual value
     stable var dailySubmissionsPerShareHIGH        : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_HIGH;
+    // -----------
     
     let DEFAULT_DAILY_SUBMISSIONS_ALL_OWN          : Nat =   0; // TODO = GameState automatically updates this on a daily basis
     stable var dailySubmissionsAllOwn              : Nat = DEFAULT_DAILY_SUBMISSIONS_ALL_OWN;
@@ -689,6 +728,7 @@ actor class GameStateCanister() = this {
         cyclesBurntResponseGenerationOwn    := costGenerateResponseOwnGs + costGenerateResponseOwnctrl + costGenerateResponseOwnllm;
         cyclesBurntResponseGenerationShare  := costGenerateResponseShareGs + costGenerateResponseSactrl + costGenerateResponseSsctrl + costGenerateResponseSsllm;
 
+
         // Submission of the response to GameState
         // Cover cost of:
         // -> GameState, Challenger & Judge for this response to a Challenge, including their idle burn rates
@@ -731,6 +771,11 @@ actor class GameStateCanister() = this {
         costCreateMainerLlm                := DEFAULT_COST_CREATE_MAINER_LLM;        
         costCreateMcMainerCtrl             := DEFAULT_COST_MC_CREATE_MAINER_CTRL;
         costCreateMcMainerLlm              := DEFAULT_COST_MC_CREATE_MAINER_LLM;
+
+        costUpgradeMainerCtrl               := DEFAULT_COST_UPGRADE_MAINER_CTRL;
+        costUpgradeMainerLlm                := DEFAULT_COST_UPGRADE_MAINER_LLM;        
+        costUpgradeMcMainerCtrl             := DEFAULT_COST_MC_UPGRADE_MAINER_CTRL;
+        costUpgradeMcMainerLlm              := DEFAULT_COST_MC_UPGRADE_MAINER_LLM;
 
         dailyChallenges := DEFAULT_DAILY_CHALLENGES;
         
@@ -790,9 +835,38 @@ actor class GameStateCanister() = this {
 
     private func setCyclesFlow() {
         // Calculate the cycles flows
+        setCyclesUpgradeMainer();
         setCyclesGenerateChallenge();
         setCyclesGenerateScore();
         setCyclesGenerateResponse();
+    };
+
+    // Endpoint for mAIner #ShareAgent and #Own to get current cost of response generation & submissions
+    public shared (msg) func getMainerCyclesUsedPerResponse() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Only official mAIner agent canisters may call this
+        switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?mainerAgentEntry) {
+                var cyclesUsed : Nat = cyclesSubmitResponse;
+                
+                switch (mainerAgentEntry.canisterType) {
+                    case (#MainerAgent(#Own)) {
+                        cyclesUsed := cyclesUsed + costGenerateResponseOwnctrl + costGenerateResponseOwnllm;
+                    };
+                    case (#MainerAgent(#ShareAgent)) {
+                        cyclesUsed := cyclesUsed + costGenerateResponseSactrl + cyclesGenerateResponseSactrlSsctrl;
+                    };
+                    case (_) { return #Err(#Other("Unsupported")); }
+                    };
+                
+                D.print("GameState: getMainerCyclesUsedPerResponse - cyclesUsed: " # debug_show(cyclesUsed) # " returned to mAiner (" # debug_show(mainerAgentEntry.canisterType) # ") " # Principal.toText(msg.caller));
+                return #Ok(cyclesUsed);
+            };
+        };
     };
     
     // Cycle Flow Settings Admin Endpoints
@@ -811,6 +885,11 @@ actor class GameStateCanister() = this {
             costCreateMainerLlm = costCreateMainerLlm;
             costCreateMcMainerCtrl = costCreateMcMainerCtrl;
             costCreateMcMainerLlm = costCreateMcMainerLlm;
+            costUpgradeMainerCtrl = costUpgradeMainerCtrl;
+            costUpgradeMainerLlm = costUpgradeMainerLlm;
+            costUpgradeMcMainerCtrl = costUpgradeMcMainerCtrl;
+            costUpgradeMcMainerLlm = costUpgradeMcMainerLlm;
+
 
             // Generations
             dailyChallenges = dailyChallenges;
@@ -912,7 +991,7 @@ actor class GameStateCanister() = this {
         switch (settings.submissionFee) { case (null) {}; case (?value) { submissionFee := value; }; };
         switch (settings.protocolOperationFeesCut) { case (null) {}; case (?value) { protocolOperationFeesCut := value; }; };
 
-        // ptionally, update the mAIner creation parameters
+        // Optionally, update the mAIner creation parameters
         switch (settings.cyclesCreateMainerMarginGs) { case (null) {}; case (?value) { cyclesCreateMainerMarginGs := value; }; };
         switch (settings.cyclesCreatemMainerMarginMc) { case (null) {}; case (?value) { cyclesCreatemMainerMarginMc := value; }; };
         switch (settings.cyclesCreateMainerLlmTargetBalance) { case (null) {}; case (?value) { cyclesCreateMainerLlmTargetBalance := value; }; };
@@ -920,6 +999,12 @@ actor class GameStateCanister() = this {
         switch (settings.costCreateMainerLlm) { case (null) {}; case (?value) { costCreateMainerLlm := value; }; };
         switch (settings.costCreateMcMainerCtrl) { case (null) {}; case (?value) { costCreateMcMainerCtrl := value; }; };
         switch (settings.costCreateMcMainerLlm) { case (null) {}; case (?value) { costCreateMcMainerLlm := value; }; };
+        
+        // Optionally, update the mAIner upgrade parameters
+        switch (settings.costUpgradeMainerCtrl) { case (null) {}; case (?value) { costUpgradeMainerCtrl := value; }; };
+        switch (settings.costUpgradeMainerLlm) { case (null) {}; case (?value) { costUpgradeMainerLlm := value; }; };
+        switch (settings.costUpgradeMcMainerCtrl) { case (null) {}; case (?value) { costUpgradeMcMainerCtrl := value; }; };
+        switch (settings.costUpgradeMcMainerLlm) { case (null) {}; case (?value) { costUpgradeMcMainerLlm := value; }; };
             
         // Optionally, update the number of LLMs
         // TODO: remove this once we update it automatically as part of the protocol
@@ -2314,6 +2399,7 @@ actor class GameStateCanister() = this {
                     case (?challengeTopic) {
                         // First send cycles to the Challenger to pay for the challenge generation
                         let cyclesAdded = cyclesGenerateChallengeGsChctrl;
+                        D.print("GameState: getRandomOpenChallengeTopic - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
                         Cycles.add<system>(cyclesAdded);
                         try {
                             let deposit_cycles_args = { canister_id : Principal = msg.caller; };
@@ -2874,7 +2960,7 @@ actor class GameStateCanister() = this {
         };
     };
 
-    // Function for user to create a new mAIner agent
+    // Function for user or Admin to create a new mAIner agent
     public shared (msg) func createUserMainerAgent(mainerCreationInput : Types.MainerCreationInput) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -3276,40 +3362,14 @@ actor class GameStateCanister() = this {
                                     cyclesCreateMainerllmMcMainerllm : Nat = cyclesCreateMainer.cyclesCreateMainerllmMcMainerllm;
                                 };
                                 
-                                // TODO - outcomment checks on cycles used during canister creation
-                                D.print("GameState: spinUpMainerControllerCanister - Get cycles balance of mAInerCreator ("# debug_show(mainerCreatorEntry.address) #  ") before calling createCanister.");
-                                var cyclesBefore : Nat = 0;
-                                try {
-                                    let canisterStatus = await IC0.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
-                                    cyclesBefore := canisterStatus.cycles;
-                                } catch (e) {
-                                    D.print("GameState: spinUpMainerControllerCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
-                                    return #Err(#Other("GameState: spinUpMainerControllerCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address) # Error.message(e)));
-                                };
-                                D.print("GameState: spinUpMainerControllerCanister - cycles balance of mAInerCreator ("# debug_show(mainerCreatorEntry.address) #  ") before calling createCanister = " # debug_show(cyclesBefore) );
-
                                 let cyclesAdded = cyclesCreateMainer.cyclesCreateMainerctrlGsMc;
+                                D.print("GameState: spinUpMainerControllerCanister - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
                                 Cycles.add<system>(cyclesAdded);
-                                D.print("GameState: spinUpMainerControllerCanister - cycles sent to mAInerCreator = " # debug_show(cyclesAdded) );
 
+                                D.print("GameState: spinUpMainerControllerCanister - calling creatorCanisterActor.createCanister");
                                 // This only creates the canister and returns:
                                 // -> Use await, so we can return the controller's address to frontend
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
-
-                                D.print("GameState: spinUpMainerControllerCanister - Get cycles balance of mAInerCreator ("# debug_show(mainerCreatorEntry.address) #  ") after calling createCanister.");
-                                var cyclesAfter : Nat = 0;
-                                try {
-                                    let canisterStatus = await IC0.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
-                                    cyclesAfter := canisterStatus.cycles;
-                                } catch (e) {
-                                    D.print("GameState: spinUpMainerControllerCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
-                                    return #Err(#Other("GameState: spinUpMainerControllerCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address) # Error.message(e)));
-                                };
-                                let cyclesUsed : Nat = cyclesBefore + cyclesAdded - cyclesAfter;
-                                D.print("GameState: spinUpMainerControllerCanister - cycles balance of mAInerCreator (" # debug_show(mainerCreatorEntry.address) #  ") after calling createCanister = " # debug_show(cyclesAfter) );
-                                D.print("GameState: spinUpMainerControllerCanister - cycles added   to mAInerCreator (" # debug_show(mainerCreatorEntry.address) #  ")                              = " # debug_show(cyclesAdded) );
-                                D.print("GameState: spinUpMainerControllerCanister - cycles used    by mAInerCreator (" # debug_show(mainerCreatorEntry.address) #  ")                              = " # debug_show(cyclesUsed) );
-
                                 D.print("GameState: spinUpMainerControllerCanister - createCanister result: "# debug_show(result));
 
                                 switch (result) {
@@ -3341,6 +3401,64 @@ actor class GameStateCanister() = this {
                                 };            
                             };
                         };
+                    };
+                };
+            };
+        };
+    };
+
+
+    // Function for Admin to upgrade an existing mAIner agent controller
+    public shared (msg) func upgradeMainerControllerAdmin(mainerctrlUpgradeInput : Types.MainerctrlUpgradeInput) : async Types.MainerAgentCanisterResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let canisterAddress : Text = mainerctrlUpgradeInput.canisterAddress;
+        D.print("GameState: upgradeMainerControllerAdmin - canister to upgrade: " # canisterAddress);
+
+        switch (getMainerAgentCanister(canisterAddress)) {
+            case (null) { 
+                D.print("GameState: upgradeMainerControllerAdmin - ERROR: canister to upgrade is not found: " # canisterAddress);
+                return #Err(#Other("Canister to upgrade is not found: " # canisterAddress )); 
+            };
+            case (?mainerAgentEntry) {
+                // Forward upgrade request to mAIner Creator canister
+                switch (getNextMainerCreatorCanisterEntry()) {
+                    case (null) {
+                        // This should never happen as it indicates there isn't any mAIner Creator canister registered here
+                        D.print("GameState: upgradeMainerControllerAdmin - No mAIner Creator canister registered.");
+                        return #Err(#Unauthorized);
+                    };
+                    case (?mainerCreatorEntry) {
+                        let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
+
+                        let cyclesAdded = cyclesUpgradeMainerctrlGsMc;
+                        D.print("GameState: upgradeMainerControllerAdmin - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
+                        Cycles.add<system>(cyclesAdded);
+
+                        D.print("GameState: upgradeMainerControllerAdmin - calling creatorCanisterActor.upgradeMainerctrl for canister " # mainerAgentEntry.address );
+                        let upgradeMainerctrlInput : Types.UpgradeMainerctrlInput = {
+                            mainerAgentEntry : Types.OfficialMainerAgentCanister = mainerAgentEntry; // Canister to upgrade
+                            cyclesUpgradeMainerctrlGsMc : Nat = cyclesUpgradeMainerctrlGsMc;
+                            cyclesUpgradeMainerctrlMcMainerctrl : Nat = cyclesUpgradeMainerctrlMcMainerctrl;
+                        };
+                        ignore creatorCanisterActor.upgradeMainerctrl(upgradeMainerctrlInput);
+
+                        // Update the status of the mAIner agent entry to indicate that the upgrade is in progress
+                        let canisterEntryToAdd : Types.OfficialMainerAgentCanister = {
+                            address : Text = mainerAgentEntry.address; 
+                            subnet : Text = mainerAgentEntry.subnet; 
+                            canisterType: Types.ProtocolCanisterType = mainerAgentEntry.canisterType;
+                            creationTimestamp : Nat64 = mainerAgentEntry.creationTimestamp;
+                            createdBy : Principal = mainerAgentEntry.createdBy; 
+                            ownedBy : Principal = mainerAgentEntry.ownedBy;
+                            status : Types.CanisterStatus = #Other("Controller Upgrade in Progress");
+                            mainerConfig : Types.MainerConfigurationInput = mainerAgentEntry.mainerConfig;
+                        };
+                        D.print("GameState: upgradeMainerControllerAdmin - canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );
+                        // ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_MAINER_CREATION); // TODO
+                        addMainerAgentCanister_(canisterEntryToAdd);            
                     };
                 };
             };
@@ -3481,38 +3599,14 @@ actor class GameStateCanister() = this {
                                     cyclesCreateMainerllmMcMainerllm : Nat = cyclesCreateMainer.cyclesCreateMainerllmMcMainerllm;
                                 };
 
-                                // TODO - outcomment checks on cycles used during canister creation
-                                D.print("GameState: setUpMainerLlmCanister - Get cycles balance of mAInerCreator " # debug_show(mainerCreatorEntry.address) # "before calling createCanister.");
-                                var cyclesBefore : Nat = 0;
-                                try {
-                                    let canisterStatus = await IC0.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
-                                    cyclesBefore := canisterStatus.cycles;
-                                } catch (e) {
-                                    D.print("GameState: setUpMainerLlmCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
-                                    return #Err(#Other("GameState: setUpMainerLlmCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address) # Error.message(e)));
-                                };
-                                D.print("GameState: setUpMainerLlmCanister - cycles balance of mAInerCreator " # debug_show(mainerCreatorEntry.address) # "before calling createCanister = " # debug_show(cyclesBefore) );  
-
                                 let cyclesAdded = cyclesCreateMainer.cyclesCreateMainerllmGsMc; 
+                                D.print("GameState: setUpMainerLlmCanister - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
                                 Cycles.add<system>(cyclesAdded);
-                                D.print("GameState: setUpMainerLlmCanister - cycles sent to mAInerCreator = " # debug_show(cyclesAdded) );
-
+                                
+                                D.print("GameState: setUpMainerLlmCanister - calling creatorCanisterActor.createCanister ");
                                 // This only creates the LLM canister and returns
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
                                 D.print("GameState: setUpMainerLlmCanister - createCanister returned " # debug_show(result) );
-
-                                D.print("GameState: setUpMainerLlmCanister - Get cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") after calling createCanister.");
-                                var cyclesAfter : Nat = 0;
-                                try {
-                                    let canisterStatus = await IC0.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
-                                    cyclesAfter := canisterStatus.cycles;
-                                } catch (e) {
-                                    D.print("GameState: setUpMainerLlmCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
-                                    return #Err(#Other("GameState: setUpMainerLlmCanister - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address) # Error.message(e)));
-                                };
-                                let cyclesUsed : Nat = cyclesBefore + cyclesAdded - cyclesAfter;
-                                D.print("GameState: setUpMainerLlmCanister - cycles balance of mAInerCreator " # debug_show(mainerCreatorEntry.address) # "after calling createCanister = " # debug_show(cyclesAfter) );  
-                                D.print("GameState: setUpMainerLlmCanister - cyclesUsed by mAInerCreator: " # debug_show(cyclesUsed) );
 
                                 switch (result) {
                                     case (#Ok(canisterCreationRecord)) {
@@ -3703,38 +3797,15 @@ actor class GameStateCanister() = this {
                                     cyclesCreateMainerctrlMcMainerctrl : Nat = cyclesCreateMainer.cyclesCreateMainerctrlMcMainerctrl;
                                     cyclesCreateMainerllmMcMainerllm : Nat = cyclesCreateMainer.cyclesCreateMainerllmMcMainerllm;
                                 };
-                                // TODO - outcomment checks on cycles used during canister creation
-                                D.print("GameState: addLlmCanisterToMainer - Get cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") before calling createCanister.");
-                                var cyclesBefore : Nat = 0;
-                                try {
-                                    let canisterStatus = await IC0.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
-                                    cyclesBefore := canisterStatus.cycles;
-                                } catch (e) {
-                                    D.print("GameState: addLlmCanisterToMainer - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
-                                    return #Err(#Other("GameState: addLlmCanisterToMainer - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address) # Error.message(e)));
-                                };
-                                D.print("GameState: addLlmCanisterToMainer - cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") before calling createCanister = " # debug_show(cyclesBefore) );
-
+                                
                                 let cyclesAdded = cyclesCreateMainer.cyclesCreateMainerllmGsMc;
+                                D.print("GameState: addLlmCanisterToMainer - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
                                 Cycles.add<system>(cyclesAdded);
-                                D.print("GameState: addLlmCanisterToMainer - cycles sent to mAInerCreator = " # debug_show(cyclesAdded) );
-
+                                
+                                D.print("GameState: addLlmCanisterToMainer - calling creatorCanisterActor.createCanister");
                                 // This only creates the LLM canister and returns
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
                                 D.print("GameState: addLlmCanisterToMainer - createCanister returned " # debug_show(result) );
-
-                                D.print("GameState: addLlmCanisterToMainer - Get cycles balance of mAInerCreator ()"# debug_show(mainerCreatorEntry.address) #  ") after calling createCanister.");
-                                var cyclesAfter : Nat = 0;
-                                try {
-                                    let canisterStatus = await IC0.canister_status({canister_id = Principal.fromText(mainerCreatorEntry.address);});
-                                    cyclesAfter := canisterStatus.cycles;
-                                } catch (e) {
-                                    D.print("GameState: addLlmCanisterToMainer - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address)  # Error.message(e) );
-                                    return #Err(#Other("GameState: addLlmCanisterToMainer - Failed to retrieve info for mAInerCreator: " # debug_show(mainerCreatorEntry.address) # Error.message(e)));
-                                };
-                                let cyclesUsed : Nat = cyclesBefore + cyclesAdded - cyclesAfter;
-                                D.print("GameState: setUpMainerLaddLlmCanisterToMainerlmCanister - cycles balance of mAInerCreator " # debug_show(mainerCreatorEntry.address) # "after calling createCanister = " # debug_show(cyclesAfter) );  
-                                D.print("GameState: addLlmCanisterToMainer - cyclesUsed by mAInerCreator: " # debug_show(cyclesUsed) );
 
                                 switch (result) {
                                     case (#Ok(canisterCreationRecord)) {
@@ -3984,9 +4055,10 @@ actor class GameStateCanister() = this {
                                 // TODO - Implementation: credit mAIner agent with cycles (the user paid for)
                                 try {
                                     let Mainer_Actor : Types.MainerAgentCtrlbCanister = actor (userMainerEntry.address);
-                                    // TODO - Implementation: charge call with cycles
+                                    D.print("GameState: topUpCyclesForMainerAgent - calling Cycles.add for = " # debug_show(handleResult.cyclesForMainer) # " Cycles");
                                     Cycles.add<system>(handleResult.cyclesForMainer);
-                                    // TODO - Implementation: Add these cycles via dedicated function on mAIner
+                                    
+                                    D.print("GameState: topUpCyclesForMainerAgent - calling Mainer_Actor.addCycles");
                                     let addCyclesResponse = await Mainer_Actor.addCycles();
                                     D.print("GameState: topUpCyclesForMainerAgent - addCyclesResponse: " # debug_show(addCyclesResponse));
                                     switch (addCyclesResponse) {
@@ -4085,13 +4157,13 @@ actor class GameStateCanister() = this {
         D.print("GameState: submitChallengeResponse - entered");
         if (Principal.isAnonymous(msg.caller)) {
             let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
-            D.print("GameState: submitChallengeResponse - 01");
+            D.print("GameState: submitChallengeResponse - 01 - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
             return #Err(#Unauthorized);
         };
         // Verify that submission is charged with cycles
         if (Cycles.available() < cyclesSubmitResponse) {
             let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
-            D.print("GameState: submitChallengeResponse - 02");
+            D.print("GameState: submitChallengeResponse - 02- kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
             D.print("GameState: submitChallengeResponse - cycles available: " # debug_show(Cycles.available()));
             D.print("GameState: submitChallengeResponse - cycles required : " # debug_show(cyclesSubmitResponse));
             return #Err(#InsuffientCycles(cyclesSubmitResponse));                    
@@ -4100,21 +4172,21 @@ actor class GameStateCanister() = this {
         switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
             case (null) {
                 let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
-                D.print("GameState: submitChallengeResponse - 03");
+                D.print("GameState: submitChallengeResponse - 03- kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
                 return #Err(#Unauthorized);
             };
             case (?_mainerAgentEntry) {
                 // Check that submission record looks correct
                 if (challengeResponseSubmissionInput.submittedBy != msg.caller) {
                     let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
-                    D.print("GameState: submitChallengeResponse - 04");
+                    D.print("GameState: submitChallengeResponse - 04 - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
                     return #Err(#Unauthorized);
                 };
 
                 // Verify that challenge is open
                 if (not verifyChallenge(#Open, challengeResponseSubmissionInput.challengeId)) {
                     let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
-                    D.print("GameState: submitChallengeResponse - 05");
+                    D.print("GameState: submitChallengeResponse - 05 - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
                     return #Err(#InvalidId);
                 };
 
@@ -4130,6 +4202,7 @@ actor class GameStateCanister() = this {
                     switch (agentCanisterInfo.module_hash) {
                         case (null) {
                             let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
+                            D.print("GameState: submitChallengeResponse - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
                             D.print("GameState: submitChallengeResponse - agentCanisterInfo with null as module hash: " # debug_show(agentCanisterInfo)); 
                             // TODO - Design: further measurements?
                             return #Err(#Unauthorized);
@@ -4140,6 +4213,7 @@ actor class GameStateCanister() = this {
                                 // continue as check passed
                             } else {
                                 let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
+                                D.print("GameState: submitChallengeResponse - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
                                 D.print("GameState: submitChallengeResponse - agentCanisterInfo didn't pass verification: " # debug_show(agentCanisterInfo) # " - expected wasm hash = " # debug_show(officialMainerAgentCanisterWasmHash));
                                  
                                 // TODO - Design: further measurements?
@@ -4149,12 +4223,14 @@ actor class GameStateCanister() = this {
                     };
                 } catch (e) {
                     let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
+                    D.print("GameState: submitChallengeResponse - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
                     D.print("GameState: submitChallengeResponse - Failed to retrieve info for mAIner: " # debug_show(challengeResponseSubmissionInput) # Error.message(e));      
                     return #Err(#Other("GameState: testMainerCodeIntegrityAdmin - Failed to retrieve info for mAIner: " # debug_show(challengeResponseSubmissionInput) # Error.message(e)));
                 };
 
                 // Accept cycles for submission (submission fee plus any outstanding fees, e.g. cuts from unofficial top ups for Protocol's operational expenses)
                 let cyclesAcceptedForSubmission = Cycles.accept<system>(Cycles.available());
+                D.print("GameState: submitChallengeResponse - Accepting cycles for successful submission: " # debug_show(cyclesAcceptedForSubmission) # " from caller " # Principal.toText(msg.caller));
                 if (cyclesAcceptedForSubmission < cyclesSubmitResponse) {
                     // Sanity check: At this point, this should never fail
                     D.print("GameState: submitChallengeResponse - 07");
@@ -4272,6 +4348,7 @@ actor class GameStateCanister() = this {
 
                                         // First send cycles to the Judge to pay for the score generation
                                         let cyclesAdded = submission.cyclesGenerateScoreGsJuctrl;
+                                        D.print("GameState: getNextSubmissionToJudge - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
                                         Cycles.add<system>(cyclesAdded);
                                         try {
                                             let deposit_cycles_args = { canister_id : Principal = msg.caller; };
