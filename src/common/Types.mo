@@ -635,6 +635,8 @@ module Types {
     };
     public type UpgradeMainerctrlInput = {
         mainerAgentEntry : Types.OfficialMainerAgentCanister; // Canister to upgrade
+        associatedCanisterAddress : ?Types.CanisterAddress; // null for #Own, shareServiceCanisterAddress for ShareAgent
+        associatedCanisterSubnet : Text;
         cyclesUpgradeMainerctrlGsMc : Nat;
         cyclesUpgradeMainerctrlMcMainerctrl : Nat;
     };

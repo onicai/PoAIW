@@ -3092,7 +3092,7 @@ actor class GameStateCanister() = this {
                         // TODO - Outcomment this for testing without actual ICP payment
                         if (Principal.isController(msg.caller)) {
                             verifiedPayment := true; 
-                            amountPaid := 3 * Constants.CYCLES_TRILLION; 
+                            amountPaid := 6 * Constants.CYCLES_TRILLION; // #own needs this much...
                             continueForAdminWithoutPaymentVerification := true; // continue with creation
                             D.print("GameState: createUserMainerAgent - Payment verification failed, but since caller is Admin (controller), we will continue with creation");
                         } else {
@@ -3298,6 +3298,7 @@ actor class GameStateCanister() = this {
                             case (?mainerCreatorEntry) {
                                 let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
 
+                                // Get the Shared Service canister entry if of type ShareAgent
                                 var associatedCanisterAddress : ?Types.CanisterAddress = null;
                                 var associatedCanisterSubnet : Text = "";
                                 var mainerAgentCanisterType : Types.MainerAgentCanisterType = #ShareAgent;
@@ -3327,7 +3328,7 @@ actor class GameStateCanister() = this {
                                                     let _ = Principal.fromText(sharedServiceEntry.address); // this will throw an error if it's not a valid canister address
                                                     let associatedControllerCanisterActor = actor (sharedServiceEntry.address) : Types.MainerAgentCtrlbCanister;
                                                     let healthResult = await associatedControllerCanisterActor.health();
-                                                    D.print("GameState: spinUpMainerControllerCanister - Associated ShareService canister healthResult" # debug_show (healthResult));
+                                                    D.print("GameState: spinUpMainerControllerCanister - Associated ShareService canister (" # sharedServiceEntry.address # ") healthResult " # debug_show (healthResult));
                                                     switch (healthResult) {
                                                         case (#Err(error)) {
                                                             return #Err(error);
@@ -3366,7 +3367,7 @@ actor class GameStateCanister() = this {
                                 D.print("GameState: spinUpMainerControllerCanister - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
                                 Cycles.add<system>(cyclesAdded);
 
-                                D.print("GameState: spinUpMainerControllerCanister - calling creatorCanisterActor.createCanister");
+                                D.print("GameState: spinUpMainerControllerCanister - calling creatorCanisterActor.createCanister with canisterCreationInput: "# debug_show(canisterCreationInput));
                                 // This only creates the canister and returns:
                                 // -> Use await, so we can return the controller's address to frontend
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
@@ -3374,13 +3375,14 @@ actor class GameStateCanister() = this {
 
                                 switch (result) {
                                     case (#Ok(canisterCreationRecord)) {
-                                        D.print("GameState: spinUpMainerControllerCanister - createCanister canisterCreationRecord: "# debug_show(canisterCreationRecord));
+
                                         // Setup the controller canister (install code & configurations)
                                         let setupCanisterInput : Types.SetupCanisterInput = {
                                             newCanisterId : Text = canisterCreationRecord.newCanisterId;
                                             subnet : Text = canisterCreationRecord.subnet;
                                             configurationInput : Types.CanisterCreationConfiguration = canisterCreationInput;
                                         };
+                                        D.print("GameState: spinUpMainerControllerCanister - calling creatorCanisterActor.setupCanister with setupCanisterInput: " # debug_show(setupCanisterInput) );
                                         ignore creatorCanisterActor.setupCanister(setupCanisterInput);
 
                                         let canisterEntryToAdd : Types.OfficialMainerAgentCanister = {
@@ -3390,7 +3392,7 @@ actor class GameStateCanister() = this {
                                             creationTimestamp : Nat64 = userMainerEntry.creationTimestamp;
                                             createdBy : Principal = Principal.fromText(mainerCreatorEntry.address); // mAIner Creator
                                             ownedBy : Principal = userMainerEntry.ownedBy; // User
-                                            status : Types.CanisterStatus = #ControllerCreationInProgress;
+                                            status : Types.CanisterStatus = #Running;
                                             mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
                                         };
                                         D.print("GameState: spinUpMainerControllerCanister - canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );
@@ -3433,16 +3435,67 @@ actor class GameStateCanister() = this {
                     case (?mainerCreatorEntry) {
                         let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
 
+                        // Get the Shared Service canister entry if of type ShareAgent
+                        var associatedCanisterAddress : ?Types.CanisterAddress = null;
+                        var associatedCanisterSubnet : Text = "";
+                        var mainerAgentCanisterType : Types.MainerAgentCanisterType = #ShareAgent;
+                        switch (mainerAgentEntry.canisterType) {
+                            case (#MainerAgent(#Own)) {
+                                // continue
+                                mainerAgentCanisterType := #Own;
+                            };
+                            case (#MainerAgent(#ShareService)) {
+                                // continue
+                                mainerAgentCanisterType := #ShareService;
+                            };
+                            case (#MainerAgent(#ShareAgent)) {
+                                mainerAgentCanisterType := #ShareAgent;
+                                // if of type ShareAgent, the shareServiceCanisterAddress is provided from the Game State info and added here as associatedCanisterAddress
+                                switch (getNextSharedServiceCanisterEntry()) {
+                                    case (null) {
+                                        // This should never happen as it indicates there isn't any Shared mAIning Service canister registered here
+                                        D.print("GameState: upgradeMainerControllerAdmin - There is no Shared mAIning Service canister registered.");
+                                        return #Err(#Unauthorized);
+                                    };
+                                    case (?sharedServiceEntry) {
+                                        associatedCanisterAddress := ?sharedServiceEntry.address;
+                                        associatedCanisterSubnet := sharedServiceEntry.subnet;
+                                        try {
+                                            // Make sure the associated ShareService canister actually exists
+                                            let _ = Principal.fromText(sharedServiceEntry.address); // this will throw an error if it's not a valid canister address
+                                            let associatedControllerCanisterActor = actor (sharedServiceEntry.address) : Types.MainerAgentCtrlbCanister;
+                                            let healthResult = await associatedControllerCanisterActor.health();
+                                            D.print("GameState: upgradeMainerControllerAdmin - Associated ShareService (" # sharedServiceEntry.address # ") canister healthResult" # debug_show (healthResult));
+                                            switch (healthResult) {
+                                                case (#Err(error)) {
+                                                    return #Err(error);
+                                                };
+                                                case _ {
+                                                    // all good, continue
+                                                };
+                                            };
+                                        } catch (e) {
+                                            D.print("GameState: upgradeMainerControllerAdmin -  failed to validate existence & health of associated ShareService canister: " # debug_show(sharedServiceEntry.address ) # " Error: " # Error.message(e) );
+                                            return #Err(#Other("GameState: upgradeMainerControllerAdmin -  failed to validate existence & health of associated ShareService canister: " # debug_show(sharedServiceEntry.address ) #  " Error: " # Error.message(e)));
+                                        };
+                                    };
+                                };
+                            };
+                            case (_) { return #Err(#Other("Unsupported")); }
+                        };
+
                         let cyclesAdded = cyclesUpgradeMainerctrlGsMc;
                         D.print("GameState: upgradeMainerControllerAdmin - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
                         Cycles.add<system>(cyclesAdded);
 
-                        D.print("GameState: upgradeMainerControllerAdmin - calling creatorCanisterActor.upgradeMainerctrl for canister " # mainerAgentEntry.address );
                         let upgradeMainerctrlInput : Types.UpgradeMainerctrlInput = {
                             mainerAgentEntry : Types.OfficialMainerAgentCanister = mainerAgentEntry; // Canister to upgrade
+                            associatedCanisterAddress : ?Types.CanisterAddress = associatedCanisterAddress; // null for #Own, shareServiceCanisterAddress for ShareAgent
+                            associatedCanisterSubnet : Text = associatedCanisterSubnet;
                             cyclesUpgradeMainerctrlGsMc : Nat = cyclesUpgradeMainerctrlGsMc;
                             cyclesUpgradeMainerctrlMcMainerctrl : Nat = cyclesUpgradeMainerctrlMcMainerctrl;
                         };
+                        D.print("GameState: upgradeMainerControllerAdmin - calling creatorCanisterActor.upgradeMainerctrl with canisterCreationInput: " # debug_show(upgradeMainerctrlInput) );
                         ignore creatorCanisterActor.upgradeMainerctrl(upgradeMainerctrlInput);
 
                         // Update the status of the mAIner agent entry to indicate that the upgrade is in progress
@@ -3603,20 +3656,21 @@ actor class GameStateCanister() = this {
                                 D.print("GameState: setUpMainerLlmCanister - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
                                 Cycles.add<system>(cyclesAdded);
                                 
-                                D.print("GameState: setUpMainerLlmCanister - calling creatorCanisterActor.createCanister ");
+                                D.print("GameState: setUpMainerLlmCanister - calling creatorCanisterActor.createCanister with canisterCreationInput: "# debug_show(canisterCreationInput));
                                 // This only creates the LLM canister and returns
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
                                 D.print("GameState: setUpMainerLlmCanister - createCanister returned " # debug_show(result) );
 
                                 switch (result) {
                                     case (#Ok(canisterCreationRecord)) {
-                                        D.print("GameState: setUpMainerLlmCanister - Setting up LLM Canister ID = " # debug_show(canisterCreationRecord.newCanisterId) );
+                                        
                                         // Setup the LLM canister (install code & configurations)
                                         let setupCanisterInput : Types.SetupCanisterInput = {
                                             newCanisterId : Text = canisterCreationRecord.newCanisterId;
                                             subnet : Text = canisterCreationRecord.subnet;
                                             configurationInput : Types.CanisterCreationConfiguration = canisterCreationInput;
                                         };
+                                        D.print("GameState: setUpMainerLlmCanister - calling creatorCanisterActor.setupCanister with setupCanisterInput: " # debug_show(setupCanisterInput) );
                                         ignore creatorCanisterActor.setupCanister(setupCanisterInput);
 
                                         let canisterEntryToAdd : Types.OfficialMainerAgentCanister = {
@@ -3802,20 +3856,21 @@ actor class GameStateCanister() = this {
                                 D.print("GameState: addLlmCanisterToMainer - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
                                 Cycles.add<system>(cyclesAdded);
                                 
-                                D.print("GameState: addLlmCanisterToMainer - calling creatorCanisterActor.createCanister");
+                                D.print("GameState: addLlmCanisterToMainer - calling creatorCanisterActor.createCanister with canisterCreationInput: " # debug_show(canisterCreationInput));
                                 // This only creates the LLM canister and returns
                                 let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
                                 D.print("GameState: addLlmCanisterToMainer - createCanister returned " # debug_show(result) );
 
                                 switch (result) {
                                     case (#Ok(canisterCreationRecord)) {
-                                        D.print("GameState: addLlmCanisterToMainer - Setting up LLM Canister ID = " # debug_show(canisterCreationRecord.newCanisterId) );
+                                        
                                         // Setup the LLM canister (install code & configurations)
                                         let setupCanisterInput : Types.SetupCanisterInput = {
                                             newCanisterId : Text = canisterCreationRecord.newCanisterId;
                                             subnet : Text = canisterCreationRecord.subnet;
                                             configurationInput : Types.CanisterCreationConfiguration = canisterCreationInput;
                                         };
+                                        D.print("GameState: addLlmCanisterToMainer - calling creatorCanisterActor.setupCanister with setupCanisterInput: " # debug_show(setupCanisterInput) );
                                         ignore creatorCanisterActor.setupCanister(setupCanisterInput);
 
                                         let canisterEntryToAdd : Types.OfficialMainerAgentCanister = {
