@@ -1,4 +1,22 @@
 type UploadResult = record {creationResult: text;};
+type UploadMainerLlmCanisterWasmBytesChunkInput = 
+ record {
+   bytesChunk: vec nat8;
+   selectedModel: SelectableMainerLLMs;
+ };
+type UploadMainerLlmBytesChunkInput = 
+ record {
+   bytesChunk: blob;
+   chunkID: nat;
+ };
+type UpgradeMainerctrlInput = 
+ record {
+   associatedCanisterAddress: opt CanisterAddress;
+   associatedCanisterSubnet: text;
+   cyclesUpgradeMainerctrlGsMc: nat;
+   cyclesUpgradeMainerctrlMcMainerctrl: nat;
+   mainerAgentEntry: OfficialMainerAgentCanister;
+ };
 type StatusCodeRecordResult = 
  variant {
    Err: ApiError;
@@ -6,6 +24,12 @@ type StatusCodeRecordResult =
  };
 type StatusCodeRecord = record {status_code: StatusCode;};
 type StatusCode = nat16;
+type SetupCanisterInput = 
+ record {
+   configurationInput: CanisterCreationConfiguration;
+   newCanisterId: text;
+   subnet: text;
+ };
 type SelectableMainerLLMs = variant {Qwen2_5_500M;};
 type ProtocolCanisterType = 
  variant {
@@ -16,16 +40,66 @@ type ProtocolCanisterType =
    MainerLlm;
    Verifier;
  };
+type OfficialMainerAgentCanister = 
+ record {
+   address: CanisterAddress;
+   canisterType: ProtocolCanisterType;
+   createdBy: principal;
+   creationTimestamp: nat64;
+   mainerConfig: MainerConfigurationInput;
+   ownedBy: principal;
+   status: CanisterStatus;
+   subnet: text;
+ };
 type ModelCreationArtefacts = 
  record {
-   canisterWasm: vec nat8;
+   canisterWasm: vec blob;
    modelFile: vec blob;
    modelFileSha256: text;
  };
+type MainerCreatorCanister = 
+ service {
+   addModelCreationArtefactsEntry: (AddModelCreationArtefactsEntry) ->
+    (InsertArtefactsResult);
+   amiController: () -> (AuthRecordResult) query;
+   createCanister: (CanisterCreationConfiguration) ->
+    (CanisterCreationResult);
+   finish_upload_mainer_llm: (FinishUploadMainerLlmInput) ->
+    (FileUploadResult);
+   getDefaultSubnetsAdmin: () ->
+    (variant {
+       Err: variant {Unauthorized;};
+       Ok: vec principal;
+     });
+   health: () -> (StatusCodeRecordResult) query;
+   isSubnetAvailableAdmin: (text) ->
+    (variant {
+       Err: variant {Unauthorized;};
+       Ok: bool;
+     });
+   setMasterCanisterId: (text) -> (AuthRecordResult);
+   setupCanister: (SetupCanisterInput) -> (CanisterCreationResult);
+   start_upload_mainer_controller_canister_wasm: () ->
+    (StatusCodeRecordResult);
+   start_upload_mainer_llm: () -> (StatusCodeRecordResult);
+   start_upload_mainer_llm_canister_wasm: (SelectableMainerLLMs) ->
+    (StatusCodeRecordResult);
+   upgradeMainerctrl: (UpgradeMainerctrlInput) -> (StatusCodeRecordResult);
+   upload_mainer_controller_canister_wasm_bytes_chunk: (vec nat8) ->
+    (FileUploadResult);
+   upload_mainer_llm_bytes_chunk: (UploadMainerLlmBytesChunkInput) ->
+    (FileUploadResult);
+   upload_mainer_llm_canister_wasm_bytes_chunk:
+    (UploadMainerLlmCanisterWasmBytesChunkInput) -> (FileUploadResult);
+   whoami: () -> (principal) query;
+ };
 type MainerConfigurationInput = 
  record {
+   cyclesForMainer: nat;
    mainerAgentCanisterType: MainerAgentCanisterType;
    selectedLLM: opt SelectableMainerLLMs;
+   subnetCtrl: text;
+   subnetLlm: text;
  };
 type MainerAgentCanisterType = 
  variant {
@@ -34,15 +108,40 @@ type MainerAgentCanisterType =
    ShareAgent;
    ShareService;
  };
+type LlmSetupStatus = 
+ variant {
+   CanisterCreated;
+   CanisterCreationInProgress;
+   CodeInstallInProgress;
+   ConfigurationInProgress;
+   ModelUploadProgress: nat8;
+ };
 type InsertArtefactsResult = 
  variant {
    Err: ApiError;
    Ok: ModelCreationArtefacts;
  };
+type FinishUploadMainerLlmInput = 
+ record {
+   modelFileSha256: text;
+   selectedModel: SelectableMainerLLMs;
+ };
 type FileUploadResult = 
  variant {
    Err: ApiError;
    Ok: UploadResult;
+ };
+type CanisterStatus = 
+ variant {
+   ControllerCreated;
+   ControllerCreationInProgress;
+   LlmSetupFinished;
+   LlmSetupInProgress: LlmSetupStatus;
+   Other: text;
+   Paid;
+   Paused;
+   Running;
+   Unlocked;
  };
 type CanisterCreationResult = 
  variant {
@@ -53,39 +152,21 @@ type CanisterCreationRecord =
  record {
    creationResult: text;
    newCanisterId: text;
+   subnet: text;
  };
 type CanisterCreationConfiguration = 
  record {
    associatedCanisterAddress: opt CanisterAddress;
+   associatedCanisterSubnet: text;
    canisterType: ProtocolCanisterType;
+   cyclesCreateMainerctrlGsMc: nat;
+   cyclesCreateMainerctrlMcMainerctrl: nat;
+   cyclesCreateMainerllmGsMc: nat;
+   cyclesCreateMainerllmMcMainerllm: nat;
    mainerConfig: MainerConfigurationInput;
    owner: principal;
- };
-type CanisterCreationCanister = 
- service {
-   addModelCreationArtefactsEntry: (SelectableMainerLLMs,
-    ModelCreationArtefacts) -> (InsertArtefactsResult);
-   amiController: () -> (AuthRecordResult) query;
-   createCanister: (CanisterCreationConfiguration) ->
-    (CanisterCreationResult);
-   finish_upload_mainer_llm: (SelectableMainerLLMs, text) ->
-    (FileUploadResult);
-   health: () -> (StatusCodeRecordResult) query;
-   setMasterCanisterId: (text) -> (AuthRecordResult);
-   start_upload_mainer_controller_canister_wasm: () ->
-    (StatusCodeRecordResult);
-   start_upload_mainer_llm: () -> (StatusCodeRecordResult);
-   start_upload_mainer_llm_canister_wasm: (SelectableMainerLLMs) ->
-    (StatusCodeRecordResult);
-   testCreateMainerControllerCanister: (MainerAgentCanisterType,
-    opt CanisterAddress) -> (CanisterCreationResult);
-   testCreateMainerLlmCanister: (text) -> (CanisterCreationResult);
-   upload_mainer_controller_canister_wasm_bytes_chunk: (vec nat8) ->
-    (FileUploadResult);
-   upload_mainer_llm_bytes_chunk: (blob, nat) -> (FileUploadResult);
-   upload_mainer_llm_canister_wasm_bytes_chunk: (SelectableMainerLLMs,
-    vec nat8) -> (FileUploadResult);
-   whoami: () -> (principal) query;
+   userMainerEntryCanisterType: ProtocolCanisterType;
+   userMainerEntryCreationTimestamp: nat64;
  };
 type CanisterAddress = text;
 type AuthRecordResult = 
@@ -104,4 +185,9 @@ type ApiError =
    Unauthorized;
    ZeroAddress;
  };
-service : () -> CanisterCreationCanister
+type AddModelCreationArtefactsEntry = 
+ record {
+   creationArtefacts: ModelCreationArtefacts;
+   selectedModel: SelectableMainerLLMs;
+ };
+service : () -> MainerCreatorCanister
