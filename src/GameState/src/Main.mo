@@ -4495,7 +4495,7 @@ actor class GameStateCanister() = this {
         let args : TokenLedger.TransferArg = {
             from_subaccount = null;
             to = {
-                owner = participantEntryToReward.submittedBy;
+                owner = participantEntryToReward.ownedBy;
                 subaccount = null;
             };
             amount = participantEntryToReward.reward.amount;
