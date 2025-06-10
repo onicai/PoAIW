@@ -393,16 +393,6 @@ actor class GameStateCanister() = this {
         };
     };
 
-    // Cycles for ShareAgent mAIner Creation
-    stable var ICP_FOR_SHARE_AGENT : Nat  = 10; // TODO: Set to cost of a ShareAgent, in ICP
-    public shared (msg) func setIcpForShareAgentAdmin(icpForShareAgent : Nat) : async Types.StatusCodeRecordResult {
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        ICP_FOR_SHARE_AGENT := icpForShareAgent;
-        return #Ok({ status_code = 200 });
-    };
-
     // Statistics 
     stable var TOTAL_PROTOCOL_CYCLES_BURNT : Nat = 0; // TODO - Implementation: ensure all relevant events for cycle buring are captured and adjust cycle burning numbers below to actual values
     // TODO: Update to actual values
@@ -420,15 +410,41 @@ actor class GameStateCanister() = this {
         return true;
     };
 
-    // Cycles for Own mAIner Creation 
-    // Note: the ShareService mAIner will also use these values
-    stable var ICP_FOR_OWN_MAINER : Nat  = 10; // TODO: Set to cost of a Own mAIner, in ICP
-    public shared (msg) func setIcpForOwnMainerAdmin(icpForOwnMainer : Nat) : async Types.StatusCodeRecordResult {
+    // Price to create a mAIner TODO - Implementation: finalize prices (note that it's in 10000s)
+    // Cycles for ShareAgent mAIner Creation
+    stable var PRICE_FOR_SHARE_AGENT_ICP : Nat64 = 0; // TODO: Set to cost of a ShareAgent, in ICP
+    public shared (msg) func setIcpForShareAgentAdmin(icpForShareAgent : Nat64) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        ICP_FOR_OWN_MAINER := icpForOwnMainer;
+        PRICE_FOR_SHARE_AGENT_ICP := icpForShareAgent;
         return #Ok({ status_code = 200 });
+    };
+
+    // Cycles for Own mAIner Creation 
+    // Note: the ShareService mAIner will also use these values
+    stable var PRICE_FOR_OWN_MAINER_ICP : Nat64 = 0; // TODO: Set to cost of a Own mAIner, in ICP
+    public shared (msg) func setIcpForOwnMainerAdmin(icpForOwnMainer : Nat64) : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        PRICE_FOR_OWN_MAINER_ICP := icpForOwnMainer;
+        return #Ok({ status_code = 200 });
+    };
+
+    // TODO - Implementation: function to set the price for creating a mAIner
+        // TODO - Implementation: Set timer for once a day that calculates the creation price based on the ICP/cycles conversion rate
+    private func setPriceForCreatingMainer(newPrice : Nat64, mainerType : Types.MainerAgentCanisterType) : Bool {
+        switch (mainerType) {
+            case (#Own) {
+                PRICE_FOR_OWN_MAINER_ICP := newPrice;
+            };
+            case (#ShareAgent) {
+                PRICE_FOR_SHARE_AGENT_ICP := newPrice;
+            };
+            case (_) { return false; }
+        };
+        return true;
     };
 
     // Protocol parameters used in the mAIner Creation Cycles Flow calculations      
@@ -2731,25 +2747,6 @@ actor class GameStateCanister() = this {
 
     let PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * Constants.CYCLES_TRILLION;
 
-    // Price to create a mAIner TODO - Implementation: finalize prices
-    stable var PRICE_OWN_MAINER : Nat64 = 0; //12;
-    stable var PRICE_SHARED_MAINER : Nat64 = 0; //10;
-
-    // TODO - Implementation: function to set the price for creating a mAIner
-        // TODO - Implementation: Set timer for once a day that calculates the creation price based on the ICP/cycles conversion rate
-    private func setPriceForCreatingMainer(newPrice : Nat64, mainerType : Types.MainerAgentCanisterType) : Bool {
-        switch (mainerType) {
-            case (#Own) {
-                PRICE_OWN_MAINER := newPrice;
-            };
-            case (#ShareAgent) {
-                PRICE_SHARED_MAINER := newPrice;
-            };
-            case (_) { return false; }
-        };
-        return true;
-    };
-
     // TODO - Implementation: new function to decide on usage of incoming funds (e.g. for mAIner creation or top ups)
     private func handleIncomingFunds(transactionEntry : Types.RedeemedTransactionBlock) : async Types.HandleIncomingFundsResult {
         D.print("GameState: handleIncomingFunds - transactionEntry: "# debug_show(transactionEntry));
@@ -2925,15 +2922,15 @@ actor class GameStateCanister() = this {
                                 switch (mainerAgentCanisterType) {
                                     case (#Own) {
                                         D.print("GameState: verifyIncomingPayment - #MainerCreation Own transferDetails.amount.e8s: "# debug_show(transferDetails.amount.e8s));
-                                        D.print("GameState: verifyIncomingPayment - #MainerCreation Own PRICE_OWN_MAINER: "# debug_show(PRICE_OWN_MAINER));
-                                        if (transferDetails.amount.e8s < PRICE_OWN_MAINER) {
+                                        D.print("GameState: verifyIncomingPayment - #MainerCreation Own PRICE_OWN_MAINER: "# debug_show(PRICE_FOR_OWN_MAINER_ICP));
+                                        if (transferDetails.amount.e8s < PRICE_FOR_OWN_MAINER_ICP) {
                                             return #Err(#Other("Transaction didn't pay full price"));
                                         };                              
                                     };
                                     case (#ShareAgent) {
                                         D.print("GameState: verifyIncomingPayment - #MainerCreation ShareAgent transferDetails.amount.e8s: "# debug_show(transferDetails.amount.e8s));
-                                        D.print("GameState: verifyIncomingPayment - #MainerCreation ShareAgent PRICE_SHARED_MAINER: "# debug_show(PRICE_SHARED_MAINER));
-                                        if (transferDetails.amount.e8s < PRICE_SHARED_MAINER) {
+                                        D.print("GameState: verifyIncomingPayment - #MainerCreation ShareAgent PRICE_SHARED_MAINER: "# debug_show(PRICE_FOR_SHARE_AGENT_ICP));
+                                        if (transferDetails.amount.e8s < PRICE_FOR_SHARE_AGENT_ICP) {
                                             return #Err(#Other("Transaction didn't pay full price"));
                                         };                                
                                     };
