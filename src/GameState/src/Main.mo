@@ -574,7 +574,7 @@ actor class GameStateCanister() = this {
     let DEFAULT_DAILY_SUBMISSIONS_ALL_SHARE        : Nat = 100; // TODO = GameState automatically updates this on a daily basis
     stable var dailySubmissionsAllShare            : Nat = DEFAULT_DAILY_SUBMISSIONS_ALL_SHARE;
 
-    let DEFAULT_PROTOCOL_OPERATION_FEES_CUT        : Nat =  20; // % added to unofficial mAIner agent's cycle topups to cover protocol operation fees  
+    let DEFAULT_PROTOCOL_OPERATION_FEES_CUT        : Nat =  10; // % added to unofficial mAIner agent's cycle topups to cover protocol operation fees  
     stable var protocolOperationFeesCut            : Nat = DEFAULT_PROTOCOL_OPERATION_FEES_CUT;
     let DEFAULT_MARGIN_FAILED_SUBMISSION_CUT       : Nat =  20; // % Margin for a Failed Submission Cut
     stable var marginFailedSubmissionCut           : Nat = DEFAULT_MARGIN_FAILED_SUBMISSION_CUT;
@@ -2750,7 +2750,7 @@ actor class GameStateCanister() = this {
     // TODO - Implementation: new function to decide on usage of incoming funds (e.g. for mAIner creation or top ups)
     private func handleIncomingFunds(transactionEntry : Types.RedeemedTransactionBlock) : async Types.HandleIncomingFundsResult {
         D.print("GameState: handleIncomingFunds - transactionEntry: "# debug_show(transactionEntry));
-        // TODO - Implementation: Calculate cut for Protocol's operational expenses
+        // TODO - Implementation: Calculate cut for Protocol's operational expenses (in ICP)
         D.print("GameState: handleIncomingFunds - protocolOperationFeesCut: "# debug_show(protocolOperationFeesCut));
         D.print("GameState: handleIncomingFunds - protocolOperationFeesCut / 100: "# debug_show(protocolOperationFeesCut / 100));
         var amountToKeep : Nat = transactionEntry.amount * protocolOperationFeesCut / 100; // TODO - Implementation: ensure this math operation works
@@ -2764,22 +2764,22 @@ actor class GameStateCanister() = this {
                 D.print("GameState: handleIncomingFunds - #MainerCreation(#Own) PROTOCOL_CYCLES_BALANCE_BUFFER: "# debug_show(PROTOCOL_CYCLES_BALANCE_BUFFER)); 
                 D.print("GameState: handleIncomingFunds - #MainerCreation(#Own) Cycles.balance(): "# debug_show(Cycles.balance())); 
                 if (PROTOCOL_CYCLES_BALANCE_BUFFER > Cycles.balance()) {
-                    // Cycles balance is lower than security threshold, so convert the payment to cycles
-                    amountToConvert := transactionEntry.amount;
+                    // Cycles balance is lower than security threshold, so convert the payment's share for the mAIner to cycles
+                    amountToConvert := amountForMainer;
                 } else {
                     // No need to convert to cycles as cycle balance is high enough
-                    amountToKeep := transactionEntry.amount;
+                    amountToConvert := 0;
                 };           
             };
             case (#MainerCreation(#ShareAgent)) {
                 D.print("GameState: handleIncomingFunds - #MainerCreation(#ShareAgent) PROTOCOL_CYCLES_BALANCE_BUFFER: "# debug_show(PROTOCOL_CYCLES_BALANCE_BUFFER)); 
                 D.print("GameState: handleIncomingFunds - #MainerCreation(#ShareAgent) Cycles.balance(): "# debug_show(Cycles.balance())); 
                 if (PROTOCOL_CYCLES_BALANCE_BUFFER > Cycles.balance()) {
-                    // Cycles balance is lower than security threshold, so convert the payment to cycles
-                    amountToConvert := transactionEntry.amount;
+                    // Cycles balance is lower than security threshold, so convert the payment's share for the mAIner to cycles
+                    amountToConvert := amountForMainer;
                 } else {
                     // No need to convert to cycles as cycle balance is high enough
-                    amountToKeep := transactionEntry.amount;
+                    amountToConvert := 0;
                 };
             };
             case (#MainerTopUp(mainerCanisterAddress)) {
@@ -2789,85 +2789,102 @@ actor class GameStateCanister() = this {
             case (_) { return #Err(#Other("Unsupported")); }
         };
         D.print("GameState: handleIncomingFunds - amountToKeep: "# debug_show(amountToKeep));
+        // TODO - Implementation: Convert amountToKeep to FUNNAI
+
         D.print("GameState: handleIncomingFunds - amountToConvert: "# debug_show(amountToConvert));
-        // TODO - Implementation: Otherwise: convert amountToConvert to cycles via Cycles Minting Canister (mint cycles to itself)
-        // Send ICP to Cycles Minting Canister
-        D.print("GameState: handleIncomingFunds - subaccount: "# debug_show(PROTOCOL_SUBACCOUNT));
-        let cmcAccount : TokenLedger.Account = {
-            owner : Principal = Principal.fromActor(CMC_ACTOR);
-            subaccount : ?Blob = ?PROTOCOL_SUBACCOUNT; // needs to match canister to credit cycles to in notify_top_up call, thus this canister
-        };
-        let notifyTopUpMemo : ?Blob = ?"\54\50\55\50\00\00\00\00"; // TODO - Implementation: double check
-        let transferArg : TokenLedger.TransferArg = {
-            to : TokenLedger.Account = cmcAccount;
-            fee : ?Nat = null;
-            memo : ?Blob = notifyTopUpMemo; // needed for CMC to accept top up
-            from_subaccount : ?Blob = null;
-            created_at_time : ?Nat64 = null;
-            amount : Nat = amountToConvert;
-        };
-        let transferResult : TokenLedger.Result = await ICP_LEDGER_ACTOR.icrc1_transfer(transferArg);
-        D.print("GameState: handleIncomingFunds - transferResult: "# debug_show(transferResult));
-        switch (transferResult) {
-            case (#Ok(transactionBlockId)) {
-                D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId): "# debug_show(transactionBlockId));
-                // Then notify Cycles Minting Canister to credit the corresponding cycles to this canister
-                let notifyTopUpArg : CMC.NotifyTopUpArg = {
-                    block_index : CMC.BlockIndex = Nat64.fromNat(transactionBlockId);
-                    canister_id : Principal = Principal.fromActor(this); // Game State (Protocol); Note: cycles will be sent to mAIner via direct calls as part of dedicated functions (e.g. for creation or for top ups)
+        if (amountToConvert > 0) {
+            // Convert amountToConvert to cycles via Cycles Minting Canister (mint cycles to itself)
+            // Send ICP to Cycles Minting Canister
+            D.print("GameState: handleIncomingFunds - subaccount: "# debug_show(PROTOCOL_SUBACCOUNT));
+            let cmcAccount : TokenLedger.Account = {
+                owner : Principal = Principal.fromActor(CMC_ACTOR);
+                subaccount : ?Blob = ?PROTOCOL_SUBACCOUNT; // needs to match canister to credit cycles to in notify_top_up call, thus this canister
+            };
+            let notifyTopUpMemo : ?Blob = ?"\54\50\55\50\00\00\00\00"; // TODO - Implementation: double check
+            let transferArg : TokenLedger.TransferArg = {
+                to : TokenLedger.Account = cmcAccount;
+                fee : ?Nat = null;
+                memo : ?Blob = notifyTopUpMemo; // needed for CMC to accept top up
+                from_subaccount : ?Blob = null;
+                created_at_time : ?Nat64 = null;
+                amount : Nat = amountToConvert; // TODO: deduct transfer fee
+            };
+            let transferResult : TokenLedger.Result = await ICP_LEDGER_ACTOR.icrc1_transfer(transferArg);
+            D.print("GameState: handleIncomingFunds - transferResult: "# debug_show(transferResult));
+            switch (transferResult) {
+                case (#Ok(transactionBlockId)) {
+                    D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId): "# debug_show(transactionBlockId));
+                    // Then notify Cycles Minting Canister to credit the corresponding cycles to this canister
+                    let notifyTopUpArg : CMC.NotifyTopUpArg = {
+                        block_index : CMC.BlockIndex = Nat64.fromNat(transactionBlockId);
+                        canister_id : Principal = Principal.fromActor(this); // Game State (Protocol); Note: cycles will be sent to mAIner via direct calls as part of dedicated functions (e.g. for creation or for top ups)
+                    };
+                    let notifyTopUpResult : CMC.NotifyTopUpResult = await CMC_ACTOR.notify_top_up(notifyTopUpArg);
+                    D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult: "# debug_show(notifyTopUpResult));
+                    switch (notifyTopUpResult) {
+                        case (#Ok(cyclesReceived)) {
+                            D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult cyclesReceived: "# debug_show(cyclesReceived));
+                            var cyclesForMainer : Nat = cyclesReceived;
+                            var cyclesForProtocol : Nat = 0; // Protocol already took its cut in ICP
+
+                            // Sanity check
+                            D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult cyclesForMainer: "# debug_show(cyclesForMainer));
+                            if (cyclesForMainer > cyclesReceived) {
+                                // This should never happen
+                                return #Err(#Other("cyclesForMainer > cyclesReceived"));                            
+                            };
+
+                            let response : Types.HandleIncomingFundsRecord = {
+                                cyclesForProtocol: Nat = cyclesForProtocol;
+                                cyclesForMainer : Nat = cyclesForMainer;
+                            };
+                            D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult response: "# debug_show(response));
+                            return #Ok(response);               
+                        };
+                        case (#Err(topUpError)) {
+                            D.print("GameState: handleIncomingFunds - transferResult notifyTopUpResult #Err(topUpError): "# debug_show(topUpError));
+                            return #Err(#Other("Error during CMC notify top up: " # debug_show(topUpError)));
+                        };
+                        case (_) { return #Err(#FailedOperation); }
+                    };              
                 };
-                let notifyTopUpResult : CMC.NotifyTopUpResult = await CMC_ACTOR.notify_top_up(notifyTopUpArg);
-                D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult: "# debug_show(notifyTopUpResult));
-                switch (notifyTopUpResult) {
-                    case (#Ok(cyclesReceived)) {
-                        D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult cyclesReceived: "# debug_show(cyclesReceived));
-                        if (PROTOCOL_CYCLES_BALANCE_BUFFER < Cycles.balance()) {
-                            // TODO - Implementation: Convert amountToKeep to FUNNAI
-                        };
-                        var cyclesForProtocol: Nat = cyclesReceived;
-                        var cyclesForMainer : Nat = 0;
-                        switch (transactionEntry.redeemedFor) {
-                            case (#MainerCreation(#Own)) {
-                                cyclesForProtocol := cyclesReceived * protocolOperationFeesCut / 100;
-                                cyclesForMainer := cyclesReceived - cyclesForProtocol;  
-                            };
-                            case (#MainerCreation(#ShareAgent)) {
-                                cyclesForProtocol := cyclesReceived * protocolOperationFeesCut / 100;
-                                cyclesForMainer := cyclesReceived - cyclesForProtocol;  
-                            };
-                            case (#MainerTopUp(mainerCanisterAddress)) {
-                                cyclesForProtocol := cyclesReceived * protocolOperationFeesCut / 100;
-                                cyclesForMainer := cyclesReceived - cyclesForProtocol;                              
-                            };
-                            case (_) { return #Err(#Other("Unsupported")); }
-                        };
-
-                        // Sanity check
-                        D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult cyclesForMainer: "# debug_show(cyclesForMainer));
-                        if (cyclesForMainer > cyclesReceived) {
-                            // This should never happen
-                            return #Err(#Other("cyclesForMainer > cyclesReceived"));                            
-                        };
-
-                        let response : Types.HandleIncomingFundsRecord = {
-                            cyclesForProtocol: Nat = cyclesForProtocol;
-                            cyclesForMainer : Nat = cyclesForMainer;
-                        };
-                        D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult response: "# debug_show(response));
-                        return #Ok(response);               
-                    };
-                    case (#Err(topUpError)) {
-                        D.print("GameState: handleIncomingFunds - transferResult notifyTopUpResult #Err(topUpError): "# debug_show(topUpError));
-                        return #Err(#Other("Error during CMC notify top up: " # debug_show(topUpError)));
-                    };
-                    case (_) { return #Err(#FailedOperation); }
-                };              
+                case (#Err(transferError)) {
+                    D.print("GameState: handleIncomingFunds - transferResult #Err(transferError): "# debug_show(transferError));
+                    return #Err(#Other("Error during ICP transfer: " # debug_show(transferError)));
+                };
+                case (_) { return #Err(#FailedOperation); }
             };
-            case (#Err(transferError)) {
-                D.print("GameState: handleIncomingFunds - transferResult #Err(transferError): "# debug_show(transferError));
-                return #Err(#Other("Error during ICP transfer: " # debug_show(transferError)));
+        } else {
+            // TODO - Implementation: calculate the amount of cycles that the mAIner will get based on the payment
+            D.print("GameState: handleIncomingFunds - no conversion necessary, calculate mAIner's cycles");
+            // Call Cycles Minting Canister for cycles/ICP exchange rate            
+            // First, get the ICP amount for the mAIner
+            let icpAmount = amountForMainer;
+            D.print("GameState: handleIncomingFunds - no conversion necessary, icpAmount: "# debug_show(icpAmount));
+            // Query the CMC for the current conversion rate
+            let queryResult : CMC.IcpXdrConversionRateResponse = await CMC_ACTOR.get_icp_xdr_conversion_rate();
+            D.print("GameState: handleIncomingFunds - no conversion necessary, queryResult: "# debug_show(queryResult));
+            // Extract the conversion rate
+            let xdrPermyriadPerIcp = queryResult.data.xdr_permyriad_per_icp;
+            D.print("GameState: handleIncomingFunds - no conversion necessary, xdrPermyriadPerIcp: "# debug_show(xdrPermyriadPerIcp));
+            // Constants
+            let CYCLES_PER_XDR : Nat = 1 * Constants.CYCLES_TRILLION; // 1 trillion cycles per XDR
+            D.print("GameState: handleIncomingFunds - no conversion necessary, CYCLES_PER_XDR: "# debug_show(CYCLES_PER_XDR));
+            let E8S_PER_ICP : Nat = 100_000_000; // 10^8 e8s per ICP
+            // Calculate cycles
+            let cycles : Nat = (icpAmount * Nat64.toNat(xdrPermyriadPerIcp) * CYCLES_PER_XDR) / (10_000 * E8S_PER_ICP); // Where 10_000 is to convert from permyriad (1/10000 of a unit)
+            D.print("GameState: handleIncomingFunds - no conversion necessary, cycles: "# debug_show(cycles));
+            
+            let cyclesForMainer : Nat = cycles;
+            let cyclesForProtocol : Nat = 0; // Protocol already took its cut in ICP
+            
+            D.print("GameState: handleIncomingFunds - no conversion necessary, cyclesForMainer: "# debug_show(cyclesForMainer));
+            let response : Types.HandleIncomingFundsRecord = {
+                cyclesForProtocol: Nat = cyclesForProtocol;
+                cyclesForMainer : Nat = cyclesForMainer;
             };
-            case (_) { return #Err(#FailedOperation); }
+            D.print("GameState: handleIncomingFunds - no conversion necessary, response: "# debug_show(response));
+            return #Ok(response);  
         };
     };
 
@@ -3089,7 +3106,7 @@ actor class GameStateCanister() = this {
                         // TODO - Outcomment this for testing without actual ICP payment
                         if (Principal.isController(msg.caller)) {
                             verifiedPayment := true; 
-                            amountPaid := 6 * Constants.CYCLES_TRILLION; // #own needs this much...
+                            amountPaid := 6 * Constants.CYCLES_TRILLION; // #own needs this much... TODO: amount is in ICP, not cycles
                             continueForAdminWithoutPaymentVerification := true; // continue with creation
                             D.print("GameState: createUserMainerAgent - Payment verification failed, but since caller is Admin (controller), we will continue with creation");
                         } else {
