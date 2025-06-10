@@ -2256,7 +2256,6 @@ actor class GameStateCanister() = this {
                 switch (winnerParticipantEntry) {
                     case (null) { return null };
                     case (?winnerParticipant) {
-                        participantsList := List.push<Types.ChallengeParticipantEntry>(winnerParticipant, participantsList);
                         // 2nd Place
                         let secondPlaceScoredResponseEntry : ?Types.ScoredResponse = sortedScoredResponsesIter.next();
                         switch (secondPlaceScoredResponseEntry) {
@@ -2266,7 +2265,6 @@ actor class GameStateCanister() = this {
                                 switch (secondPlaceParticipantEntry) {
                                     case (null) { return null };
                                     case (?secondPlaceParticipant) {
-                                        participantsList := List.push<Types.ChallengeParticipantEntry>(secondPlaceParticipant, participantsList);
                                         // 3rd Place
                                         let thirdPlaceScoredResponseEntry : ?Types.ScoredResponse = sortedScoredResponsesIter.next();
                                         switch (thirdPlaceScoredResponseEntry) {
@@ -2276,7 +2274,6 @@ actor class GameStateCanister() = this {
                                                 switch (thirdPlaceParticipantEntry) {
                                                     case (null) { return null };
                                                     case (?thirdPlaceParticipant) {
-                                                        participantsList := List.push<Types.ChallengeParticipantEntry>(thirdPlaceParticipant, participantsList);
                                                         // Remaining participants
                                                         for (nextScoredResponse in sortedScoredResponsesIter) {
                                                             var nextParticipantEntry : ?Types.ChallengeParticipantEntry = getParticipantEntryFromScoredResponse(nextScoredResponse, #Participated, numberOfParticipants);
