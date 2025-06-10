@@ -394,7 +394,7 @@ actor class GameStateCanister() = this {
     };
 
     // Cycles for ShareAgent mAIner Creation
-    stable var ICP_FOR_SHARE_AGENT : Nat  = 10                  ; // TODO: Set to cost of a ShareAgent, in ICP
+    stable var ICP_FOR_SHARE_AGENT : Nat  = 10; // TODO: Set to cost of a ShareAgent, in ICP
     public shared (msg) func setIcpForShareAgentAdmin(icpForShareAgent : Nat) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -422,7 +422,7 @@ actor class GameStateCanister() = this {
 
     // Cycles for Own mAIner Creation 
     // Note: the ShareService mAIner will also use these values
-    stable var ICP_FOR_OWN_MAINER : Nat  = 10                  ; // TODO: Set to cost of a Own mAIner, in ICP
+    stable var ICP_FOR_OWN_MAINER : Nat  = 10; // TODO: Set to cost of a Own mAIner, in ICP
     public shared (msg) func setIcpForOwnMainerAdmin(icpForOwnMainer : Nat) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -2136,11 +2136,11 @@ actor class GameStateCanister() = this {
         // TODO - Design: define details of sponsored challenges and then add reward per challenge
     stable var DEFAULT_REWARD_PER_CHALLENGE = {
         rewardType : Types.RewardType = #MainerToken;
-        totalAmount : Nat = 100;
-        winnerAmount : Nat = 35;
-        secondPlaceAmount : Nat = 15;
-        thirdPlaceAmount : Nat = 5;
-        amountForAllParticipants : Nat = 45;
+        totalAmount : Nat = 1000000;
+        winnerAmount : Nat = 350000;
+        secondPlaceAmount : Nat = 150000;
+        thirdPlaceAmount : Nat = 50000;
+        amountForAllParticipants : Nat = 450000;
     };
 
     private func getRewardAmountForResult(achievedResult : Types.ChallengeParticipationResult, totalNumberParticipants : Nat) : Nat { 
