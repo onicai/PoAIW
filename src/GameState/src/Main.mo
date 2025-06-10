@@ -37,6 +37,18 @@ actor class GameStateCanister() = this {
         return Principal.toText(Principal.fromActor(this));
     };
 
+    // Flag to pause protocol
+    stable var PAUSE_PROTOCOL : Bool = false;
+
+    public shared (msg) func togglePauseProtocolFlagAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        PAUSE_PROTOCOL := not PAUSE_PROTOCOL;
+        let authRecord = { auth = "You set the flag to " # debug_show(PAUSE_PROTOCOL) };
+        return #Ok(authRecord);
+    };
+
     // Token Ledger
     stable var TOKEN_LEDGER_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // TODO: update
 
@@ -1711,6 +1723,9 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        if (PAUSE_PROTOCOL) {
+            return #Err(#Other("Protocol is currently paused"));
+        };
 
         // Only official mAIner canisters may call this
         switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
@@ -1745,6 +1760,9 @@ actor class GameStateCanister() = this {
         D.print("GameState: downloadMainerPromptCacheBytesChunk.");
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
+        };
+        if (PAUSE_PROTOCOL) {
+            return #Err(#Other("Protocol is currently paused"));
         };
 
         // Only official mAIner canisters may call this
@@ -1909,6 +1927,9 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        if (PAUSE_PROTOCOL) {
+            return #Err(#Other("Protocol is currently paused"));
+        };
 
         // Only official Judge canisters may call this
         switch (getJudgeCanister(Principal.toText(msg.caller))) {
@@ -1943,6 +1964,9 @@ actor class GameStateCanister() = this {
         D.print("GameState: downloadJudgePromptCacheBytesChunk.");
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
+        };
+        if (PAUSE_PROTOCOL) {
+            return #Err(#Other("Protocol is currently paused"));
         };
 
         // Only official Judge canisters may call this
@@ -2373,6 +2397,9 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        if (PAUSE_PROTOCOL) {
+            return #Err(#Other("Protocol is currently paused"));
+        };
         // Only official Challenger canisters may call this
         switch (getChallengerCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
@@ -2417,6 +2444,9 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        if (PAUSE_PROTOCOL) {
+            return #Err(#Other("Protocol is currently paused"));
+        };
         // Only official Challenger canisters may call this
         switch (getChallengerCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
@@ -2459,6 +2489,9 @@ actor class GameStateCanister() = this {
     public shared (msg) func addChallenge(newChallenge : Types.NewChallengeInput) : async Types.ChallengeAdditionResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
+        };
+        if (PAUSE_PROTOCOL) {
+            return #Err(#Other("Protocol is currently paused"));
         };
 
         // TODO - Implementation: require cycles for adding new challenge
@@ -2995,6 +3028,9 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        if (PAUSE_PROTOCOL and not Principal.isController(msg.caller)) {
+            return #Err(#Other("Protocol is currently paused"));
+        };
 
         let transactionToVerify = mainerCreationInput.paymentTransactionBlockId;
         D.print("GameState: createUserMainerAgent - transactionToVerify: "# debug_show(transactionToVerify));
@@ -3231,6 +3267,9 @@ actor class GameStateCanister() = this {
     public shared (msg) func spinUpMainerControllerCanister(mainerInfo : Types.OfficialMainerAgentCanister) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
+        };
+        if (PAUSE_PROTOCOL and not Principal.isController(msg.caller)) {
+            return #Err(#Other("Protocol is currently paused"));
         };
         D.print("GameState: spinUpMainerControllerCanister - Entered with mainerInfo: "# debug_show(mainerInfo));
 
@@ -3553,6 +3592,9 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        if (PAUSE_PROTOCOL and not Principal.isController(msg.caller)) {
+            return #Err(#Other("Protocol is currently paused"));
+        };
 
         // Sanity checks on mAIner info
         if (not Principal.equal(mainerInfo.ownedBy, msg.caller)) {
@@ -3737,6 +3779,9 @@ actor class GameStateCanister() = this {
     public shared (msg) func addLlmCanisterToMainer(mainerInfo : Types.OfficialMainerAgentCanister) : async Types.SetUpMainerLlmCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
+        };
+        if (PAUSE_PROTOCOL and not Principal.isController(msg.caller)) {
+            return #Err(#Other("Protocol is currently paused"));
         };
 
         // For now, only Controller canisters are allowed to add LLMs to mAIners
@@ -4017,6 +4062,9 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        if (PAUSE_PROTOCOL and not Principal.isController(msg.caller)) {
+            return #Err(#Other("Protocol is currently paused"));
+        };
 
         // TODO - Implementation: ensure this transaction block hasn't been redeemed yet (no double spending)     
         let transactionToVerify = mainerTopUpInfo.paymentTransactionBlockId;
@@ -4217,6 +4265,9 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        if (PAUSE_PROTOCOL) {
+            return #Err(#Other("Protocol is currently paused"));
+        };
         // Only official mAIner agent canisters may call this
         switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
@@ -4244,6 +4295,9 @@ actor class GameStateCanister() = this {
             let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
             D.print("GameState: submitChallengeResponse - 01 - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
             return #Err(#Unauthorized);
+        };
+        if (PAUSE_PROTOCOL) {
+            return #Err(#Other("Protocol is currently paused"));
         };
         // Only official mAIner agent canisters may call this
         switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
@@ -4412,6 +4466,9 @@ actor class GameStateCanister() = this {
         D.print("GameState: getNextSubmissionToJudge - entered");
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
+        };
+        if (PAUSE_PROTOCOL) {
+            return #Err(#Other("Protocol is currently paused"));
         };
         // Only official Judge canisters may call this
         switch (getJudgeCanister(Principal.toText(msg.caller))) {
