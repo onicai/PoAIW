@@ -49,6 +49,65 @@ actor class GameStateCanister() = this {
         return #Ok(authRecord);
     };
 
+    // Limit on how many mAIners may be created
+    stable var LIMIT_SHARED_MAINERS : Nat = 100;
+    stable var LIMIT_OWN_MAINERS : Nat = 0;
+
+    public shared (msg) func setLimitForCreatingMainerAdmin(newLimit : Nat, mainerType : Types.MainerAgentCanisterType) : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        switch (mainerType) {
+            case (#Own) {
+                LIMIT_OWN_MAINERS := newLimit;
+                let authRecord = { auth = "You set LIMIT_OWN_MAINERS to " # debug_show(LIMIT_OWN_MAINERS) };
+                return #Ok(authRecord);
+            };
+            case (#ShareAgent) {
+                LIMIT_SHARED_MAINERS := newLimit;
+                let authRecord = { auth = "You set LIMIT_SHARED_MAINERS to " # debug_show(LIMIT_SHARED_MAINERS) };
+                return #Ok(authRecord);
+            };
+            case (_) { return #Err(#Unauthorized); }
+        };
+    };
+
+    // Function for the frontend to poll
+    public query func shouldCreatingMainersBeStopped(mainerType : Types.MainerAgentCanisterType) : async Bool {
+        let buffer = 7; // to guard against concurrent creations that would leave the user in a state where they paid for the mAIner creation but the protocol blocks it due to the limit
+        switch (mainerType) {
+            case (#Own) {
+                if (getNumberMainerAgents(mainerType) + buffer > LIMIT_OWN_MAINERS) {
+                    return true;
+                };
+            };
+            case (#ShareAgent) {
+                if (getNumberMainerAgents(mainerType) + buffer > LIMIT_SHARED_MAINERS) {
+                    return true;
+                };
+            };
+            case (_) { return false; }
+        };
+        return false;
+    };
+
+    private func isLimitForCreatingMainerReached(mainerType : Types.MainerAgentCanisterType) : Bool {
+        switch (mainerType) {
+            case (#Own) {
+                if (getNumberMainerAgents(mainerType) > LIMIT_OWN_MAINERS) {
+                    return true;
+                };
+            };
+            case (#ShareAgent) {
+                if (getNumberMainerAgents(mainerType) > LIMIT_SHARED_MAINERS) {
+                    return true;
+                };
+            };
+            case (_) { return true; }
+        };
+        return false;
+    };
+
     // Token Ledger
     stable var TOKEN_LEDGER_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // TODO: update
 
@@ -1309,6 +1368,34 @@ actor class GameStateCanister() = this {
             mainerAgents := List.append<Types.OfficialMainerAgentCanister>(userMainerAgentsList, mainerAgents);    
         };
         return List.toArray(mainerAgents);
+    };
+
+    private func getNumberMainerAgents(mainerType : Types.MainerAgentCanisterType) : Nat {
+        switch (mainerType) {
+            case (#Own) {
+                let iter = mainerAgentCanistersStorage.vals();
+                let mappedIter = Iter.filter(iter, func (mainerEntry : Types.OfficialMainerAgentCanister) : Bool {
+                    switch (mainerEntry.mainerConfig.mainerAgentCanisterType) {
+                        case (#Own) { return true; };
+                        case (#ShareAgent) { return false; };
+                        case (_) { return false; }
+                    };
+                });
+                return Iter.size(mappedIter);
+            };
+            case (#ShareAgent) {
+                let iter = mainerAgentCanistersStorage.vals();
+                let mappedIter = Iter.filter(iter, func (mainerEntry : Types.OfficialMainerAgentCanister) : Bool {
+                    switch (mainerEntry.mainerConfig.mainerAgentCanisterType) {
+                        case (#Own) { return false; };
+                        case (#ShareAgent) { return true; };
+                        case (_) { return false; }
+                    };
+                });
+                return Iter.size(mappedIter);                
+            };
+            case (_) { return 0; }
+        };
     };
 
     private func removeUserMainerAgent(canisterEntry : Types.OfficialMainerAgentCanister) : Bool {
@@ -2684,6 +2771,11 @@ actor class GameStateCanister() = this {
             case (_) { return #Err(#Other("Unsupported")); }
         };
 
+        // Check that not too many mAIners are being created
+        if (isLimitForCreatingMainerReached(mainerConfig.mainerAgentCanisterType)) {
+            return #Err(#Other("Limit of mAIners reached"));
+        };
+
         var ownedBy : Principal = msg.caller; // User
         if (Principal.isController(msg.caller)) {
             switch (mainerCreationInput.owner) {
@@ -3052,6 +3144,10 @@ actor class GameStateCanister() = this {
                 switch (checkExistingTransactionBlock(transactionToVerify)) {
                     case (false) {
                         // new transaction, continue
+                        // Check that not too many mAIners are being created
+                        if (isLimitForCreatingMainerReached(mainerConfig.mainerAgentCanisterType)) {
+                            return #Err(#Other("Limit of mAIners reached"));
+                        };
                     };
                     case (true) {
                         // already redeem transaction
@@ -3063,6 +3159,10 @@ actor class GameStateCanister() = this {
                 switch (checkExistingTransactionBlock(transactionToVerify)) {
                     case (false) {
                         // new transaction, continue
+                        // Check that not too many mAIners are being created
+                        if (isLimitForCreatingMainerReached(mainerConfig.mainerAgentCanisterType)) {
+                            return #Err(#Other("Limit of mAIners reached"));
+                        };
                     };
                     case (true) {
                         // already redeem transaction
