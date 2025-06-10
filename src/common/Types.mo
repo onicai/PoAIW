@@ -863,6 +863,17 @@ module Types {
         distributedTimestamp : ?Nat64;
     };
 
+    public type RewardPerChallenge = {
+        rewardType : RewardType;
+        totalAmount : Nat;
+        winnerAmount : Nat;
+        secondPlaceAmount : Nat;
+        thirdPlaceAmount : Nat;
+        amountForAllParticipants : Nat;
+    };
+
+    public type RewardPerChallengeResult = Result<RewardPerChallenge, ApiError>;
+
     public type ChallengeParticipantEntry = {
         submissionId : Text;
         submittedBy : Principal;
