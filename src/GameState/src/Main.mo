@@ -5003,6 +5003,9 @@ actor class GameStateCanister() = this {
         for (canisterEntry in challengerCanistersStorage.vals()) {
             officialCanisters := List.push<Types.OfficialProtocolCanister>(canisterEntry, officialCanisters);    
         };
+        for (canisterEntry in sharedServiceCanistersStorage.vals()) {
+            officialCanisters := List.push<Types.OfficialProtocolCanister>(canisterEntry, officialCanisters);    
+        };
         return List.toArray(officialCanisters);        
     };
 
