@@ -49,7 +49,7 @@ actor class GameStateCanister() = this {
         return #Ok(authRecord);
     };
 
-    public query func getPauseProtocolFlag() : async Types.FlagRecord {
+    public query func getPauseProtocolFlag() : async Types.FlagResult {
         return #Ok({ flag = PAUSE_PROTOCOL });
     };
 
