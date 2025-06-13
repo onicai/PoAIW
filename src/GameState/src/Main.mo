@@ -492,6 +492,10 @@ actor class GameStateCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
+    public query func getPriceForShareAgent() : async Types.PriceResult {
+        return #Ok({ price = PRICE_FOR_SHARE_AGENT_ICP });
+    };
+
     // Cycles for Own mAIner Creation 
     // Note: the ShareService mAIner will also use these values
     stable var PRICE_FOR_OWN_MAINER_ICP : Nat64 = 0; // TODO: Set to cost of a Own mAIner, in ICP
@@ -501,6 +505,10 @@ actor class GameStateCanister() = this {
         };
         PRICE_FOR_OWN_MAINER_ICP := icpForOwnMainer;
         return #Ok({ status_code = 200 });
+    };
+
+    public query func getPriceForOwnMainer() : async Types.PriceResult {
+        return #Ok({ price = PRICE_FOR_OWN_MAINER_ICP });
     };
 
     // TODO - Implementation: function to set the price for creating a mAIner
