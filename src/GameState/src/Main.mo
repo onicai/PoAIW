@@ -77,22 +77,22 @@ actor class GameStateCanister() = this {
     };
 
     // Function for the frontend to poll
-    public query func shouldCreatingMainersBeStopped(mainerType : Types.MainerAgentCanisterType) : async Bool {
+    public query func shouldCreatingMainersBeStopped(mainerType : Types.MainerAgentCanisterType) : async Types.FlagResult {
         let buffer = 7; // to guard against concurrent creations that would leave the user in a state where they paid for the mAIner creation but the protocol blocks it due to the limit
         switch (mainerType) {
             case (#Own) {
                 if (getNumberMainerAgents(mainerType) + buffer > LIMIT_OWN_MAINERS) {
-                    return true;
+                    return #Ok({ flag = true });
                 };
             };
             case (#ShareAgent) {
                 if (getNumberMainerAgents(mainerType) + buffer > LIMIT_SHARED_MAINERS) {
-                    return true;
+                    return #Ok({ flag = true });
                 };
             };
-            case (_) { return false; }
+            case (_) { return #Ok({ flag = false }); }
         };
-        return false;
+        return #Ok({ flag = false });
     };
 
     private func isLimitForCreatingMainerReached(mainerType : Types.MainerAgentCanisterType) : Bool {
