@@ -49,6 +49,10 @@ actor class GameStateCanister() = this {
         return #Ok(authRecord);
     };
 
+    public query func getPauseProtocolFlag() : async Types.FlagRecord {
+        return #Ok({ flag = PAUSE_PROTOCOL });
+    };
+
     // Limit on how many mAIners may be created
     stable var LIMIT_SHARED_MAINERS : Nat = 100;
     stable var LIMIT_OWN_MAINERS : Nat = 0;

@@ -730,6 +730,12 @@ module Types {
 
     public type IssueFlagsRetrievalResult = Result<IssueFlagsRecord, ApiError>;
 
+    public type FlagRecord = {
+        flag : Bool;
+    };
+
+    public type FlagResult = Result<FlagRecord, ApiError>;
+
     public type StatisticsRecord = {
         totalCyclesBurnt : Nat;
         cycleBalance : Nat;
