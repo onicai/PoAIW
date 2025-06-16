@@ -53,6 +53,22 @@ actor class GameStateCanister() = this {
         return #Ok({ flag = PAUSE_PROTOCOL });
     };
 
+    // Flag to disable whitelist mAIner creation flow
+    stable var PAUSE_WHITELIST_MAINER_CREATION : Bool = false;
+
+    public shared (msg) func togglePauseWhitelistMainerCreationFlagAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        PAUSE_WHITELIST_MAINER_CREATION := not PAUSE_WHITELIST_MAINER_CREATION;
+        let authRecord = { auth = "You set the flag to " # debug_show(PAUSE_WHITELIST_MAINER_CREATION) };
+        return #Ok(authRecord);
+    };
+
+    public query func getPauseWhitelistMainerCreationFlag() : async Types.FlagResult {
+        return #Ok({ flag = PAUSE_WHITELIST_MAINER_CREATION });
+    };
+
     // Limit on how many mAIners may be created
     stable var LIMIT_SHARED_MAINERS : Nat = 100;
     stable var LIMIT_OWN_MAINERS : Nat = 0;
