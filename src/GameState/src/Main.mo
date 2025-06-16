@@ -2752,7 +2752,7 @@ actor class GameStateCanister() = this {
     };
 
     // TODO - Implementation:: Function to unlock a mAIner (and thus gain the right to create one and follow the creation flow below)
-    // (called by backend e.g. when lottery is won, later on by users directly too)
+        // (called by admin e.g. when lottery is won with user as mAIner owner, potentially later on called by users directly too)
     public shared (msg) func unlockUserMainerAgent(mainerCreationInput : Types.MainerCreationInput) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized); 
