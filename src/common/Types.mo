@@ -419,10 +419,12 @@ module Types {
         paymentTransactionBlockId : Nat64;
     };
 
-    public type MainerCreationInput = PaymentTransactionBlockId and{
+    public type MainerCreationInput = PaymentTransactionBlockId and {
         mainerConfig : MainerConfigurationInput;
         owner: ?Principal;
     };
+
+    public type WhitelistMainerCreationInput = MainerCreationInput and OfficialMainerAgentCanister;
 
     public type MainerctrlUpgradeInput = {
         canisterAddress : CanisterAddress;
