@@ -626,13 +626,27 @@ actor class MainerAgentCtrlbCanister() = this {
             };
             case (#Custom(customCyclesBurnRate)) {
                 // currently not supported
-                // return #Err(#StatusCode(401));
-                // continue
+                return #Err(#StatusCode(400));
             };
             case (_) {
                 return #Err(#StatusCode(400));
             };
         };
+        // Check that last update was more than a day ago (one update per day is allowed)
+        switch (getCurrentAgentSettings()) {
+            case (null) {
+                // first update, so all good
+            };
+            case (?agentSettings) {
+                let currentTime = Nat64.fromNat(Int.abs(Time.now()));
+                let oneDayNanos : Nat64 = 86_400_000_000_000; // 24h in nanoseconds
+
+                if (currentTime - agentSettings.creationTimestamp < oneDayNanos) {
+                    return #Err(#StatusCode(401));
+                };               
+            };
+        };
+
         let settingsEntry : Types.MainerAgentSettings = {
             cyclesBurnRate : Types.CyclesBurnRateDefault = settingsInput.cyclesBurnRate;
             creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
