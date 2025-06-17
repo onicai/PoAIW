@@ -1464,6 +1464,47 @@ actor class GameStateCanister() = this {
         };
     };
 
+    private func isNotUnlockedMainerEntry(canister : Types.OfficialMainerAgentCanister) : Bool {
+        canister.status != #Unlocked or canister.address != ""
+    };
+        
+    public shared (msg) func cleanUnlockedMainerStoragesAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let sizeMainerAgentCanistersStorage : Nat = mainerAgentCanistersStorage.size();
+
+        // Clean mainerAgentCanistersStorage
+        mainerAgentCanistersStorage := HashMap.mapFilter<Text, Types.OfficialMainerAgentCanister, Types.OfficialMainerAgentCanister>(
+            mainerAgentCanistersStorage,
+            Text.equal,
+            Text.hash,
+            func (_k, v) {
+                if (isNotUnlockedMainerEntry(v)) { ?v } else { null }
+            }
+        );
+
+        // Clean userToMainerAgentsStorage
+        userToMainerAgentsStorage := HashMap.mapFilter<Principal, List.List<Types.OfficialMainerAgentCanister>, List.List<Types.OfficialMainerAgentCanister>>(
+            userToMainerAgentsStorage,
+            Principal.equal,
+            Principal.hash,
+            func (_k, v) {
+                let filteredList = List.filter<Types.OfficialMainerAgentCanister>(
+                    v,
+                    isNotUnlockedMainerEntry
+                );
+                if (List.size(filteredList) > 0) { ?filteredList } else { null }
+            }
+        );
+
+        let removedItemsMainerAgentCanistersStorage = sizeMainerAgentCanistersStorage - mainerAgentCanistersStorage.size();
+
+        let authRecord = { auth = "You removed the following number of items from mainerAgentCanistersStorage: " # debug_show(removedItemsMainerAgentCanistersStorage) };
+        return #Ok(authRecord);
+    };
+
     // Open topics for Challenges to be generated
     stable var openChallengeTopicsStorageStable : [(Text, Types.ChallengeTopic)] = [];
     var openChallengeTopicsStorage : HashMap.HashMap<Text, Types.ChallengeTopic> = HashMap.HashMap(0, Text.equal, Text.hash);
