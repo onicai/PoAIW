@@ -395,6 +395,12 @@ module Types {
 
     public type RedeemedTransactionBlockResult = Result<RedeemedTransactionBlock, ApiError>;
 
+    public type PriceRecord = {
+        price : Nat64;
+    };
+
+    public type PriceResult = Result<PriceRecord, ApiError>;
+
     public type AddCyclesRecord = {
         added : Bool;
         amount : Nat;
@@ -413,9 +419,19 @@ module Types {
         paymentTransactionBlockId : Nat64;
     };
 
-    public type MainerCreationInput = PaymentTransactionBlockId and{
+    public type MainerCreationInput = PaymentTransactionBlockId and {
         mainerConfig : MainerConfigurationInput;
         owner: ?Principal;
+    };
+
+    public type WhitelistMainerCreationInput = MainerCreationInput and OfficialMainerAgentCanister;
+
+    public type CheckMainerLimit = {
+        mainerType : MainerAgentCanisterType;
+    };
+
+    public type MainerLimitInput = CheckMainerLimit and {
+        newLimit : Nat;
     };
 
     public type MainerctrlUpgradeInput = {
@@ -659,22 +675,22 @@ module Types {
     // TODO - Implementation: finalize implementation (likely: make this settable in Game State and then retrievable by mAIner)
     // TODO - Design: finalize exact (initial) amounts
     public let cyclesBurnRateDefaultLow : CyclesBurnRate = {
-        cycles : Nat = 1_000_000_000_000;
+        cycles : Nat = 1_000_000_000_000; // 1 * Constants.CYCLES_TRILLION
         timeInterval : TimeInterval = #Daily;
     };
 
     public let cyclesBurnRateDefaultMid : CyclesBurnRate = {
-        cycles : Nat = 4_000_000_000_000;
+        cycles : Nat = 4_000_000_000_000; // 4 * Constants.CYCLES_TRILLION
         timeInterval : TimeInterval = #Daily;
     };
 
     public let cyclesBurnRateDefaultHigh : CyclesBurnRate = {
-        cycles : Nat = 10_000_000_000_000;
+        cycles : Nat = 10_000_000_000_000; // 10 * Constants.CYCLES_TRILLION
         timeInterval : TimeInterval = #Daily;
     };
 
     public let cyclesBurnRateDefaultVeryHigh : CyclesBurnRate = {
-        cycles : Nat = 20_000_000_000_000;
+        cycles : Nat = 20_000_000_000_000; // 20 * Constants.CYCLES_TRILLION
         timeInterval : TimeInterval = #Daily;
     };
 
@@ -723,6 +739,12 @@ module Types {
     };
 
     public type IssueFlagsRetrievalResult = Result<IssueFlagsRecord, ApiError>;
+
+    public type FlagRecord = {
+        flag : Bool;
+    };
+
+    public type FlagResult = Result<FlagRecord, ApiError>;
 
     public type StatisticsRecord = {
         totalCyclesBurnt : Nat;
@@ -862,6 +884,17 @@ module Types {
         distributed : Bool;
         distributedTimestamp : ?Nat64;
     };
+
+    public type RewardPerChallenge = {
+        rewardType : RewardType;
+        totalAmount : Nat;
+        winnerAmount : Nat;
+        secondPlaceAmount : Nat;
+        thirdPlaceAmount : Nat;
+        amountForAllParticipants : Nat;
+    };
+
+    public type RewardPerChallengeResult = Result<RewardPerChallenge, ApiError>;
 
     public type ChallengeParticipantEntry = {
         submissionId : Text;
