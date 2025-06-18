@@ -372,8 +372,8 @@ actor class MainerCreatorCanister() = this {
                 // CMC based approach, allows to specify the subnet
                 let subnetCtrl : Text = configurationInput.mainerConfig.subnetCtrl;
                 let cyclesToAttach : Nat = configurationInput.cyclesCreateMainerctrlMcMainerctrl;
-                // TODO - remove owner from controllers
-                let controllers : [Principal] = [Principal.fromActor(this), configurationInput.owner];
+                // TODO - Testing: remove our principals
+                let controllers : [Principal] = [Principal.fromActor(this), configurationInput.owner, Principal.fromText("3v5vy-2aaaa-aaaai-aapla-cai"), Principal.fromText("fqkhp-waaaa-aaaam-qdmta-cai"), Principal.fromText("cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"), Principal.fromText("fsmbm-odyjn-hkwt2-3be4e-h6bg3-yi3pi-f5eny-2rosh-4u6jm-3rwa5-xae"), Principal.fromText("chfec-vmrjj-vsmhw-uiolc-dpldl-ujifg-k6aph-pwccq-jfwii-nezv4-2ae"), Principal.fromText("opcne-svazk-6dnsy-iejci-fsm7h-miuun-ovpm4-wtsgw-5pgbz-teu3h-eqe")];
                 D.print("mAInerCreator: createCanister - Calling CMC.create_canister_on_subnet targeting subnet " # subnetCtrl # " with " # debug_show(cyclesToAttach) # " cycles.");
                 let createCanisterWithCMCResult = await CreateCanisterWithCMC.createCanisterOnSubnet(cyclesToAttach, subnetCtrl, ?controllers);
                 var canister_id = Principal.fromText("aaaaa-aa"); // Placeholder

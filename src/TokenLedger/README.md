@@ -126,6 +126,38 @@ dfx canister call game_state_canister --network development testTokenMintingAdmi
 
 dfx canister call funnAI_ledger_canister icrc1_total_supply --network development
 
+#############################
+Demo Stage:
+TOKEN_SYMBOL = FUNNAIdemo
+TOKEN_NAME = FUNNAIdemo
+MINTER = 4tr6r-mqaaa-aaaae-qfcta-cai // Game State canister demo stage
+TRANSFER_FEE = 1 // 1
+feature_flags = opt record{icrc2 = true}
+DEFAULT_ACCOUNT_ID = 4tr6r-mqaaa-aaaae-qfcta-cai // Game State canister dev stage
+PRE_MINTED_TOKENS = 0
+NUM_OF_BLOCK_TO_ARCHIVE = 1000000 // 1M
+TRIGGER_THRESHOLD = 1000000 // 1M
+ARCHIVE_CONTROLLER = 4tr6r-mqaaa-aaaae-qfcta-cai // Game State canister dev stage
+cycles_for_archive_creation = 1000000000000 // 1T
+
+"init_arg": "(variant { Init = record { decimals = opt 8; token_symbol = \"FUNNAIdemo\"; token_name = \"FUNNAIdemo\"; transfer_fee = 1; metadata = vec {}; feature_flags = opt record{icrc2 = true}; minting_account = record { owner = principal \"4tr6r-mqaaa-aaaae-qfcta-cai\"; }; initial_balances = vec { record { record { owner = principal \"4tr6r-mqaaa-aaaae-qfcta-cai\"; }; 0; }; };  archive_options = record { num_blocks_to_archive = 1000000; trigger_threshold = 1000000; controller_id = principal \"4tr6r-mqaaa-aaaae-qfcta-cai\"; cycles_for_archive_creation = opt  1000000000000; }; } })"
+    
+
+Deploy on demo stage:
+dfx deploy funnAI_ledger_canister --network demo
+
+Sanity checks:
+dfx canister call funnAI_ledger_canister is_ledger_ready --network demo
+dfx canister call funnAI_ledger_canister icrc1_minting_account --network demo
+dfx canister call funnAI_ledger_canister icrc1_total_supply --network demo
+
+TODO (once Game State has token ledger code) Checks on Game State:
+dfx canister call game_state_canister --network demo setTokenLedgerCanisterId '("z6s3y-4aaaa-aaaaj-a2bjq-cai")'
+ 
+dfx canister call game_state_canister --network demo testTokenMintingAdmin 
+
+dfx canister call funnAI_ledger_canister icrc1_total_supply --network demo
+
 
 
 ######################################

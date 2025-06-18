@@ -16,11 +16,11 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --network)
             shift
-            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ]; then
+            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ] || [ "$1" = "demo" ]; then
                 NETWORK_TYPE=$1
                 CANISTER_ID_JUDGE_CTRLB_CANISTER="b77ix-eeaaa-aaaaa-qaada-cai"
             else
-                echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing'."
+                echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing' or 'demo'."
                 exit 1
             fi
             shift
@@ -34,7 +34,7 @@ while [ $# -gt 0 ]; do
 done
 
 echo "Using network type: $NETWORK_TYPE"
-if [ "$NETWORK_TYPE" = "development" ]; then
+if [ "$NETWORK_TYPE" = "development" ] || [ "$NETWORK_TYPE" = "demo" ]; then
     NUM_LLMS_DEPLOYED=2
 elif [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ]; then
     NUM_LLMS_DEPLOYED=3

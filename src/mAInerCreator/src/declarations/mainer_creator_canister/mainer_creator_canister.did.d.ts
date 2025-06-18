@@ -2,6 +2,10 @@ import type { Principal } from '@dfinity/principal';
 import type { ActorMethod } from '@dfinity/agent';
 import type { IDL } from '@dfinity/candid';
 
+export interface AddModelCreationArtefactsEntry {
+  'selectedModel' : SelectableMainerLLMs,
+  'creationArtefacts' : ModelCreationArtefacts,
+}
 export type ApiError = { 'FailedOperation' : null } |
   { 'InvalidId' : null } |
   { 'ZeroAddress' : null } |
@@ -13,9 +17,62 @@ export interface AuthRecord { 'auth' : string }
 export type AuthRecordResult = { 'Ok' : AuthRecord } |
   { 'Err' : ApiError };
 export type CanisterAddress = string;
-export interface CanisterCreationCanister {
+export interface CanisterCreationConfiguration {
+  'associatedCanisterSubnet' : string,
+  'canisterType' : ProtocolCanisterType,
+  'cyclesCreateMainerllmMcMainerllm' : bigint,
+  'owner' : Principal,
+  'mainerConfig' : MainerConfigurationInput,
+  'cyclesCreateMainerctrlMcMainerctrl' : bigint,
+  'cyclesCreateMainerllmGsMc' : bigint,
+  'associatedCanisterAddress' : [] | [CanisterAddress],
+  'cyclesCreateMainerctrlGsMc' : bigint,
+  'userMainerEntryCreationTimestamp' : bigint,
+  'userMainerEntryCanisterType' : ProtocolCanisterType,
+}
+export interface CanisterCreationRecord {
+  'subnet' : string,
+  'creationResult' : string,
+  'newCanisterId' : string,
+}
+export type CanisterCreationResult = { 'Ok' : CanisterCreationRecord } |
+  { 'Err' : ApiError };
+export type CanisterStatus = { 'Paused' : null } |
+  { 'Paid' : null } |
+  { 'Unlocked' : null } |
+  { 'LlmSetupFinished' : null } |
+  { 'ControllerCreated' : null } |
+  { 'LlmSetupInProgress' : LlmSetupStatus } |
+  { 'Running' : null } |
+  { 'Other' : string } |
+  { 'ControllerCreationInProgress' : null };
+export type FileUploadResult = { 'Ok' : UploadResult } |
+  { 'Err' : ApiError };
+export interface FinishUploadMainerLlmInput {
+  'selectedModel' : SelectableMainerLLMs,
+  'modelFileSha256' : string,
+}
+export type InsertArtefactsResult = { 'Ok' : ModelCreationArtefacts } |
+  { 'Err' : ApiError };
+export type LlmSetupStatus = { 'CodeInstallInProgress' : null } |
+  { 'CanisterCreated' : null } |
+  { 'ConfigurationInProgress' : null } |
+  { 'CanisterCreationInProgress' : null } |
+  { 'ModelUploadProgress' : number };
+export type MainerAgentCanisterType = { 'NA' : null } |
+  { 'Own' : null } |
+  { 'ShareAgent' : null } |
+  { 'ShareService' : null };
+export interface MainerConfigurationInput {
+  'selectedLLM' : [] | [SelectableMainerLLMs],
+  'subnetLlm' : string,
+  'mainerAgentCanisterType' : MainerAgentCanisterType,
+  'cyclesForMainer' : bigint,
+  'subnetCtrl' : string,
+}
+export interface MainerCreatorCanister {
   'addModelCreationArtefactsEntry' : ActorMethod<
-    [SelectableMainerLLMs, ModelCreationArtefacts],
+    [AddModelCreationArtefactsEntry],
     InsertArtefactsResult
   >,
   'amiController' : ActorMethod<[], AuthRecordResult>,
@@ -24,11 +81,22 @@ export interface CanisterCreationCanister {
     CanisterCreationResult
   >,
   'finish_upload_mainer_llm' : ActorMethod<
-    [SelectableMainerLLMs, string],
+    [FinishUploadMainerLlmInput],
     FileUploadResult
   >,
+  'getDefaultSubnetsAdmin' : ActorMethod<
+    [],
+    { 'Ok' : Array<Principal> } |
+      { 'Err' : { 'Unauthorized' : null } }
+  >,
   'health' : ActorMethod<[], StatusCodeRecordResult>,
+  'isSubnetAvailableAdmin' : ActorMethod<
+    [string],
+    { 'Ok' : boolean } |
+      { 'Err' : { 'Unauthorized' : null } }
+  >,
   'setMasterCanisterId' : ActorMethod<[string], AuthRecordResult>,
+  'setupCanister' : ActorMethod<[SetupCanisterInput], CanisterCreationResult>,
   'start_upload_mainer_controller_canister_wasm' : ActorMethod<
     [],
     StatusCodeRecordResult
@@ -38,53 +106,38 @@ export interface CanisterCreationCanister {
     [SelectableMainerLLMs],
     StatusCodeRecordResult
   >,
-  'testCreateMainerControllerCanister' : ActorMethod<
-    [MainerAgentCanisterType, [] | [CanisterAddress]],
-    CanisterCreationResult
+  'upgradeMainerctrl' : ActorMethod<
+    [UpgradeMainerctrlInput],
+    StatusCodeRecordResult
   >,
-  'testCreateMainerLlmCanister' : ActorMethod<[string], CanisterCreationResult>,
   'upload_mainer_controller_canister_wasm_bytes_chunk' : ActorMethod<
     [Uint8Array | number[]],
     FileUploadResult
   >,
   'upload_mainer_llm_bytes_chunk' : ActorMethod<
-    [Uint8Array | number[], bigint],
+    [UploadMainerLlmBytesChunkInput],
     FileUploadResult
   >,
   'upload_mainer_llm_canister_wasm_bytes_chunk' : ActorMethod<
-    [SelectableMainerLLMs, Uint8Array | number[]],
+    [UploadMainerLlmCanisterWasmBytesChunkInput],
     FileUploadResult
   >,
   'whoami' : ActorMethod<[], Principal>,
 }
-export interface CanisterCreationConfiguration {
-  'canisterType' : ProtocolCanisterType,
-  'owner' : Principal,
-  'mainerConfig' : MainerConfigurationInput,
-  'associatedCanisterAddress' : [] | [CanisterAddress],
-}
-export interface CanisterCreationRecord {
-  'creationResult' : string,
-  'newCanisterId' : string,
-}
-export type CanisterCreationResult = { 'Ok' : CanisterCreationRecord } |
-  { 'Err' : ApiError };
-export type FileUploadResult = { 'Ok' : UploadResult } |
-  { 'Err' : ApiError };
-export type InsertArtefactsResult = { 'Ok' : ModelCreationArtefacts } |
-  { 'Err' : ApiError };
-export type MainerAgentCanisterType = { 'NA' : null } |
-  { 'Own' : null } |
-  { 'ShareAgent' : null } |
-  { 'ShareService' : null };
-export interface MainerConfigurationInput {
-  'selectedLLM' : [] | [SelectableMainerLLMs],
-  'mainerAgentCanisterType' : MainerAgentCanisterType,
-}
 export interface ModelCreationArtefacts {
-  'canisterWasm' : Uint8Array | number[],
+  'canisterWasm' : Array<Uint8Array | number[]>,
   'modelFileSha256' : string,
   'modelFile' : Array<Uint8Array | number[]>,
+}
+export interface OfficialMainerAgentCanister {
+  'status' : CanisterStatus,
+  'canisterType' : ProtocolCanisterType,
+  'ownedBy' : Principal,
+  'creationTimestamp' : bigint,
+  'createdBy' : Principal,
+  'mainerConfig' : MainerConfigurationInput,
+  'subnet' : string,
+  'address' : CanisterAddress,
 }
 export type ProtocolCanisterType = { 'MainerAgent' : MainerAgentCanisterType } |
   { 'MainerLlm' : null } |
@@ -93,11 +146,31 @@ export type ProtocolCanisterType = { 'MainerAgent' : MainerAgentCanisterType } |
   { 'Verifier' : null } |
   { 'MainerCreator' : null };
 export type SelectableMainerLLMs = { 'Qwen2_5_500M' : null };
+export interface SetupCanisterInput {
+  'configurationInput' : CanisterCreationConfiguration,
+  'subnet' : string,
+  'newCanisterId' : string,
+}
 export type StatusCode = number;
 export interface StatusCodeRecord { 'status_code' : StatusCode }
 export type StatusCodeRecordResult = { 'Ok' : StatusCodeRecord } |
   { 'Err' : ApiError };
+export interface UpgradeMainerctrlInput {
+  'cyclesUpgradeMainerctrlGsMc' : bigint,
+  'associatedCanisterSubnet' : string,
+  'cyclesUpgradeMainerctrlMcMainerctrl' : bigint,
+  'associatedCanisterAddress' : [] | [CanisterAddress],
+  'mainerAgentEntry' : OfficialMainerAgentCanister,
+}
+export interface UploadMainerLlmBytesChunkInput {
+  'chunkID' : bigint,
+  'bytesChunk' : Uint8Array | number[],
+}
+export interface UploadMainerLlmCanisterWasmBytesChunkInput {
+  'selectedModel' : SelectableMainerLLMs,
+  'bytesChunk' : Uint8Array | number[],
+}
 export interface UploadResult { 'creationResult' : string }
-export interface _SERVICE extends CanisterCreationCanister {}
+export interface _SERVICE extends MainerCreatorCanister {}
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

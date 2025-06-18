@@ -4,7 +4,7 @@
       "type": "custom",
       "candid": "https://github.com/dfinity/ic/releases/download/ledger-suite-icrc-2025-01-07/ledger.did",
       "wasm": "https://github.com/dfinity/ic/releases/download/ledger-suite-icrc-2025-01-07/ic-icrc1-ledger.wasm.gz",
-      "init_arg": "(variant { Init = record { decimals = opt 8; token_symbol = \"FUNNAI\"; token_name = \"FUNNAI\"; transfer_fee = 1000000; metadata = vec {}; feature_flags = opt record{icrc2 = true}; minting_account = record { owner = principal \"bkyz2-fmaaa-aaaaa-qaaaq-cai\"; }; initial_balances = vec { record { record { owner = principal \"bkyz2-fmaaa-aaaaa-qaaaq-cai\"; }; 0; }; };  archive_options = record { num_blocks_to_archive = 1000000; trigger_threshold = 1000000; controller_id = principal \"bkyz2-fmaaa-aaaaa-qaaaq-cai\"; cycles_for_archive_creation = opt  10000000000000; }; } })"
+      "init_arg": "(variant { Init = record { decimals = opt 8; token_symbol = \"FUNNAIdemo\"; token_name = \"FUNNAIdemo\"; transfer_fee = 1; metadata = vec {}; feature_flags = opt record{icrc2 = true}; minting_account = record { owner = principal \"4tr6r-mqaaa-aaaae-qfcta-cai\"; }; initial_balances = vec { record { record { owner = principal \"4tr6r-mqaaa-aaaae-qfcta-cai\"; }; 0; }; };  archive_options = record { num_blocks_to_archive = 1000000; trigger_threshold = 1000000; controller_id = principal \"4tr6r-mqaaa-aaaae-qfcta-cai\"; cycles_for_archive_creation = opt  1000000000000; }; } })"
     }
   },
   "defaults": {
@@ -27,6 +27,12 @@
       "type": "persistent"
     },
     "backup": {
+      "providers": [
+        "https://icp0.io"
+      ],
+      "type": "persistent"
+    },
+    "demo": {
       "providers": [
         "https://icp0.io"
       ],
