@@ -419,10 +419,12 @@ module Types {
         paymentTransactionBlockId : Nat64;
     };
 
-    public type MainerCreationInput = PaymentTransactionBlockId and{
+    public type MainerCreationInput = PaymentTransactionBlockId and {
         mainerConfig : MainerConfigurationInput;
         owner: ?Principal;
     };
+
+    public type WhitelistMainerCreationInput = MainerCreationInput and OfficialMainerAgentCanister;
 
     public type MainerctrlUpgradeInput = {
         canisterAddress : CanisterAddress;
@@ -665,22 +667,22 @@ module Types {
     // TODO - Implementation: finalize implementation (likely: make this settable in Game State and then retrievable by mAIner)
     // TODO - Design: finalize exact (initial) amounts
     public let cyclesBurnRateDefaultLow : CyclesBurnRate = {
-        cycles : Nat = 1_000_000_000_000;
+        cycles : Nat = 1_000_000_000_000; // 1 * Constants.CYCLES_TRILLION
         timeInterval : TimeInterval = #Daily;
     };
 
     public let cyclesBurnRateDefaultMid : CyclesBurnRate = {
-        cycles : Nat = 4_000_000_000_000;
+        cycles : Nat = 4_000_000_000_000; // 4 * Constants.CYCLES_TRILLION
         timeInterval : TimeInterval = #Daily;
     };
 
     public let cyclesBurnRateDefaultHigh : CyclesBurnRate = {
-        cycles : Nat = 10_000_000_000_000;
+        cycles : Nat = 10_000_000_000_000; // 10 * Constants.CYCLES_TRILLION
         timeInterval : TimeInterval = #Daily;
     };
 
     public let cyclesBurnRateDefaultVeryHigh : CyclesBurnRate = {
-        cycles : Nat = 20_000_000_000_000;
+        cycles : Nat = 20_000_000_000_000; // 20 * Constants.CYCLES_TRILLION
         timeInterval : TimeInterval = #Daily;
     };
 
