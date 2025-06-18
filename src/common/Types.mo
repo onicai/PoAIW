@@ -426,6 +426,14 @@ module Types {
 
     public type WhitelistMainerCreationInput = MainerCreationInput and OfficialMainerAgentCanister;
 
+    public type CheckMainerLimit = {
+        mainerType : MainerAgentCanisterType;
+    };
+
+    public type MainerLimitInput = CheckMainerLimit and {
+        newLimit : Nat;
+    };
+
     public type MainerctrlUpgradeInput = {
         canisterAddress : CanisterAddress;
     };

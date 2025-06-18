@@ -73,18 +73,18 @@ actor class GameStateCanister() = this {
     stable var LIMIT_SHARED_MAINERS : Nat = 100;
     stable var LIMIT_OWN_MAINERS : Nat = 0;
 
-    public shared (msg) func setLimitForCreatingMainerAdmin(newLimit : Nat, mainerType : Types.MainerAgentCanisterType) : async Types.AuthRecordResult {
+    public shared (msg) func setLimitForCreatingMainerAdmin(newLimitInput : Types.MainerLimitInput) : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        switch (mainerType) {
+        switch (newLimitInput.mainerType) {
             case (#Own) {
-                LIMIT_OWN_MAINERS := newLimit;
+                LIMIT_OWN_MAINERS := newLimitInput.newLimit;
                 let authRecord = { auth = "You set LIMIT_OWN_MAINERS to " # debug_show(LIMIT_OWN_MAINERS) };
                 return #Ok(authRecord);
             };
             case (#ShareAgent) {
-                LIMIT_SHARED_MAINERS := newLimit;
+                LIMIT_SHARED_MAINERS := newLimitInput.newLimit;
                 let authRecord = { auth = "You set LIMIT_SHARED_MAINERS to " # debug_show(LIMIT_SHARED_MAINERS) };
                 return #Ok(authRecord);
             };
@@ -93,16 +93,16 @@ actor class GameStateCanister() = this {
     };
 
     // Function for the frontend to poll
-    public query func shouldCreatingMainersBeStopped(mainerType : Types.MainerAgentCanisterType) : async Types.FlagResult {
+    public query func shouldCreatingMainersBeStopped(checkInput : Types.CheckMainerLimit) : async Types.FlagResult {
         let buffer = 7; // to guard against concurrent creations that would leave the user in a state where they paid for the mAIner creation but the protocol blocks it due to the limit
-        switch (mainerType) {
+        switch (checkInput.mainerType) {
             case (#Own) {
-                if (getNumberMainerAgents(mainerType) + buffer > LIMIT_OWN_MAINERS) {
+                if (getNumberMainerAgents(checkInput.mainerType) + buffer > LIMIT_OWN_MAINERS) {
                     return #Ok({ flag = true });
                 };
             };
             case (#ShareAgent) {
-                if (getNumberMainerAgents(mainerType) + buffer > LIMIT_SHARED_MAINERS) {
+                if (getNumberMainerAgents(checkInput.mainerType) + buffer > LIMIT_SHARED_MAINERS) {
                     return #Ok({ flag = true });
                 };
             };
