@@ -608,6 +608,39 @@ actor class MainerAgentCtrlbCanister() = this {
 
     // Settings
 
+    private func areAgentSettingsUpdateable() : Bool {
+        switch (getCurrentAgentSettings()) {
+            case (null) {
+                // first update, so all good
+                return true;
+            };
+            case (?agentSettings) {
+                // Check that last update was more than a day ago (one update per day is allowed)
+                let currentTime = Nat64.fromNat(Int.abs(Time.now()));
+                let oneDayNanos : Nat64 = 86_400_000_000_000; // 24h in nanoseconds
+
+                if (currentTime - agentSettings.creationTimestamp < oneDayNanos) {
+                    return false;
+                };
+                return true;            
+            };
+        };
+    };
+
+    public shared (msg) func canAgentSettingsBeUpdated() : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        switch (areAgentSettingsUpdateable()) {
+            case (true) {
+                return #Ok({ status_code = 200 }); 
+            };
+            case (false) {
+                return #Err(#Other("Last update is not yet 24h ago."));           
+            };
+        };
+    };
+
     public shared (msg) func updateAgentSettings(settingsInput : Types.MainerAgentSettingsInput) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
@@ -633,18 +666,12 @@ actor class MainerAgentCtrlbCanister() = this {
                 return #Err(#StatusCode(400));
             };
         };
-        // Check that last update was more than a day ago (one update per day is allowed)
-        switch (getCurrentAgentSettings()) {
-            case (null) {
-                // first update, so all good
+        switch (areAgentSettingsUpdateable()) {
+            case (true) {
+                // continue
             };
-            case (?agentSettings) {
-                let currentTime = Nat64.fromNat(Int.abs(Time.now()));
-                let oneDayNanos : Nat64 = 86_400_000_000_000; // 24h in nanoseconds
-
-                if (currentTime - agentSettings.creationTimestamp < oneDayNanos) {
-                    return #Err(#Other("Last update is not yet 24h ago."));
-                };               
+            case (false) {
+                return #Err(#Other("Last update is not yet 24h ago."));           
             };
         };
 
