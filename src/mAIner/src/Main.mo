@@ -642,7 +642,7 @@ actor class MainerAgentCtrlbCanister() = this {
                 let oneDayNanos : Nat64 = 86_400_000_000_000; // 24h in nanoseconds
 
                 if (currentTime - agentSettings.creationTimestamp < oneDayNanos) {
-                    return #Err(#StatusCode(401));
+                    return #Err(#Other("Last update is not yet 24h ago."));
                 };               
             };
         };
