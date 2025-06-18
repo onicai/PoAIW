@@ -18,6 +18,7 @@ import Float "mo:base/Float";
 import Cycles "mo:base/ExperimentalCycles";
 import { setTimer; recurringTimer } = "mo:base/Timer";
 import Timer "mo:base/Timer";
+import Random "mo:base/Random";
 
 import Types "../../common/Types";
 import Constants "../../common/Constants";
@@ -1553,7 +1554,7 @@ actor class MainerAgentCtrlbCanister() = this {
                 // Store it in the queue
                 let _pushResult_ = pushChallengeQueue(challengeQueueInput);
                 return #Ok(challengeQueueInput);                        
-            };             
+            };
         };
     };    
 
@@ -1697,7 +1698,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
 // Timers
-    stable var actionRegularityInSeconds = 60; // TODO - Implementation: set based on user setting for cycles burn rate
+    stable var action2RegularityInSeconds = 10; // Determines how often Own and ShareService mAIners wake up to process the next challenge from the queue
 
     private func triggerRecurringAction1() : async () {
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 1 was triggered");
@@ -1727,7 +1728,6 @@ actor class MainerAgentCtrlbCanister() = this {
             switch (getCurrentAgentSettings()) {
                 case (null) {
                     // use default
-
                 };
                 case (?agentSettings) {
                     cyclesBurnRate := Types.getCyclesBurnRate(agentSettings.cyclesBurnRate);
@@ -1752,31 +1752,39 @@ actor class MainerAgentCtrlbCanister() = this {
 
         if (MAINER_AGENT_CANISTER_TYPE == #Own or MAINER_AGENT_CANISTER_TYPE == #ShareAgent) {
             res := res # " 1, ";
-            ignore setTimer<system>(#seconds timerRegularity,
+            var randomInitialTimer = 3000; // Default
+            try {
+                let random = Random.Finite(await Random.blob());
+                let randomValueResult = random.range(5); // Uniformly distributes outcomes in the numeric range [0 .. 2^5 - 1].
+                switch (randomValueResult) {
+                    case (?randomValue) {
+                        randomInitialTimer := (randomValue + 1) * 2 * 60; // i.e. range for randomInitialTimer is between 120 and 3840 seconds (2 and 64 minutes)                
+                    };
+                    case (_) {
+                        // Something went wrong with the random generation, use default
+                    };
+                };
+            } catch (error : Error) {
+                D.print("mAIner startTimerExecution error in generating randomInitialTimer: " # Error.message(error));
+                // Some error occurred, use default
+            };
+            ignore setTimer<system>(#seconds randomInitialTimer,
                 func () : async () {
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer 1");
-                    let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction1);
+                    let id =  recurringTimer<system>(#seconds timerRegularity, triggerRecurringAction1);
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Successfully start timer 1 with id = " # debug_show (id));
                     recurringTimerId1 := ?id;
                     await triggerRecurringAction1();
             });
-
-            // Trigger it right away. Without this, the first action would be delayed by timerRegularity seconds
-            await triggerRecurringAction1();
         };
 
         if (MAINER_AGENT_CANISTER_TYPE == #Own or MAINER_AGENT_CANISTER_TYPE == #ShareService) {
             res := res # " 2";
-            ignore setTimer<system>(#seconds timerRegularity,
-                func () : async () {
-                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer 2");
-                    let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction2);
-                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Successfully start timer 2 with id = " # debug_show (id));
-                    recurringTimerId2 := ?id;
-                    await triggerRecurringAction2();
-            });
-            
-            // Trigger it right away. Without this, the first action would be delayed by timerRegularity seconds
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer 2");
+            let id =  recurringTimer<system>(#seconds action2RegularityInSeconds, triggerRecurringAction2);
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Successfully start timer 2 with id = " # debug_show (id));
+            recurringTimerId2 := ?id;            
+            // Trigger it right away. Without this, the first action would be delayed by the recurring timer regularity
             await triggerRecurringAction2();
         };
 
