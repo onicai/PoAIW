@@ -4482,6 +4482,16 @@ actor class GameStateCanister() = this {
                         };
 
                         // ------------------------------------------------------
+                        // Update subnet settings for the controller
+                        let mainerSubnets = getMainerSubnets(userMainerEntry.mainerConfig.mainerAgentCanisterType); // the subnet where the mAIner Controller will be created
+                        let updatedMainerConfig : Types.MainerConfigurationInput = {
+                            mainerAgentCanisterType: Types.MainerAgentCanisterType = userMainerEntry.mainerConfig.mainerAgentCanisterType;
+                            selectedLLM : ?Types.SelectableMainerLLMs = userMainerEntry.mainerConfig.selectedLLM;
+                            cyclesForMainer : Nat = userMainerEntry.mainerConfig.cyclesForMainer; // to be used by the creation process
+                            subnetCtrl : Text = userMainerEntry.mainerConfig.subnetCtrl; // the subnet where the mAIner Controller was created - do not modify
+                            subnetLlm : Text = mainerSubnets.subnetLlm; // the subnet where the mAIner LLM will be created - Admin sets this prior to calling this function...
+                        };
+
                         // Update status of the controller (usermAInerEntry) to LlmSetupInProgress
                         let temporaryEntry : Types.OfficialMainerAgentCanister = {
                             address : Text = userMainerEntry.address;
@@ -4490,8 +4500,8 @@ actor class GameStateCanister() = this {
                             creationTimestamp : Nat64 = userMainerEntry.creationTimestamp; // for deduplication by putUserMainerAgent
                             createdBy : Principal = userMainerEntry.createdBy;
                             ownedBy : Principal = userMainerEntry.ownedBy;
-                            status : Types.CanisterStatus = #LlmSetupInProgress(#CanisterCreationInProgress); // only field updated
-                            mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
+                            status : Types.CanisterStatus = #LlmSetupInProgress(#CanisterCreationInProgress); // field updated
+                            mainerConfig : Types.MainerConfigurationInput = updatedMainerConfig; // field updated with new subnetLlm
                         };
                         switch (putUserMainerAgent(temporaryEntry)) {
                             case (true) {
@@ -4518,7 +4528,7 @@ actor class GameStateCanister() = this {
                                     owner: Principal = userMainerEntry.ownedBy; // User
                                     associatedCanisterAddress : ?Types.CanisterAddress = ?userMainerEntry.address; // Controller address
                                     associatedCanisterSubnet : Text = userMainerEntry.subnet; // Controller subnet
-                                    mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
+                                    mainerConfig : Types.MainerConfigurationInput = updatedMainerConfig; // Updated mainer config with new subnetLlm
                                     userMainerEntryCreationTimestamp : Nat64 = userMainerEntry.creationTimestamp; // Controller
                                     userMainerEntryCanisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType; // Controller
                                     cyclesCreateMainerctrlGsMc : Nat = cyclesCreateMainer.cyclesCreateMainerctrlGsMc;
@@ -4556,7 +4566,7 @@ actor class GameStateCanister() = this {
                                             createdBy : Principal = Principal.fromText(mainerCreatorEntry.address); // mAIner Creator
                                             ownedBy : Principal = userMainerEntry.ownedBy; // User
                                             status : Types.CanisterStatus = #LlmSetupInProgress(#CanisterCreated); //This is status of the controller
-                                            mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
+                                            mainerConfig : Types.MainerConfigurationInput = updatedMainerConfig; // Updated mainer config with new subnetLlm
                                         };
                                         D.print("GameState: setUpMainerLlmCanister - returning canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );
                                         ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_LLM_CREATION);
@@ -4688,6 +4698,18 @@ actor class GameStateCanister() = this {
                                 return #Err(#Other("Unsupported userMainerEntry.status: " # debug_show(userMainerEntry.status))); }
                         };
 
+                        // ------------------------------------------------------
+                        // Update subnet settings for the controller
+                        let mainerSubnets = getMainerSubnets(userMainerEntry.mainerConfig.mainerAgentCanisterType); // the subnet where the mAIner Controller will be created
+                        let updatedMainerConfig : Types.MainerConfigurationInput = {
+                            mainerAgentCanisterType: Types.MainerAgentCanisterType = userMainerEntry.mainerConfig.mainerAgentCanisterType;
+                            selectedLLM : ?Types.SelectableMainerLLMs = userMainerEntry.mainerConfig.selectedLLM;
+                            cyclesForMainer : Nat = userMainerEntry.mainerConfig.cyclesForMainer; // to be used by the creation process
+                            subnetCtrl : Text = userMainerEntry.mainerConfig.subnetCtrl; // the subnet where the mAIner Controller was created - do not modify
+                            subnetLlm : Text = mainerSubnets.subnetLlm; // the subnet where the mAIner LLM will be created - Admin sets this prior to calling this function...
+                        };
+
+                        // Update status of the controller (usermAInerEntry) to LlmSetupInProgress
                         let temporaryEntry : Types.OfficialMainerAgentCanister = {
                             address : Text = userMainerEntry.address;
                             subnet : Text = userMainerEntry.subnet;
@@ -4696,7 +4718,7 @@ actor class GameStateCanister() = this {
                             createdBy : Principal = userMainerEntry.createdBy;
                             ownedBy : Principal = userMainerEntry.ownedBy;
                             status : Types.CanisterStatus = #LlmSetupInProgress(#CanisterCreated); //This is status of the controller -- createCanister updates status via callback
-                            mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
+                            mainerConfig : Types.MainerConfigurationInput = updatedMainerConfig; // field updated with new subnetLlm
                         };
                         switch (putUserMainerAgent(temporaryEntry)) {
                             case (true) {
@@ -4721,7 +4743,7 @@ actor class GameStateCanister() = this {
                                     owner: Principal = userMainerEntry.ownedBy; // User
                                     associatedCanisterAddress : ?Types.CanisterAddress = ?userMainerEntry.address; // Controller address
                                     associatedCanisterSubnet : Text = userMainerEntry.subnet; // Controller subnet
-                                    mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
+                                    mainerConfig : Types.MainerConfigurationInput = updatedMainerConfig; // Updated mainer config with new subnetLlm
                                     userMainerEntryCreationTimestamp : Nat64 = userMainerEntry.creationTimestamp; // for deduplication by putUserMainerAgent
                                     userMainerEntryCanisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType;
                                     cyclesCreateMainerctrlGsMc : Nat = cyclesCreateMainer.cyclesCreateMainerctrlGsMc;
@@ -4759,7 +4781,7 @@ actor class GameStateCanister() = this {
                                             createdBy : Principal = Principal.fromText(mainerCreatorEntry.address); // mAIner Creator
                                             ownedBy : Principal = userMainerEntry.ownedBy; // User
                                             status : Types.CanisterStatus = #LlmSetupInProgress(#CanisterCreated); //This is status of the controller
-                                            mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
+                                            mainerConfig : Types.MainerConfigurationInput = updatedMainerConfig; // Updated mainer config with new subnetLlm
                                         };
                                         D.print("GameState: addLlmCanisterToMainer - returning canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );  
                                         ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_LLM_CREATION);

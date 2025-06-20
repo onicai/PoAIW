@@ -1,9 +1,10 @@
 {
   "llm_0": {
+    "demo": "gno73-kiaaa-aaaak-quh5a-cai",
     "development": "fgyjy-mqaaa-aaaak-quhxq-cai",
     "ic": "lmehs-taaaa-aaaaj-azzrq-cai",
-    "testing": "dfx3d-xyaaa-aaaaf-qaqhq-cai",
-    "demo": "gno73-kiaaa-aaaak-quh5a-cai"
+    "prd": "vofho-bqaaa-aaaac-qalyq-cai",
+    "testing": ""
   },
   "llm_1": {
     "development": "4gwp4-nyaaa-aaaae-qfcqq-cai",
