@@ -61,6 +61,7 @@ type MainerAgentCtrlbCanister =
     (MainerAgentCanisterResult);
    add_llm_canister: (CanisterIDRecord) -> (StatusCodeRecordResult);
    amiController: () -> (StatusCodeRecordResult) query;
+   canAgentSettingsBeUpdated: () -> (StatusCodeRecordResult);
    checkAccessToLLMs: () -> (StatusCodeRecordResult);
    getChallengeQueueAdmin: () -> (ChallengeQueueInputsResult) query;
    getGameStateCanisterId: () -> (text) query;
