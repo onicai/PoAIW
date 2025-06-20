@@ -5077,6 +5077,18 @@ actor class GameStateCanister() = this {
         return #Ok(getMainerAgents());
     };
 
+    public shared query (msg) func getNumberMainerAgentsAdmin(checkInput : Types.CheckMainerLimit) : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let result = getNumberMainerAgents(checkInput.mainerType);
+        return #Ok(result);
+    };
+
     // Function to retrieve info on a mAIner agent canister
     public shared query (msg) func getMainerAgentCanisterInfo(canisterEntryToRetrieve : Types.CanisterRetrieveInput) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {

@@ -641,6 +641,29 @@ actor class MainerAgentCtrlbCanister() = this {
         };
     };
 
+    public shared (msg) func timeToNextAgentSettingsUpdate() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        switch (getCurrentAgentSettings()) {
+            case (null) {
+                // first update, so all good
+                return #Ok(0);
+            };
+            case (?agentSettings) {
+                // one update per day is allowed
+                let currentTime = Nat64.fromNat(Int.abs(Time.now()));
+                let oneDayNanos : Nat64 = 86_400_000_000_000; // 24h in nanoseconds
+
+                if (currentTime - agentSettings.creationTimestamp >= oneDayNanos) {
+                    return #Ok(0); // last update was more than a day, so may be updated now
+                };
+                let remainingTime = oneDayNanos - (currentTime - agentSettings.creationTimestamp);
+                return #Ok(Nat64.toNat(remainingTime));
+            };
+        };        
+    };
+
     public shared (msg) func updateAgentSettings(settingsInput : Types.MainerAgentSettingsInput) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));

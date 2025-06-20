@@ -18,6 +18,7 @@ import Float "mo:base/Float";
 import Cycles "mo:base/ExperimentalCycles";
 import { setTimer; recurringTimer } = "mo:base/Timer";
 import Timer "mo:base/Timer";
+import Random "mo:base/Random";
 
 import Types "../../common/Types";
 import Constants "../../common/Constants";
@@ -398,6 +399,14 @@ actor class MainerAgentCtrlbCanister() = this {
         return #Ok(challengeQueueInputs);
     };
 
+    public shared (msg) func resetChallengeQueueAdmin() : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        challengeQueue := List.nil<Types.ChallengeQueueInput>();
+        return #Ok({ status_code = 200 });
+    };
+
     // Record of generated responses
     stable var generatedResponses : List.List<Types.ChallengeResponseSubmissionInput> = List.nil<Types.ChallengeResponseSubmissionInput>();
 
@@ -469,6 +478,7 @@ actor class MainerAgentCtrlbCanister() = this {
     // -------------------------------------------------------------------------------
     // The C++ LLM canisters that can be called
 
+    stable var llmCanistersStable : [Text] = [];
     private var llmCanisters : Buffer.Buffer<Types.LLMCanister> = Buffer.fromArray([]);
 
     // Resets llmCanisters
@@ -598,6 +608,62 @@ actor class MainerAgentCtrlbCanister() = this {
 
     // Settings
 
+    private func areAgentSettingsUpdateable() : Bool {
+        switch (getCurrentAgentSettings()) {
+            case (null) {
+                // first update, so all good
+                return true;
+            };
+            case (?agentSettings) {
+                // Check that last update was more than a day ago (one update per day is allowed)
+                let currentTime = Nat64.fromNat(Int.abs(Time.now()));
+                let oneDayNanos : Nat64 = 86_400_000_000_000; // 24h in nanoseconds
+
+                if (currentTime - agentSettings.creationTimestamp < oneDayNanos) {
+                    return false;
+                };
+                return true;            
+            };
+        };
+    };
+
+    public shared (msg) func canAgentSettingsBeUpdated() : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        switch (areAgentSettingsUpdateable()) {
+            case (true) {
+                return #Ok({ status_code = 200 }); 
+            };
+            case (false) {
+                return #Err(#Other("Last update is not yet 24h ago."));           
+            };
+        };
+    };
+
+    public shared (msg) func timeToNextAgentSettingsUpdate() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        switch (getCurrentAgentSettings()) {
+            case (null) {
+                // first update, so all good
+                return #Ok(0);
+            };
+            case (?agentSettings) {
+                // one update per day is allowed
+                let currentTime = Nat64.fromNat(Int.abs(Time.now()));
+                let oneDayNanos : Nat64 = 86_400_000_000_000; // 24h in nanoseconds
+
+                if (currentTime - agentSettings.creationTimestamp >= oneDayNanos) {
+                    return #Ok(0); // last update was more than a day, so may be updated now
+                };
+                let remainingTime = oneDayNanos - (currentTime - agentSettings.creationTimestamp);
+                return #Ok(Nat64.toNat(remainingTime));
+            };
+        };        
+    };
+
     public shared (msg) func updateAgentSettings(settingsInput : Types.MainerAgentSettingsInput) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
@@ -617,13 +683,21 @@ actor class MainerAgentCtrlbCanister() = this {
             };
             case (#Custom(customCyclesBurnRate)) {
                 // currently not supported
-                // return #Err(#StatusCode(401));
-                // continue
+                return #Err(#StatusCode(400));
             };
             case (_) {
                 return #Err(#StatusCode(400));
             };
         };
+        switch (areAgentSettingsUpdateable()) {
+            case (true) {
+                // continue
+            };
+            case (false) {
+                return #Err(#Other("Last update is not yet 24h ago."));           
+            };
+        };
+
         let settingsEntry : Types.MainerAgentSettings = {
             cyclesBurnRate : Types.CyclesBurnRateDefault = settingsInput.cyclesBurnRate;
             creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
@@ -662,10 +736,16 @@ actor class MainerAgentCtrlbCanister() = this {
 
         switch (respondingResult) {
             case (#Err(error)) {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge error");
-                D.print(debug_show (error));
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge error" # debug_show (error));
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): WARNING - ShareService is likely broken & admin must call resetChallengeQueueAdmin of the ShareAgent " # debug_show(challengeQueueInput.challengeQueuedBy) # " once the ShareService is fixed");
                 // TODO - Error Handling
                 // TODO - Design: in case of ShareService, do we refund the cycles to the ShareAgent?
+                // NOTE:
+                // - We are NOT sending anything back to the ShareAgent.
+                // - This is the safest approach to avoid sucking all cycles out of the ShareAgent in case the ShareService is not working
+                // - The ShareAgent's challengeQueue will simply fill up with challenges that cannot be processed
+                //
+                // -> Admin must run a script to reset the challengeQueue of all the ShareAgent caniseters once the ShareService is fixed
             };
             case (#Ok(respondingOutput : Types.ChallengeResponse)) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - calling putGeneratedResponse");
@@ -1524,7 +1604,7 @@ actor class MainerAgentCtrlbCanister() = this {
                 // Store it in the queue
                 let _pushResult_ = pushChallengeQueue(challengeQueueInput);
                 return #Ok(challengeQueueInput);                        
-            };             
+            };
         };
     };    
 
@@ -1549,6 +1629,9 @@ actor class MainerAgentCtrlbCanister() = this {
                 // Check if the canister has enough cycles for this particular Challenge
                 if (not sufficientCyclesToProcessChallenge(challengeQueueInput)) {
                     // Note: do not set pause flag
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge - Not enough cycles to process challenge. Pushing it back on the queue to try later.");
+                    // Push the challenge back to the queue to try again later
+                    let _pushResult_ = pushChallengeQueue(challengeQueueInput);
                     return;
                 };
 
@@ -1665,7 +1748,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
 // Timers
-    stable var actionRegularityInSeconds = 60; // TODO - Implementation: set based on user setting for cycles burn rate
+    stable var action2RegularityInSeconds = 10; // Determines how often Own and ShareService mAIners wake up to process the next challenge from the queue
 
     private func triggerRecurringAction1() : async () {
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 1 was triggered");
@@ -1695,7 +1778,6 @@ actor class MainerAgentCtrlbCanister() = this {
             switch (getCurrentAgentSettings()) {
                 case (null) {
                     // use default
-
                 };
                 case (?agentSettings) {
                     cyclesBurnRate := Types.getCyclesBurnRate(agentSettings.cyclesBurnRate);
@@ -1720,31 +1802,39 @@ actor class MainerAgentCtrlbCanister() = this {
 
         if (MAINER_AGENT_CANISTER_TYPE == #Own or MAINER_AGENT_CANISTER_TYPE == #ShareAgent) {
             res := res # " 1, ";
-            ignore setTimer<system>(#seconds timerRegularity,
+            var randomInitialTimer = 3000; // Default
+            try {
+                let random = Random.Finite(await Random.blob());
+                let randomValueResult = random.range(5); // Uniformly distributes outcomes in the numeric range [0 .. 2^5 - 1].
+                switch (randomValueResult) {
+                    case (?randomValue) {
+                        randomInitialTimer := (randomValue + 1) * 2 * 60; // i.e. range for randomInitialTimer is between 120 and 3840 seconds (2 and 64 minutes)                
+                    };
+                    case (_) {
+                        // Something went wrong with the random generation, use default
+                    };
+                };
+            } catch (error : Error) {
+                D.print("mAIner startTimerExecution error in generating randomInitialTimer: " # Error.message(error));
+                // Some error occurred, use default
+            };
+            ignore setTimer<system>(#seconds randomInitialTimer,
                 func () : async () {
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer 1");
-                    let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction1);
+                    let id =  recurringTimer<system>(#seconds timerRegularity, triggerRecurringAction1);
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Successfully start timer 1 with id = " # debug_show (id));
                     recurringTimerId1 := ?id;
                     await triggerRecurringAction1();
             });
-
-            // Trigger it right away. Without this, the first action would be delayed by timerRegularity seconds
-            await triggerRecurringAction1();
         };
 
         if (MAINER_AGENT_CANISTER_TYPE == #Own or MAINER_AGENT_CANISTER_TYPE == #ShareService) {
             res := res # " 2";
-            ignore setTimer<system>(#seconds timerRegularity,
-                func () : async () {
-                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer 2");
-                    let id =  recurringTimer<system>(#seconds actionRegularityInSeconds, triggerRecurringAction2);
-                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Successfully start timer 2 with id = " # debug_show (id));
-                    recurringTimerId2 := ?id;
-                    await triggerRecurringAction2();
-            });
-            
-            // Trigger it right away. Without this, the first action would be delayed by timerRegularity seconds
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer 2");
+            let id =  recurringTimer<system>(#seconds action2RegularityInSeconds, triggerRecurringAction2);
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Successfully start timer 2 with id = " # debug_show (id));
+            recurringTimerId2 := ?id;            
+            // Trigger it right away. Without this, the first action would be delayed by the recurring timer regularity
             await triggerRecurringAction2();
         };
 
@@ -1823,6 +1913,13 @@ actor class MainerAgentCtrlbCanister() = this {
         mainerCreatorCanistersStorageStable := Iter.toArray(mainerCreatorCanistersStorage.entries());
         shareAgentCanistersStorageStable := Iter.toArray(shareAgentCanistersStorage.entries());
         userToShareAgentsStorageStable := Iter.toArray(userToShareAgentsStorage.entries());
+        
+        // Convert Buffer<LLMCanister> to [Text] for stable storage
+        let llmCanisterIds = Buffer.Buffer<Text>(llmCanisters.size());
+        for (llmCanister in llmCanisters.vals()) {
+            llmCanisterIds.add(Principal.toText(Principal.fromActor(llmCanister)));
+        };
+        llmCanistersStable := Buffer.toArray(llmCanisterIds);
     };
 
     system func postupgrade() {
@@ -1832,5 +1929,13 @@ actor class MainerAgentCtrlbCanister() = this {
         shareAgentCanistersStorageStable := [];
         userToShareAgentsStorage := HashMap.fromIter(Iter.fromArray(userToShareAgentsStorageStable), userToShareAgentsStorageStable.size(), Principal.equal, Principal.hash);
         userToShareAgentsStorageStable := [];
+        
+        // Reconstruct Buffer<LLMCanister> from [Text]
+        llmCanisters := Buffer.Buffer<Types.LLMCanister>(llmCanistersStable.size());
+        for (canisterId in llmCanistersStable.vals()) {
+            let llmCanister = actor (canisterId) : Types.LLMCanister;
+            llmCanisters.add(llmCanister);
+        };
+        llmCanistersStable := [];
     };
 };
