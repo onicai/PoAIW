@@ -13,10 +13,10 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --network)
             shift
-            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ] || [ "$1" = "demo" ]; then
+            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ] || [ "$1" = "demo" ] || [ "$1" = "prd" ]; then
                 NETWORK_TYPE=$1
             else
-                echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing' or 'demo'."
+                echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing' or 'demo' or 'prd'."
                 exit 1
             fi
             shift
@@ -36,11 +36,11 @@ echo "Using network type: $NETWORK_TYPE"
 echo " "
 echo "--------------------------------------------------"
 echo "Checking readiness endpoint"
-output=$(dfx canister call challenger_ctrlb_canister ready --network $NETWORK_TYPE)
+output=$(dfx canister call judge_ctrlb_canister ready --network $NETWORK_TYPE)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-    echo "challenger_ctrlb_canister is not ready. Exiting."
+    echo "judge_ctrlb_canister is not ready. Exiting."
     exit 1
 else
-    echo "challenger_ctrlb_canister is ready for inference."
+    echo "judge_ctrlb_canister is ready for inference."
 fi

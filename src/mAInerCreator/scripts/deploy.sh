@@ -14,10 +14,10 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --network)
             shift
-            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ] || [ "$1" = "demo" ]; then
+            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ] || [ "$1" = "demo" ] || [ "$1" = "prd" ]; then
                 NETWORK_TYPE=$1
             else
-                echo "Invalid network type: $1. Use 'local', 'development' or 'ic' or 'testing' or 'demo'."
+                echo "Invalid network type: $1. Use 'local', 'development' or 'ic' or 'testing' or 'demo' or 'prd'."
                 exit 1
             fi
             shift
@@ -34,7 +34,7 @@ while [ $# -gt 0 ]; do
             ;;
         *)
             echo "Unknown argument: $1"
-            echo "Usage: $0 --network [local|ic|testing]"
+            echo "Usage: $0 --network [local|ic|testing|development|demo|prd]"
             exit 1
             ;;
     esac
@@ -44,6 +44,8 @@ if [ "$NETWORK_TYPE" = "ic" ]; then
     SUBNET="w4asl-4nmyj-qnr7c-6cqq4-tkwmt-o26di-iupkq-vx4kt-asbrx-jzuxh-4ae"
 elif [ "$NETWORK_TYPE" = "testing" ]; then
     SUBNET="w4asl-4nmyj-qnr7c-6cqq4-tkwmt-o26di-iupkq-vx4kt-asbrx-jzuxh-4ae"
+elif [ "$NETWORK_TYPE" = "prd" ]; then
+    SUBNET="snjp4-xlbw4-mnbog-ddwy6-6ckfd-2w5a2-eipqo-7l436-pxqkh-l6fuv-vae"
 elif [ "$NETWORK_TYPE" = "development" ]; then
     SUBNET="none"  # TODO
 else
@@ -59,7 +61,7 @@ echo " "
 echo "--------------------------------------------------"
 echo "Deploying the mainer_creator_canister"
 
-if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ]; then
+if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ] || [ "$NETWORK_TYPE" = "demo" ] || [ "$NETWORK_TYPE" = "prd" ]; then
     if [ "$SUBNET" = "none" ]; then
         dfx deploy mainer_creator_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
     else

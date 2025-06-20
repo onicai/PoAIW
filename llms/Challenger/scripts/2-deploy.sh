@@ -15,10 +15,10 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --network)
             shift
-            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ] || [ "$1" = "demo" ]; then
+            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ] || [ "$1" = "demo" ] || [ "$1" = "prd" ]; then
                 NETWORK_TYPE=$1
             else
-                echo "Invalid network type: $1. Use 'local', 'development' or 'ic' or 'testing' or 'demo'."
+                echo "Invalid network type: $1. Use 'local', 'development' or 'ic' or 'testing' or 'demo' or 'prd'."
                 exit 1
             fi
             shift
@@ -45,6 +45,8 @@ if [ "$NETWORK_TYPE" = "ic" ]; then
     SUBNET="csyj4-zmann-ys6ge-3kzi6-onexi-obayx-2fvak-zersm-euci4-6pslt-lae"
 elif [ "$NETWORK_TYPE" = "testing" ]; then
     SUBNET="csyj4-zmann-ys6ge-3kzi6-onexi-obayx-2fvak-zersm-euci4-6pslt-lae"
+elif [ "$NETWORK_TYPE" = "prd" ]; then
+    SUBNET="w4asl-4nmyj-qnr7c-6cqq4-tkwmt-o26di-iupkq-vx4kt-asbrx-jzuxh-4ae"
 elif [ "$NETWORK_TYPE" = "development" ]; then
     SUBNET="none"  # TODO
 else
@@ -55,7 +57,7 @@ echo "Using network type : $NETWORK_TYPE"
 echo "Deploying to subnet: $SUBNET"
 
 # Switching to 1 LLM for the Challenger
-# if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ]; then
+# if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ] || [ "$NETWORK_TYPE" = "demo" ] || [ "$NETWORK_TYPE" = "prd" ]; then
 #     NUM_LLMS_DEPLOYED=2
 # fi
 
@@ -70,7 +72,7 @@ for i in $(seq $llm_id_start $llm_id_end)
 do
     echo "--------------------------------------------------"
     echo "Deploying the wasm to llm_$i"
-    if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ]; then
+    if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ] || [ "$NETWORK_TYPE" = "demo" ] || [ "$NETWORK_TYPE" = "prd" ]; then
         if [ "$SUBNET" = "none" ]; then
             yes | dfx deploy llm_$i --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
         else

@@ -14,10 +14,10 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --network)
             shift
-            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ] || [ "$1" = "demo" ]; then
+            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ] || [ "$1" = "demo" ] || [ "$1" = "prd" ]; then
                 NETWORK_TYPE=$1
             else
-                echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing' or 'demo'."
+                echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing' or 'demo' or 'prd'."
                 exit 1
             fi
             shift
@@ -34,6 +34,8 @@ if [ "$NETWORK_TYPE" = "development" ] || [ "$NETWORK_TYPE" = "demo" ]; then
     NUM_LLMS_DEPLOYED=2
 elif [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ]; then
     NUM_LLMS_DEPLOYED=3
+elif [ "$NETWORK_TYPE" = "prd" ]; then
+    NUM_LLMS_DEPLOYED=14
 fi
 
 #######################################################################

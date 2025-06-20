@@ -1,8 +1,9 @@
 {
   "challenger_ctrlb_canister": {
+    "demo": "ptqxx-xqaaa-aaaac-qajmq-cai",
     "development": "sx25d-4yaaa-aaaai-atiaq-cai",
     "ic": "lxb3x-jyaaa-aaaaj-azzta-cai",
-    "testing": "bykvl-eqaaa-aaaaf-qaqia-cai",
-    "demo": "ptqxx-xqaaa-aaaac-qajmq-cai"
+    "prd": "rtoqq-yyaaa-aaaaa-qanba-cai",
+    "testing": ""
   }
 }

@@ -14,10 +14,10 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --network)
             shift
-            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ] || [ "$1" = "demo" ]; then
+            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ] || [ "$1" = "demo" ] || [ "$1" = "prd" ]; then
                 NETWORK_TYPE=$1
             else
-                echo "Invalid network type: $1. Use 'local', 'development' or 'ic' or 'testing' or 'demo'."
+                echo "Invalid network type: $1. Use 'local', 'development' or 'ic' or 'testing' or 'demo' or 'prd'."
                 exit 1
             fi
             shift
@@ -44,6 +44,8 @@ if [ "$NETWORK_TYPE" = "ic" ]; then
     SUBNET="csyj4-zmann-ys6ge-3kzi6-onexi-obayx-2fvak-zersm-euci4-6pslt-lae"
 elif [ "$NETWORK_TYPE" = "testing" ]; then
     SUBNET="csyj4-zmann-ys6ge-3kzi6-onexi-obayx-2fvak-zersm-euci4-6pslt-lae"
+elif [ "$NETWORK_TYPE" = "prd" ]; then
+    SUBNET="snjp4-xlbw4-mnbog-ddwy6-6ckfd-2w5a2-eipqo-7l436-pxqkh-l6fuv-vae"
 elif [ "$NETWORK_TYPE" = "development" ]; then
     SUBNET="none"  # TODO
 else
@@ -59,7 +61,7 @@ echo " "
 echo "--------------------------------------------------"
 echo "Deploying the judge_ctrlb_canister"
 
-if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ]; then
+if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ] || [ "$NETWORK_TYPE" = "demo" ] || [ "$NETWORK_TYPE" = "prd" ]; then
     if [ "$SUBNET" = "none" ]; then
         dfx deploy judge_ctrlb_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
     else

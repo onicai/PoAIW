@@ -18,10 +18,10 @@ echo " "
 #     case "$1" in
 #         --network)
 #             shift
-#             if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ]; then
+#             if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ] || [ "$1" = "demo" ] || [ "$1" = "prd" ]; then
 #                 NETWORK_TYPE=$1
 #             else
-#                 echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing'."
+#                 echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing' or 'development' or 'demo' or 'prd'."
 #                 exit 1
 #             fi
 #             shift

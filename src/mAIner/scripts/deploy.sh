@@ -22,7 +22,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --network)
             shift
-            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ]; then
+            if [ "$1" = "local" ] || [ "$1" = "ic" ] || [ "$1" = "testing" ] || [ "$1" = "development" ] || [ "$1" = "demo" ] || [ "$1" = "prd" ]; then
                 NETWORK_TYPE=$1
             else
                 echo "Invalid network type: $1. Use 'local' or 'ic' or 'testing."
@@ -42,7 +42,7 @@ while [ $# -gt 0 ]; do
             ;;
         *)
             echo "Unknown argument: $1"
-            echo "Usage: $0 --network [local|ic|testing]"
+            echo "Usage: $0 --network [local|ic|testing|development|demo|prd]"
             exit 1
             ;;
     esac
@@ -55,7 +55,7 @@ echo " "
 echo "==================================================="
 MAINER="mainer_service_canister"
 echo "Deploying the protocol's $MAINER"
-if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ]; then
+if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ] || [ "$NETWORK_TYPE" = "demo" ] || [ "$NETWORK_TYPE" = "prd" ]; then
     if [ "$SUBNET" = "none" ]; then
         dfx deploy $MAINER --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
     else
@@ -99,7 +99,7 @@ do
     echo "--------------------------------------------------"
     echo "Deploying $MAINER"
 
-    if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ]; then
+    if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ] || [ "$NETWORK_TYPE" = "demo" ] || [ "$NETWORK_TYPE" = "prd" ]; then
         if [ "$SUBNET" = "none" ]; then
             dfx deploy $MAINER --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
         else

@@ -1,8 +1,9 @@
 {
   "judge_ctrlb_canister": {
+    "demo": "tsucm-kyaaa-aaaaj-qnpcq-cai",
     "development": "tjr6j-qaaaa-aaaaj-qnpaa-cai",
     "ic": "xxnvw-4yaaa-aaaaj-az4oq-cai",
-    "testing": "b7lt7-jiaaa-aaaaf-qaqiq-cai",
-    "demo": "tsucm-kyaaa-aaaaj-qnpcq-cai"
+    "prd": "qmgdh-3aaaa-aaaaa-qanfq-cai",
+    "testing": ""
   }
 }
