@@ -38,6 +38,11 @@ type OfficialMainerAgentCanister =
    status: CanisterStatus;
    subnet: text;
  };
+type NatResult = 
+ variant {
+   Err: ApiError;
+   Ok: nat;
+ };
 type MainerConfigurationInput = 
  record {
    cyclesForMainer: nat;
@@ -86,6 +91,7 @@ type MainerAgentCtrlbCanister =
    setShareServiceCanisterId: (text) -> (StatusCodeRecordResult);
    startTimerExecutionAdmin: () -> (AuthRecordResult);
    stopTimerExecutionAdmin: () -> (AuthRecordResult);
+   timeToNextAgentSettingsUpdate: () -> (NatResult);
    triggerChallengeResponseAdmin: () -> (AuthRecordResult);
    updateAgentSettings: (MainerAgentSettingsInput) ->
     (StatusCodeRecordResult);
