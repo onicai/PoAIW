@@ -2367,6 +2367,13 @@ actor class GameStateCanister() = this {
 
     stable var rewardPerChallenge : Types.RewardPerChallenge = DEFAULT_REWARD_PER_CHALLENGE;
 
+    public shared (msg) func getRewardPerChallengeAdmin() : async Types.RewardPerChallengeResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(rewardPerChallenge);
+    };
+
     // TODO - Implementation: keep a history of the reward changes
     public shared (msg) func setRewardPerChallengeAdmin(totalReward : Nat) : async Types.RewardPerChallengeResult {
         if (not Principal.isController(msg.caller)) {
