@@ -688,17 +688,17 @@ module Types {
     };
 
     public let cyclesBurnRateDefaultMid : CyclesBurnRate = {
-        cycles : Nat = 4_000_000_000_000; // 4 * Constants.CYCLES_TRILLION
+        cycles : Nat = 2_000_000_000_000; // 2 * Constants.CYCLES_TRILLION
         timeInterval : TimeInterval = #Daily;
     };
 
     public let cyclesBurnRateDefaultHigh : CyclesBurnRate = {
-        cycles : Nat = 10_000_000_000_000; // 10 * Constants.CYCLES_TRILLION
+        cycles : Nat = 3_000_000_000_000; // 3 * Constants.CYCLES_TRILLION
         timeInterval : TimeInterval = #Daily;
     };
 
     public let cyclesBurnRateDefaultVeryHigh : CyclesBurnRate = {
-        cycles : Nat = 20_000_000_000_000; // 20 * Constants.CYCLES_TRILLION
+        cycles : Nat = 6_000_000_000_000; // 6 * Constants.CYCLES_TRILLION
         timeInterval : TimeInterval = #Daily;
     };
 
