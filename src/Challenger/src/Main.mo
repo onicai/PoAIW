@@ -1612,6 +1612,10 @@ actor class ChallengerCtrlbCanister() {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
+        // First stop an existing timer if it exists
+        let _ = await stopTimerExecution();
+
+        // Now start the timer
         ignore setTimer<system>(#seconds 5,
             func () : async () {
                 D.print("Challenger: setTimer");
@@ -1624,11 +1628,7 @@ actor class ChallengerCtrlbCanister() {
         return #Ok(authRecord);
     };
 
-    public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-
+    private func stopTimerExecution() : async Types.AuthRecordResult {
         switch (recurringTimerId) {
             case (?id) {
                 D.print("Challenger: Stopping timer with id = " # debug_show (id));
@@ -1642,5 +1642,12 @@ actor class ChallengerCtrlbCanister() {
                 return #Ok({ auth = "There is no active timer. Nothing to do." });
             };
         };
+    };
+
+    public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        await stopTimerExecution();
     };
 };

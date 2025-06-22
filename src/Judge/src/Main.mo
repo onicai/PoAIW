@@ -966,6 +966,10 @@ actor class JudgeCtrlbCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
+        // First stop an existing timer if it exists
+        let _ = await stopTimerExecution();
+
+        // Now start the timer
         ignore setTimer<system>(#seconds 5,
             func () : async () {
                 D.print("Judge:  setTimer");
@@ -978,11 +982,7 @@ actor class JudgeCtrlbCanister() = this {
         return #Ok(authRecord);
     };
 
-    public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-
+     public func stopTimerExecution() : async Types.AuthRecordResult {
         switch (recurringTimerId) {
             case (?id) {
                 D.print("Judge: Stopping timer with id = " # debug_show (id));
@@ -996,6 +996,13 @@ actor class JudgeCtrlbCanister() = this {
                 return #Ok({ auth = "There is no active timer. Nothing to do." });
             };
         };
+    };
+
+    public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        await stopTimerExecution();
     };
 
     // TODO - Testing: remove; testing function for admin

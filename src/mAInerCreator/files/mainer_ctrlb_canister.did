@@ -55,16 +55,17 @@ type MainerAgentSettingsInput = record {
                                   cyclesBurnRate: CyclesBurnRateDefault;};
 type MainerAgentCtrlbCanister = 
  service {
-   addChallengeResponseToShareAgent: (ChallengeResponseSubmissionInput) ->
-    (StatusCodeRecordResult);
-   addChallengeToShareServiceQueue: (ChallengeQueueInput) ->
-    (ChallengeQueueInputResult);
+   addChallengeResponseToShareAgent: (challengeResponseSubmissionInput:
+    ChallengeResponseSubmissionInput) -> (StatusCodeRecordResult);
+   addChallengeToShareServiceQueue: (challengeQueueInput:
+    ChallengeQueueInput) -> (ChallengeQueueInputResult);
    addCycles: () -> (AddCyclesResult);
-   addMainerShareAgentCanister: (OfficialMainerAgentCanister) ->
-    (MainerAgentCanisterResult);
-   addMainerShareAgentCanisterAdmin: (OfficialMainerAgentCanister) ->
-    (MainerAgentCanisterResult);
-   add_llm_canister: (CanisterIDRecord) -> (StatusCodeRecordResult);
+   addMainerShareAgentCanister: (canisterEntryToAdd:
+    OfficialMainerAgentCanister) -> (MainerAgentCanisterResult);
+   addMainerShareAgentCanisterAdmin: (canisterEntryToAdd:
+    OfficialMainerAgentCanister) -> (MainerAgentCanisterResult);
+   add_llm_canister: (llmCanisterIdRecord: CanisterIDRecord) ->
+    (StatusCodeRecordResult);
    amiController: () -> (StatusCodeRecordResult) query;
    canAgentSettingsBeUpdated: () -> (StatusCodeRecordResult);
    checkAccessToLLMs: () -> (StatusCodeRecordResult);
@@ -84,16 +85,18 @@ type MainerAgentCtrlbCanister =
    ready: () -> (StatusCodeRecordResult);
    resetChallengeQueueAdmin: () -> (StatusCodeRecordResult);
    reset_llm_canisters: () -> (StatusCodeRecordResult);
-   setGameStateCanisterId: (text) -> (StatusCodeRecordResult);
-   setMainerCanisterType: (MainerAgentCanisterType) ->
+   setGameStateCanisterId: (_game_state_canister_id: text) ->
     (StatusCodeRecordResult);
-   setRoundRobinLLMs: (nat) -> (StatusCodeRecordResult);
-   setShareServiceCanisterId: (text) -> (StatusCodeRecordResult);
+   setMainerCanisterType: (_mainer_agent_canister_type:
+    MainerAgentCanisterType) -> (StatusCodeRecordResult);
+   setRoundRobinLLMs: (_roundRobinLLMs: nat) -> (StatusCodeRecordResult);
+   setShareServiceCanisterId: (_share_service_canister_id: text) ->
+    (StatusCodeRecordResult);
    startTimerExecutionAdmin: () -> (AuthRecordResult);
    stopTimerExecutionAdmin: () -> (AuthRecordResult);
    timeToNextAgentSettingsUpdate: () -> (NatResult);
    triggerChallengeResponseAdmin: () -> (AuthRecordResult);
-   updateAgentSettings: (MainerAgentSettingsInput) ->
+   updateAgentSettings: (settingsInput: MainerAgentSettingsInput) ->
     (StatusCodeRecordResult);
    whoami: () -> (principal) query;
  };

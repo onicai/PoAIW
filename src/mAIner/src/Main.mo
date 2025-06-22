@@ -1818,6 +1818,10 @@ actor class MainerAgentCtrlbCanister() = this {
                 D.print("mAIner startTimerExecution error in generating randomInitialTimer: " # Error.message(error));
                 // Some error occurred, use default
             };
+            // First stop an existing timer if it exists
+            let _ = await stopTimerExecution();
+
+            // Now start the timer
             ignore setTimer<system>(#seconds randomInitialTimer,
                 func () : async () {
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer 1");
