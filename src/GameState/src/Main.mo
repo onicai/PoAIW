@@ -15,6 +15,7 @@ import Nat "mo:base/Nat";
 import Order "mo:base/Order";
 import Error "mo:base/Error";
 import Hash "mo:base/Hash";
+import Array "mo:base/Array";
 
 import Types "../../common/Types";
 import ICManagementCanister "../../common/ICManagementCanister";
@@ -1703,6 +1704,54 @@ actor class GameStateCanister() = this {
         return #Ok(archivedChallengesArray.size());
     };
 
+    stable var ARCHIVE_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // TODO: update
+
+    public shared (msg) func setArchiveCanisterId(archive_canister_id : Text) : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        ARCHIVE_CANISTER_ID := archive_canister_id;
+        let authRecord = { auth = "You set the archive canister id for this canister." };
+        return #Ok(authRecord);
+    };
+
+    private func removePromptCachesForChallenge(challenge : Types.Challenge) : Bool {
+        let resultMainer = removeMainerPromptCacheForChallenge(challenge);
+        let resultJudge = removeJudgePromptCacheForChallenge(challenge);
+        return true;
+    };    
+
+    public shared (msg) func migrateArchivedChallengesAdmin() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let archivedChallengesArray : [Types.Challenge] = getArchivedChallenges();
+
+        let archiveCanisterActor = actor(ARCHIVE_CANISTER_ID): Types.ArchiveCanister_Actor;
+
+        let input : Types.ChallengeMigrationInput = {
+            challenges = archivedChallengesArray;
+        };
+
+        let migrateResult : Types.ChallengeMigrationResult = await archiveCanisterActor.addChallenges(input);
+        switch (migrateResult) {
+            case (#Ok(migrated)) {
+                // Remove prompt caches for the migrated challenges
+                let removalResult = Array.map<Types.Challenge, Bool>(archivedChallengesArray, removePromptCachesForChallenge);
+
+                // Reset archived challenges
+                archivedChallenges := List.nil<Types.Challenge>();
+                return #Ok(archivedChallengesArray.size());            
+            };
+            case (#Err(migrationError)) {
+                D.print("GameState: migrateArchivedChallengesAdmin - migrationError: "# debug_show(migrationError));
+                return #Err(#Other("Error during archived challenges migration: " # debug_show(migrationError)));
+            };
+            case (_) { return #Err(#FailedOperation); }
+        };
+    };
+
     // Challenges helper functions
     private func getRandomChallengeTopic(challengeTopicStatus : Types.ChallengeTopicStatus) : async ?Types.ChallengeTopic {
         D.print("GameState: getRandomChallengeTopic - challengeTopicStatus: " # debug_show(challengeTopicStatus));
@@ -1782,6 +1831,11 @@ actor class GameStateCanister() = this {
 
     // Emepheral Hashmap for mAIner prompt cache upload buffers for chunked uploads, key=mainerPromptId
     var mainerPromptCacheUploadBuffers : HashMap.HashMap<Text, Buffer.Buffer<Blob>> = HashMap.HashMap(0, Text.equal, Text.hash);
+
+    private func removeMainerPromptCacheForChallenge(challenge : Types.Challenge) : Bool {
+        let result = mainerPrompts.delete(challenge.mainerPromptId);
+        return true;
+    };
 
     // Function to be called by Challenger to start upload of the mainer prompt & prompt cache
     public shared (msg) func startUploadMainerPromptCache() : async Types.StartUploadMainerPromptCacheRecordResult {
@@ -1986,6 +2040,11 @@ actor class GameStateCanister() = this {
 
     // Emepheral Hashmap for Judge prompt cache upload buffers for chunked uploads, key=judgePromptId
     var judgePromptCacheUploadBuffers : HashMap.HashMap<Text, Buffer.Buffer<Blob>> = HashMap.HashMap(0, Text.equal, Text.hash);
+
+    private func removeJudgePromptCacheForChallenge(challenge : Types.Challenge) : Bool {
+        let result = judgePrompts.delete(challenge.judgePromptId);
+        return true;
+    };
 
     // Function to be called by Challenger to start upload of the Judge prompt & prompt cache
     public shared (msg) func startUploadJudgePromptCache() : async Types.StartUploadJudgePromptCacheRecordResult {
