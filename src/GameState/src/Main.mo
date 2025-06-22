@@ -4919,25 +4919,6 @@ actor class GameStateCanister() = this {
             };
             case (_) { return #Err(#Other("Unsupported")); }
         };
-        switch (mainerInfo.status) {
-            // mAIner already has been created
-            case (#ControllerCreated) {
-                // continue
-            };
-            case (#LlmSetupInProgress(_)) {
-                // continue
-            };
-            case (#LlmSetupFinished) {
-                // continue
-            };
-            case (#Running) {
-                // continue
-            };
-            case (#Paused) {
-                // continue
-            };
-            case (_) { return #Err(#Other("Unsupported")); }
-        };
 
         // Verify existing mAIner entry
         switch (getUserMainerAgents(msg.caller)) {
@@ -4953,16 +4934,6 @@ actor class GameStateCanister() = this {
                         // Sanity checks on userMainerEntry (i.e. address provided is correct and matches entry info)
                         switch (userMainerEntry.canisterType) {
                             case (#MainerAgent(_)) {
-                                // continue
-                            };
-                            case (_) { return #Err(#Other("Unsupported")); }
-                        };
-                        switch (userMainerEntry.status) {
-                            // mAIner already has been created
-                            case (#Running) {
-                                // continue
-                            };
-                            case (#Paused) {
                                 // continue
                             };
                             case (_) { return #Err(#Other("Unsupported")); }
