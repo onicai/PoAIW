@@ -66,5 +66,36 @@ Response:
 
 ## Add Unlocked mAIner
 dfx canister call game_state_canister unlockUserMainerAgent '(record { paymentTransactionBlockId = 0;  owner = opt principal "fmx2v-tpf3n-ihkag-gag34-oknfv-tbujq-ke4oe-r42z2-lwclp-fnff3-bqe"; mainerConfig = record { mainerAgentCanisterType = variant {ShareAgent}; selectedLLM = null; cyclesForMainer = 0; subnetCtrl = ""; subnetLlm = ""; }; })' --network $NETWORK
+
+## Set price of mAIner
+### ShareAgent
+dfx canister call game_state_canister setIcpForShareAgentAdmin '10' --network $NETWORK
+dfx canister call game_state_canister getPriceForShareAgent --network $NETWORK
+#### whitelist
+dfx canister call game_state_canister setIcpForWhitelistShareAgentAdmin '5' --network $NETWORK
+dfx canister call game_state_canister getWhitelistPriceForShareAgent --network $NETWORK
+
+### Own
+dfx canister call game_state_canister setIcpForOwnMainerAdmin '1000' --network $NETWORK
+dfx canister call game_state_canister getPriceForOwnMainer --network $NETWORK
+#### whitelist
+dfx canister call game_state_canister setIcpForWhitelistOwnMainerAdmin '500' --network $NETWORK
+dfx canister call game_state_canister getWhitelistPriceForOwnMainer --network $NETWORK
+
+## Set limit how many mAIners may be created
+### ShareAgent
+dfx canister call game_state_canister setLimitForCreatingMainerAdmin '(record { mainerType = variant {ShareAgent}; newLimit = 100 })' --network $NETWORK
+dfx canister call game_state_canister shouldCreatingMainersBeStopped '(record { mainerType = variant {ShareAgent}; })' --network $NETWORK
+### Own
+dfx canister call game_state_canister setLimitForCreatingMainerAdmin '(record { mainerType = variant {Own}; newLimit = 0 })' --network $NETWORK
+dfx canister call game_state_canister shouldCreatingMainersBeStopped '(record { mainerType = variant {Own}; })' --network $NETWORK
+
+## Update whitelist flag
+dfx canister call game_state_canister togglePauseWhitelistMainerCreationFlagAdmin --network $NETWORK
+dfx canister call game_state_canister getPauseWhitelistMainerCreationFlag --network $NETWORK
+
+## Update protocol flag
+dfx canister call game_state_canister togglePauseProtocolFlagAdmin --network $NETWORK
+dfx canister call game_state_canister getPauseProtocolFlag --network $NETWORK
 ```
 
