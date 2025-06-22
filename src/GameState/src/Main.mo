@@ -1704,13 +1704,13 @@ actor class GameStateCanister() = this {
         return #Ok(archivedChallengesArray.size());
     };
 
-    stable var ARCHIVE_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // TODO: update
+    stable var ARCHIVE_CHALLENGES_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // TODO: update
 
     public shared (msg) func setArchiveCanisterId(archive_canister_id : Text) : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        ARCHIVE_CANISTER_ID := archive_canister_id;
+        ARCHIVE_CHALLENGES_CANISTER_ID := archive_canister_id;
         let authRecord = { auth = "You set the archive canister id for this canister." };
         return #Ok(authRecord);
     };
@@ -1728,7 +1728,7 @@ actor class GameStateCanister() = this {
 
         let archivedChallengesArray : [Types.Challenge] = getArchivedChallenges();
 
-        let archiveCanisterActor = actor(ARCHIVE_CANISTER_ID): Types.ArchiveCanister_Actor;
+        let archiveCanisterActor = actor(ARCHIVE_CHALLENGES_CANISTER_ID) : Types.ArchiveCanister_Actor;
 
         let input : Types.ChallengeMigrationInput = {
             challenges = archivedChallengesArray;
