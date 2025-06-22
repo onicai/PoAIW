@@ -1728,7 +1728,7 @@ actor class GameStateCanister() = this {
 
         let archivedChallengesArray : [Types.Challenge] = getArchivedChallenges();
 
-        let archiveCanisterActor = actor(ARCHIVE_CHALLENGES_CANISTER_ID) : Types.ArchiveCanister_Actor;
+        let archiveCanisterActor = actor(ARCHIVE_CHALLENGES_CANISTER_ID) : Types.ArchiveChallengesCanister_Actor;
 
         let input : Types.ChallengeMigrationInput = {
             challenges = archivedChallengesArray;

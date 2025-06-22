@@ -1113,7 +1113,7 @@ module Types {
     };
 
     // Archive canister
-    public type ArchiveCanister_Actor = actor {
+    public type ArchiveChallengesCanister_Actor = actor {
         addChallenges : (ChallengeMigrationInput) -> async ChallengeMigrationResult;
     };
 
