@@ -1719,13 +1719,9 @@ actor class GameStateCanister() = this {
         let resultMainer = removeMainerPromptCacheForChallenge(challenge);
         let resultJudge = removeJudgePromptCacheForChallenge(challenge);
         return true;
-    };    
+    };
 
-    public shared (msg) func migrateArchivedChallengesAdmin() : async Types.NatResult {
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-
+    private func migrateArchivedChallenges() : async Types.NatResult {
         let archivedChallengesArray : [Types.Challenge] = getArchivedChallenges();
 
         let archiveCanisterActor = actor(ARCHIVE_CHALLENGES_CANISTER_ID) : Types.ArchiveChallengesCanister_Actor;
@@ -1750,6 +1746,14 @@ actor class GameStateCanister() = this {
             };
             case (_) { return #Err(#FailedOperation); }
         };
+    };
+
+    public shared (msg) func migrateArchivedChallengesAdmin() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        return await migrateArchivedChallenges();        
     };
 
     // Challenges helper functions
@@ -5557,6 +5561,10 @@ actor class GameStateCanister() = this {
                             case (true) {
                                 // TODO - Implementation: adapt cycles burnt stats
                                 ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_WINNER_DECLARATION);
+                                if (List.size<Types.Challenge>(archivedChallenges) >= 3 * THRESHOLD_ARCHIVE_CLOSED_CHALLENGES) {
+                                    // If the archived challenges storage is getting too big, migrate them to another canister and remove related data
+                                    ignore migrateArchivedChallenges();
+                                };
                                 return true;
                             };
                         };
