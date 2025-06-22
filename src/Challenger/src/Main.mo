@@ -1597,7 +1597,24 @@ actor class ChallengerCtrlbCanister() {
     };
 
     // Timer
-    let actionRegularityInSeconds = 60;
+    stable var actionRegularityInSeconds = 300;
+
+    public shared (msg) func setTimerActionRegularityInSecondsAdmin(_actionRegularityInSeconds : Nat) : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        actionRegularityInSeconds := _actionRegularityInSeconds;
+        // Restart the timer with the new regularity
+        let _ = await startTimerExecution();
+        return #Ok({ status_code = 200 });
+    };
+
+    public shared query (msg) func getTimerActionRegularityInSecondsAdmin() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        return #Ok(actionRegularityInSeconds);
+    };
 
     private func triggerRecurringAction() : async () {
         D.print("Challenger: Recurring action was triggered");
@@ -1612,6 +1629,10 @@ actor class ChallengerCtrlbCanister() {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
+        await startTimerExecution();
+    };
+
+    private func startTimerExecution() : async Types.AuthRecordResult {
         // First stop an existing timer if it exists
         let _ = await stopTimerExecution();
 

@@ -1748,7 +1748,36 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
 // Timers
-    stable var action2RegularityInSeconds = 10; // Determines how often Own and ShareService mAIners wake up to process the next challenge from the queue
+
+    // This variable is just for reporting purposes, so an Admin can quickly check the currently used timer regularity
+    // It is recalculated each time the timer is started
+    stable var action1RegularityInSeconds = 0; // Timer is not yet set 
+
+    // ----------------------------------------------------------
+    // How often Own and ShareService mAIners wake up to process the next challenge from the queue
+    // TODO: revisit for #Own mAiners...
+    stable var action2RegularityInSeconds = 5; 
+   
+    public shared (msg) func setTimerAction2RegularityInSecondsAdmin(_action2RegularityInSeconds : Nat) : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        action2RegularityInSeconds := _action2RegularityInSeconds;
+        // Restart the timer with the new regularity
+        let _ = await startTimerExecution();
+        return #Ok({ status_code = 200 });
+    };
+
+    public shared query (msg) func getTimerActionRegularityInSecondsAdmin() : async Types.MainerTimersResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        return #Ok({
+            action1RegularityInSeconds = action1RegularityInSeconds;
+            action2RegularityInSeconds = action2RegularityInSeconds;
+        });
+    };
+    // ----------------------------------------------------------
 
     private func triggerRecurringAction1() : async () {
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 1 was triggered");
@@ -1830,13 +1859,17 @@ actor class MainerAgentCtrlbCanister() = this {
                     recurringTimerId1 := ?id;
                     await triggerRecurringAction1();
             });
+
+            // For reporting purposes
+            action1RegularityInSeconds := timerRegularity;
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer 1 with regularity = " # Nat.toText(timerRegularity) # " seconds, randomInitialTimer = " # Nat.toText(randomInitialTimer));
         };
 
         if (MAINER_AGENT_CANISTER_TYPE == #Own or MAINER_AGENT_CANISTER_TYPE == #ShareService) {
             res := res # " 2";
             D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer 2");
             let id =  recurringTimer<system>(#seconds action2RegularityInSeconds, triggerRecurringAction2);
-            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Successfully start timer 2 with id = " # debug_show (id));
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Successfully start timer 2 with id = " # debug_show (id) # ", regularity = " # Nat.toText(action2RegularityInSeconds) # " seconds");
             recurringTimerId2 := ?id;            
             // Trigger it right away. Without this, the first action would be delayed by the recurring timer regularity
             await triggerRecurringAction2();
@@ -1941,5 +1974,8 @@ actor class MainerAgentCtrlbCanister() = this {
             llmCanisters.add(llmCanister);
         };
         llmCanistersStable := [];
+
+        // Reset reporting variable for timer
+        action1RegularityInSeconds := 0; // Timer is not yet set (They don't persist across upgrades)
     };
 };

@@ -46,6 +46,14 @@ module Types {
     public type GameStateTresholdsResult = Result<GameStateTresholds, ApiError>;
 
     //-------------------------------------------------------------------------
+    public type MainerTimers = {
+        action1RegularityInSeconds : Nat;
+        action2RegularityInSeconds : Nat;
+    };
+
+    public type MainerTimersResult = Result<MainerTimers, ApiError>;
+
+    //-------------------------------------------------------------------------
     public type SubnetIds = {
         subnetShareAgentCtrl : Text;
         subnetShareServiceCtrl : Text;
