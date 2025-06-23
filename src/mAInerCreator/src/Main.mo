@@ -19,7 +19,7 @@ import InstallCanisterCode "../../common/InstallCanisterCode";
 
 actor class MainerCreatorCanister() = this {
 
-    stable var MASTER_CANISTER_ID : Text = "rilmv-caaaa-aaaaa-qandq-cai"; // prd
+    stable var MASTER_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
 
     public shared (msg) func setMasterCanisterId(_master_canister_id : Text) : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
