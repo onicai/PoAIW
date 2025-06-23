@@ -1762,6 +1762,39 @@ actor class GameStateCanister() = this {
         return await migrateArchivedChallenges();        
     };
 
+    private func backupMainers() : async Types.NatResult {
+        let mainersArray : [(Text, Types.OfficialMainerAgentCanister)] = Iter.toArray(mainerAgentCanistersStorage.entries());
+
+        let archiveCanisterActor = actor(ARCHIVE_CHALLENGES_CANISTER_ID) : Types.ArchiveChallengesCanister_Actor;
+
+        let input : Types.MainerBackupInput = {
+            mainers = mainersArray;
+        };
+
+        D.print("GameState: backupMainers - backing up mAIners: "# debug_show(mainersArray.size()));
+        let backupResult : Types.MainerBackupResult = await archiveCanisterActor.addMainersAdmin(input);
+        D.print("GameState: backupMainers - backupResult: "# debug_show(backupResult));
+        switch (backupResult) {
+            case (#Ok(backedUp)) {
+                D.print("GameState: backupMainers - backedUp: "# debug_show(backedUp));
+                return #Ok(mainersArray.size());            
+            };
+            case (#Err(backupError)) {
+                D.print("GameState: backupMainers - backupError: "# debug_show(backupError));
+                return #Err(#Other("Error during backup of mAIners: " # debug_show(backupError)));
+            };
+            case (_) { return #Err(#FailedOperation); }
+        };
+    };
+
+    public shared (msg) func backupMainersAdmin() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        return await backupMainers();        
+    };
+
     // Challenges helper functions
     private func getRandomChallengeTopic(challengeTopicStatus : Types.ChallengeTopicStatus) : async ?Types.ChallengeTopic {
         D.print("GameState: getRandomChallengeTopic - challengeTopicStatus: " # debug_show(challengeTopicStatus));
