@@ -81,6 +81,14 @@ module Types {
         cyclesUpgradeMainerllmMcMainerllm   : Nat;
     };
 
+    // variables sent by GameState to mAIner Creator
+    public type CyclesReinstallMainer = {
+        cyclesReinstallMainerctrlGsMc : Nat;
+        cyclesReinstallMainerllmGsMc : Nat;
+        cyclesReinstallMainerctrlMcMainerctrl : Nat;
+        cyclesReinstallMainerllmMcMainerllm   : Nat;
+    };
+
     // variables sent by GameState to Challenger
     public type CyclesGenerateChallenge = {
         cyclesGenerateChallengeGsChctrl : Nat;
@@ -197,6 +205,11 @@ module Types {
         cyclesUpgradeMainerllmGsMc : ?Nat;
         cyclesUpgradeMainerctrlMcMainerctrl : ?Nat;
         cyclesUpgradeMainerllmMcMainerllm   : ?Nat;
+
+        cyclesReinstallMainerctrlGsMc : ?Nat;
+        cyclesReinstallMainerllmGsMc : ?Nat;
+        cyclesReinstallMainerctrlMcMainerctrl : ?Nat;
+        cyclesReinstallMainerllmMcMainerllm   : ?Nat;
 
         // Generations
         dailyChallenges : ?Nat;
@@ -446,6 +459,10 @@ module Types {
         canisterAddress : CanisterAddress;
     };
 
+    public type MainerctrlReinstallInput = {
+        canisterAddress : CanisterAddress;
+    };
+
     public type CanisterCreationConfigurationInput = {
         canisterType : ProtocolCanisterType;
         associatedCanisterAddress : ?CanisterAddress; // References Controller for an LLM, and ShareService for a ShareAgent
@@ -664,6 +681,13 @@ module Types {
         cyclesUpgradeMainerctrlGsMc : Nat;
         cyclesUpgradeMainerctrlMcMainerctrl : Nat;
     };
+    public type ReinstallMainerctrlInput = {
+        mainerAgentEntry : Types.OfficialMainerAgentCanister; // Canister to reinstall
+        associatedCanisterAddress : ?Types.CanisterAddress; // null for #Own, shareServiceCanisterAddress for ShareAgent
+        associatedCanisterSubnet : Text;
+        cyclesReinstallMainerctrlGsMc : Nat;
+        cyclesReinstallMainerctrlMcMainerctrl : Nat;
+    };
 
     public type TestCreateMainerControllerCanister = {
         mainerAgentCanisterType : MainerAgentCanisterType;
@@ -680,27 +704,7 @@ module Types {
         timeInterval : TimeInterval;
     };
 
-    // TODO - Implementation: finalize implementation (likely: make this settable in Game State and then retrievable by mAIner)
-    // TODO - Design: finalize exact (initial) amounts
-    public let cyclesBurnRateDefaultLow : CyclesBurnRate = {
-        cycles : Nat = 1_000_000_000_000; // 1 * Constants.CYCLES_TRILLION
-        timeInterval : TimeInterval = #Daily;
-    };
-
-    public let cyclesBurnRateDefaultMid : CyclesBurnRate = {
-        cycles : Nat = 2_000_000_000_000; // 2 * Constants.CYCLES_TRILLION
-        timeInterval : TimeInterval = #Daily;
-    };
-
-    public let cyclesBurnRateDefaultHigh : CyclesBurnRate = {
-        cycles : Nat = 3_000_000_000_000; // 3 * Constants.CYCLES_TRILLION
-        timeInterval : TimeInterval = #Daily;
-    };
-
-    public let cyclesBurnRateDefaultVeryHigh : CyclesBurnRate = {
-        cycles : Nat = 6_000_000_000_000; // 6 * Constants.CYCLES_TRILLION
-        timeInterval : TimeInterval = #Daily;
-    };
+    public type CyclesBurnRateResult = Result<CyclesBurnRate, ApiError>;
 
     public type CyclesBurnRateDefault = {
         #Low;
@@ -710,27 +714,9 @@ module Types {
         #Custom : CyclesBurnRate;
     };
 
-    public func getCyclesBurnRate(cyclesBurnRateDefault : CyclesBurnRateDefault) : CyclesBurnRate {
-        switch (cyclesBurnRateDefault) {
-            case (#Low) {
-                return cyclesBurnRateDefaultLow;
-            };
-            case (#Mid) {
-                return cyclesBurnRateDefaultMid;
-            };
-            case (#High) {
-                return cyclesBurnRateDefaultHigh;
-            };
-            case (#VeryHigh) {
-                return cyclesBurnRateDefaultVeryHigh;
-            };
-            case (#Custom(customCyclesBurnRate)) {
-                return customCyclesBurnRate;
-            };
-            case (_) {
-                return cyclesBurnRateDefaultLow;
-            };
-        };
+    public type SetCyclesBurnRateInput = {
+        cyclesBurnRateDefault : CyclesBurnRateDefault;
+        cyclesBurnRate : CyclesBurnRate;
     };
 
     public type MainerAgentSettingsInput = {
@@ -1062,12 +1048,14 @@ module Types {
         finishUploadJudgePromptCache : (FinishUploadJudgePromptCacheInput) -> async Types.StatusCodeRecordResult;
         getJudgePromptInfo : (Text) -> async Types.JudgePromptInfoResult;
         getMainerCyclesUsedPerResponse : () -> async NatResult;
+        getCyclesBurnRate : (Types.CyclesBurnRateDefault) -> async Types.CyclesBurnRateResult;
     };
 
     public type MainerCreator_Actor = actor {
         createCanister: shared CanisterCreationConfiguration -> async CanisterCreationResult;
         setupCanister: shared SetupCanisterInput -> async CanisterCreationResult;
-        upgradeMainerctrl: shared UpgradeMainerctrlInput -> async Types.StatusCodeRecordResult
+        upgradeMainerctrl: shared UpgradeMainerctrlInput -> async Types.StatusCodeRecordResult;
+        reinstallMainerctrl: shared ReinstallMainerctrlInput -> async Types.StatusCodeRecordResult;
     };
 
     // mAIner

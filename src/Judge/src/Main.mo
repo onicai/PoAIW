@@ -46,15 +46,13 @@ actor class JudgeCtrlbCanister() = this {
 
     // Orthogonal Persisted Data storage
 
-    stable var GAME_STATE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // local dev: "bkyz2-fmaaa-aaaaa-qaaaq-cai";
-    stable var gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
+    stable var GAME_STATE_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
 
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
         GAME_STATE_CANISTER_ID := _game_state_canister_id;
-        gameStateCanisterActor := actor (GAME_STATE_CANISTER_ID);
         return #Ok({ status_code = 200 });
     };
 
@@ -228,6 +226,7 @@ actor class JudgeCtrlbCanister() = this {
             score : Nat = scoredResponse.score;
             scoreSeed : Nat32 = scoredResponse.scoreSeed;
         };
+        let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
         D.print("Judge: calling addScoredResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let result : Types.ScoredResponseResult = await gameStateCanisterActor.addScoredResponse(scoredResponseInput);
         return result;
@@ -236,6 +235,7 @@ actor class JudgeCtrlbCanister() = this {
     // Score submissions
 
     private func getSubmissionFromGameStateCanister() : async Types.ChallengeResponseSubmissionResult {
+        let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
         D.print("Judge:  calling getNextSubmissionToJudge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let result : Types.ChallengeResponseSubmissionResult = await gameStateCanisterActor.getNextSubmissionToJudge();
         D.print("Judge:  getNextSubmissionToJudge returned.");
@@ -403,6 +403,7 @@ actor class JudgeCtrlbCanister() = this {
         // "\n<|im_end|>\n<|im_start|>assistant\n";
 
         let judgePromptId : Text = submissionEntry.judgePromptId;
+        let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
         D.print("Judge: judgeChallengeResponseDoIt_ - calling getJudgePromptInfo of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let judgePromptInfoResult : Types.JudgePromptInfoResult = await gameStateCanisterActor.getJudgePromptInfo(judgePromptId);
         D.print("Judge: judgeChallengeResponseDoIt_ - getJudgePromptInfo returned.");

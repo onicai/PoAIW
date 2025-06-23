@@ -68,16 +68,13 @@ actor class ChallengerCtrlbCanister() {
 
     // Orthogonal Persisted Data storage
 
-    stable var GAME_STATE_CANISTER_ID : Text = "b77ix-eeaaa-aaaaa-qaada-cai"; // local dev: "b77ix-eeaaa-aaaaa-qaada-cai";
-    
-    stable var gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
+    stable var GAME_STATE_CANISTER_ID : Text = "rilmv-caaaa-aaaaa-qandq-cai"; // prd
 
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
         GAME_STATE_CANISTER_ID := _game_state_canister_id;
-        gameStateCanisterActor := actor (GAME_STATE_CANISTER_ID);
         return #Ok({ status_code = 200 });
     };
 
@@ -219,6 +216,7 @@ actor class ChallengerCtrlbCanister() {
     };
 
     private func getChallengeTopicFromGameStateCanister() : async Types.ChallengeTopicResult {
+        let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
         D.print("Challenger:  calling getRandomOpenChallengeTopic of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let result : Types.ChallengeTopicResult = await gameStateCanisterActor.getRandomOpenChallengeTopic();
         D.print("Challenger:  getRandomOpenChallengeTopic returned.");
@@ -237,6 +235,7 @@ actor class ChallengerCtrlbCanister() {
                 return #Err(error);
             };
             case (#Ok(challengeTopic : Types.ChallengeTopic)) {
+                let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
                 D.print("Challenger: generateChallenge - challengeTopic = " # debug_show(challengeTopic));
 
                 let generatedChallengeOutput : Types.GeneratedChallengeResult = await challengeGenerationDoIt_(challengeTopic);

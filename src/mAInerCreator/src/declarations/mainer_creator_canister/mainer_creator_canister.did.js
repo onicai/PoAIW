@@ -83,11 +83,6 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : StatusCodeRecord,
     'Err' : ApiError,
   });
-  const SetupCanisterInput = IDL.Record({
-    'configurationInput' : CanisterCreationConfiguration,
-    'subnet' : IDL.Text,
-    'newCanisterId' : IDL.Text,
-  });
   const LlmSetupStatus = IDL.Variant({
     'CodeInstallInProgress' : IDL.Null,
     'CanisterCreated' : IDL.Null,
@@ -115,6 +110,18 @@ export const idlFactory = ({ IDL }) => {
     'mainerConfig' : MainerConfigurationInput,
     'subnet' : IDL.Text,
     'address' : CanisterAddress,
+  });
+  const ReinstallMainerctrlInput = IDL.Record({
+    'associatedCanisterSubnet' : IDL.Text,
+    'cyclesReinstallMainerctrlMcMainerctrl' : IDL.Nat,
+    'associatedCanisterAddress' : IDL.Opt(CanisterAddress),
+    'cyclesReinstallMainerctrlGsMc' : IDL.Nat,
+    'mainerAgentEntry' : OfficialMainerAgentCanister,
+  });
+  const SetupCanisterInput = IDL.Record({
+    'configurationInput' : CanisterCreationConfiguration,
+    'subnet' : IDL.Text,
+    'newCanisterId' : IDL.Text,
   });
   const UpgradeMainerctrlInput = IDL.Record({
     'cyclesUpgradeMainerctrlGsMc' : IDL.Nat,
@@ -167,6 +174,11 @@ export const idlFactory = ({ IDL }) => {
             'Err' : IDL.Variant({ 'Unauthorized' : IDL.Null }),
           }),
         ],
+        [],
+      ),
+    'reinstallMainerctrl' : IDL.Func(
+        [ReinstallMainerctrlInput],
+        [StatusCodeRecordResult],
         [],
       ),
     'setMasterCanisterId' : IDL.Func([IDL.Text], [AuthRecordResult], []),
