@@ -93,9 +93,27 @@ actor class GameStateCanister() = this {
         };
     };
 
+    stable var BUFFER_MAINER_CREATION : Nat = 7;
+
+    public shared (msg) func setBufferMainerCreation(newBuffer : Nat) : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        BUFFER_MAINER_CREATION := newBuffer;
+        let authRecord = { auth = "You set the buffer." };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getBufferMainerCreation() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(BUFFER_MAINER_CREATION);
+    };
+
     // Function for the frontend to poll
     public query func shouldCreatingMainersBeStopped(checkInput : Types.CheckMainerLimit) : async Types.FlagResult {
-        let buffer = 7; // to guard against concurrent creations that would leave the user in a state where they paid for the mAIner creation but the protocol blocks it due to the limit
+        let buffer = BUFFER_MAINER_CREATION; // to guard against concurrent creations that would leave the user in a state where they paid for the mAIner creation but the protocol blocks it due to the limit
         switch (checkInput.mainerType) {
             case (#Own) {
                 if (getNumberMainerAgents(checkInput.mainerType) + buffer > LIMIT_OWN_MAINERS) {
