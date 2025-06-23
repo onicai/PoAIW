@@ -705,6 +705,7 @@ actor class MainerAgentCtrlbCanister() = this {
             creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
             createdBy : Principal = msg.caller;
         };
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): updateAgentSettings - settingsEntry = " # debug_show(settingsEntry));
         let putResult = putAgentSettings(settingsEntry);
         if (not putResult) {
             return #Err(#StatusCode(500));
@@ -1813,6 +1814,7 @@ actor class MainerAgentCtrlbCanister() = this {
             let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
             switch (getCurrentAgentSettings()) {
                 case (null) {
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - No agentSettings found, using default cyclesBurnRateFromGameState = " # debug_show(cyclesBurnRateFromGameState));
                     // use default
                 };
                 case (?agentSettings) {
@@ -1838,6 +1840,8 @@ actor class MainerAgentCtrlbCanister() = this {
                     // we leave timer
                 };
                 case (#Ok(cyclesUsed)) {
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - cyclesBurnRateFromGameState = " # debug_show(cyclesBurnRateFromGameState));
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - cyclesUsed per response = " # debug_show(cyclesUsed));
                     timerRegularity := TimerRegularity.getTimerRegularityForCyclesBurnRate(cyclesBurnRateFromGameState, cyclesUsed);
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - timerRegularity = " # debug_show(timerRegularity) # ", cyclesBurnRateFromGameState = " # debug_show(cyclesBurnRateFromGameState) # ", cyclesUsed (per response) = " # debug_show(cyclesUsed)); 
                 };
@@ -1870,23 +1874,23 @@ actor class MainerAgentCtrlbCanister() = this {
             // Now start the timer
             ignore setTimer<system>(#seconds randomInitialTimer,
                 func () : async () {
-                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer 1");
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - setTimer 1");
                     let id =  recurringTimer<system>(#seconds timerRegularity, triggerRecurringAction1);
-                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Successfully start timer 1 with id = " # debug_show (id));
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - Successfully start timer 1 with id = " # debug_show (id));
                     recurringTimerId1 := ?id;
                     await triggerRecurringAction1();
             });
 
             // For reporting purposes
             action1RegularityInSeconds := timerRegularity;
-            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer 1 with regularity = " # Nat.toText(timerRegularity) # " seconds, randomInitialTimer = " # Nat.toText(randomInitialTimer));
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - setTimer 1 with regularity = " # Nat.toText(timerRegularity) # " seconds, randomInitialTimer = " # Nat.toText(randomInitialTimer));
         };
 
         if (MAINER_AGENT_CANISTER_TYPE == #Own or MAINER_AGENT_CANISTER_TYPE == #ShareService) {
             res := res # " 2";
-            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer 2");
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - setTimer 2");
             let id =  recurringTimer<system>(#seconds action2RegularityInSeconds, triggerRecurringAction2);
-            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Successfully start timer 2 with id = " # debug_show (id) # ", regularity = " # Nat.toText(action2RegularityInSeconds) # " seconds");
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - Successfully start timer 2 with id = " # debug_show (id) # ", regularity = " # Nat.toText(action2RegularityInSeconds) # " seconds");
             recurringTimerId2 := ?id;            
             // Trigger it right away. Without this, the first action would be delayed by the recurring timer regularity
             await triggerRecurringAction2();
@@ -1901,27 +1905,27 @@ actor class MainerAgentCtrlbCanister() = this {
 
         switch (recurringTimerId1) {
             case (?id) {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Stopping timer 1 with id = " # debug_show (id));
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - Stopping timer 1 with id = " # debug_show (id));
                 Timer.cancelTimer(id);
                 recurringTimerId1 := null;
                 res := res # " 1 (id = " # Nat.toText(id) # "), ";
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Timer 1 stopped successfully.");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - Timer 1 stopped successfully.");
             };
             case null {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): There is no active timer 1.");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - There is no active timer 1.");
             };
         };
 
         switch (recurringTimerId2) {
             case (?id) {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Stopping timer 2 with id = " # debug_show (id));
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - Stopping timer 2 with id = " # debug_show (id));
                 Timer.cancelTimer(id);
                 recurringTimerId2 := null;
                 res := res # " 2 (id = " # Nat.toText(id) # ")";
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Timer 2 stopped successfully.");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - Timer 2 stopped successfully.");
             };
             case null {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): There is no active timer 2.");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - There is no active timer 2.");
             };
         };
 
