@@ -1716,8 +1716,11 @@ actor class GameStateCanister() = this {
     };
 
     private func removePromptCachesForChallenge(challenge : Types.Challenge) : Bool {
+        D.print("GameState: removePromptCachesForChallenge - challenge: "# debug_show(challenge));
         let resultMainer = removeMainerPromptCacheForChallenge(challenge);
+        D.print("GameState: removePromptCachesForChallenge - resultMainer: "# debug_show(resultMainer));
         let resultJudge = removeJudgePromptCacheForChallenge(challenge);
+        D.print("GameState: removePromptCachesForChallenge - resultJudge: "# debug_show(resultJudge));
         return true;
     };
 
@@ -1730,18 +1733,21 @@ actor class GameStateCanister() = this {
             challenges = archivedChallengesArray;
         };
 
+        D.print("GameState: migrateArchivedChallenges - migrating challenges: "# debug_show(archivedChallengesArray.size()));
         let migrateResult : Types.ChallengeMigrationResult = await archiveCanisterActor.addChallenges(input);
+        D.print("GameState: migrateArchivedChallenges - migrateResult: "# debug_show(migrateResult));
         switch (migrateResult) {
             case (#Ok(migrated)) {
+                D.print("GameState: migrateArchivedChallenges - migrated: "# debug_show(migrated));
                 // Remove prompt caches for the migrated challenges
                 let removalResult = Array.map<Types.Challenge, Bool>(archivedChallengesArray, removePromptCachesForChallenge);
-
+                D.print("GameState: migrateArchivedChallenges - removalResult: "# debug_show(removalResult));
                 // Reset archived challenges
                 archivedChallenges := List.nil<Types.Challenge>();
                 return #Ok(archivedChallengesArray.size());            
             };
             case (#Err(migrationError)) {
-                D.print("GameState: migrateArchivedChallengesAdmin - migrationError: "# debug_show(migrationError));
+                D.print("GameState: migrateArchivedChallenges - migrationError: "# debug_show(migrationError));
                 return #Err(#Other("Error during archived challenges migration: " # debug_show(migrationError)));
             };
             case (_) { return #Err(#FailedOperation); }
@@ -1837,7 +1843,9 @@ actor class GameStateCanister() = this {
     var mainerPromptCacheUploadBuffers : HashMap.HashMap<Text, Buffer.Buffer<Blob>> = HashMap.HashMap(0, Text.equal, Text.hash);
 
     private func removeMainerPromptCacheForChallenge(challenge : Types.Challenge) : Bool {
+        D.print("GameState: removeMainerPromptCacheForChallenge - challenge.mainerPromptId: "# debug_show(challenge.mainerPromptId));
         let result = mainerPrompts.delete(challenge.mainerPromptId);
+        D.print("GameState: removeMainerPromptCacheForChallenge - result: "# debug_show(result));
         return true;
     };
 
@@ -2046,7 +2054,9 @@ actor class GameStateCanister() = this {
     var judgePromptCacheUploadBuffers : HashMap.HashMap<Text, Buffer.Buffer<Blob>> = HashMap.HashMap(0, Text.equal, Text.hash);
 
     private func removeJudgePromptCacheForChallenge(challenge : Types.Challenge) : Bool {
+        D.print("GameState: removeJudgePromptCacheForChallenge - challenge.judgePromptId: "# debug_show(challenge.judgePromptId));
         let result = judgePrompts.delete(challenge.judgePromptId);
+        D.print("GameState: removeJudgePromptCacheForChallenge - result: "# debug_show(result));
         return true;
     };
 
@@ -5561,7 +5571,7 @@ actor class GameStateCanister() = this {
                             case (true) {
                                 // TODO - Implementation: adapt cycles burnt stats
                                 ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_WINNER_DECLARATION);
-                                if (List.size<Types.Challenge>(archivedChallenges) >= 3 * THRESHOLD_ARCHIVE_CLOSED_CHALLENGES) {
+                                if (List.size<Types.Challenge>(archivedChallenges) >= 2 * THRESHOLD_ARCHIVE_CLOSED_CHALLENGES) {
                                     // If the archived challenges storage is getting too big, migrate them to another canister and remove related data
                                     ignore migrateArchivedChallenges();
                                 };
