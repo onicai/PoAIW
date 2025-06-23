@@ -92,4 +92,16 @@ actor class ArchiveChallengesCanister() = this {
             return #Err(#Unauthorized);
         };
     };
+
+    public query (msg) func getChallenges() : async Types.ChallengesResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (Principal.isController(msg.caller)) {
+            let result = getArchivedChallenges();
+            return #Ok(result);
+        } else {
+            return #Err(#Unauthorized);
+        };
+    };
 };
