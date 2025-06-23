@@ -68,7 +68,7 @@ actor class ChallengerCtrlbCanister() {
 
     // Orthogonal Persisted Data storage
 
-    stable var GAME_STATE_CANISTER_ID : Text = "rilmv-caaaa-aaaaa-qandq-cai"; // prd
+    stable var GAME_STATE_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
 
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
