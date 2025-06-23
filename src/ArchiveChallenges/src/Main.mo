@@ -104,4 +104,54 @@ actor class ArchiveChallengesCanister() = this {
             return #Err(#Unauthorized);
         };
     };
+
+    // mAIners backup
+    stable var mainerAgentCanisters : List.List<(Text, Types.OfficialMainerAgentCanister)> = List.nil<(Text, Types.OfficialMainerAgentCanister)>();
+    
+    private func putMainer(entry : (Text, Types.OfficialMainerAgentCanister)) : Bool {
+        mainerAgentCanisters := List.push<(Text, Types.OfficialMainerAgentCanister)>(entry, mainerAgentCanisters);
+        return true;
+    };
+
+    private func getMainers() : [(Text, Types.OfficialMainerAgentCanister)] {
+        return List.toArray<(Text, Types.OfficialMainerAgentCanister)>(mainerAgentCanisters);
+    };
+
+    private func addMainers(mainersToAdd : List.List<(Text, Types.OfficialMainerAgentCanister)>) : Bool {
+        mainerAgentCanisters := List.append<(Text, Types.OfficialMainerAgentCanister)>(mainersToAdd, mainerAgentCanisters);
+        return true;
+    };
+
+    public shared (msg) func addMainersAdmin(backupInput : Types.MainerBackupInput) : async Types.MainerBackupResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID))) {
+            let result = addMainers(List.fromArray<(Text, Types.OfficialMainerAgentCanister)>(backupInput.mainers));
+            switch (result) {
+                case (true) {
+                    return #Ok({backedUp = true});            
+                };
+                case (false) {
+                    D.print("Archive Challenges: addMainersAdmin - addMainers return false");
+                    return #Err(#FailedOperation);
+                };
+                case (_) { return #Err(#FailedOperation); }
+            };
+        } else {
+            return #Err(#Unauthorized);
+        };
+    };
+
+    public query (msg) func getMainersAdmin() : async Types.MainersResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (Principal.isController(msg.caller)) {
+            let result = getMainers();
+            return #Ok(result);
+        } else {
+            return #Err(#Unauthorized);
+        };
+    };
 };
