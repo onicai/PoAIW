@@ -3105,7 +3105,23 @@ actor class GameStateCanister() = this {
     // e.g. this is for dev stage, verify with: https://dashboard.internetcomputer.org/account/c88ef9865df034927487e4178da1f80a1648ec5a764e4959cba513c372ceb520
     //let PROTOCOL_PRINCIPAL_BLOB : Blob = "\C8\8E\F9\86\5D\F0\34\92\74\87\E4\17\8D\A1\F8\0A\16\48\EC\5A\76\4E\49\59\CB\A5\13\C3\72\CE\B5\20";
 
-    let PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * Constants.CYCLES_TRILLION; // TODO - Implementation: set final value
+    stable var PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * Constants.CYCLES_TRILLION; // TODO - Implementation: set final value
+
+    public shared (msg) func setProtocolCyclesBalanceBuffer(newBufferInTrillionCycles : Nat) : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        PROTOCOL_CYCLES_BALANCE_BUFFER := newBufferInTrillionCycles * Constants.CYCLES_TRILLION;
+        let authRecord = { auth = "You set the buffer." };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getProtocolCyclesBalanceBuffer() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(PROTOCOL_CYCLES_BALANCE_BUFFER);
+    };
 
     // Decide on usage of incoming funds (e.g. for mAIner creation or top ups)
     private func handleIncomingFunds(transactionEntry : Types.RedeemedTransactionBlock) : async Types.HandleIncomingFundsResult {
