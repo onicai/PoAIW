@@ -39,7 +39,7 @@ actor class GameStateCanister() = this {
     };
 
     // Flag to pause protocol
-    stable var PAUSE_PROTOCOL : Bool = false;
+    stable var PAUSE_PROTOCOL : Bool = true;
 
     public shared (msg) func togglePauseProtocolFlagAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -55,7 +55,7 @@ actor class GameStateCanister() = this {
     };
 
     // Flag to disable whitelist mAIner creation flow
-    stable var PAUSE_WHITELIST_MAINER_CREATION : Bool = false;
+    stable var PAUSE_WHITELIST_MAINER_CREATION : Bool = true;
 
     public shared (msg) func togglePauseWhitelistMainerCreationFlagAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -71,7 +71,7 @@ actor class GameStateCanister() = this {
     };
 
     // Limit on how many mAIners may be created
-    stable var LIMIT_SHARED_MAINERS : Nat = 100;
+    stable var LIMIT_SHARED_MAINERS : Nat = 0;
     stable var LIMIT_OWN_MAINERS : Nat = 0;
 
     public shared (msg) func setLimitForCreatingMainerAdmin(newLimitInput : Types.MainerLimitInput) : async Types.AuthRecordResult {
@@ -504,7 +504,7 @@ actor class GameStateCanister() = this {
 
     // Price to create a mAIner TODO - Implementation: finalize prices (note that it's in 10000s)
     // Cycles for ShareAgent mAIner Creation
-    stable var PRICE_FOR_SHARE_AGENT_ICP : Nat64 = 0; // TODO: Set to cost of a ShareAgent, in ICP
+    stable var PRICE_FOR_SHARE_AGENT_ICP : Nat64 = 10; // TODO: Set to cost of a ShareAgent, in ICP
     public shared (msg) func setIcpForShareAgentAdmin(icpForShareAgent : Nat64) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -532,7 +532,7 @@ actor class GameStateCanister() = this {
 
     // Cycles for Own mAIner Creation 
     // Note: the ShareService mAIner will also use these values
-    stable var PRICE_FOR_OWN_MAINER_ICP : Nat64 = 0; // TODO: Set to cost of a Own mAIner, in ICP
+    stable var PRICE_FOR_OWN_MAINER_ICP : Nat64 = 1000; // TODO: Set to cost of a Own mAIner, in ICP
     public shared (msg) func setIcpForOwnMainerAdmin(icpForOwnMainer : Nat64) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -675,7 +675,7 @@ actor class GameStateCanister() = this {
     };
 
     // Protocol parameters used in the Generation Cycles Flow calculations
-    let DEFAULT_DAILY_CHALLENGES                : Nat = 5;                      // TODO: set the actual value or let the GameState automatically update this on a daily basis
+    let DEFAULT_DAILY_CHALLENGES                : Nat = 6*24;                      // TODO: set the actual value or let the GameState automatically update this on a daily basis
     stable var dailyChallenges                  : Nat = DEFAULT_DAILY_CHALLENGES; // The lower the value, the more cycles are send with each challenge to the Challenger
 
     // -----------
@@ -2464,11 +2464,11 @@ actor class GameStateCanister() = this {
         // TODO - Design: define details of sponsored challenges and then add reward per challenge
     let DEFAULT_REWARD_PER_CHALLENGE : Types.RewardPerChallenge = {
         rewardType : Types.RewardType = #MainerToken;
-        totalAmount : Nat = 1000000;
-        winnerAmount : Nat = 350000;
-        secondPlaceAmount : Nat = 150000;
-        thirdPlaceAmount : Nat = 50000;
-        amountForAllParticipants : Nat = 450000;
+        totalAmount : Nat = 18190327330;
+        winnerAmount : Nat = 6366614570; // 35% of totalAmount
+        secondPlaceAmount : Nat = 2728549100; // 15% of totalAmount
+        thirdPlaceAmount : Nat = 909516367; // 5% of totalAmount
+        amountForAllParticipants : Nat = 8185647290; // 45% of totalAmount
     };
 
     stable var rewardPerChallenge : Types.RewardPerChallenge = DEFAULT_REWARD_PER_CHALLENGE;
