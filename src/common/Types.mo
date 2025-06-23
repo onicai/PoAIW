@@ -1033,6 +1033,17 @@ module Types {
     };
     public type DownloadJudgePromptCacheBytesChunkRecordResult = Result<DownloadJudgePromptCacheBytesChunkRecord, ApiError>;
 
+// Data migration to archive canisters
+    public type ChallengeMigrationInput = {
+        challenges : [Challenge];
+    };
+
+    public type ChallengeMigrationRecord = {
+        migrated : Bool;
+    };
+
+    public type ChallengeMigrationResult = Result<ChallengeMigrationRecord, ApiError>;
+
     //-------------------------------------------------------------------------
 // Canister Actors
     public type GameStateCanister_Actor = actor {
@@ -1099,6 +1110,11 @@ module Types {
     public type MainerCanister_Actor = actor {
         addChallengeToShareServiceQueue : (ChallengeQueueInput) -> async ChallengeQueueInputResult;
         addChallengeResponseToShareAgent : (ChallengeResponseSubmissionInput) -> async StatusCodeRecordResult;
+    };
+
+    // Archive canister
+    public type ArchiveChallengesCanister_Actor = actor {
+        addChallenges : (ChallengeMigrationInput) -> async ChallengeMigrationResult;
     };
 
     // ICP Token Ledger
