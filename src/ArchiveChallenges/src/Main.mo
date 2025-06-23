@@ -105,6 +105,18 @@ actor class ArchiveChallengesCanister() = this {
         };
     };
 
+    public query (msg) func getNumChallenges() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (Principal.isController(msg.caller)) {
+            let result = getArchivedChallenges();
+            return #Ok(result.size());
+        } else {
+            return #Err(#Unauthorized);
+        };
+    };
+
     // mAIners backup
     stable var mainerAgentCanisters : List.List<(Text, Types.OfficialMainerAgentCanister)> = List.nil<(Text, Types.OfficialMainerAgentCanister)>();
     
@@ -150,6 +162,18 @@ actor class ArchiveChallengesCanister() = this {
         if (Principal.isController(msg.caller)) {
             let result = getMainers();
             return #Ok(result);
+        } else {
+            return #Err(#Unauthorized);
+        };
+    };
+
+    public query (msg) func getNumMainersAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (Principal.isController(msg.caller)) {
+            let result = getMainers();
+            return #Ok(result.size());
         } else {
             return #Err(#Unauthorized);
         };

@@ -8,6 +8,8 @@ dfx canister call game_state_canister setArchiveCanisterId '("ga256-riaaa-aaaap-
 
 Get archived challenges:
 dfx canister call archive_challenges_canister getChallenges --network $NETWORK
+dfx canister call archive_challenges_canister getNumChallenges --network $NETWORK
 
 Get backed up mAIners:
 dfx canister call archive_challenges_canister getMainersAdmin --network $NETWORK
+dfx canister call archive_challenges_canister getNumMainersAdmin --network $NETWORK
