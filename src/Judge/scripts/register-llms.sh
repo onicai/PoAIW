@@ -40,8 +40,8 @@ if [ "$NETWORK_TYPE" = "testing" ]; then
     NUM_LLMS_DEPLOYED=3
     NUM_LLMS_ROUND_ROBIN=3
 elif [ "$NETWORK_TYPE" = "prd" ]; then
-    NUM_LLMS_DEPLOYED=14
-    NUM_LLMS_ROUND_ROBIN=14
+    NUM_LLMS_DEPLOYED=13
+    NUM_LLMS_ROUND_ROBIN=13
 fi
 
 #######################################################################

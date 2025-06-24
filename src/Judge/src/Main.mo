@@ -46,15 +46,13 @@ actor class JudgeCtrlbCanister() = this {
 
     // Orthogonal Persisted Data storage
 
-    stable var GAME_STATE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // local dev: "bkyz2-fmaaa-aaaaa-qaaaq-cai";
-    stable var gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
+    stable var GAME_STATE_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
 
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
         GAME_STATE_CANISTER_ID := _game_state_canister_id;
-        gameStateCanisterActor := actor (GAME_STATE_CANISTER_ID);
         return #Ok({ status_code = 200 });
     };
 
@@ -228,6 +226,7 @@ actor class JudgeCtrlbCanister() = this {
             score : Nat = scoredResponse.score;
             scoreSeed : Nat32 = scoredResponse.scoreSeed;
         };
+        let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
         D.print("Judge: calling addScoredResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let result : Types.ScoredResponseResult = await gameStateCanisterActor.addScoredResponse(scoredResponseInput);
         return result;
@@ -236,6 +235,7 @@ actor class JudgeCtrlbCanister() = this {
     // Score submissions
 
     private func getSubmissionFromGameStateCanister() : async Types.ChallengeResponseSubmissionResult {
+        let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
         D.print("Judge:  calling getNextSubmissionToJudge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let result : Types.ChallengeResponseSubmissionResult = await gameStateCanisterActor.getNextSubmissionToJudge();
         D.print("Judge:  getNextSubmissionToJudge returned.");
@@ -403,6 +403,7 @@ actor class JudgeCtrlbCanister() = this {
         // "\n<|im_end|>\n<|im_start|>assistant\n";
 
         let judgePromptId : Text = submissionEntry.judgePromptId;
+        let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
         D.print("Judge: judgeChallengeResponseDoIt_ - calling getJudgePromptInfo of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let judgePromptInfoResult : Types.JudgePromptInfoResult = await gameStateCanisterActor.getJudgePromptInfo(judgePromptId);
         D.print("Judge: judgeChallengeResponseDoIt_ - getJudgePromptInfo returned.");
@@ -951,7 +952,24 @@ actor class JudgeCtrlbCanister() = this {
     };
 
 // Timer
-    stable var actionRegularityInSeconds = 60; // TODO - Implementation: adjust based on protocol progress and demand
+    stable var actionRegularityInSeconds = 5;
+
+    public shared (msg) func setTimerActionRegularityInSecondsAdmin(_actionRegularityInSeconds : Nat) : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        actionRegularityInSeconds := _actionRegularityInSeconds;
+        // Restart the timer with the new regularity
+        let _ = await startTimerExecution();
+        return #Ok({ status_code = 200 });
+    };
+
+    public shared query (msg) func getTimerActionRegularityInSecondsAdmin() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        return #Ok(actionRegularityInSeconds);
+    };
 
     private func triggerRecurringAction() : async () {
         D.print("Judge:  Recurring action was triggered");
@@ -966,6 +984,14 @@ actor class JudgeCtrlbCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
+        await startTimerExecution();
+    };
+
+    private func startTimerExecution() : async Types.AuthRecordResult {
+        // First stop an existing timer if it exists
+        let _ = await stopTimerExecution();
+
+        // Now start the timer
         ignore setTimer<system>(#seconds 5,
             func () : async () {
                 D.print("Judge:  setTimer");
@@ -978,11 +1004,7 @@ actor class JudgeCtrlbCanister() = this {
         return #Ok(authRecord);
     };
 
-    public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-
+     public func stopTimerExecution() : async Types.AuthRecordResult {
         switch (recurringTimerId) {
             case (?id) {
                 D.print("Judge: Stopping timer with id = " # debug_show (id));
@@ -996,6 +1018,13 @@ actor class JudgeCtrlbCanister() = this {
                 return #Ok({ auth = "There is no active timer. Nothing to do." });
             };
         };
+    };
+
+    public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        await stopTimerExecution();
     };
 
     // TODO - Testing: remove; testing function for admin

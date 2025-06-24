@@ -55,15 +55,13 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // -------------------------------
-    stable var GAME_STATE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // local dev: "bkyz2-fmaaa-aaaaa-qaaaq-cai";
-    stable var gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
+    stable var GAME_STATE_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
     
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
         GAME_STATE_CANISTER_ID := _game_state_canister_id;
-        gameStateCanisterActor := actor (GAME_STATE_CANISTER_ID);
         return #Ok({ status_code = 200 });
     };
 
@@ -329,7 +327,11 @@ actor class MainerAgentCtrlbCanister() = this {
     // TODO - Implementation: set based on cycles flow data calculated in GameState
     stable let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * Constants.CYCLES_BILLION;
 
-    stable let CYCLES_BURN_RATE_DEFAULT : Types.CyclesBurnRate = Types.cyclesBurnRateDefaultLow;
+    // This is just a placeholder to be used until the startTimerExecution is called.
+    stable let CYCLES_BURN_RATE_DEFAULT : Types.CyclesBurnRate = {
+        cycles : Nat = 1 * Constants.CYCLES_TRILLION;
+        timeInterval : Types.TimeInterval = #Daily;
+    };
 
     public query (msg) func getMainerStatisticsAdmin() : async Types.StatisticsRetrievalResult {
         // TODO - Security: put access checks in place
@@ -340,7 +342,7 @@ actor class MainerAgentCtrlbCanister() = this {
         switch (getCurrentAgentSettings()) {
             case (null) {};
             case (?agentSettings) {
-                cyclesBurnRateToReturn := Types.getCyclesBurnRate(agentSettings.cyclesBurnRate);
+                cyclesBurnRateToReturn := cyclesBurnRateFromGameState;
             };
         };
         let response : Types.StatisticsRecord = {
@@ -703,6 +705,7 @@ actor class MainerAgentCtrlbCanister() = this {
             creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
             createdBy : Principal = msg.caller;
         };
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): updateAgentSettings - settingsEntry = " # debug_show(settingsEntry));
         let putResult = putAgentSettings(settingsEntry);
         if (not putResult) {
             return #Err(#StatusCode(500));
@@ -718,6 +721,7 @@ actor class MainerAgentCtrlbCanister() = this {
     // Respond to challenges
 
     private func getChallengeFromGameStateCanister() : async Types.ChallengeResult {
+        let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): calling getRandomOpenChallenge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let result : Types.ChallengeResult = await gameStateCanisterActor.getRandomOpenChallenge();
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): getRandomOpenChallenge returned.");
@@ -897,6 +901,7 @@ actor class MainerAgentCtrlbCanister() = this {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling Cycles.add for = " # debug_show(cyclesToSend) # " Cycles");
                 Cycles.add<system>(cyclesToSend);
 
+                let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling submitChallengeResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
                 let submitMetadaResult : Types.ChallengeResponseSubmissionMetadataResult = await gameStateCanisterActor.submitChallengeResponse(challengeResponseSubmissionInput);
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse  - returned from gameStateCanisterActor.submitChallengeResponse");
@@ -980,6 +985,7 @@ actor class MainerAgentCtrlbCanister() = this {
         // var promptRepetitive : Text = "<|im_start|>user\nAnswer the following question as brief as possible. This is the question: ";
         // var prompt : Text = promptRepetitive # challengeQueueInput.challengeQuestion # "\n<|im_end|>\n<|im_start|>assistant\n";
         let mainerPromptId : Text = challengeQueueInput.mainerPromptId;
+        let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): calling getMainerPromptInfo of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let mainerPromptInfoResult : Types.MainerPromptInfoResult = await gameStateCanisterActor.getMainerPromptInfo(mainerPromptId);
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): getMainerPromptInfo returned.");
@@ -1748,7 +1754,38 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
 // Timers
-    stable var action2RegularityInSeconds = 10; // Determines how often Own and ShareService mAIners wake up to process the next challenge from the queue
+
+    // This variable is just for reporting purposes, so an Admin can quickly check the currently used timer regularity
+    // It is recalculated each time the timer is started
+    stable var action1RegularityInSeconds = 0; // Timer is not yet set 
+
+    // ----------------------------------------------------------
+    // How often Own and ShareService mAIners wake up to process the next challenge from the queue
+    // TODO: revisit for #Own mAiners...
+    stable var action2RegularityInSeconds = 5; 
+
+    stable var cyclesBurnRateFromGameState = CYCLES_BURN_RATE_DEFAULT; // Just set it to some default value. The actual value is retrieved from the GameState in startTimerExecution()
+   
+    public shared (msg) func setTimerAction2RegularityInSecondsAdmin(_action2RegularityInSeconds : Nat) : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        action2RegularityInSeconds := _action2RegularityInSeconds;
+        // Restart the timer with the new regularity
+        let _ = await startTimerExecution();
+        return #Ok({ status_code = 200 });
+    };
+
+    public shared query (msg) func getTimerActionRegularityInSecondsAdmin() : async Types.MainerTimersResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        return #Ok({
+            action1RegularityInSeconds = action1RegularityInSeconds;
+            action2RegularityInSeconds = action2RegularityInSeconds;
+        });
+    };
+    // ----------------------------------------------------------
 
     private func triggerRecurringAction1() : async () {
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 1 was triggered");
@@ -1774,13 +1811,24 @@ actor class MainerAgentCtrlbCanister() = this {
 
         // Calculate timer regularity based on cycles burn rate for user's mAIner
         if (MAINER_AGENT_CANISTER_TYPE == #Own or MAINER_AGENT_CANISTER_TYPE == #ShareAgent) {
-            var cyclesBurnRate = CYCLES_BURN_RATE_DEFAULT;
+            let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
             switch (getCurrentAgentSettings()) {
                 case (null) {
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - No agentSettings found, using default cyclesBurnRateFromGameState = " # debug_show(cyclesBurnRateFromGameState));
                     // use default
                 };
                 case (?agentSettings) {
-                    cyclesBurnRate := Types.getCyclesBurnRate(agentSettings.cyclesBurnRate);
+                    let cyclesBurnRateResult : Types.CyclesBurnRateResult = await gameStateCanisterActor.getCyclesBurnRate(agentSettings.cyclesBurnRate);
+                    switch (cyclesBurnRateResult) {
+                        case (#Err(error)) {
+                            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - gamestate.getCyclesBurnRate returned error: " # debug_show(error));
+                            // we leave timer
+                        };
+                        case (#Ok(cyclesBurnRateFromGameState_)) {
+                            cyclesBurnRateFromGameState := cyclesBurnRateFromGameState_;
+                            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - cyclesBurnRate retrieved from gamestate.getCyclesBurnRate = " # debug_show(cyclesBurnRateFromGameState) ); 
+                        };
+                    };
                 };
             };
             // Get the cycles used per response from GameState to calculate the timer regularity
@@ -1792,8 +1840,10 @@ actor class MainerAgentCtrlbCanister() = this {
                     // we leave timer
                 };
                 case (#Ok(cyclesUsed)) {
-                    timerRegularity := TimerRegularity.getTimerRegularityForCyclesBurnRate(cyclesBurnRate, cyclesUsed);
-                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - timerRegularity = " # debug_show(timerRegularity) # ", cyclesBurnRate = " # debug_show(cyclesBurnRate) # ", cyclesUsed (per response) = " # debug_show(cyclesUsed)); 
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - cyclesBurnRateFromGameState = " # debug_show(cyclesBurnRateFromGameState));
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - cyclesUsed per response = " # debug_show(cyclesUsed));
+                    timerRegularity := TimerRegularity.getTimerRegularityForCyclesBurnRate(cyclesBurnRateFromGameState, cyclesUsed);
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - timerRegularity = " # debug_show(timerRegularity) # ", cyclesBurnRateFromGameState = " # debug_show(cyclesBurnRateFromGameState) # ", cyclesUsed (per response) = " # debug_show(cyclesUsed)); 
                 };
             };
         };
@@ -1818,21 +1868,29 @@ actor class MainerAgentCtrlbCanister() = this {
                 D.print("mAIner startTimerExecution error in generating randomInitialTimer: " # Error.message(error));
                 // Some error occurred, use default
             };
+            // First stop an existing timer if it exists
+            let _ = await stopTimerExecution();
+
+            // Now start the timer
             ignore setTimer<system>(#seconds randomInitialTimer,
                 func () : async () {
-                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer 1");
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - setTimer 1");
                     let id =  recurringTimer<system>(#seconds timerRegularity, triggerRecurringAction1);
-                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Successfully start timer 1 with id = " # debug_show (id));
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - Successfully start timer 1 with id = " # debug_show (id));
                     recurringTimerId1 := ?id;
                     await triggerRecurringAction1();
             });
+
+            // For reporting purposes
+            action1RegularityInSeconds := timerRegularity;
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - setTimer 1 with regularity = " # Nat.toText(timerRegularity) # " seconds, randomInitialTimer = " # Nat.toText(randomInitialTimer));
         };
 
         if (MAINER_AGENT_CANISTER_TYPE == #Own or MAINER_AGENT_CANISTER_TYPE == #ShareService) {
             res := res # " 2";
-            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer 2");
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - setTimer 2");
             let id =  recurringTimer<system>(#seconds action2RegularityInSeconds, triggerRecurringAction2);
-            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Successfully start timer 2 with id = " # debug_show (id));
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - Successfully start timer 2 with id = " # debug_show (id) # ", regularity = " # Nat.toText(action2RegularityInSeconds) # " seconds");
             recurringTimerId2 := ?id;            
             // Trigger it right away. Without this, the first action would be delayed by the recurring timer regularity
             await triggerRecurringAction2();
@@ -1847,27 +1905,27 @@ actor class MainerAgentCtrlbCanister() = this {
 
         switch (recurringTimerId1) {
             case (?id) {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Stopping timer 1 with id = " # debug_show (id));
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - Stopping timer 1 with id = " # debug_show (id));
                 Timer.cancelTimer(id);
                 recurringTimerId1 := null;
                 res := res # " 1 (id = " # Nat.toText(id) # "), ";
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Timer 1 stopped successfully.");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - Timer 1 stopped successfully.");
             };
             case null {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): There is no active timer 1.");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - There is no active timer 1.");
             };
         };
 
         switch (recurringTimerId2) {
             case (?id) {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Stopping timer 2 with id = " # debug_show (id));
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - Stopping timer 2 with id = " # debug_show (id));
                 Timer.cancelTimer(id);
                 recurringTimerId2 := null;
                 res := res # " 2 (id = " # Nat.toText(id) # ")";
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Timer 2 stopped successfully.");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - Timer 2 stopped successfully.");
             };
             case null {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): There is no active timer 2.");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - There is no active timer 2.");
             };
         };
 
@@ -1937,5 +1995,8 @@ actor class MainerAgentCtrlbCanister() = this {
             llmCanisters.add(llmCanister);
         };
         llmCanistersStable := [];
+
+        // Reset reporting variable for timer
+        action1RegularityInSeconds := 0; // Timer is not yet set (They don't persist across upgrades)
     };
 };

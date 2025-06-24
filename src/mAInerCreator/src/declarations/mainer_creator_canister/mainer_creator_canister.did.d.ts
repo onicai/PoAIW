@@ -95,6 +95,10 @@ export interface MainerCreatorCanister {
     { 'Ok' : boolean } |
       { 'Err' : { 'Unauthorized' : null } }
   >,
+  'reinstallMainerctrl' : ActorMethod<
+    [ReinstallMainerctrlInput],
+    StatusCodeRecordResult
+  >,
   'setMasterCanisterId' : ActorMethod<[string], AuthRecordResult>,
   'setupCanister' : ActorMethod<[SetupCanisterInput], CanisterCreationResult>,
   'start_upload_mainer_controller_canister_wasm' : ActorMethod<
@@ -145,6 +149,13 @@ export type ProtocolCanisterType = { 'MainerAgent' : MainerAgentCanisterType } |
   { 'Judge' : null } |
   { 'Verifier' : null } |
   { 'MainerCreator' : null };
+export interface ReinstallMainerctrlInput {
+  'associatedCanisterSubnet' : string,
+  'cyclesReinstallMainerctrlMcMainerctrl' : bigint,
+  'associatedCanisterAddress' : [] | [CanisterAddress],
+  'cyclesReinstallMainerctrlGsMc' : bigint,
+  'mainerAgentEntry' : OfficialMainerAgentCanister,
+}
 export type SelectableMainerLLMs = { 'Qwen2_5_500M' : null };
 export interface SetupCanisterInput {
   'configurationInput' : CanisterCreationConfiguration,

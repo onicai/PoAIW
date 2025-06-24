@@ -19,7 +19,7 @@ import InstallCanisterCode "../../common/InstallCanisterCode";
 
 actor class MainerCreatorCanister() = this {
 
-    stable var MASTER_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // Corresponds to Game State canister
+    stable var MASTER_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
 
     public shared (msg) func setMasterCanisterId(_master_canister_id : Text) : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -1275,6 +1275,221 @@ actor class MainerCreatorCanister() = this {
         };
     };
     
+    // Reinstalls the code into a mAIner controller canister.
+    // This function is designed to be ignored, because there is no reason to await it
+    // It will call the GameState canister addMainerAgentCanister when done, to update the status of the controller canister
+    public shared (msg) func reinstallMainerctrl(reinstallMainerctrlInput : Types.ReinstallMainerctrlInput) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        
+        // Only Controllers and the GameState canister may call this
+        if (not (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID)))) {
+            return #Err(#Unauthorized);
+        };
+
+        let mainerAgentEntry : Types.OfficialMainerAgentCanister =reinstallMainerctrlInput.mainerAgentEntry; // Canister to reinstall
+        let cyclesReinstallMainerctrlGsMc : Nat = reinstallMainerctrlInput.cyclesReinstallMainerctrlGsMc;
+        let cyclesReinstallMainerctrlMcMainerctrl : Nat = reinstallMainerctrlInput.cyclesReinstallMainerctrlMcMainerctrl;
+
+        let canisterAddress : Text = mainerAgentEntry.address;
+        let canisterPrincipal : Principal = Principal.fromText(mainerAgentEntry.address);
+        
+        D.print("mAInerCreator: reinstallMainerctrl - mainerAgentEntry = " # debug_show (mainerAgentEntry));
+
+        switch (mainerAgentEntry.canisterType) {
+            case (#MainerAgent(_)) {
+                // Reinstall mAIner controller canister               
+                let mainerAgentCanisterType = mainerAgentEntry.mainerConfig.mainerAgentCanisterType;
+                D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ")");
+
+                // Accept required cycles for mAIner controller creation
+                let cyclesAccepted = Cycles.accept<system>(cyclesReinstallMainerctrlGsMc);
+                D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - cyclesAccepted = " # debug_show (cyclesAccepted) # " from caller " # Principal.toText(msg.caller));
+
+                // Deposit cycles in the mAIner controller canister for the reinstall
+                let cyclesAdded = cyclesReinstallMainerctrlMcMainerctrl;
+                D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
+                Cycles.add<system>(cyclesAdded);
+                
+                let deposit_cycles_args = { canister_id : Principal = canisterPrincipal; };
+                let _ = await IC0.deposit_cycles(deposit_cycles_args);
+                D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - Successfully deposited " # debug_show(cyclesAdded) # " cycles to mAIner canister " # canisterAddress );
+                
+                // --------------------------------------------------
+                // Verify the Shared Service canister. We are upgrading the links to it during a ShareAgent reinstall
+                var shareServiceCanisterAddress : Types.CanisterAddress = ""; // TODO - Design: determine if this should be provided or whether Creator stores this info and fills it in here
+                if (mainerAgentCanisterType == #ShareAgent) {
+                    switch (reinstallMainerctrlInput.associatedCanisterAddress) {
+                        case (null) {
+                            return #Err(#Other("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - a #ShareAgent canister requires the shareServiceCanisterAddress to be provided in the onfigurationInput.associatedCanisterAddress."));
+                        };
+                        case (?associatedCanisterAddress) {
+                            shareServiceCanisterAddress := associatedCanisterAddress;
+                            try {
+                                // Make sure the associated canister actually exists
+                                let _ = Principal.fromText(associatedCanisterAddress); // this will throw an error if it's not a valid canister address
+                                let associatedControllerCanisterActor = actor (associatedCanisterAddress) : Types.MainerAgentCtrlbCanister;
+                                let healthResult = await associatedControllerCanisterActor.health();
+                                D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - healthResult" # debug_show (healthResult));
+                                switch (healthResult) {
+                                    case (#Err(error)) {                                        
+                                        return #Err(error);
+                                    };
+                                    case _ {
+                                        // all good, continue
+                                    };
+                                };
+                            } catch (e) {
+                                D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - failed to validate existence & health of associatedCanisterAddress: " # debug_show(associatedCanisterAddress ) # " Error: " # Error.message(e) );
+                                return #Err(#Other("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - failed to validate existence & health of associatedCanisterAddress: " # debug_show(associatedCanisterAddress ) # " Error: " # Error.message(e)));
+                            };
+                        };
+                    };
+                };
+
+                // --------------------------------------------------
+                // reinstall code
+                let mode : ICManagementCanister.canister_install_mode = #reinstall;
+                D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - start upgrading ctrlb canister " # canisterAddress);
+                let installResult = await InstallCanisterCode.installCanisterCode(canisterPrincipal, mainerControllerCanisterWasm, mode);
+                switch (installResult) {
+                    case (#Ok(_)) {
+                        D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - Successfully installed code into ctrlb canister " # canisterAddress);
+                    };
+                    case (#Err(errorMessage)) {
+                        D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - Failed installing code into ctrlb canister " # canisterAddress # " Error: " # errorMessage);
+                        return #Err(#Other("mAInerCreator: reinstallMainerctrl (" # canisterAddress # ") - Failed installing code into ctrlb canister: " # canisterAddress # " Error: " # errorMessage));
+                    };
+                };
+                
+                // --------------------------------------------------
+                // Verify reinstalled canister is working
+                let controllerCanisterActor = actor (canisterAddress) : Types.MainerAgentCtrlbCanister;
+                D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - calling createdControllerCanister.health()");
+                let readyControllerResult = await controllerCanisterActor.health();
+                D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - readyControllerResult " # debug_show (readyControllerResult));
+                switch (readyControllerResult) {
+                    case (#Err(error)) {
+                        return #Err(error);
+                    };
+                    case _ {
+                        // all good, continue
+                    };
+                };
+
+                // --------------------------------------------------
+                // We are also updating the GameState & ShareService settings, just in case they were not properly set or they have been upgraded since initial install
+
+                // Set Game State canister address
+                D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - calling createdControllerCanister.setGameStateCanisterId(MASTER_CANISTER_ID)");
+                let setControllerGameStateResult = await controllerCanisterActor.setGameStateCanisterId(MASTER_CANISTER_ID);
+                D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - setControllerGameStateResult " # debug_show (setControllerGameStateResult));
+                switch (setControllerGameStateResult) {
+                    case (#Err(error)) {
+                        return #Err(error);
+                    };
+                    case _ {
+                        // all good, continue
+                    };
+                };
+                
+
+                // Set the setMainerCanisterType
+                D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - calling createdControllerCanister.setMainerCanisterType(mainerAgentCanisterType)");
+                let statusCodeRecordResult = await controllerCanisterActor.setMainerCanisterType(mainerAgentCanisterType);
+                D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - setControllerGameStateResult " # debug_show (setControllerGameStateResult));
+                switch (statusCodeRecordResult) {
+                    case (#Err(error)) {
+                        return #Err(error);
+                    };
+                    case _ {
+                        // all good, continue
+                    };
+                };
+
+                let mainerAgentCanisterInput : Types.OfficialMainerAgentCanister = {
+                    address : Text = mainerAgentEntry.address;
+                    subnet : Text = mainerAgentEntry.subnet;
+                    canisterType = mainerAgentEntry.canisterType;
+                    creationTimestamp : Nat64 = mainerAgentEntry.creationTimestamp;
+                    createdBy : Principal = mainerAgentEntry.createdBy;
+                    ownedBy = mainerAgentEntry.ownedBy;
+                    status = #Running;
+                    mainerConfig = mainerAgentEntry.mainerConfig;
+                };
+
+                // Link up the ShareAgent & ShareService canisters 
+                if (mainerAgentCanisterType == #ShareAgent) {
+                    // Set the Share Service canister id for the Share Agent canister
+                    D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - calling controllerCanisterActor.setShareServiceCanisterId(" # shareServiceCanisterAddress # ")");
+                    let statusCodeRecordResult = await controllerCanisterActor.setShareServiceCanisterId(shareServiceCanisterAddress);
+                    D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - statusCodeRecordResult " # debug_show (statusCodeRecordResult));
+                    switch (statusCodeRecordResult) {
+                        case (#Err(error)) {
+                            D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - IGNORING THE ERROR: statusCodeRecordResult = " # debug_show (statusCodeRecordResult));
+                            // return #Err(error);
+                        };
+                        case _ {
+                            // all good, continue
+                        };
+                    };
+
+                    // Register the Share Agent canister with the Share Service canister, so it is allowed to call it
+                    let shareServiceCanisterActor = actor (shareServiceCanisterAddress) : Types.MainerAgentCtrlbCanister;
+                    D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - calling shareServiceCanisterActor.addMainerShareAgentCanister with mainerAgentCanisterInput = " # debug_show (mainerAgentCanisterInput));
+                    let mainerAgentCanisterResult = await shareServiceCanisterActor.addMainerShareAgentCanister(mainerAgentCanisterInput);
+                    D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - mainerAgentCanisterResult " # debug_show (mainerAgentCanisterResult));
+                    switch (mainerAgentCanisterResult) {
+                        case (#Err(error)) {
+                            D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - IGNORING THE ERROR: mainerAgentCanisterResult = " # debug_show (mainerAgentCanisterResult));
+                            // return #Err(error);
+                        };
+                        case _ {
+                            // all good, continue
+                        };
+                    };
+                };
+
+                
+                // --------------------------------------------------------------------
+                // Update the controller canister status with the Game State canister
+                let gameStateCanisterActor = actor (MASTER_CANISTER_ID) : Types.GameStateCanister_Actor;
+                D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - calling gameStateCanisterActor.addMainerAgentCanister with mainerAgentCanisterInput = " # debug_show (mainerAgentCanisterInput));
+                let addMainerAgentCanisterResult = await gameStateCanisterActor.addMainerAgentCanister(mainerAgentCanisterInput);
+                D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - addMainerAgentCanisterResult" # debug_show (addMainerAgentCanisterResult));
+                switch (addMainerAgentCanisterResult) {
+                    case (#Err(error)) {
+                        return #Err(error);
+                    };
+                    case _ {
+                        // all good, continue
+                    };
+                };
+
+                D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - calling startTimerExecutionAdmin for reinstalled canister");
+                // Use ignore to avoid time-out issues
+                ignore controllerCanisterActor.startTimerExecutionAdmin();
+                // let authRecordResult = await controllerCanisterActor.startTimerExecutionAdmin();
+                // D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): reinstallMainerctrl (" # canisterAddress # ") - authRecordResult returned by startTimerExecutionAdmin " # debug_show (authRecordResult));
+                // switch (authRecordResult) {
+                //     case (#Err(error)) {
+                //         return #Err(error);
+                //     };
+                //     case _ {
+                //         // all good, continue
+                //     };
+                // };
+
+
+                // --------------------------------------------------------------------
+                return #Ok({ status_code = 200 });
+            };
+            case _ { 
+                return #Err(#Other("canisterType not supported"));
+            };
+        };
+    };
 
 // Admin 
     // TODO: remove these helper Admin functions

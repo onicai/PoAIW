@@ -410,6 +410,90 @@ actor class GameStateCanister() = this {
         return #Ok(thresholds);
     };
 
+    // mAIner Burn Rates
+    stable var cyclesBurnRateDefaultLow : Types.CyclesBurnRate = {
+        cycles : Nat = 1 * Constants.CYCLES_TRILLION;
+        timeInterval : Types.TimeInterval = #Daily;
+    };
+    stable var cyclesBurnRateDefaultMid : Types.CyclesBurnRate = {
+        cycles : Nat = 2 * Constants.CYCLES_TRILLION;
+        timeInterval : Types.TimeInterval = #Daily;
+    };
+    stable var cyclesBurnRateDefaultHigh : Types.CyclesBurnRate = {
+        cycles : Nat = 3 * Constants.CYCLES_TRILLION;
+        timeInterval : Types.TimeInterval = #Daily;
+    };
+    stable var cyclesBurnRateDefaultVeryHigh : Types.CyclesBurnRate = {
+        cycles : Nat = 6 * Constants.CYCLES_TRILLION;
+        timeInterval : Types.TimeInterval = #Daily;
+    };
+
+    public shared (msg) func setCyclesBurnRateAdmin(cyclesBurnRateInput : Types.SetCyclesBurnRateInput) : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let cyclesBurnRateDefault = cyclesBurnRateInput.cyclesBurnRateDefault;
+        let cyclesBurnRate = cyclesBurnRateInput.cyclesBurnRate;
+
+        switch (cyclesBurnRateDefault) {
+            case (#Low) {
+                cyclesBurnRateDefaultLow := cyclesBurnRate;
+            };
+            case (#Mid) {
+                cyclesBurnRateDefaultMid := cyclesBurnRate;
+            };
+            case (#High) {
+                cyclesBurnRateDefaultHigh := cyclesBurnRate;
+            };
+            case (#VeryHigh) {
+                cyclesBurnRateDefaultVeryHigh := cyclesBurnRate;
+            };
+            case (_) {
+                return #Err(#Other("Unsupported cyclesBurnRateDefault"));
+            };
+        };
+        return #Ok({ status_code = 200 });
+    };
+
+    public shared (msg) func getCyclesBurnRate(cyclesBurnRateDefault : Types.CyclesBurnRateDefault) : async Types.CyclesBurnRateResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Only an admin & official mAIner agent canisters may call this
+        if (Principal.isController(msg.caller)) {
+            // continue
+        } else {
+            switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
+                case (null) { return #Err(#Unauthorized); };
+                case (?_) {
+                    // continue
+                };
+            };
+        };
+
+        switch (cyclesBurnRateDefault) {
+            case (#Low) {
+                return #Ok(cyclesBurnRateDefaultLow);
+            };
+            case (#Mid) {
+                return #Ok(cyclesBurnRateDefaultMid);
+            };
+            case (#High) {
+                return #Ok(cyclesBurnRateDefaultHigh);
+            };
+            case (#VeryHigh) {
+                return #Ok(cyclesBurnRateDefaultVeryHigh);
+            };
+            case (#Custom(customCyclesBurnRate)) {
+                return #Ok(customCyclesBurnRate);
+            };
+            case (_) {
+                return #Ok(cyclesBurnRateDefaultLow);
+            };
+        };
+    };
+
     // Admin is responsible for setting the subnet IDs via the setSubnetsAdmin function
     stable var SUBNET_SHARE_AGENT_CTRL   : Text = "qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe";
     stable var SUBNET_SHARE_SERVICE_CTRL : Text = "qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe";
@@ -638,7 +722,7 @@ actor class GameStateCanister() = this {
         return cyclesCreateMainer;
     };
 
-    // Mainer Upgrade Cycles Flows are independent of user payments, so we can just set them
+    // Mainer Upgrade Cycles Flows are independent of user payments, so we can just set them - Note that upgrade costs are variable. If it fails, first topup the mAIner with more cycles.
     let DEFAULT_COST_UPGRADE_MAINER_CTRL          : Nat  = 10 * Constants.CYCLES_BILLION; // Cost of a Mainer Controller canister for it's upgrade
     let DEFAULT_COST_UPGRADE_MAINER_LLM           : Nat  = 10 * Constants.CYCLES_BILLION; // Cost of a LLM canister for it's upgrade
     let DEFAULT_COST_MC_UPGRADE_MAINER_CTRL       : Nat  =  1 * Constants.CYCLES_BILLION ; // Cost for the MC to upgrade a Mainer Controller canister
@@ -671,6 +755,41 @@ actor class GameStateCanister() = this {
         D.print("GameState: setCyclesUpgradeMainer - cyclesUpgradeMainerllmGsMc          : " # debug_show(cyclesUpgradeMainerllmGsMc));
         D.print("GameState: setCyclesUpgradeMainer - cyclesUpgradeMainerctrlMcMainerctrl : " # debug_show(cyclesUpgradeMainerctrlMcMainerctrl));
         D.print("GameState: setCyclesUpgradeMainer - cyclesUpgradeMainerllmMcMainerllm   : " # debug_show(cyclesUpgradeMainerllmMcMainerllm));
+    };
+
+    // Mainer Reinstall Cycles Flows are independent of user payments, so we can just set them.  Note that reinstall costs are variable. If it fails, first topup the mAIner with more cycles.
+    let DEFAULT_COST_REINSTALL_MAINER_CTRL          : Nat  = 10 * Constants.CYCLES_BILLION; // Cost of a Mainer Controller canister for it's reinstall
+    let DEFAULT_COST_REINSTALL_MAINER_LLM           : Nat  = 10 * Constants.CYCLES_BILLION; // Cost of a LLM canister for it's reinstall
+    let DEFAULT_COST_MC_REINSTALL_MAINER_CTRL       : Nat  =  1 * Constants.CYCLES_BILLION ; // Cost for the MC to reinstall a Mainer Controller canister
+    let DEFAULT_COST_MC_REINSTALL_MAINER_LLM        : Nat  =  1 * Constants.CYCLES_BILLION ; // Cost for the MC to reinstall a LLM canister
+                                                                                                    // -> Note: we are NOT re-uploading the LLM model, only installing the new wasm
+    stable var costReinstallMainerCtrl              : Nat  = DEFAULT_COST_REINSTALL_MAINER_CTRL;
+    stable var costReinstallMainerLlm               : Nat  = DEFAULT_COST_REINSTALL_MAINER_LLM;
+    stable var costReinstallMcMainerCtrl            : Nat  = DEFAULT_COST_MC_REINSTALL_MAINER_CTRL;
+    stable var costReinstallMcMainerLlm             : Nat  = DEFAULT_COST_MC_REINSTALL_MAINER_LLM;
+
+    stable var cyclesReinstallMainerctrlGsMc         : Nat  = 0;
+    stable var cyclesReinstallMainerllmGsMc          : Nat  = 0;
+    stable var cyclesReinstallMainerctrlMcMainerctrl : Nat  = 0;
+    stable var cyclesReinstallMainerllmMcMainerllm   : Nat  = 0;
+
+    private func setCyclesReinstallMainer() {
+        // To be called each time a variable is updated by Admin or by the protocol itself
+        var cost : Nat = 0;
+
+        cost := costReinstallMainerCtrl + costReinstallMcMainerCtrl;
+        cyclesReinstallMainerctrlGsMc         := cost + cost * marginCost / 100;
+
+        cost := costReinstallMainerLlm + costReinstallMcMainerLlm;
+        cyclesReinstallMainerllmGsMc          := cost + cost * marginCost / 100;
+
+        cyclesReinstallMainerctrlMcMainerctrl := costReinstallMainerCtrl;
+        cyclesReinstallMainerllmMcMainerllm   := costReinstallMainerLlm;
+
+        D.print("GameState: setCyclesReinstallMainer - cyclesReinstallMainerctrlGsMc         : " # debug_show(cyclesReinstallMainerctrlGsMc));
+        D.print("GameState: setCyclesReinstallMainer - cyclesReinstallMainerllmGsMc          : " # debug_show(cyclesReinstallMainerllmGsMc));
+        D.print("GameState: setCyclesReinstallMainer - cyclesReinstallMainerctrlMcMainerctrl : " # debug_show(cyclesReinstallMainerctrlMcMainerctrl));
+        D.print("GameState: setCyclesReinstallMainer - cyclesReinstallMainerllmMcMainerllm   : " # debug_show(cyclesReinstallMainerllmMcMainerllm));
     };
 
     // Protocol parameters used in the Generation Cycles Flow calculations
@@ -977,6 +1096,7 @@ actor class GameStateCanister() = this {
     private func setCyclesFlow() {
         // Calculate the cycles flows
         setCyclesUpgradeMainer();
+        setCyclesReinstallMainer();
         setCyclesGenerateChallenge();
         setCyclesGenerateScore();
         setCyclesGenerateResponse();
@@ -2366,6 +2486,13 @@ actor class GameStateCanister() = this {
     };
 
     stable var rewardPerChallenge : Types.RewardPerChallenge = DEFAULT_REWARD_PER_CHALLENGE;
+
+    public shared (msg) func getRewardPerChallengeAdmin() : async Types.RewardPerChallengeResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(rewardPerChallenge);
+    };
 
     // TODO - Implementation: keep a history of the reward changes
     public shared (msg) func setRewardPerChallengeAdmin(totalReward : Nat) : async Types.RewardPerChallengeResult {
@@ -4382,6 +4509,114 @@ actor class GameStateCanister() = this {
                             mainerConfig : Types.MainerConfigurationInput = mainerAgentEntry.mainerConfig;
                         };
                         D.print("GameState: upgradeMainerControllerAdmin - canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );
+                        // ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_MAINER_CREATION); // TODO
+                        addMainerAgentCanister_(canisterEntryToAdd);            
+                    };
+                };
+            };
+        };
+    };
+
+    // Function for Admin to reinstall an existing mAIner agent controller
+    public shared (msg) func reinstallMainerControllerAdmin(mainerctrlReinstallInput : Types.MainerctrlReinstallInput) : async Types.MainerAgentCanisterResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let canisterAddress : Text = mainerctrlReinstallInput.canisterAddress;
+        D.print("GameState: reinstallMainerControllerAdmin - canister to reinstall: " # canisterAddress);
+
+        switch (getMainerAgentCanister(canisterAddress)) {
+            case (null) { 
+                D.print("GameState: reinstallMainerControllerAdmin - ERROR: canister to reinstall is not found: " # canisterAddress);
+                return #Err(#Other("Canister to reinstall is not found: " # canisterAddress )); 
+            };
+            case (?mainerAgentEntry) {
+                // Forward upgrade request to mAIner Creator canister
+                switch (getNextMainerCreatorCanisterEntry()) {
+                    case (null) {
+                        // This should never happen as it indicates there isn't any mAIner Creator canister registered here
+                        D.print("GameState: reinstallMainerControllerAdmin - No mAIner Creator canister registered.");
+                        return #Err(#Unauthorized);
+                    };
+                    case (?mainerCreatorEntry) {
+                        let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
+
+                        // Get the Shared Service canister entry if of type ShareAgent
+                        var associatedCanisterAddress : ?Types.CanisterAddress = null;
+                        var associatedCanisterSubnet : Text = "";
+                        var mainerAgentCanisterType : Types.MainerAgentCanisterType = #ShareAgent;
+                        switch (mainerAgentEntry.canisterType) {
+                            case (#MainerAgent(#Own)) {
+                                // continue
+                                mainerAgentCanisterType := #Own;
+                            };
+                            case (#MainerAgent(#ShareService)) {
+                                // continue
+                                mainerAgentCanisterType := #ShareService;
+                            };
+                            case (#MainerAgent(#ShareAgent)) {
+                                mainerAgentCanisterType := #ShareAgent;
+                                // if of type ShareAgent, the shareServiceCanisterAddress is provided from the Game State info and added here as associatedCanisterAddress
+                                switch (getNextSharedServiceCanisterEntry()) {
+                                    case (null) {
+                                        // This should never happen as it indicates there isn't any Shared mAIning Service canister registered here
+                                        D.print("GameState: reinstallMainerControllerAdmin - There is no Shared mAIning Service canister registered.");
+                                        return #Err(#Unauthorized);
+                                    };
+                                    case (?sharedServiceEntry) {
+                                        associatedCanisterAddress := ?sharedServiceEntry.address;
+                                        associatedCanisterSubnet := sharedServiceEntry.subnet;
+                                        try {
+                                            // Make sure the associated ShareService canister actually exists
+                                            let _ = Principal.fromText(sharedServiceEntry.address); // this will throw an error if it's not a valid canister address
+                                            let associatedControllerCanisterActor = actor (sharedServiceEntry.address) : Types.MainerAgentCtrlbCanister;
+                                            let healthResult = await associatedControllerCanisterActor.health();
+                                            D.print("GameState: reinstallMainerControllerAdmin - Associated ShareService (" # sharedServiceEntry.address # ") canister healthResult" # debug_show (healthResult));
+                                            switch (healthResult) {
+                                                case (#Err(error)) {
+                                                    return #Err(error);
+                                                };
+                                                case _ {
+                                                    // all good, continue
+                                                };
+                                            };
+                                        } catch (e) {
+                                            D.print("GameState: reinstallMainerControllerAdmin -  failed to validate existence & health of associated ShareService canister: " # debug_show(sharedServiceEntry.address ) # " Error: " # Error.message(e) );
+                                            return #Err(#Other("GameState: reinstallMainerControllerAdmin -  failed to validate existence & health of associated ShareService canister: " # debug_show(sharedServiceEntry.address ) #  " Error: " # Error.message(e)));
+                                        };
+                                    };
+                                };
+                            };
+                            case (_) { return #Err(#Other("Unsupported")); }
+                        };
+
+                        let cyclesAdded = cyclesReinstallMainerctrlGsMc;
+                        D.print("GameState: reinstallMainerControllerAdmin - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
+                        Cycles.add<system>(cyclesAdded);
+
+                        let reinstallMainerctrlInput : Types.ReinstallMainerctrlInput = {
+                            mainerAgentEntry : Types.OfficialMainerAgentCanister = mainerAgentEntry; // Canister to upgrade
+                            associatedCanisterAddress : ?Types.CanisterAddress = associatedCanisterAddress; // null for #Own, shareServiceCanisterAddress for ShareAgent
+                            associatedCanisterSubnet : Text = associatedCanisterSubnet;
+                            cyclesReinstallMainerctrlGsMc : Nat = cyclesReinstallMainerctrlGsMc;
+                            cyclesReinstallMainerctrlMcMainerctrl : Nat = cyclesReinstallMainerctrlMcMainerctrl;
+                        };
+                        D.print("GameState: reinstallMainerControllerAdmin - calling creatorCanisterActor.reinstallMainerctrl with canisterCreationInput: " # debug_show(reinstallMainerctrlInput) );
+                        ignore creatorCanisterActor.reinstallMainerctrl(reinstallMainerctrlInput);
+
+                        // Update the status of the mAIner agent entry to indicate that the upgrade is in progress
+                        let canisterEntryToAdd : Types.OfficialMainerAgentCanister = {
+                            address : Text = mainerAgentEntry.address; 
+                            subnet : Text = mainerAgentEntry.subnet; 
+                            canisterType: Types.ProtocolCanisterType = mainerAgentEntry.canisterType;
+                            creationTimestamp : Nat64 = mainerAgentEntry.creationTimestamp;
+                            createdBy : Principal = mainerAgentEntry.createdBy; 
+                            ownedBy : Principal = mainerAgentEntry.ownedBy;
+                            status : Types.CanisterStatus = #Other("Controller Reinstall in Progress");
+                            mainerConfig : Types.MainerConfigurationInput = mainerAgentEntry.mainerConfig;
+                        };
+                        D.print("GameState: reinstallMainerControllerAdmin - canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );
                         // ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_MAINER_CREATION); // TODO
                         addMainerAgentCanister_(canisterEntryToAdd);            
                     };

@@ -42,10 +42,9 @@ while [ $# -gt 0 ]; do
 done
 
 echo "Using network type: $NETWORK_TYPE"
-# Switching to 1 LLM for the Challenger
-# if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ] || [ "$NETWORK_TYPE" = "demo" ] || [ "$NETWORK_TYPE" = "prd" ]; then
-#     NUM_LLMS_DEPLOYED=2
-# fi
+if [ "$NETWORK_TYPE" = "prd" ]; then
+    NUM_LLMS_DEPLOYED=2
+fi
 
 #######################################################################
 echo " "
@@ -53,6 +52,10 @@ echo "==================================================="
 echo "Uploading model for $NUM_LLMS_DEPLOYED llms"
 llm_id_start=0
 llm_id_end=$((NUM_LLMS_DEPLOYED - 1))
+
+# to manually run this script to eg. upload model to a new LLM, overwrite it:
+# llm_id_start=1
+# llm_id_end=1
 
 for i in $(seq $llm_id_start $llm_id_end)
 do

@@ -31,6 +31,14 @@ type SetupCanisterInput =
    subnet: text;
  };
 type SelectableMainerLLMs = variant {Qwen2_5_500M;};
+type ReinstallMainerctrlInput = 
+ record {
+   associatedCanisterAddress: opt CanisterAddress;
+   associatedCanisterSubnet: text;
+   cyclesReinstallMainerctrlGsMc: nat;
+   cyclesReinstallMainerctrlMcMainerctrl: nat;
+   mainerAgentEntry: OfficialMainerAgentCanister;
+ };
 type ProtocolCanisterType = 
  variant {
    Challenger;
@@ -77,6 +85,8 @@ type MainerCreatorCanister =
        Err: variant {Unauthorized;};
        Ok: bool;
      });
+   reinstallMainerctrl: (reinstallMainerctrlInput:
+    ReinstallMainerctrlInput) -> (StatusCodeRecordResult);
    setMasterCanisterId: (_master_canister_id: text) -> (AuthRecordResult);
    setupCanister: (setupCanisterInput: SetupCanisterInput) ->
     (CanisterCreationResult);
