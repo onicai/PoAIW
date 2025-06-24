@@ -178,7 +178,7 @@ actor class GameStateCanister() = this {
                 owner = Principal.fromText("be2us-64aaa-aaaaa-qaabq-cai");
                 subaccount = null;
             };
-            amount = 100;
+            amount = 10;
             fee = null;
             memo = null;
             created_at_time = null;
