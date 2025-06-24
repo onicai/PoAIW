@@ -23,6 +23,14 @@ actor class ArchiveChallengesCanister() = this {
         return #Ok(authRecord);
     };
 
+    public query (msg) func getMasterCanisterId() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let authRecord = { auth = "Master canister id for this canister: " # MASTER_CANISTER_ID };
+        return #Ok(authRecord);
+    };
+
     // -------------------------------------------------------------------------------
     // Canister Endpoints
 
