@@ -1,8 +1,9 @@
 {
   "funnAI_ledger_canister": {
+    "demo": "z6s3y-4aaaa-aaaaj-a2bjq-cai",
     "development": "4uuff-dyaaa-aaaaj-qnoeq-cai",
     "ic": "",
     "local": "",
-    "demo": "z6s3y-4aaaa-aaaaj-a2bjq-cai"
+    "prd": "vpyot-zqaaa-aaaaa-qavaq-cai"
   }
 }

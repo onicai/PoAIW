@@ -1855,10 +1855,10 @@ actor class MainerAgentCtrlbCanister() = this {
             var randomInitialTimer = 3000; // Default
             try {
                 let random = Random.Finite(await Random.blob());
-                let randomValueResult = random.range(5); // Uniformly distributes outcomes in the numeric range [0 .. 2^5 - 1].
+                let randomValueResult = random.range(6); // Uniformly distributes outcomes in the numeric range [0 .. 2^6 - 1] = [0 .. 63]
                 switch (randomValueResult) {
                     case (?randomValue) {
-                        randomInitialTimer := (randomValue + 1) * 2 * 60; // i.e. range for randomInitialTimer is between 120 and 3840 seconds (2 and 64 minutes)                
+                        randomInitialTimer := (randomValue + 1) * 2 * 60; // i.e. range for randomInitialTimer is between 120 and 7680 seconds (2 and 128 minutes)                
                     };
                     case (_) {
                         // Something went wrong with the random generation, use default

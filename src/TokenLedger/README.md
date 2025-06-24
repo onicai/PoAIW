@@ -163,3 +163,34 @@ dfx canister call funnAI_ledger_canister icrc1_total_supply --network demo
 ######################################
 For production:
 update minting_account (to production Game State) and other params in init_arg (dfx.json)
+recommended settings (as for SNS): https://github.com/dfinity/ic/blob/98fa250f488163fc5d94079c4acd81ba55761bd6/rs/sns/init/src/lib.rs#L600-L613
+
+TOKEN_SYMBOL = FUNNAI
+TOKEN_NAME = FUNNAI
+MINTER = r5m5y-diaaa-aaaaa-qanaa-cai // Game State canister prd stage
+TRANSFER_FEE = 1 // 1
+feature_flags = opt record{icrc2 = true}
+DEFAULT_ACCOUNT_ID = r5m5y-diaaa-aaaaa-qanaa-cai // Game State canister prd stage
+PRE_MINTED_TOKENS = 0
+NUM_OF_BLOCK_TO_ARCHIVE = 1000
+TRIGGER_THRESHOLD = 2000
+ARCHIVE_CONTROLLER = r5m5y-diaaa-aaaaa-qanaa-cai // Game State canister prd stage
+cycles_for_archive_creation = 2000000000000 // 2T
+
+for dfx.json:
+"init_arg": "(variant { Init = record { decimals = opt 8; token_symbol = \"FUNNAI\"; token_name = \"FUNNAI\"; transfer_fee = 1; metadata = vec {}; feature_flags = opt record{icrc2 = true}; minting_account = record { owner = principal \"r5m5y-diaaa-aaaaa-qanaa-cai\"; }; initial_balances = vec { record { record { owner = principal \"r5m5y-diaaa-aaaaa-qanaa-cai\"; }; 0; }; };  archive_options = record { num_blocks_to_archive = 1000; trigger_threshold = 2000; controller_id = principal \"r5m5y-diaaa-aaaaa-qanaa-cai\"; cycles_for_archive_creation = opt  2000000000000; }; } })"
+
+Deploy on prd stage:
+dfx deploy funnAI_ledger_canister --network prd --with-cycles 1000000000000 --next-to r5m5y-diaaa-aaaaa-qanaa-cai
+
+Sanity checks:
+dfx canister call funnAI_ledger_canister is_ledger_ready --network prd
+dfx canister call funnAI_ledger_canister icrc1_minting_account --network prd
+dfx canister call funnAI_ledger_canister icrc1_total_supply --network prd
+
+On Game State:
+dfx canister call game_state_canister --network prd setTokenLedgerCanisterId '("")'
+ 
+dfx canister call game_state_canister --network prd testTokenMintingAdmin 
+
+dfx canister call funnAI_ledger_canister icrc1_total_supply --network prd
