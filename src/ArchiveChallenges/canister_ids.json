@@ -1,10 +1,10 @@
 {
   "archive_challenges_canister": {
+    "demo": "ga256-riaaa-aaaap-qp4fa-cai",
     "development": "",
     "ic": "",
     "local": "",
-    "testing": "",
-    "demo": "ga256-riaaa-aaaap-qp4fa-cai",
-    "prd": ""
+    "prd": "474n2-qiaaa-aaaaf-qasoq-cai",
+    "testing": ""
   }
 }
