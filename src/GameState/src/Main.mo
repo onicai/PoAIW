@@ -15,6 +15,7 @@ import Nat "mo:base/Nat";
 import Order "mo:base/Order";
 import Error "mo:base/Error";
 import Hash "mo:base/Hash";
+import Array "mo:base/Array";
 
 import Types "../../common/Types";
 import ICManagementCanister "../../common/ICManagementCanister";
@@ -38,7 +39,7 @@ actor class GameStateCanister() = this {
     };
 
     // Flag to pause protocol
-    stable var PAUSE_PROTOCOL : Bool = false;
+    stable var PAUSE_PROTOCOL : Bool = true;
 
     public shared (msg) func togglePauseProtocolFlagAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -54,7 +55,7 @@ actor class GameStateCanister() = this {
     };
 
     // Flag to disable whitelist mAIner creation flow
-    stable var PAUSE_WHITELIST_MAINER_CREATION : Bool = false;
+    stable var PAUSE_WHITELIST_MAINER_CREATION : Bool = true;
 
     public shared (msg) func togglePauseWhitelistMainerCreationFlagAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -70,7 +71,7 @@ actor class GameStateCanister() = this {
     };
 
     // Limit on how many mAIners may be created
-    stable var LIMIT_SHARED_MAINERS : Nat = 100;
+    stable var LIMIT_SHARED_MAINERS : Nat = 0;
     stable var LIMIT_OWN_MAINERS : Nat = 0;
 
     public shared (msg) func setLimitForCreatingMainerAdmin(newLimitInput : Types.MainerLimitInput) : async Types.AuthRecordResult {
@@ -92,9 +93,27 @@ actor class GameStateCanister() = this {
         };
     };
 
+    stable var BUFFER_MAINER_CREATION : Nat = 7;
+
+    public shared (msg) func setBufferMainerCreation(newBuffer : Nat) : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        BUFFER_MAINER_CREATION := newBuffer;
+        let authRecord = { auth = "You set the buffer." };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getBufferMainerCreation() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(BUFFER_MAINER_CREATION);
+    };
+
     // Function for the frontend to poll
     public query func shouldCreatingMainersBeStopped(checkInput : Types.CheckMainerLimit) : async Types.FlagResult {
-        let buffer = 7; // to guard against concurrent creations that would leave the user in a state where they paid for the mAIner creation but the protocol blocks it due to the limit
+        let buffer = BUFFER_MAINER_CREATION; // to guard against concurrent creations that would leave the user in a state where they paid for the mAIner creation but the protocol blocks it due to the limit
         switch (checkInput.mainerType) {
             case (#Own) {
                 if (getNumberMainerAgents(checkInput.mainerType) + buffer > LIMIT_OWN_MAINERS) {
@@ -587,7 +606,7 @@ actor class GameStateCanister() = this {
 
     // Price to create a mAIner TODO - Implementation: finalize prices (note that it's in 10000s)
     // Cycles for ShareAgent mAIner Creation
-    stable var PRICE_FOR_SHARE_AGENT_ICP : Nat64 = 0; // TODO: Set to cost of a ShareAgent, in ICP
+    stable var PRICE_FOR_SHARE_AGENT_ICP : Nat64 = 10; // TODO: Set to cost of a ShareAgent, in ICP
     public shared (msg) func setIcpForShareAgentAdmin(icpForShareAgent : Nat64) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -615,7 +634,7 @@ actor class GameStateCanister() = this {
 
     // Cycles for Own mAIner Creation 
     // Note: the ShareService mAIner will also use these values
-    stable var PRICE_FOR_OWN_MAINER_ICP : Nat64 = 0; // TODO: Set to cost of a Own mAIner, in ICP
+    stable var PRICE_FOR_OWN_MAINER_ICP : Nat64 = 1000; // TODO: Set to cost of a Own mAIner, in ICP
     public shared (msg) func setIcpForOwnMainerAdmin(icpForOwnMainer : Nat64) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -793,7 +812,7 @@ actor class GameStateCanister() = this {
     };
 
     // Protocol parameters used in the Generation Cycles Flow calculations
-    let DEFAULT_DAILY_CHALLENGES                : Nat = 5;                      // TODO: set the actual value or let the GameState automatically update this on a daily basis
+    let DEFAULT_DAILY_CHALLENGES                : Nat = 6*24;                      // TODO: set the actual value or let the GameState automatically update this on a daily basis
     stable var dailyChallenges                  : Nat = DEFAULT_DAILY_CHALLENGES; // The lower the value, the more cycles are send with each challenge to the Challenger
 
     // -----------
@@ -1823,6 +1842,97 @@ actor class GameStateCanister() = this {
         return #Ok(archivedChallengesArray.size());
     };
 
+    stable var ARCHIVE_CHALLENGES_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // TODO: update
+
+    public shared (msg) func setArchiveCanisterId(archive_canister_id : Text) : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        ARCHIVE_CHALLENGES_CANISTER_ID := archive_canister_id;
+        let authRecord = { auth = "You set the archive canister id for this canister." };
+        return #Ok(authRecord);
+    };
+
+    private func removePromptCachesForChallenge(challenge : Types.Challenge) : Bool {
+        D.print("GameState: removePromptCachesForChallenge - challenge: "# debug_show(challenge));
+        let resultMainer = removeMainerPromptCacheForChallenge(challenge);
+        D.print("GameState: removePromptCachesForChallenge - resultMainer: "# debug_show(resultMainer));
+        let resultJudge = removeJudgePromptCacheForChallenge(challenge);
+        D.print("GameState: removePromptCachesForChallenge - resultJudge: "# debug_show(resultJudge));
+        return true;
+    };
+
+    private func migrateArchivedChallenges() : async Types.NatResult {
+        let archivedChallengesArray : [Types.Challenge] = getArchivedChallenges();
+
+        let archiveCanisterActor = actor(ARCHIVE_CHALLENGES_CANISTER_ID) : Types.ArchiveChallengesCanister_Actor;
+
+        let input : Types.ChallengeMigrationInput = {
+            challenges = archivedChallengesArray;
+        };
+
+        D.print("GameState: migrateArchivedChallenges - migrating challenges: "# debug_show(archivedChallengesArray.size()));
+        let migrateResult : Types.ChallengeMigrationResult = await archiveCanisterActor.addChallenges(input);
+        D.print("GameState: migrateArchivedChallenges - migrateResult: "# debug_show(migrateResult));
+        switch (migrateResult) {
+            case (#Ok(migrated)) {
+                D.print("GameState: migrateArchivedChallenges - migrated: "# debug_show(migrated));
+                // Remove prompt caches for the migrated challenges
+                let removalResult = Array.map<Types.Challenge, Bool>(archivedChallengesArray, removePromptCachesForChallenge);
+                D.print("GameState: migrateArchivedChallenges - removalResult: "# debug_show(removalResult));
+                // Reset archived challenges
+                archivedChallenges := List.nil<Types.Challenge>();
+                return #Ok(archivedChallengesArray.size());            
+            };
+            case (#Err(migrationError)) {
+                D.print("GameState: migrateArchivedChallenges - migrationError: "# debug_show(migrationError));
+                return #Err(#Other("Error during archived challenges migration: " # debug_show(migrationError)));
+            };
+            case (_) { return #Err(#FailedOperation); }
+        };
+    };
+
+    public shared (msg) func migrateArchivedChallengesAdmin() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        return await migrateArchivedChallenges();        
+    };
+
+    private func backupMainers() : async Types.NatResult {
+        let mainersArray : [(Text, Types.OfficialMainerAgentCanister)] = Iter.toArray(mainerAgentCanistersStorage.entries());
+
+        let archiveCanisterActor = actor(ARCHIVE_CHALLENGES_CANISTER_ID) : Types.ArchiveChallengesCanister_Actor;
+
+        let input : Types.MainerBackupInput = {
+            mainers = mainersArray;
+        };
+
+        D.print("GameState: backupMainers - backing up mAIners: "# debug_show(mainersArray.size()));
+        let backupResult : Types.MainerBackupResult = await archiveCanisterActor.addMainersAdmin(input);
+        D.print("GameState: backupMainers - backupResult: "# debug_show(backupResult));
+        switch (backupResult) {
+            case (#Ok(backedUp)) {
+                D.print("GameState: backupMainers - backedUp: "# debug_show(backedUp));
+                return #Ok(mainersArray.size());            
+            };
+            case (#Err(backupError)) {
+                D.print("GameState: backupMainers - backupError: "# debug_show(backupError));
+                return #Err(#Other("Error during backup of mAIners: " # debug_show(backupError)));
+            };
+            case (_) { return #Err(#FailedOperation); }
+        };
+    };
+
+    public shared (msg) func backupMainersAdmin() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        return await backupMainers();        
+    };
+
     // Challenges helper functions
     private func getRandomChallengeTopic(challengeTopicStatus : Types.ChallengeTopicStatus) : async ?Types.ChallengeTopic {
         D.print("GameState: getRandomChallengeTopic - challengeTopicStatus: " # debug_show(challengeTopicStatus));
@@ -1902,6 +2012,13 @@ actor class GameStateCanister() = this {
 
     // Emepheral Hashmap for mAIner prompt cache upload buffers for chunked uploads, key=mainerPromptId
     var mainerPromptCacheUploadBuffers : HashMap.HashMap<Text, Buffer.Buffer<Blob>> = HashMap.HashMap(0, Text.equal, Text.hash);
+
+    private func removeMainerPromptCacheForChallenge(challenge : Types.Challenge) : Bool {
+        D.print("GameState: removeMainerPromptCacheForChallenge - challenge.mainerPromptId: "# debug_show(challenge.mainerPromptId));
+        let result = mainerPrompts.delete(challenge.mainerPromptId);
+        D.print("GameState: removeMainerPromptCacheForChallenge - result: "# debug_show(result));
+        return true;
+    };
 
     // Function to be called by Challenger to start upload of the mainer prompt & prompt cache
     public shared (msg) func startUploadMainerPromptCache() : async Types.StartUploadMainerPromptCacheRecordResult {
@@ -2106,6 +2223,13 @@ actor class GameStateCanister() = this {
 
     // Emepheral Hashmap for Judge prompt cache upload buffers for chunked uploads, key=judgePromptId
     var judgePromptCacheUploadBuffers : HashMap.HashMap<Text, Buffer.Buffer<Blob>> = HashMap.HashMap(0, Text.equal, Text.hash);
+
+    private func removeJudgePromptCacheForChallenge(challenge : Types.Challenge) : Bool {
+        D.print("GameState: removeJudgePromptCacheForChallenge - challenge.judgePromptId: "# debug_show(challenge.judgePromptId));
+        let result = judgePrompts.delete(challenge.judgePromptId);
+        D.print("GameState: removeJudgePromptCacheForChallenge - result: "# debug_show(result));
+        return true;
+    };
 
     // Function to be called by Challenger to start upload of the Judge prompt & prompt cache
     public shared (msg) func startUploadJudgePromptCache() : async Types.StartUploadJudgePromptCacheRecordResult {
@@ -2478,11 +2602,11 @@ actor class GameStateCanister() = this {
         // TODO - Design: define details of sponsored challenges and then add reward per challenge
     let DEFAULT_REWARD_PER_CHALLENGE : Types.RewardPerChallenge = {
         rewardType : Types.RewardType = #MainerToken;
-        totalAmount : Nat = 1000000;
-        winnerAmount : Nat = 350000;
-        secondPlaceAmount : Nat = 150000;
-        thirdPlaceAmount : Nat = 50000;
-        amountForAllParticipants : Nat = 450000;
+        totalAmount : Nat = 18190327330;
+        winnerAmount : Nat = 6366614570; // 35% of totalAmount
+        secondPlaceAmount : Nat = 2728549100; // 15% of totalAmount
+        thirdPlaceAmount : Nat = 909516367; // 5% of totalAmount
+        amountForAllParticipants : Nat = 8185647290; // 45% of totalAmount
     };
 
     stable var rewardPerChallenge : Types.RewardPerChallenge = DEFAULT_REWARD_PER_CHALLENGE;
@@ -3108,7 +3232,23 @@ actor class GameStateCanister() = this {
     // e.g. this is for dev stage, verify with: https://dashboard.internetcomputer.org/account/c88ef9865df034927487e4178da1f80a1648ec5a764e4959cba513c372ceb520
     //let PROTOCOL_PRINCIPAL_BLOB : Blob = "\C8\8E\F9\86\5D\F0\34\92\74\87\E4\17\8D\A1\F8\0A\16\48\EC\5A\76\4E\49\59\CB\A5\13\C3\72\CE\B5\20";
 
-    let PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * Constants.CYCLES_TRILLION; // TODO - Implementation: set final value
+    stable var PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * Constants.CYCLES_TRILLION; // TODO - Implementation: set final value
+
+    public shared (msg) func setProtocolCyclesBalanceBuffer(newBufferInTrillionCycles : Nat) : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        PROTOCOL_CYCLES_BALANCE_BUFFER := newBufferInTrillionCycles * Constants.CYCLES_TRILLION;
+        let authRecord = { auth = "You set the buffer." };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getProtocolCyclesBalanceBuffer() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(PROTOCOL_CYCLES_BALANCE_BUFFER);
+    };
 
     // Decide on usage of incoming funds (e.g. for mAIner creation or top ups)
     private func handleIncomingFunds(transactionEntry : Types.RedeemedTransactionBlock) : async Types.HandleIncomingFundsResult {
@@ -5154,25 +5294,6 @@ actor class GameStateCanister() = this {
             };
             case (_) { return #Err(#Other("Unsupported")); }
         };
-        switch (mainerInfo.status) {
-            // mAIner already has been created
-            case (#ControllerCreated) {
-                // continue
-            };
-            case (#LlmSetupInProgress(_)) {
-                // continue
-            };
-            case (#LlmSetupFinished) {
-                // continue
-            };
-            case (#Running) {
-                // continue
-            };
-            case (#Paused) {
-                // continue
-            };
-            case (_) { return #Err(#Other("Unsupported")); }
-        };
 
         // Verify existing mAIner entry
         switch (getUserMainerAgents(msg.caller)) {
@@ -5188,16 +5309,6 @@ actor class GameStateCanister() = this {
                         // Sanity checks on userMainerEntry (i.e. address provided is correct and matches entry info)
                         switch (userMainerEntry.canisterType) {
                             case (#MainerAgent(_)) {
-                                // continue
-                            };
-                            case (_) { return #Err(#Other("Unsupported")); }
-                        };
-                        switch (userMainerEntry.status) {
-                            // mAIner already has been created
-                            case (#Running) {
-                                // continue
-                            };
-                            case (#Paused) {
                                 // continue
                             };
                             case (_) { return #Err(#Other("Unsupported")); }
@@ -5762,6 +5873,10 @@ actor class GameStateCanister() = this {
                             case (true) {
                                 // TODO - Implementation: adapt cycles burnt stats
                                 ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_WINNER_DECLARATION);
+                                if (List.size<Types.Challenge>(archivedChallenges) >= 2 * THRESHOLD_ARCHIVE_CLOSED_CHALLENGES) {
+                                    // If the archived challenges storage is getting too big, migrate them to another canister and remove related data
+                                    ignore migrateArchivedChallenges();
+                                };
                                 return true;
                             };
                         };
