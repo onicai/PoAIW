@@ -462,10 +462,9 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getRecentSubmittedResponsesAdmin() : async Types.ChallengeResponseSubmissionsResult {
-        // TODO - Security: put access checks in place
-        /* if (not Principal.isController(msg.caller)) {
+        if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
-        }; */
+        };
         let submissions : [Types.ChallengeResponseSubmission] = getLastSubmittedResponses(5);
         return #Ok(submissions);
     };
