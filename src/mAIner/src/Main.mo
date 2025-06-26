@@ -304,10 +304,9 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getIssueFlagsAdmin() : async Types.IssueFlagsRetrievalResult {
-        // TODO - Security: put access checks in place
-        /* if (not Principal.isController(msg.caller)) {
+        if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
-        }; */
+        };
         let response : Types.IssueFlagsRecord = {
             lowCycleBalance = PAUSED_DUE_TO_LOW_CYCLE_BALANCE;
         };
