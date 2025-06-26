@@ -83,19 +83,35 @@ dfx canister call game_state_canister setIcpForWhitelistOwnMainerAdmin '500' --n
 dfx canister call game_state_canister getWhitelistPriceForOwnMainer --network $NETWORK
 
 ## Set limit how many mAIners may be created
+### Buffer
+dfx canister call game_state_canister getBufferMainerCreation --network $NETWORK
+dfx canister call game_state_canister setBufferMainerCreation '5' --network $NETWORK
 ### ShareAgent
+dfx canister call game_state_canister getNumberMainerAgentsAdmin '(record { mainerType = variant {ShareAgent}; })' --network $NETWORK
+dfx canister call game_state_canister getLimitForCreatingMainerAdmin '(record { mainerType = variant {ShareAgent}; })' --network $NETWORK
 dfx canister call game_state_canister setLimitForCreatingMainerAdmin '(record { mainerType = variant {ShareAgent}; newLimit = 100 })' --network $NETWORK
 dfx canister call game_state_canister shouldCreatingMainersBeStopped '(record { mainerType = variant {ShareAgent}; })' --network $NETWORK
 ### Own
+dfx canister call game_state_canister getNumberMainerAgentsAdmin '(record { mainerType = variant {Own}; })' --network $NETWORK
+dfx canister call game_state_canister getLimitForCreatingMainerAdmin '(record { mainerType = variant {Own}; })' --network $NETWORK
 dfx canister call game_state_canister setLimitForCreatingMainerAdmin '(record { mainerType = variant {Own}; newLimit = 0 })' --network $NETWORK
 dfx canister call game_state_canister shouldCreatingMainersBeStopped '(record { mainerType = variant {Own}; })' --network $NETWORK
 
-## Update whitelist flag
+## Update whitelist flags
+### whitelist phase active
+dfx canister call game_state_canister toggleWhitelistPhaseActiveFlagAdmin --network $NETWORK
+dfx canister call game_state_canister getIsWhitelistPhaseActive --network $NETWORK
+### whitelist mAIner creation (sale)
 dfx canister call game_state_canister togglePauseWhitelistMainerCreationFlagAdmin --network $NETWORK
 dfx canister call game_state_canister getPauseWhitelistMainerCreationFlag --network $NETWORK
 
 ## Update protocol flag
 dfx canister call game_state_canister togglePauseProtocolFlagAdmin --network $NETWORK
 dfx canister call game_state_canister getPauseProtocolFlag --network $NETWORK
+
+## Cycles security buffer
+### in trillion cycles
+dfx canister call game_state_canister setProtocolCyclesBalanceBuffer '500' --network $NETWORK
+dfx canister call game_state_canister getProtocolCyclesBalanceBuffer --network $NETWORK
 ```
 
