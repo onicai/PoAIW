@@ -470,7 +470,7 @@ actor class GameStateCanister() = this {
         timeInterval : Types.TimeInterval = #Daily;
     };
     stable var cyclesBurnRateDefaultHigh : Types.CyclesBurnRate = {
-        cycles : Nat = 3 * Constants.CYCLES_TRILLION;
+        cycles : Nat = 4 * Constants.CYCLES_TRILLION;
         timeInterval : Types.TimeInterval = #Daily;
     };
     stable var cyclesBurnRateDefaultVeryHigh : Types.CyclesBurnRate = {
