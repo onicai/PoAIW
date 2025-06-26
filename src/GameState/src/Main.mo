@@ -3576,18 +3576,19 @@ actor class GameStateCanister() = this {
                         switch (transactionEntry.redeemedFor) {
                             case (#MainerCreation(mainerAgentCanisterType)) {
                                 D.print("GameState: verifyIncomingPayment - #MainerCreation mainerAgentCanisterType: "# debug_show(mainerAgentCanisterType));
+                                let E8S_PER_ICP_WITH_BUFFER : Nat64 = 90_000_000; // 10^8 e8s per ICP
                                 switch (mainerAgentCanisterType) {
                                     case (#Own) {
                                         D.print("GameState: verifyIncomingPayment - #MainerCreation Own transferDetails.amount.e8s: "# debug_show(transferDetails.amount.e8s));
                                         D.print("GameState: verifyIncomingPayment - #MainerCreation Own PRICE_OWN_MAINER: "# debug_show(PRICE_FOR_OWN_MAINER_ICP));
-                                        if (transferDetails.amount.e8s < PRICE_FOR_OWN_MAINER_ICP) {
+                                        if (transferDetails.amount.e8s < PRICE_FOR_OWN_MAINER_ICP * E8S_PER_ICP_WITH_BUFFER) {
                                             return #Err(#Other("Transaction didn't pay full price"));
                                         };                              
                                     };
                                     case (#ShareAgent) {
                                         D.print("GameState: verifyIncomingPayment - #MainerCreation ShareAgent transferDetails.amount.e8s: "# debug_show(transferDetails.amount.e8s));
                                         D.print("GameState: verifyIncomingPayment - #MainerCreation ShareAgent PRICE_SHARED_MAINER: "# debug_show(PRICE_FOR_SHARE_AGENT_ICP));
-                                        if (transferDetails.amount.e8s < PRICE_FOR_SHARE_AGENT_ICP) {
+                                        if (transferDetails.amount.e8s < PRICE_FOR_SHARE_AGENT_ICP * E8S_PER_ICP_WITH_BUFFER) {
                                             return #Err(#Other("Transaction didn't pay full price"));
                                         };                                
                                     };
@@ -3662,18 +3663,19 @@ actor class GameStateCanister() = this {
                         switch (transactionEntry.redeemedFor) {
                             case (#MainerCreation(mainerAgentCanisterType)) {
                                 D.print("GameState: whitelistVerifyIncomingPayment - #MainerCreation mainerAgentCanisterType: "# debug_show(mainerAgentCanisterType));
+                                let E8S_PER_ICP_WITH_BUFFER : Nat64 = 90_000_000; // 10^8 e8s per ICP
                                 switch (mainerAgentCanisterType) {
                                     case (#Own) {
                                         D.print("GameState: whitelistVerifyIncomingPayment - #MainerCreation Own transferDetails.amount.e8s: "# debug_show(transferDetails.amount.e8s));
                                         D.print("GameState: whitelistVerifyIncomingPayment - #MainerCreation Own PRICE_OWN_MAINER: "# debug_show(PRICE_FOR_OWN_MAINER_ICP));
-                                        if (transferDetails.amount.e8s < WHITELIST_PRICE_FOR_OWN_MAINER_ICP) {
+                                        if (transferDetails.amount.e8s < WHITELIST_PRICE_FOR_OWN_MAINER_ICP * E8S_PER_ICP_WITH_BUFFER) {
                                             return #Err(#Other("Transaction didn't pay full price"));
                                         };  
                                     };
                                     case (#ShareAgent) {
                                         D.print("GameState: whitelistVerifyIncomingPayment - #MainerCreation ShareAgent transferDetails.amount.e8s: "# debug_show(transferDetails.amount.e8s));
                                         D.print("GameState: whitelistVerifyIncomingPayment - #MainerCreation ShareAgent PRICE_SHARED_MAINER: "# debug_show(PRICE_FOR_SHARE_AGENT_ICP));
-                                        if (transferDetails.amount.e8s < WHITELIST_PRICE_FOR_SHARE_AGENT_ICP) {
+                                        if (transferDetails.amount.e8s < WHITELIST_PRICE_FOR_SHARE_AGENT_ICP * E8S_PER_ICP_WITH_BUFFER) {
                                             return #Err(#Other("Transaction didn't pay full price"));
                                         };                                
                                     };
