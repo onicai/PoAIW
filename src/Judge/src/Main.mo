@@ -38,6 +38,9 @@ actor class JudgeCtrlbCanister() = this {
 
     // Admin function to verify that caller is a controller of this canister
     public shared query (msg) func amiController() : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -49,6 +52,9 @@ actor class JudgeCtrlbCanister() = this {
     stable var GAME_STATE_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
 
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -92,6 +98,9 @@ actor class JudgeCtrlbCanister() = this {
 
     // Resets llmCanisters
     public shared (msg) func reset_llm_canisters() : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -101,6 +110,9 @@ actor class JudgeCtrlbCanister() = this {
 
     // Adds an llmCanister
     public shared (msg) func add_llm_canister(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -125,6 +137,9 @@ actor class JudgeCtrlbCanister() = this {
 
     // Function to verify that canister is ready for inference
     public shared (msg) func ready() : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -147,6 +162,9 @@ actor class JudgeCtrlbCanister() = this {
 
     // Admin function to verify that judge_ctrlb_canister is a controller of all the llm canisters
     public shared (msg) func checkAccessToLLMs() : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -171,6 +189,9 @@ actor class JudgeCtrlbCanister() = this {
 
     // Admin function to set roundRobinLLMs
     public shared (msg) func setRoundRobinLLMs(_roundRobinLLMs : Nat) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -927,7 +948,12 @@ actor class JudgeCtrlbCanister() = this {
     };
 
     public shared query (msg) func getRoundRobinCanister() : async Types.CanisterIDRecordResult {
-        // TODO - Security: should this be open access?
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
         let canisterIDRecord : Types.CanisterIDRecord = {
             canister_id = Principal.toText(Principal.fromActor(_getRoundRobinCanister()));
         };
@@ -955,6 +981,9 @@ actor class JudgeCtrlbCanister() = this {
     stable var actionRegularityInSeconds = 5;
 
     public shared (msg) func setTimerActionRegularityInSecondsAdmin(_actionRegularityInSeconds : Nat) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -965,6 +994,9 @@ actor class JudgeCtrlbCanister() = this {
     };
 
     public shared query (msg) func getTimerActionRegularityInSecondsAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -981,6 +1013,9 @@ actor class JudgeCtrlbCanister() = this {
     };
 
     public shared (msg) func startTimerExecutionAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -1004,7 +1039,7 @@ actor class JudgeCtrlbCanister() = this {
         return #Ok(authRecord);
     };
 
-     public func stopTimerExecution() : async Types.AuthRecordResult {
+    private func stopTimerExecution() : async Types.AuthRecordResult {
         switch (recurringTimerId) {
             case (?id) {
                 D.print("Judge: Stopping timer with id = " # debug_show (id));
@@ -1021,6 +1056,9 @@ actor class JudgeCtrlbCanister() = this {
     };
 
     public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -1029,6 +1067,9 @@ actor class JudgeCtrlbCanister() = this {
 
     // TODO - Testing: remove; testing function for admin
     public shared (msg) func triggerScoreSubmissionAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
