@@ -42,9 +42,9 @@ while [ $# -gt 0 ]; do
 done
 
 if [ "$NETWORK_TYPE" = "ic" ]; then
-    SUBNET_LLM_0="csyj4-zmann-ys6ge-3kzi6-onexi-obayx-2fvak-zersm-euci4-6pslt-lae"
+    SUBNET_LLM_0="yinp6-35cfo-wgcd2-oc4ty-2kqpf-t4dul-rfk33-fsq3r-mfmua-m2ngh-jqe"
 elif [ "$NETWORK_TYPE" = "testing" ]; then
-    SUBNET_LLM_0="csyj4-zmann-ys6ge-3kzi6-onexi-obayx-2fvak-zersm-euci4-6pslt-lae"
+    SUBNET_LLM_0="yinp6-35cfo-wgcd2-oc4ty-2kqpf-t4dul-rfk33-fsq3r-mfmua-m2ngh-jqe"
 elif [ "$NETWORK_TYPE" = "prd" ]; then
     NUM_LLMS_DEPLOYED=2
     # Deploy 2 LLMs across two subnets, for failover and redundancy

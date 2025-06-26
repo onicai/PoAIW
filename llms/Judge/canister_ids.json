@@ -4,18 +4,27 @@
     "development": "ttdeo-jyaaa-aaaac-atawa-cai",
     "ic": "xljph-lyaaa-aaaaj-az4mq-cai",
     "prd": "vahkg-2aaaa-aaaac-qalzq-cai",
-    "testing": ""
+    "testing": "dcdx5-iqaaa-aaaab-qb2va-cai"
   },
   "llm_1": {
     "demo": "4uqyf-biaaa-aaaae-qfctq-cai",
     "development": "fhlsk-5aaaa-aaaaf-qapuq-cai",
     "ic": "xcke3-5qaaa-aaaaj-az4na-cai",
     "prd": "vva3l-3iaaa-aaaac-qal2a-cai",
-    "testing": ""
+    "testing": "dfcrj-fiaaa-aaaab-qb2vq-cai"
+  },
+  "llm_10": {
+    "prd": "vl3dc-4yaaa-aaaaj-qnpwq-cai"
+  },
+  "llm_11": {
+    "prd": "vcyi6-kqaaa-aaaaj-qnpxa-cai"
+  },
+  "llm_12": {
+    "prd": "vfzok-hiaaa-aaaaj-qnpxq-cai"
   },
   "llm_2": {
     "prd": "kg5kw-bqaaa-aaaam-aeltq-cai",
-    "testing": ""
+    "testing": "dqfae-eaaaa-aaaab-qb2wa-cai"
   },
   "llm_3": {
     "prd": "lltoy-oyaaa-aaaam-aelua-cai"
@@ -37,14 +46,5 @@
   },
   "llm_9": {
     "prd": "vr33l-taaaa-aaaad-aapra-cai"
-  },
-  "llm_10": {
-    "prd": "vl3dc-4yaaa-aaaaj-qnpwq-cai"
-  },
-  "llm_11": {
-    "prd": "vcyi6-kqaaa-aaaaj-qnpxa-cai"
-  },
-  "llm_12": {
-    "prd": "vfzok-hiaaa-aaaaj-qnpxq-cai"
   }
 }
