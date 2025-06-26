@@ -6108,7 +6108,7 @@ actor class GameStateCanister() = this {
         return List.toArray(officialCanisters);        
     };
 
-// Mockup functions (TODO - Testing: remove)
+/* // Mockup functions (TODO - Testing: remove)
     // Function for frontend integration testing that returns mockup data
     public query (msg) func getScoreForSubmission_mockup(submissionInput : Types.SubmissionRetrievalInput) : async Types.ScoredResponseRetrievalResult {
         switch (getOpenChallenge(submissionInput.challengeId)) {
@@ -6349,7 +6349,7 @@ actor class GameStateCanister() = this {
         } else {
             return #Err(#InvalidId);
         };
-    };
+    }; */
 
 // Upgrade Hooks (TODO - Implementation: upgrade Motoko to use enhanced orthogonal persistence)
     system func preupgrade() {
