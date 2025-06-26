@@ -333,10 +333,9 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getMainerStatisticsAdmin() : async Types.StatisticsRetrievalResult {
-        // TODO - Security: put access checks in place
-        /* if (not Principal.isController(msg.caller)) {
+        if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
-        }; */
+        };
         var cyclesBurnRateToReturn : Types.CyclesBurnRate = CYCLES_BURN_RATE_DEFAULT;
         switch (getCurrentAgentSettings()) {
             case (null) {};
