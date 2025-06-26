@@ -4774,6 +4774,12 @@ actor class GameStateCanister() = this {
             return #Err(#Other("Protocol is currently paused"));
         };
 
+        // For now, only Controller canisters are allowed to add LLMs to mAIners
+        // This is temporary solution to ensure we scale the system appropriately
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
         // Sanity checks on mAIner info
         if (not Principal.equal(mainerInfo.ownedBy, msg.caller)) {
             // Only the same user may continue with the creation flow
@@ -6066,10 +6072,9 @@ actor class GameStateCanister() = this {
 
     // Function for user to get the score of a submission by one of their mAIners
     public query (msg) func getScoreForSubmission(submissionInput : Types.SubmissionRetrievalInput) : async Types.ScoredResponseRetrievalResult {
-        // TODO - Security: put access checks in place
-        /* if (Principal.isAnonymous(msg.caller)) {
+        if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
-        }; */
+        };
 
         let result : ?Types.ScoredResponse = getScoredResponse(submissionInput.challengeId, submissionInput.submissionId);
         switch (result) {
@@ -6077,8 +6082,23 @@ actor class GameStateCanister() = this {
                 return #Err(#InvalidId);
             };
             case (?scoredResponse) {
-                // TODO - Security: decide if only owner of mAIner should be allowed to retrieve this
-                return #Ok(scoredResponse);
+                // Only owner of mAIner is allowed to retrieve this
+                switch (getUserMainerAgents(msg.caller)) {
+                    case (null) {
+                        return #Err(#Unauthorized);
+                    };
+                    case (?userMainerEntries) {
+                        let submittedBy : Text = Principal.toText(scoredResponse.submittedBy);
+                        switch (List.find<Types.OfficialMainerAgentCanister>(userMainerEntries, func(mainerEntry: Types.OfficialMainerAgentCanister) : Bool { mainerEntry.address == submittedBy } )) {
+                            case (null) {
+                                return #Err(#Unauthorized);
+                            };
+                            case (?userMainerEntry) {
+                                return #Ok(scoredResponse);
+                            };
+                        };
+                    };
+                };
             };
         };
     };
@@ -6108,7 +6128,7 @@ actor class GameStateCanister() = this {
         return List.toArray(officialCanisters);        
     };
 
-// Mockup functions (TODO - Testing: remove)
+/* // Mockup functions (TODO - Testing: remove)
     // Function for frontend integration testing that returns mockup data
     public query (msg) func getScoreForSubmission_mockup(submissionInput : Types.SubmissionRetrievalInput) : async Types.ScoredResponseRetrievalResult {
         switch (getOpenChallenge(submissionInput.challengeId)) {
@@ -6349,7 +6369,7 @@ actor class GameStateCanister() = this {
         } else {
             return #Err(#InvalidId);
         };
-    };
+    }; */
 
 // Upgrade Hooks (TODO - Implementation: upgrade Motoko to use enhanced orthogonal persistence)
     system func preupgrade() {

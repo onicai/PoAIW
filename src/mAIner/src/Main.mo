@@ -304,10 +304,9 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getIssueFlagsAdmin() : async Types.IssueFlagsRetrievalResult {
-        // TODO - Security: put access checks in place
-        /* if (not Principal.isController(msg.caller)) {
+        if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
-        }; */
+        };
         let response : Types.IssueFlagsRecord = {
             lowCycleBalance = PAUSED_DUE_TO_LOW_CYCLE_BALANCE;
         };
@@ -334,10 +333,9 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getMainerStatisticsAdmin() : async Types.StatisticsRetrievalResult {
-        // TODO - Security: put access checks in place
-        /* if (not Principal.isController(msg.caller)) {
+        if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
-        }; */
+        };
         var cyclesBurnRateToReturn : Types.CyclesBurnRate = CYCLES_BURN_RATE_DEFAULT;
         switch (getCurrentAgentSettings()) {
             case (null) {};
@@ -464,10 +462,9 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getRecentSubmittedResponsesAdmin() : async Types.ChallengeResponseSubmissionsResult {
-        // TODO - Security: put access checks in place
-        /* if (not Principal.isController(msg.caller)) {
+        if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
-        }; */
+        };
         let submissions : [Types.ChallengeResponseSubmission] = getLastSubmittedResponses(5);
         return #Ok(submissions);
     };
@@ -1946,12 +1943,12 @@ actor class MainerAgentCtrlbCanister() = this {
         await stopTimerExecution();
     };
 
-    // TODO - Testing: remove; testing function for admin
+    // Testing function for admin for ShareService
     public shared (msg) func triggerChallengeResponseAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
-        if (MAINER_AGENT_CANISTER_TYPE != #ShareService) {
+        /* if (MAINER_AGENT_CANISTER_TYPE != #ShareService) {
             // execute the timer 1 action
             D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): triggerChallengeResponseAdmin - (timer 1 action) calling pullNextChallenge");
             await pullNextChallenge();
@@ -1960,10 +1957,16 @@ actor class MainerAgentCtrlbCanister() = this {
             // execute timer 2 action
             D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): triggerChallengeResponseAdmin - (timer 2 action) calling processNextChallenge");
             await processNextChallenge();
+        }; */
+        if (MAINER_AGENT_CANISTER_TYPE == #ShareService) {
+            // execute timer 2 action
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): triggerChallengeResponseAdmin - (timer 2 action) calling processNextChallenge");
+            await processNextChallenge();
+            let authRecord = { auth = "You triggered the response generation." };
+            return #Ok(authRecord);
+        } else {
+            return #Err(#StatusCode(401));
         };
-        
-        let authRecord = { auth = "You triggered the response generation." };
-        return #Ok(authRecord);
     };
 
     // Upgrade Hooks

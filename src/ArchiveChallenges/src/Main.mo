@@ -12,7 +12,7 @@ import Types "../../common/Types";
 
 actor class ArchiveChallengesCanister() = this {
 
-    stable var MASTER_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // Corresponds to Game State canister
+    stable var MASTER_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // Corresponds to prd Game State canister
 
     public shared (msg) func setMasterCanisterId(_master_canister_id : Text) : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
