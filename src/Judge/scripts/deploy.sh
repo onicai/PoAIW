@@ -41,9 +41,9 @@ while [ $# -gt 0 ]; do
 done
 
 if [ "$NETWORK_TYPE" = "ic" ]; then
-    SUBNET="csyj4-zmann-ys6ge-3kzi6-onexi-obayx-2fvak-zersm-euci4-6pslt-lae"
+    SUBNET="yinp6-35cfo-wgcd2-oc4ty-2kqpf-t4dul-rfk33-fsq3r-mfmua-m2ngh-jqe"
 elif [ "$NETWORK_TYPE" = "testing" ]; then
-    SUBNET="csyj4-zmann-ys6ge-3kzi6-onexi-obayx-2fvak-zersm-euci4-6pslt-lae"
+    SUBNET="yinp6-35cfo-wgcd2-oc4ty-2kqpf-t4dul-rfk33-fsq3r-mfmua-m2ngh-jqe"
 elif [ "$NETWORK_TYPE" = "prd" ]; then
     SUBNET="snjp4-xlbw4-mnbog-ddwy6-6ckfd-2w5a2-eipqo-7l436-pxqkh-l6fuv-vae"
 elif [ "$NETWORK_TYPE" = "development" ]; then
