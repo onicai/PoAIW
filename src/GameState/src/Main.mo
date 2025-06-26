@@ -4774,6 +4774,12 @@ actor class GameStateCanister() = this {
             return #Err(#Other("Protocol is currently paused"));
         };
 
+        // For now, only Controller canisters are allowed to add LLMs to mAIners
+        // This is temporary solution to ensure we scale the system appropriately
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
         // Sanity checks on mAIner info
         if (not Principal.equal(mainerInfo.ownedBy, msg.caller)) {
             // Only the same user may continue with the creation flow
