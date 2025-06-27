@@ -5462,6 +5462,38 @@ actor class GameStateCanister() = this {
         return #Ok(getMainerAgents());
     };
 
+    public shared query (msg) func getMainerAgentCanistersForUserAdmin(user : Text) : async Types.MainerAgentCanistersResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        switch (getUserMainerAgents(Principal.fromText(user))) {
+            case (null) { return #Err(#Other("No canisters for this user")); };
+            case (?userCanistersList) {
+                return #Ok(List.toArray<Types.OfficialMainerAgentCanister>(userCanistersList));                              
+            };
+        };
+    };
+
+    public shared query (msg) func getNumMainerAgentCanistersForUserAdmin(user : Text) : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        switch (getUserMainerAgents(Principal.fromText(user))) {
+            case (null) { return #Err(#Other("No canisters for this user")); };
+            case (?userCanistersList) {
+                return #Ok(List.size<Types.OfficialMainerAgentCanister>(userCanistersList));                              
+            };
+        };
+    };
+
     public shared query (msg) func getNumberMainerAgentsAdmin(checkInput : Types.CheckMainerLimit) : async Types.NatResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
