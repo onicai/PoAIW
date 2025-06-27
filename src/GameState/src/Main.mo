@@ -54,6 +54,22 @@ actor class GameStateCanister() = this {
         return #Ok({ flag = PAUSE_PROTOCOL });
     };
 
+    // Flag to indicate if whitelist phase is going on
+    stable var WHITELIST_PHASE_ACTIVE : Bool = false;
+
+    public shared (msg) func toggleWhitelistPhaseActiveFlagAdmin() : async Types.AuthRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        WHITELIST_PHASE_ACTIVE := not WHITELIST_PHASE_ACTIVE;
+        let authRecord = { auth = "You set the flag to " # debug_show(WHITELIST_PHASE_ACTIVE) };
+        return #Ok(authRecord);
+    };
+
+    public query func getIsWhitelistPhaseActive() : async Types.FlagResult {
+        return #Ok({ flag = WHITELIST_PHASE_ACTIVE });
+    };
+
     // Flag to disable whitelist mAIner creation flow
     stable var PAUSE_WHITELIST_MAINER_CREATION : Bool = true;
 
@@ -88,6 +104,21 @@ actor class GameStateCanister() = this {
                 LIMIT_SHARED_MAINERS := newLimitInput.newLimit;
                 let authRecord = { auth = "You set LIMIT_SHARED_MAINERS to " # debug_show(LIMIT_SHARED_MAINERS) };
                 return #Ok(authRecord);
+            };
+            case (_) { return #Err(#Unauthorized); }
+        };
+    };
+
+    public shared query (msg) func getLimitForCreatingMainerAdmin(checkInput : Types.CheckMainerLimit) : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        switch (checkInput.mainerType) {
+            case (#Own) {
+                return #Ok(LIMIT_OWN_MAINERS);
+            };
+            case (#ShareAgent) {
+                return #Ok(LIMIT_SHARED_MAINERS);
             };
             case (_) { return #Err(#Unauthorized); }
         };
@@ -439,7 +470,7 @@ actor class GameStateCanister() = this {
         timeInterval : Types.TimeInterval = #Daily;
     };
     stable var cyclesBurnRateDefaultHigh : Types.CyclesBurnRate = {
-        cycles : Nat = 3 * Constants.CYCLES_TRILLION;
+        cycles : Nat = 4 * Constants.CYCLES_TRILLION;
         timeInterval : Types.TimeInterval = #Daily;
     };
     stable var cyclesBurnRateDefaultVeryHigh : Types.CyclesBurnRate = {
@@ -3667,14 +3698,14 @@ actor class GameStateCanister() = this {
                                 switch (mainerAgentCanisterType) {
                                     case (#Own) {
                                         D.print("GameState: whitelistVerifyIncomingPayment - #MainerCreation Own transferDetails.amount.e8s: "# debug_show(transferDetails.amount.e8s));
-                                        D.print("GameState: whitelistVerifyIncomingPayment - #MainerCreation Own PRICE_OWN_MAINER: "# debug_show(PRICE_FOR_OWN_MAINER_ICP));
+                                        D.print("GameState: whitelistVerifyIncomingPayment - #MainerCreation Own WHITELIST_PRICE_FOR_OWN_MAINER_ICP: "# debug_show(WHITELIST_PRICE_FOR_OWN_MAINER_ICP));
                                         if (transferDetails.amount.e8s < WHITELIST_PRICE_FOR_OWN_MAINER_ICP * E8S_PER_ICP_WITH_BUFFER) {
                                             return #Err(#Other("Transaction didn't pay full price"));
                                         };  
                                     };
                                     case (#ShareAgent) {
                                         D.print("GameState: whitelistVerifyIncomingPayment - #MainerCreation ShareAgent transferDetails.amount.e8s: "# debug_show(transferDetails.amount.e8s));
-                                        D.print("GameState: whitelistVerifyIncomingPayment - #MainerCreation ShareAgent PRICE_SHARED_MAINER: "# debug_show(PRICE_FOR_SHARE_AGENT_ICP));
+                                        D.print("GameState: whitelistVerifyIncomingPayment - #MainerCreation ShareAgent WHITELIST_PRICE_FOR_SHARE_AGENT_ICP: "# debug_show(WHITELIST_PRICE_FOR_SHARE_AGENT_ICP));
                                         if (transferDetails.amount.e8s < WHITELIST_PRICE_FOR_SHARE_AGENT_ICP * E8S_PER_ICP_WITH_BUFFER) {
                                             return #Err(#Other("Transaction didn't pay full price"));
                                         };                                
@@ -5429,6 +5460,38 @@ actor class GameStateCanister() = this {
         };
 
         return #Ok(getMainerAgents());
+    };
+
+    public shared query (msg) func getMainerAgentCanistersForUserAdmin(user : Text) : async Types.MainerAgentCanistersResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        switch (getUserMainerAgents(Principal.fromText(user))) {
+            case (null) { return #Err(#Other("No canisters for this user")); };
+            case (?userCanistersList) {
+                return #Ok(List.toArray<Types.OfficialMainerAgentCanister>(userCanistersList));                              
+            };
+        };
+    };
+
+    public shared query (msg) func getNumMainerAgentCanistersForUserAdmin(user : Text) : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        switch (getUserMainerAgents(Principal.fromText(user))) {
+            case (null) { return #Err(#Other("No canisters for this user")); };
+            case (?userCanistersList) {
+                return #Ok(List.size<Types.OfficialMainerAgentCanister>(userCanistersList));                              
+            };
+        };
     };
 
     public shared query (msg) func getNumberMainerAgentsAdmin(checkInput : Types.CheckMainerLimit) : async Types.NatResult {
