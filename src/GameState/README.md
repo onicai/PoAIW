@@ -67,6 +67,12 @@ Response:
 ## Add Unlocked mAIner
 dfx canister call game_state_canister unlockUserMainerAgent '(record { paymentTransactionBlockId = 0;  owner = opt principal "fmx2v-tpf3n-ihkag-gag34-oknfv-tbujq-ke4oe-r42z2-lwclp-fnff3-bqe"; mainerConfig = record { mainerAgentCanisterType = variant {ShareAgent}; selectedLLM = null; cyclesForMainer = 0; subnetCtrl = ""; subnetLlm = ""; }; })' --network $NETWORK
 
+dfx canister call game_state_canister getMainerAgentCanistersAdmin --network $NETWORK
+
+dfx canister call game_state_canister getMainerAgentCanistersForUserAdmin '"fmx2v-tpf3n-ihkag-gag34-oknfv-tbujq-ke4oe-r42z2-lwclp-fnff3-bqe"' --network $NETWORK
+
+dfx canister call game_state_canister getNumMainerAgentCanistersForUserAdmin '"fmx2v-tpf3n-ihkag-gag34-oknfv-tbujq-ke4oe-r42z2-lwclp-fnff3-bqe"' --network $NETWORK
+
 ## Set price of mAIner
 ### ShareAgent
 dfx canister call game_state_canister setIcpForShareAgentAdmin '10' --network $NETWORK
