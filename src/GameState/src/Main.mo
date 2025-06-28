@@ -4445,7 +4445,7 @@ actor class GameStateCanister() = this {
             };
             case (_) { return #Err(#Other("Unsupported")); }
         };
-        if (mainerInfo.mainerConfig.cyclesForMainer > 10 * Constants.CYCLES_TRILLION) {
+        if (mainerInfo.mainerConfig.cyclesForMainer > 40 * Constants.CYCLES_TRILLION) {
             return #Err(#Unauthorized);
         };
 
