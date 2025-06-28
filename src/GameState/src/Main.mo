@@ -4406,6 +4406,202 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Function for admin to finish the setup of a user's mAIner agent Controller canister (if any issues arose)
+    public shared (msg) func completeMainerSetupForUserAdmin(mainerInfo : Types.OfficialMainerAgentCanister) : async Types.MainerAgentCanisterResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (PAUSE_PROTOCOL and not Principal.isController(msg.caller)) {
+            return #Err(#Other("Protocol is currently paused"));
+        };
+        D.print("GameState: completeMainerSetupForUserAdmin - Entered with mainerInfo: "# debug_show(mainerInfo));
+
+        // Sanity checks on mAIner info
+        if (Principal.equal(mainerInfo.ownedBy, msg.caller)) {
+            D.print("GameState: completeMainerSetupForUserAdmin - 01 ");
+            return #Err(#Unauthorized);
+        };
+        if (mainerInfo.address != "") {
+            // At this point, no canister should have been created, i.e. no canister address
+            D.print("GameState: completeMainerSetupForUserAdmin - 02 ");
+            return #Err(#InvalidId);
+        };
+        switch (mainerInfo.canisterType) {
+            case (#MainerAgent(_)) {
+                // continue
+            };
+            case (_) { return #Err(#Other("Unsupported")); }
+        };
+
+        if (mainerInfo.mainerConfig.cyclesForMainer > 40 * Constants.CYCLES_TRILLION) {
+            return #Err(#Unauthorized);
+        };
+
+        // Verify existing mAIner entry
+        switch (getUserMainerAgents(mainerInfo.ownedBy)) {
+            case (null) {
+                D.print("GameState: completeMainerSetupForUserAdmin - 03 ");
+                return #Err(#Unauthorized);
+            };
+            case (?userMainerEntries) {
+                // Find entry by creationTimestamp as no Controller address exists yet
+                switch (List.find<Types.OfficialMainerAgentCanister>(userMainerEntries, func(mainerEntry: Types.OfficialProtocolCanister) : Bool { mainerEntry.creationTimestamp == mainerInfo.creationTimestamp } )) {
+                    case (null) {
+                        D.print("GameState: completeMainerSetupForUserAdmin - 04 ");
+                        return #Err(#InvalidId);
+                    };
+                    case (?userMainerEntry) {
+                        D.print("GameState: completeMainerSetupForUserAdmin - Found userMainerEntry: "# debug_show(userMainerEntry));
+                        // Sanity checks on userMainerEntry (i.e. info provided is correct and matches entry info)
+                        if (userMainerEntry.address != "") {
+                            // At this point, no canister should have been created, i.e. no canister address
+                            D.print("GameState: completeMainerSetupForUserAdmin - 05 ");
+                            return #Err(#InvalidId);
+                        };
+                        switch (userMainerEntry.canisterType) {
+                            case (#MainerAgent(_)) {
+                                // continue
+                            };
+                            case (_) { return #Err(#Other("Unsupported")); }
+                        };
+                        
+                        let temporaryEntry : Types.OfficialMainerAgentCanister = {
+                            address : Text = userMainerEntry.address;
+                            subnet : Text = userMainerEntry.subnet;
+                            canisterType: Types.ProtocolCanisterType = userMainerEntry.canisterType;
+                            creationTimestamp : Nat64 = userMainerEntry.creationTimestamp;
+                            createdBy : Principal = userMainerEntry.createdBy;
+                            ownedBy : Principal = userMainerEntry.ownedBy;
+                            status : Types.CanisterStatus = #ControllerCreationInProgress; // only field updated
+                            mainerConfig : Types.MainerConfigurationInput = userMainerEntry.mainerConfig;
+                        };
+                        switch (putUserMainerAgent(temporaryEntry)) {
+                            case (true) {
+                                // continue
+                            };
+                            case (false) { return #Err(#FailedOperation); }
+                        };
+                        // Forward creation request to mAIner Creator canister
+                        switch (getNextMainerCreatorCanisterEntry()) {
+                            case (null) {
+                                // This should never happen as it indicates there isn't any mAIner Creator canister registered here
+                                D.print("GameState: completeMainerSetupForUserAdmin - 07 ");
+                                return #Err(#Unauthorized);
+                            };
+                            case (?mainerCreatorEntry) {
+                                let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
+
+                                // Get the Shared Service canister entry if of type ShareAgent
+                                var associatedCanisterAddress : ?Types.CanisterAddress = null;
+                                var associatedCanisterSubnet : Text = "";
+                                var mainerAgentCanisterType : Types.MainerAgentCanisterType = #ShareAgent;
+                                switch (userMainerEntry.canisterType) {
+                                    case (#MainerAgent(#Own)) {
+                                        // continue
+                                        mainerAgentCanisterType := #Own;
+                                    };
+                                    case (#MainerAgent(#ShareAgent)) {
+                                        mainerAgentCanisterType := #ShareAgent;
+                                        // if of type ShareAgent, the shareServiceCanisterAddress is provided from the Game State info and added here as associatedCanisterAddress
+                                        switch (getNextSharedServiceCanisterEntry()) {
+                                            case (null) {
+                                                // This should never happen as it indicates there isn't any Shared mAIning Service canister registered here
+                                                D.print("GameState: completeMainerSetupForUserAdmin - There is no Shared mAIning Service canister registered.");
+                                                return #Err(#Unauthorized);
+                                            };
+                                            case (?sharedServiceEntry) {
+                                                associatedCanisterAddress := ?sharedServiceEntry.address;
+                                                associatedCanisterSubnet := sharedServiceEntry.subnet;
+                                                try {
+                                                    // Make sure the associated ShareService canister actually exists
+                                                    let _ = Principal.fromText(sharedServiceEntry.address); // this will throw an error if it's not a valid canister address
+                                                    let associatedControllerCanisterActor = actor (sharedServiceEntry.address) : Types.MainerAgentCtrlbCanister;
+                                                    let healthResult = await associatedControllerCanisterActor.health();
+                                                    D.print("GameState: completeMainerSetupForUserAdmin - Associated ShareService canister (" # sharedServiceEntry.address # ") healthResult " # debug_show (healthResult));
+                                                    switch (healthResult) {
+                                                        case (#Err(error)) {
+                                                            return #Err(error);
+                                                        };
+                                                        case _ {
+                                                            // all good, continue
+                                                        };
+                                                    };
+                                                } catch (e) {
+                                                    D.print("GameState: completeMainerSetupForUserAdmin -  failed to validate existence & health of associated ShareService canister: " # debug_show(sharedServiceEntry.address ) # " Error: " # Error.message(e) );
+                                                    return #Err(#Other("GameState: completeMainerSetupForUserAdmin -  failed to validate existence & health of associated ShareService canister: " # debug_show(sharedServiceEntry.address ) #  " Error: " # Error.message(e)));
+                                                };
+                                            };
+                                        };
+                                    };
+                                    case (_) { return #Err(#Other("Unsupported")); }
+                                };
+
+                                // uses cyclesForMainer from input
+                                let cyclesCreateMainer : Types.CyclesCreateMainer = calculateCyclesCreateMainer(mainerInfo.mainerConfig.cyclesForMainer, mainerAgentCanisterType);
+                                
+                                let canisterCreationInput : Types.CanisterCreationConfiguration = {
+                                    canisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType;
+                                    owner: Principal = userMainerEntry.ownedBy; // User
+                                    associatedCanisterAddress : ?Types.CanisterAddress = associatedCanisterAddress; // null for #Own, shareServiceCanisterAddress for ShareAgent
+                                    associatedCanisterSubnet : Text = associatedCanisterSubnet;
+                                    mainerConfig : Types.MainerConfigurationInput = mainerInfo.mainerConfig; // updated from input
+                                    userMainerEntryCreationTimestamp : Nat64 = userMainerEntry.creationTimestamp;
+                                    userMainerEntryCanisterType : Types.ProtocolCanisterType = userMainerEntry.canisterType;
+                                    cyclesCreateMainerctrlGsMc : Nat = cyclesCreateMainer.cyclesCreateMainerctrlGsMc;
+                                    cyclesCreateMainerllmGsMc : Nat = cyclesCreateMainer.cyclesCreateMainerllmGsMc;
+                                    cyclesCreateMainerctrlMcMainerctrl : Nat = cyclesCreateMainer.cyclesCreateMainerctrlMcMainerctrl;
+                                    cyclesCreateMainerllmMcMainerllm : Nat = cyclesCreateMainer.cyclesCreateMainerllmMcMainerllm;
+                                };
+                                
+                                let cyclesAdded = cyclesCreateMainer.cyclesCreateMainerctrlGsMc;
+                                D.print("GameState: completeMainerSetupForUserAdmin - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
+                                Cycles.add<system>(cyclesAdded);
+
+                                D.print("GameState: completeMainerSetupForUserAdmin - calling creatorCanisterActor.createCanister with canisterCreationInput: "# debug_show(canisterCreationInput));
+                                // This only creates the canister and returns:
+                                // -> Use await, so we can return the controller's address to frontend
+                                let result : Types.CanisterCreationResult = await creatorCanisterActor.createCanister(canisterCreationInput);
+                                D.print("GameState: completeMainerSetupForUserAdmin - createCanister result: "# debug_show(result));
+
+                                switch (result) {
+                                    case (#Ok(canisterCreationRecord)) {
+
+                                        // Setup the controller canister (install code & configurations)
+                                        let setupCanisterInput : Types.SetupCanisterInput = {
+                                            newCanisterId : Text = canisterCreationRecord.newCanisterId;
+                                            subnet : Text = canisterCreationRecord.subnet;
+                                            configurationInput : Types.CanisterCreationConfiguration = canisterCreationInput;
+                                        };
+                                        D.print("GameState: completeMainerSetupForUserAdmin - calling creatorCanisterActor.setupCanister with setupCanisterInput: " # debug_show(setupCanisterInput) );
+                                        ignore creatorCanisterActor.setupCanister(setupCanisterInput);
+
+                                        let canisterEntryToAdd : Types.OfficialMainerAgentCanister = {
+                                            address : Text = canisterCreationRecord.newCanisterId; // New mAIner Controller canister's id
+                                            subnet : Text = canisterCreationRecord.subnet; // New mAIner Controller canister's subnet
+                                            canisterType: Types.ProtocolCanisterType = userMainerEntry.canisterType;
+                                            creationTimestamp : Nat64 = userMainerEntry.creationTimestamp;
+                                            createdBy : Principal = Principal.fromText(mainerCreatorEntry.address); // mAIner Creator
+                                            ownedBy : Principal = userMainerEntry.ownedBy; // User
+                                            status : Types.CanisterStatus = #Running;
+                                            mainerConfig : Types.MainerConfigurationInput = mainerInfo.mainerConfig; // updated from input
+                                        };
+                                        D.print("GameState: completeMainerSetupForUserAdmin - canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );
+                                        ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_MAINER_CREATION);
+                                        addMainerAgentCanister_(canisterEntryToAdd);
+                                    };
+                                    case (_) { return #Err(#FailedOperation); };
+                                };            
+                            };
+                        };
+                    };
+                };
+            };
+        };
+    };
+
     // Function for admin to create a new mAIner agent Controller canister for a user
     public shared (msg) func spinUpMainerControllerCanisterForUserAdmin(mainerInfo : Types.OfficialMainerAgentCanister) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
