@@ -189,7 +189,7 @@ dfx canister call funnAI_ledger_canister icrc1_minting_account --network prd
 dfx canister call funnAI_ledger_canister icrc1_total_supply --network prd
 
 On Game State:
-dfx canister call game_state_canister --network prd setTokenLedgerCanisterId '("")'
+dfx canister call game_state_canister --network prd setTokenLedgerCanisterId '("vpyot-zqaaa-aaaaa-qavaq-cai")'
  
 dfx canister call game_state_canister --network prd testTokenMintingAdmin 
 

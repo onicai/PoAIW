@@ -22,4 +22,4 @@ dfx canister call archive_challenges_canister setMasterCanisterId '("r5m5y-diaaa
 dfx canister call archive_challenges_canister getMasterCanisterId --network prd
 
 Set archive canister in Game State (funnAI folder):
-dfx canister call game_state_canister setArchiveCanisterId '("")' --network prd
+dfx canister call game_state_canister setArchiveCanisterId '("474n2-qiaaa-aaaaf-qasoq-cai")' --network prd
