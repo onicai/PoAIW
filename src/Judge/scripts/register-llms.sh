@@ -40,8 +40,8 @@ if [ "$NETWORK_TYPE" = "testing" ]; then
     NUM_LLMS_DEPLOYED=3
     NUM_LLMS_ROUND_ROBIN=3
 elif [ "$NETWORK_TYPE" = "prd" ]; then
-    NUM_LLMS_DEPLOYED=13
-    NUM_LLMS_ROUND_ROBIN=13
+    NUM_LLMS_DEPLOYED=16
+    NUM_LLMS_ROUND_ROBIN=16
 fi
 
 #######################################################################
@@ -92,14 +92,15 @@ do
     fi
 done
 
-echo " "
-echo "--------------------------------------------------"
-echo "Setting NUM_LLMS_ROUND_ROBIN to $NUM_LLMS_ROUND_ROBIN"
-output=$(dfx canister call judge_ctrlb_canister setRoundRobinLLMs "($NUM_LLMS_ROUND_ROBIN)" --network $NETWORK_TYPE)
+# We no longer call this, so all LLMs will be used
+# echo " "
+# echo "--------------------------------------------------"
+# echo "Setting NUM_LLMS_ROUND_ROBIN to $NUM_LLMS_ROUND_ROBIN"
+# output=$(dfx canister call judge_ctrlb_canister setRoundRobinLLMs "($NUM_LLMS_ROUND_ROBIN)" --network $NETWORK_TYPE)
 
-if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-    echo "setRoundRobinLLMs call failed. Exiting."
-    exit 1
-else
-    echo "setRoundRobinLLMs was successful."
-fi
+# if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+#     echo "setRoundRobinLLMs call failed. Exiting."
+#     exit 1
+# else
+#     echo "setRoundRobinLLMs was successful."
+# fi

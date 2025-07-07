@@ -287,6 +287,13 @@ module Types {
         #MainerLlm;
     };
 
+    public type LlmCanistersRecordResult = Result<LlmCanistersRecord, ApiError>;
+    public type LlmCanistersRecord = {
+        llmCanisterIds : [CanisterAddress]; // List of LLM canister IDs as text
+        roundRobinUseAll : Bool; // If true, use all canisters in round-robin fashion
+        roundRobinLLMs : Nat; // number of LLMs to use - Only used when roundRobinUseAll is false
+    };
+    
     public type CanisterAddress = Text;
 
     public type CanisterAddressesResult = Result<[CanisterAddress], ApiError>;
