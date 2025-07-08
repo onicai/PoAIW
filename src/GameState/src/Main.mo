@@ -275,14 +275,39 @@ actor class GameStateCanister() = this {
         return #Ok(authRecord);
     };
 
-    public shared (msg) func getTreasuryCanisterId() : async Text {
+    public query (msg) func getTreasuryCanisterId() : async Text {
+        if (Principal.isAnonymous(msg.caller)) {
+            return "#Err(#Unauthorized)";
+        };
+        if (not Principal.isController(msg.caller)) {
+            return "#Err(#Unauthorized)";
+        };
+        return TREASURY_CANISTER_ID;
+    };
+
+    // Flag to disable disbursements to treasury
+    stable var DISBURSE_FUNDS_TO_TREASURY : Bool = false;
+
+    public shared (msg) func toggleDisburseFundsToTreasuryFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        return TREASURY_CANISTER_ID;
+        DISBURSE_FUNDS_TO_TREASURY := not DISBURSE_FUNDS_TO_TREASURY;
+        let authRecord = { auth = "You set the flag to " # debug_show(DISBURSE_FUNDS_TO_TREASURY) };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getDisburseFundsToTreasuryFlag() : async Types.FlagResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok({ flag = DISBURSE_FUNDS_TO_TREASURY });
     };
 
     // ICP Ledger
