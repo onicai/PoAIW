@@ -431,10 +431,10 @@ actor class GameStateCanister() = this {
 
     // Game Settings
     // TODO - Design: determine settings to use
-    stable var THRESHOLD_ARCHIVE_CLOSED_CHALLENGES : Nat = 30;
-    stable var THRESHOLD_MAX_OPEN_CHALLENGES : Nat = 2; // When above, Challengers will not be given a topic able to generate new challenges
-    stable var THRESHOLD_MAX_OPEN_SUBMISSIONS : Nat = 5; // When above, mAIner agents will not be given a challenge to generate new responses
-    stable var THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE : Nat = 7; // When reached, ranking and winner declaration; challenge is closed
+    stable var THRESHOLD_ARCHIVE_CLOSED_CHALLENGES : Nat = 150;
+    stable var THRESHOLD_MAX_OPEN_CHALLENGES : Nat = 4; // When above, Challengers will not be given a topic able to generate new challenges
+    stable var THRESHOLD_MAX_OPEN_SUBMISSIONS : Nat = 140; // When above, mAIner agents will not be given a challenge to generate new responses
+    stable var THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE : Nat = 27; // When reached, ranking and winner declaration; challenge is closed
     
     public shared (msg) func setGameStateThresholdsAdmin(thresholds : Types.GameStateTresholds) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
