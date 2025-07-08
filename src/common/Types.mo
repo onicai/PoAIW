@@ -449,6 +449,14 @@ module Types {
         paymentTransactionBlockId : Nat64;
     };
 
+    public type IcpTransferArgs = {
+        amount : TokenLedger.Tokens;
+        toPrincipal : Principal;
+        toSubaccount : ?Blob;
+    };
+
+    public type IcpTransferResult = Result<Nat64, ApiError>;
+
     public type MainerCreationInput = PaymentTransactionBlockId and {
         mainerConfig : MainerConfigurationInput;
         owner: ?Principal;
@@ -1059,6 +1067,18 @@ module Types {
 
     public type MainersResult = Result<[(Text, OfficialMainerAgentCanister)], ApiError>;
 
+// Treasury Canister
+    public type NotifyDisbursementInput = {
+        transactionId : Nat64;
+        disbursementAmount : Nat;
+    };
+
+    public type NotifyDisbursementRecord = {
+        disbursementHandled : Bool;
+    };
+
+    public type NotifyDisbursementResult = Result<NotifyDisbursementRecord, ApiError>;
+
     //-------------------------------------------------------------------------
 // Canister Actors
     public type GameStateCanister_Actor = actor {
@@ -1133,6 +1153,11 @@ module Types {
     public type ArchiveChallengesCanister_Actor = actor {
         addChallenges : (ChallengeMigrationInput) -> async ChallengeMigrationResult;
         addMainersAdmin : (MainerBackupInput) -> async MainerBackupResult;
+    };
+
+    // Treasury canister
+    public type TreasuryCanister_Actor = actor {
+        notifyDisbursement : (NotifyDisbursementInput) -> async NotifyDisbursementResult;
     };
 
     // ICP Token Ledger

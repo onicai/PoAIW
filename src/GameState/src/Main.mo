@@ -42,6 +42,9 @@ actor class GameStateCanister() = this {
     stable var PAUSE_PROTOCOL : Bool = true;
 
     public shared (msg) func togglePauseProtocolFlagAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -58,6 +61,9 @@ actor class GameStateCanister() = this {
     stable var WHITELIST_PHASE_ACTIVE : Bool = false;
 
     public shared (msg) func toggleWhitelistPhaseActiveFlagAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -74,6 +80,9 @@ actor class GameStateCanister() = this {
     stable var PAUSE_WHITELIST_MAINER_CREATION : Bool = true;
 
     public shared (msg) func togglePauseWhitelistMainerCreationFlagAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -91,6 +100,9 @@ actor class GameStateCanister() = this {
     stable var LIMIT_OWN_MAINERS : Nat = 0;
 
     public shared (msg) func setLimitForCreatingMainerAdmin(newLimitInput : Types.MainerLimitInput) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -110,6 +122,9 @@ actor class GameStateCanister() = this {
     };
 
     public shared query (msg) func getLimitForCreatingMainerAdmin(checkInput : Types.CheckMainerLimit) : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -127,6 +142,9 @@ actor class GameStateCanister() = this {
     stable var BUFFER_MAINER_CREATION : Nat = 7;
 
     public shared (msg) func setBufferMainerCreation(newBuffer : Nat) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -136,6 +154,9 @@ actor class GameStateCanister() = this {
     };
 
     public query (msg) func getBufferMainerCreation() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -187,6 +208,9 @@ actor class GameStateCanister() = this {
 
     // TODO: remove this function before launching
     public shared (msg) func setTokenLedgerCanisterId(_token_ledger_canister_id : Text) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -197,6 +221,9 @@ actor class GameStateCanister() = this {
 
     // TODO: remove this function before launching
     public shared (msg) func testTokenMintingAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -233,59 +260,207 @@ actor class GameStateCanister() = this {
         };
     };
 
-    // ICP Ledger
-    /* type Tokens = {
-        e8s : Nat64;
+    // Treasury Canister
+    stable var TREASURY_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // TODO: update
+
+    public shared (msg) func setTreasuryCanisterId(_treasury_canister_id : Text) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        TREASURY_CANISTER_ID := _treasury_canister_id;
+        let authRecord = { auth = "You set the treasury canister id." };
+        return #Ok(authRecord);
     };
 
-    type TransferArgs = {
-        amount : Tokens;
-        toPrincipal : Principal;
-        toSubaccount : ?TokenLedger.SubAccount;
+    public query (msg) func getTreasuryCanisterId() : async Text {
+        if (Principal.isAnonymous(msg.caller)) {
+            return "#Err(#Unauthorized)";
+        };
+        if (not Principal.isController(msg.caller)) {
+            return "#Err(#Unauthorized)";
+        };
+        return TREASURY_CANISTER_ID;
     };
-    private func transfer(args : TransferArgs) : async Result.Result<TokenLedger.BlockIndex, Text> {
-        Debug.print(
+
+    // Flag to disable disbursements to treasury
+    stable var DISBURSE_FUNDS_TO_TREASURY : Bool = false;
+
+    public shared (msg) func toggleDisburseFundsToTreasuryFlagAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        DISBURSE_FUNDS_TO_TREASURY := not DISBURSE_FUNDS_TO_TREASURY;
+        let authRecord = { auth = "You set the flag to " # debug_show(DISBURSE_FUNDS_TO_TREASURY) };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getDisburseFundsToTreasuryFlag() : async Types.FlagResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok({ flag = DISBURSE_FUNDS_TO_TREASURY });
+    };
+
+    // Threshold of minimum ICP balance Game State should keep
+    stable var MINIMUM_ICP_BALANCE : Nat = 30; // in full ICP
+
+    public shared (msg) func setMinimumIcpBalance(newBalance : Nat) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        MINIMUM_ICP_BALANCE := newBalance;
+        let authRecord = { auth = "You set the balance." };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getMinimumIcpBalance() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(MINIMUM_ICP_BALANCE);
+    };
+
+    // Function for admin to disburse 10 ICP to treasury
+    public shared (msg) func disburseIcpToTreasuryAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not DISBURSE_FUNDS_TO_TREASURY) {
+            return #Err(#Unauthorized);
+        };
+        let icpToDisburse : Nat = 10; // full ICP
+        let E8S_PER_ICP : Nat = 100_000_000; // 10^8 e8s per ICP
+        let amountForTransfer : TokenLedger.Tokens = { e8s : Nat64 = Nat64.fromNat(icpToDisburse * E8S_PER_ICP); };
+        let transferArgs : Types.IcpTransferArgs = {
+            amount : TokenLedger.Tokens = amountForTransfer;
+            toPrincipal : Principal = Principal.fromText(TREASURY_CANISTER_ID);
+            toSubaccount : ?Blob = null;            
+        };
+
+        let transferResult : Types.IcpTransferResult = await transfer(transferArgs);
+
+        // check if the transfer was successfull
+        switch (transferResult) {
+            case (#Err(transferError)) {
+                return #Err(#Other("Couldn't transfer funds:\n" # debug_show (transferError)));
+            };
+            case (#Ok(blockIndex)) {
+                let authRecord = { auth = "You disbursed ICP with this block index: " # debug_show (blockIndex) };
+                return #Ok(authRecord);
+            };
+        };
+    };
+
+    private func disburseIncomingFundsToTreasury(amountToDisburse : Nat) : async Types.AuthRecordResult {
+        if (not DISBURSE_FUNDS_TO_TREASURY) {
+            return #Err(#Unauthorized);
+        };
+        // amountToDisburse is in e8s
+        let E8S_PER_ICP : Nat = 100_000_000; // 10^8 e8s per ICP
+        if (amountToDisburse > 10 * E8S_PER_ICP) {
+            // Block big disbursements as a security measurement
+            return #Err(#Unauthorized);
+        };
+        
+        let amountForTransfer : TokenLedger.Tokens = { e8s : Nat64 = Nat64.fromNat(amountToDisburse); };
+        let transferArgs : Types.IcpTransferArgs = {
+            amount : TokenLedger.Tokens = amountForTransfer;
+            toPrincipal : Principal = Principal.fromText(TREASURY_CANISTER_ID);
+            toSubaccount : ?Blob = null;            
+        };
+
+        let transferResult : Types.IcpTransferResult = await transfer(transferArgs);
+
+        // check if the transfer was successfull
+        switch (transferResult) {
+            case (#Err(transferError)) {
+                return #Err(#Other("Couldn't transfer funds:\n" # debug_show (transferError)));
+            };
+            case (#Ok(blockIndex)) {
+                // Notify treasury canister so it can handle the disbursement
+                let Treasury_Actor : Types.TreasuryCanister_Actor = actor (TREASURY_CANISTER_ID);
+                try {
+                    let notifyResult = await Treasury_Actor.notifyDisbursement({
+                        transactionId : Nat64 = blockIndex;
+                        disbursementAmount : Nat = amountToDisburse;
+                    });
+                    D.print("GameState: disburseIncomingFundsToTreasury - notifyResult: " # debug_show(notifyResult)); 
+                } catch (e) {
+                    D.print("GameState: disburseIncomingFundsToTreasury - Failed to notify treasury canister: " # Error.message(e));      
+                    return #Err(#Other("GameState: disburseIncomingFundsToTreasury - Failed to notify treasury canister: " # Error.message(e)));
+                };
+
+                let authRecord = { auth = "You disbursed ICP with this block index: " # debug_show (blockIndex) };
+                return #Ok(authRecord);
+            };
+        };
+    };
+
+    // ICP Ledger
+    private func transfer(args : Types.IcpTransferArgs) : async Types.IcpTransferResult {
+        D.print(
             "Transferring "
             # debug_show (args.amount)
-            # " tokens to principal "
-            # debug_show (args.toPrincipal)
-            # " subaccount "
-            # debug_show (args.toSubaccount)
+            # " tokens to TREASURY_CANISTER_ID "
+            # debug_show (TREASURY_CANISTER_ID)
         );
 
-        let transferArgs : TokenLedger.TransferArgs = {
+        let treasuryAccount : TokenLedger.Account = {
+            owner : Principal = Principal.fromText(TREASURY_CANISTER_ID);
+            subaccount : ?Blob = null;
+        };
+
+        let transferArg : TokenLedger.TransferArg = {
             // can be used to distinguish between transactions
-            memo = 0;
+            memo : ?Blob = null;
             // the amount we want to transfer
-            amount = args.amount;
+            amount : Nat = Nat64.toNat(args.amount.e8s);
             // the ICP ledger charges 10_000 e8s for a transfer
-            fee = { e8s = 10_000 };
+            fee : ?Nat = null;
             // we are transferring from the canisters default subaccount, therefore we don't need to specify it
-            from_subaccount = null;
-            // we take the principal and subaccount from the arguments and convert them into an account identifier
-            to = Principal.toLedgerAccount(args.toPrincipal, args.toSubaccount);
+            from_subaccount : ?Blob = null;
+            // we hardcode the treasury info as an account identifier
+            to : TokenLedger.Account = treasuryAccount;
             // a timestamp indicating when the transaction was created by the caller; if it is not specified by the caller then this is set to the current ICP time
-            created_at_time = null;
+            created_at_time : ?Nat64 = null;
         };
 
         try {
-            // initiate the transfer
-            let transferResult = await ICP_LEDGER_ACTOR.transfer(transferArgs);
+            // initiate the transfer            
+            let transferResult : TokenLedger.Result = await ICP_LEDGER_ACTOR.icrc1_transfer(transferArg);
 
             // check if the transfer was successfull
             switch (transferResult) {
                 case (#Err(transferError)) {
-                return #err("Couldn't transfer funds:\n" # debug_show (transferError));
+                    return #Err(#Other("Couldn't transfer funds:\n" # debug_show (transferError)));
                 };
-                case (#Ok(blockIndex)) { return #ok blockIndex };
+                case (#Ok(blockIndex)) { return #Ok(Nat64.fromNat(blockIndex)) };
             };
         } catch (error : Error) {
             // catch any errors that might occur during the transfer
-            return #err("Reject message: " # Error.message(error));
+            return #Err(#Other("Reject message: " # Error.message(error)));
         };
     };
 
-    private func verify_payment(paymentBlockIndex : TokenLedger.BlockIndex) : async Result.Result<Text, Text> {
+    /* private func verify_payment(paymentBlockIndex : TokenLedger.BlockIndex) : async Result.Result<Text, Text> {
         // https://internetcomputer.org/docs/defi/token-ledgers/usage/icp_ledger_usage#receiving-icp
         let startIndex : Nat64 = paymentBlockIndex;
         let queryLength : Nat64 = 1;
@@ -315,6 +490,9 @@ actor class GameStateCanister() = this {
 
     // Update the wasm hash record for the mAIner with the new wasm hash as input
     public shared (msg) func setOfficialMainerAgentCanisterWasmHashAdmin(updateWasmHashInput : Types.UpdateWasmHashInput) : async Types.CanisterWasmHashRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -339,6 +517,9 @@ actor class GameStateCanister() = this {
 
     // Update the wasm hash record for the mAIner by getting the new wasm hash from a running mAIner
     public shared (msg) func deriveNewMainerAgentCanisterWasmHashAdmin(deriveWasmHashInput : Types.DeriveWasmHashInput) : async Types.CanisterWasmHashRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -385,6 +566,9 @@ actor class GameStateCanister() = this {
     };
     
     public shared (msg) func testMainerCodeIntegrityAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -437,6 +621,9 @@ actor class GameStateCanister() = this {
     stable var THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE : Nat = 27; // When reached, ranking and winner declaration; challenge is closed
     
     public shared (msg) func setGameStateThresholdsAdmin(thresholds : Types.GameStateTresholds) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -448,6 +635,9 @@ actor class GameStateCanister() = this {
     };
 
     public shared query (msg) func getGameStateThresholdsAdmin() : async Types.GameStateTresholdsResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -3390,6 +3580,14 @@ actor class GameStateCanister() = this {
                                 cyclesForMainer : Nat = cyclesForMainer;
                             };
                             D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult response: "# debug_show(response));
+                            // Disburse incoming ICP to treasury if applicable
+                            try {
+                                if (DISBURSE_FUNDS_TO_TREASURY and amountToKeep > 0) {
+                                    ignore disburseIncomingFundsToTreasury(amountToKeep);
+                                };
+                            } catch (error : Error) {
+                                D.print("GameState: handleIncomingFunds - disburse error: "# Error.message(error));
+                            };
                             return #Ok(response);               
                         };
                         case (#Err(topUpError)) {
