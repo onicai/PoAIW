@@ -310,6 +310,31 @@ actor class GameStateCanister() = this {
         return #Ok({ flag = DISBURSE_FUNDS_TO_TREASURY });
     };
 
+    // Threshold of minimum ICP balance Game State should keep
+    stable var MINIMUM_ICP_BALANCE : Nat = 30; // in full ICP
+
+    public shared (msg) func setMinimumIcpBalance(newBalance : Nat) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        MINIMUM_ICP_BALANCE := newBalance;
+        let authRecord = { auth = "You set the balance." };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getMinimumIcpBalance() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(MINIMUM_ICP_BALANCE);
+    };
+
     // ICP Ledger
     /* type Tokens = {
         e8s : Nat64;
