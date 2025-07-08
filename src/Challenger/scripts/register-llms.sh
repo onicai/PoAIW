@@ -86,14 +86,15 @@ do
     fi
 done
 
-echo " "
-echo "--------------------------------------------------"
-echo "Setting NUM_LLMS_ROUND_ROBIN to $NUM_LLMS_ROUND_ROBIN"
-output=$(dfx canister call challenger_ctrlb_canister setRoundRobinLLMs "($NUM_LLMS_ROUND_ROBIN)" --network $NETWORK_TYPE)
+# We no longer call this, so all LLMs will be used
+# echo " "
+# echo "--------------------------------------------------"
+# echo "Setting NUM_LLMS_ROUND_ROBIN to $NUM_LLMS_ROUND_ROBIN"
+# output=$(dfx canister call challenger_ctrlb_canister setRoundRobinLLMs "($NUM_LLMS_ROUND_ROBIN)" --network $NETWORK_TYPE)
 
-if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-    echo "setRoundRobinLLMs call failed. Exiting."
-    exit 1
-else
-    echo "setRoundRobinLLMs was successful."
-fi
+# if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
+#     echo "setRoundRobinLLMs call failed. Exiting."
+#     exit 1
+# else
+#     echo "setRoundRobinLLMs was successful."
+# fi

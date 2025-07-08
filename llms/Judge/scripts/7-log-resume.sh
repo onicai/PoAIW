@@ -36,7 +36,7 @@ if [ "$NETWORK_TYPE" = "development" ] || [ "$NETWORK_TYPE" = "demo" ]; then
 elif [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ]; then
     NUM_LLMS_DEPLOYED=3
 elif [ "$NETWORK_TYPE" = "prd" ]; then
-    NUM_LLMS_DEPLOYED=13
+    NUM_LLMS_DEPLOYED=16
 fi
 
 echo "NUM_LLMS_DEPLOYED : $NUM_LLMS_DEPLOYED"

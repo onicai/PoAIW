@@ -55,7 +55,7 @@ elif [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ]; then
     SUBNET_LLM_1="pae4o-o6dxf-xki7q-ezclx-znyd6-fnk6w-vkv5z-5lfwh-xym2i-otrrw-fqe"
     SUBNET_LLM_2="pae4o-o6dxf-xki7q-ezclx-znyd6-fnk6w-vkv5z-5lfwh-xym2i-otrrw-fqe"
 elif [ "$NETWORK_TYPE" = "prd" ]; then
-    NUM_LLMS_DEPLOYED=13
+    NUM_LLMS_DEPLOYED=16
     # Deploy 2 LLMs to subnet where Challenger LLM is running & then 3 LLMs per other subnets
     # https://docs.google.com/spreadsheets/d/1KeyylEYVs3cQvYXOc9RS0q5eWd_vWIW1UVycfDEIkBk/edit?gid=0#gid=0
     # SUBNET_1_1
@@ -76,6 +76,10 @@ elif [ "$NETWORK_TYPE" = "prd" ]; then
     SUBNET_LLM_10="jtdsg-3h6gi-hs7o5-z2soi-43w3z-soyl3-ajnp3-ekni5-sw553-5kw67-nqe"
     SUBNET_LLM_11="jtdsg-3h6gi-hs7o5-z2soi-43w3z-soyl3-ajnp3-ekni5-sw553-5kw67-nqe"
     SUBNET_LLM_12="jtdsg-3h6gi-hs7o5-z2soi-43w3z-soyl3-ajnp3-ekni5-sw553-5kw67-nqe"
+    # SUBNET_1_6
+    SUBNET_LLM_13="brlsh-zidhj-3yy3e-6vqbz-7xnih-xeq2l-as5oc-g32c4-i5pdn-2wwof-oae"
+    SUBNET_LLM_14="brlsh-zidhj-3yy3e-6vqbz-7xnih-xeq2l-as5oc-g32c4-i5pdn-2wwof-oae"
+    SUBNET_LLM_15="brlsh-zidhj-3yy3e-6vqbz-7xnih-xeq2l-as5oc-g32c4-i5pdn-2wwof-oae"
 fi
 
 # go to the funnAI folder
