@@ -42,6 +42,9 @@ actor class GameStateCanister() = this {
     stable var PAUSE_PROTOCOL : Bool = true;
 
     public shared (msg) func togglePauseProtocolFlagAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -58,6 +61,9 @@ actor class GameStateCanister() = this {
     stable var WHITELIST_PHASE_ACTIVE : Bool = false;
 
     public shared (msg) func toggleWhitelistPhaseActiveFlagAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -74,6 +80,9 @@ actor class GameStateCanister() = this {
     stable var PAUSE_WHITELIST_MAINER_CREATION : Bool = true;
 
     public shared (msg) func togglePauseWhitelistMainerCreationFlagAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -91,6 +100,9 @@ actor class GameStateCanister() = this {
     stable var LIMIT_OWN_MAINERS : Nat = 0;
 
     public shared (msg) func setLimitForCreatingMainerAdmin(newLimitInput : Types.MainerLimitInput) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -110,6 +122,9 @@ actor class GameStateCanister() = this {
     };
 
     public shared query (msg) func getLimitForCreatingMainerAdmin(checkInput : Types.CheckMainerLimit) : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -127,6 +142,9 @@ actor class GameStateCanister() = this {
     stable var BUFFER_MAINER_CREATION : Nat = 7;
 
     public shared (msg) func setBufferMainerCreation(newBuffer : Nat) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -136,6 +154,9 @@ actor class GameStateCanister() = this {
     };
 
     public query (msg) func getBufferMainerCreation() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -187,6 +208,9 @@ actor class GameStateCanister() = this {
 
     // TODO: remove this function before launching
     public shared (msg) func setTokenLedgerCanisterId(_token_ledger_canister_id : Text) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -197,6 +221,9 @@ actor class GameStateCanister() = this {
 
     // TODO: remove this function before launching
     public shared (msg) func testTokenMintingAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -231,6 +258,31 @@ actor class GameStateCanister() = this {
         } catch (e) {
             return #Err(#Other("Failed to call ledger: " # Error.message(e)));
         };
+    };
+
+    // Treasury Canister
+    stable var TREASURY_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // TODO: update
+
+    public shared (msg) func setTreasuryCanisterId(_treasury_canister_id : Text) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        TREASURY_CANISTER_ID := _treasury_canister_id;
+        let authRecord = { auth = "You set the treasury canister id." };
+        return #Ok(authRecord);
+    };
+
+    public shared (msg) func getTreasuryCanisterId() : async Text {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return TREASURY_CANISTER_ID;
     };
 
     // ICP Ledger
@@ -315,6 +367,9 @@ actor class GameStateCanister() = this {
 
     // Update the wasm hash record for the mAIner with the new wasm hash as input
     public shared (msg) func setOfficialMainerAgentCanisterWasmHashAdmin(updateWasmHashInput : Types.UpdateWasmHashInput) : async Types.CanisterWasmHashRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -339,6 +394,9 @@ actor class GameStateCanister() = this {
 
     // Update the wasm hash record for the mAIner by getting the new wasm hash from a running mAIner
     public shared (msg) func deriveNewMainerAgentCanisterWasmHashAdmin(deriveWasmHashInput : Types.DeriveWasmHashInput) : async Types.CanisterWasmHashRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -385,6 +443,9 @@ actor class GameStateCanister() = this {
     };
     
     public shared (msg) func testMainerCodeIntegrityAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -437,6 +498,9 @@ actor class GameStateCanister() = this {
     stable var THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE : Nat = 27; // When reached, ranking and winner declaration; challenge is closed
     
     public shared (msg) func setGameStateThresholdsAdmin(thresholds : Types.GameStateTresholds) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -448,6 +512,9 @@ actor class GameStateCanister() = this {
     };
 
     public shared query (msg) func getGameStateThresholdsAdmin() : async Types.GameStateTresholdsResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
