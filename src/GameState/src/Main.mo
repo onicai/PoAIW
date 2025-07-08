@@ -366,6 +366,48 @@ actor class GameStateCanister() = this {
         };
     };
 
+    private func disburseIncomingFundsToTreasury(amountToDisburse : Nat) : async Types.AuthRecordResult {
+        // amountToDisburse is in e8s
+        let E8S_PER_ICP : Nat = 100_000_000; // 10^8 e8s per ICP
+        if (amountToDisburse > 10 * E8S_PER_ICP) {
+            // Block big disbursements as a security measurement
+            return #Err(#Unauthorized);
+        };
+        
+        let amountForTransfer : TokenLedger.Tokens = { e8s : Nat64 = Nat64.fromNat(amountToDisburse); };
+        let transferArgs : Types.IcpTransferArgs = {
+            amount : TokenLedger.Tokens = amountForTransfer;
+            toPrincipal : Principal = Principal.fromText(TREASURY_CANISTER_ID);
+            toSubaccount : ?Blob = null;            
+        };
+
+        let transferResult : Types.IcpTransferResult = await transfer(transferArgs);
+
+        // check if the transfer was successfull
+        switch (transferResult) {
+            case (#Err(transferError)) {
+                return #Err(#Other("Couldn't transfer funds:\n" # debug_show (transferError)));
+            };
+            case (#Ok(blockIndex)) {
+                // Notify treasury canister so it can handle the disbursement
+                let Treasury_Actor : Types.TreasuryCanister_Actor = actor (TREASURY_CANISTER_ID);
+                try {
+                    let notifyResult = await Treasury_Actor.notifyDisbursement({
+                        transactionId : Nat64 = blockIndex;
+                        disbursementAmount : Nat = amountToDisburse;
+                    });
+                    D.print("GameState: disburseIncomingFundsToTreasury - notifyResult: " # debug_show(notifyResult)); 
+                } catch (e) {
+                    D.print("GameState: disburseIncomingFundsToTreasury - Failed to notify treasury canister: " # Error.message(e));      
+                    return #Err(#Other("GameState: disburseIncomingFundsToTreasury - Failed to notify treasury canister: " # Error.message(e)));
+                };
+
+                let authRecord = { auth = "You disbursed ICP with this block index: " # debug_show (blockIndex) };
+                return #Ok(authRecord);
+            };
+        };
+    };
+
     // ICP Ledger
     private func transfer(args : Types.IcpTransferArgs) : async Types.IcpTransferResult {
         D.print(
@@ -3532,6 +3574,14 @@ actor class GameStateCanister() = this {
                                 cyclesForMainer : Nat = cyclesForMainer;
                             };
                             D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult response: "# debug_show(response));
+                            // Disburse incoming ICP to treasury if applicable
+                            try {
+                                if (DISBURSE_FUNDS_TO_TREASURY and amountToKeep > 0) {
+                                    ignore disburseIncomingFundsToTreasury(amountToKeep);
+                                };
+                            } catch (error : Error) {
+                                D.print("GameState: handleIncomingFunds - disburse error: "# Error.message(error));
+                            };
                             return #Ok(response);               
                         };
                         case (#Err(topUpError)) {
