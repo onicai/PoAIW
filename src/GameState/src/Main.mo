@@ -343,6 +343,9 @@ actor class GameStateCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        if (not DISBURSE_FUNDS_TO_TREASURY) {
+            return #Err(#Unauthorized);
+        };
         let icpToDisburse : Nat = 10; // full ICP
         let E8S_PER_ICP : Nat = 100_000_000; // 10^8 e8s per ICP
         let amountForTransfer : TokenLedger.Tokens = { e8s : Nat64 = Nat64.fromNat(icpToDisburse * E8S_PER_ICP); };
@@ -367,6 +370,9 @@ actor class GameStateCanister() = this {
     };
 
     private func disburseIncomingFundsToTreasury(amountToDisburse : Nat) : async Types.AuthRecordResult {
+        if (not DISBURSE_FUNDS_TO_TREASURY) {
+            return #Err(#Unauthorized);
+        };
         // amountToDisburse is in e8s
         let E8S_PER_ICP : Nat = 100_000_000; // 10^8 e8s per ICP
         if (amountToDisburse > 10 * E8S_PER_ICP) {
