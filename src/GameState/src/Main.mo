@@ -431,10 +431,10 @@ actor class GameStateCanister() = this {
 
     // Game Settings
     // TODO - Design: determine settings to use
-    stable var THRESHOLD_ARCHIVE_CLOSED_CHALLENGES : Nat = 30;
-    stable var THRESHOLD_MAX_OPEN_CHALLENGES : Nat = 2; // When above, Challengers will not be given a topic able to generate new challenges
-    stable var THRESHOLD_MAX_OPEN_SUBMISSIONS : Nat = 5; // When above, mAIner agents will not be given a challenge to generate new responses
-    stable var THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE : Nat = 7; // When reached, ranking and winner declaration; challenge is closed
+    stable var THRESHOLD_ARCHIVE_CLOSED_CHALLENGES : Nat = 150;
+    stable var THRESHOLD_MAX_OPEN_CHALLENGES : Nat = 4; // When above, Challengers will not be given a topic able to generate new challenges
+    stable var THRESHOLD_MAX_OPEN_SUBMISSIONS : Nat = 140; // When above, mAIner agents will not be given a challenge to generate new responses
+    stable var THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE : Nat = 27; // When reached, ranking and winner declaration; challenge is closed
     
     public shared (msg) func setGameStateThresholdsAdmin(thresholds : Types.GameStateTresholds) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -3214,6 +3214,9 @@ actor class GameStateCanister() = this {
 
     // Function for Admin to get a RedeemedTransactionBlock in case something went wrong and it can then be retried
     public shared (msg) func getRedeemedTransactionBlockAdmin(paymentTransactionBlockId : Types.PaymentTransactionBlockId) : async Types.RedeemedTransactionBlockResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized); 
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -3227,8 +3230,22 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Function for Admin to get all RedeemedTransactionBlocks
+    public shared (msg) func getRedeemedTransactionBlocksAdmin() : async Types.RedeemedTransactionBlocksResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized); 
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(Iter.toArray(redeemedTransactionBlocksStorage.vals()));
+    };
+
     // Function for Admin to clear a RedeemedTransactionBlock in case something went wrong and it can then be retried
     public shared (msg) func removeRedeemedTransactionBlockAdmin(paymentTransactionBlockId : Types.PaymentTransactionBlockId) : async Types.TextResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized); 
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -6140,7 +6157,7 @@ actor class GameStateCanister() = this {
                             case (true) {
                                 // TODO - Implementation: adapt cycles burnt stats
                                 ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_WINNER_DECLARATION);
-                                if (List.size<Types.Challenge>(archivedChallenges) >= 2 * THRESHOLD_ARCHIVE_CLOSED_CHALLENGES) {
+                                if (List.size<Types.Challenge>(archivedChallenges) >= THRESHOLD_ARCHIVE_CLOSED_CHALLENGES) {
                                     // If the archived challenges storage is getting too big, migrate them to another canister and remove related data
                                     ignore migrateArchivedChallenges();
                                 };
