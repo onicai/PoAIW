@@ -6157,7 +6157,7 @@ actor class GameStateCanister() = this {
                             case (true) {
                                 // TODO - Implementation: adapt cycles burnt stats
                                 ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_WINNER_DECLARATION);
-                                if (List.size<Types.Challenge>(archivedChallenges) >= 2 * THRESHOLD_ARCHIVE_CLOSED_CHALLENGES) {
+                                if (List.size<Types.Challenge>(archivedChallenges) >= THRESHOLD_ARCHIVE_CLOSED_CHALLENGES) {
                                     // If the archived challenges storage is getting too big, migrate them to another canister and remove related data
                                     ignore migrateArchivedChallenges();
                                 };
