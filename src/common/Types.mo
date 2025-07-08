@@ -423,6 +423,8 @@ module Types {
 
     public type RedeemedTransactionBlockResult = Result<RedeemedTransactionBlock, ApiError>;
 
+    public type RedeemedTransactionBlocksResult = Result<[RedeemedTransactionBlock], ApiError>;
+
     public type PriceRecord = {
         price : Nat64;
     };

@@ -3214,6 +3214,9 @@ actor class GameStateCanister() = this {
 
     // Function for Admin to get a RedeemedTransactionBlock in case something went wrong and it can then be retried
     public shared (msg) func getRedeemedTransactionBlockAdmin(paymentTransactionBlockId : Types.PaymentTransactionBlockId) : async Types.RedeemedTransactionBlockResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized); 
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -3227,8 +3230,22 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Function for Admin to get all RedeemedTransactionBlocks
+    public shared (msg) func getRedeemedTransactionBlocksAdmin() : async Types.RedeemedTransactionBlocksResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized); 
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(Iter.toArray(redeemedTransactionBlocksStorage.vals()));
+    };
+
     // Function for Admin to clear a RedeemedTransactionBlock in case something went wrong and it can then be retried
     public shared (msg) func removeRedeemedTransactionBlockAdmin(paymentTransactionBlockId : Types.PaymentTransactionBlockId) : async Types.TextResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized); 
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
