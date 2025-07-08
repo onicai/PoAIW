@@ -335,59 +335,84 @@ actor class GameStateCanister() = this {
         return #Ok(MINIMUM_ICP_BALANCE);
     };
 
-    // ICP Ledger
-    /* type Tokens = {
-        e8s : Nat64;
+    // Function for admin to disburse 10 ICP to treasury
+    public shared (msg) func disburseIcpToTreasuryAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let icpToDisburse : Nat = 10; // full ICP
+        let E8S_PER_ICP : Nat = 100_000_000; // 10^8 e8s per ICP
+        let amountForTransfer : TokenLedger.Tokens = { e8s : Nat64 = Nat64.fromNat(icpToDisburse * E8S_PER_ICP); };
+        let transferArgs : Types.IcpTransferArgs = {
+            amount : TokenLedger.Tokens = amountForTransfer;
+            toPrincipal : Principal = Principal.fromText(TREASURY_CANISTER_ID);
+            toSubaccount : ?Blob = null;            
+        };
+
+        let transferResult : Types.IcpTransferResult = await transfer(transferArgs);
+
+        // check if the transfer was successfull
+        switch (transferResult) {
+            case (#Err(transferError)) {
+                return #Err(#Other("Couldn't transfer funds:\n" # debug_show (transferError)));
+            };
+            case (#Ok(blockIndex)) {
+                let authRecord = { auth = "You disbursed ICP with this block index: " # debug_show (blockIndex) };
+                return #Ok(authRecord);
+            };
+        };
     };
 
-    type TransferArgs = {
-        amount : Tokens;
-        toPrincipal : Principal;
-        toSubaccount : ?TokenLedger.SubAccount;
-    };
-    private func transfer(args : TransferArgs) : async Result.Result<TokenLedger.BlockIndex, Text> {
-        Debug.print(
+    // ICP Ledger
+    private func transfer(args : Types.IcpTransferArgs) : async Types.IcpTransferResult {
+        D.print(
             "Transferring "
             # debug_show (args.amount)
-            # " tokens to principal "
-            # debug_show (args.toPrincipal)
-            # " subaccount "
-            # debug_show (args.toSubaccount)
+            # " tokens to TREASURY_CANISTER_ID "
+            # debug_show (TREASURY_CANISTER_ID)
         );
 
-        let transferArgs : TokenLedger.TransferArgs = {
+        let treasuryAccount : TokenLedger.Account = {
+            owner : Principal = Principal.fromText(TREASURY_CANISTER_ID);
+            subaccount : ?Blob = null;
+        };
+
+        let transferArg : TokenLedger.TransferArg = {
             // can be used to distinguish between transactions
-            memo = 0;
+            memo : ?Blob = null;
             // the amount we want to transfer
-            amount = args.amount;
+            amount : Nat = Nat64.toNat(args.amount.e8s);
             // the ICP ledger charges 10_000 e8s for a transfer
-            fee = { e8s = 10_000 };
+            fee : ?Nat = null;
             // we are transferring from the canisters default subaccount, therefore we don't need to specify it
-            from_subaccount = null;
-            // we take the principal and subaccount from the arguments and convert them into an account identifier
-            to = Principal.toLedgerAccount(args.toPrincipal, args.toSubaccount);
+            from_subaccount : ?Blob = null;
+            // we hardcode the treasury info as an account identifier
+            to : TokenLedger.Account = treasuryAccount;
             // a timestamp indicating when the transaction was created by the caller; if it is not specified by the caller then this is set to the current ICP time
-            created_at_time = null;
+            created_at_time : ?Nat64 = null;
         };
 
         try {
-            // initiate the transfer
-            let transferResult = await ICP_LEDGER_ACTOR.transfer(transferArgs);
+            // initiate the transfer            
+            let transferResult : TokenLedger.Result = await ICP_LEDGER_ACTOR.icrc1_transfer(transferArg);
 
             // check if the transfer was successfull
             switch (transferResult) {
                 case (#Err(transferError)) {
-                return #err("Couldn't transfer funds:\n" # debug_show (transferError));
+                    return #Err(#Other("Couldn't transfer funds:\n" # debug_show (transferError)));
                 };
-                case (#Ok(blockIndex)) { return #ok blockIndex };
+                case (#Ok(blockIndex)) { return #Ok(Nat64.fromNat(blockIndex)) };
             };
         } catch (error : Error) {
             // catch any errors that might occur during the transfer
-            return #err("Reject message: " # Error.message(error));
+            return #Err(#Other("Reject message: " # Error.message(error)));
         };
     };
 
-    private func verify_payment(paymentBlockIndex : TokenLedger.BlockIndex) : async Result.Result<Text, Text> {
+    /* private func verify_payment(paymentBlockIndex : TokenLedger.BlockIndex) : async Result.Result<Text, Text> {
         // https://internetcomputer.org/docs/defi/token-ledgers/usage/icp_ledger_usage#receiving-icp
         let startIndex : Nat64 = paymentBlockIndex;
         let queryLength : Nat64 = 1;

@@ -449,6 +449,14 @@ module Types {
         paymentTransactionBlockId : Nat64;
     };
 
+    public type IcpTransferArgs = {
+        amount : TokenLedger.Tokens;
+        toPrincipal : Principal;
+        toSubaccount : ?Blob;
+    };
+
+    public type IcpTransferResult = Result<Nat64, ApiError>;
+
     public type MainerCreationInput = PaymentTransactionBlockId and {
         mainerConfig : MainerConfigurationInput;
         owner: ?Principal;
