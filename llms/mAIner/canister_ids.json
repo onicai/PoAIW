@@ -1,4 +1,80 @@
 {
-  "llm_0": {},
-  "llm_1": {}
+  "llm_0": {
+    "prd": "4yuew-ziaaa-aaaag-auc7a-cai"
+  },
+  "llm_1": {
+    "prd": "47vcc-uqaaa-aaaag-auc7q-cai"
+  },
+  "llm_10": {
+    "prd": "iiulj-6iaaa-aaaan-qz4rq-cai"
+  },
+  "llm_11": {
+    "prd": "i5t2e-7aaaa-aaaan-qz4sa-cai"
+  },
+  "llm_12": {
+    "prd": "xgcwi-caaaa-aaaag-audaq-cai"
+  },
+  "llm_13": {
+    "prd": ""
+  },
+  "llm_14": {
+    "prd": ""
+  },
+  "llm_15": {
+    "prd": ""
+  },
+  "llm_16": {
+    "prd": ""
+  },
+  "llm_17": {
+    "prd": ""
+  },
+  "llm_18": {
+    "prd": ""
+  },
+  "llm_19": {
+    "prd": ""
+  },
+  "llm_2": {
+    "prd": "xbdq4-pyaaa-aaaag-audaa-cai"
+  },
+  "llm_20": {
+    "prd": ""
+  },
+  "llm_21": {
+    "prd": ""
+  },
+  "llm_22": {
+    "prd": ""
+  },
+  "llm_23": {
+    "prd": ""
+  },
+  "llm_24": {
+    "prd": ""
+  },
+  "llm_25": {
+    "prd": ""
+  },
+  "llm_3": {
+    "prd": "6eiml-cqaaa-aaaai-q3yna-cai"
+  },
+  "llm_4": {
+    "prd": "6djk7-piaaa-aaaai-q3ynq-cai"
+  },
+  "llm_5": {
+    "prd": "6wo3s-oaaaa-aaaai-q3yoa-cai"
+  },
+  "llm_6": {
+    "prd": "tiw5l-siaaa-aaaac-awb2q-cai"
+  },
+  "llm_7": {
+    "prd": "sl2un-gqaaa-aaaac-awb4a-cai"
+  },
+  "llm_8": {
+    "prd": "sm3sz-liaaa-aaaac-awb4q-cai"
+  },
+  "llm_9": {
+    "prd": "ipvn5-tqaaa-aaaan-qz4ra-cai"
+  }
 }

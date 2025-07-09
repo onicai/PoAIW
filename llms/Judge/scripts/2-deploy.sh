@@ -1,10 +1,5 @@
 #!/bin/bash
 
-#######################################################################
-# run from parent folder as:
-# scripts/2-deploy-reinstall.sh --network [local|ic]
-#######################################################################
-
 # Default network type is local
 NETWORK_TYPE="local"
 NUM_LLMS_DEPLOYED=1
@@ -82,16 +77,17 @@ elif [ "$NETWORK_TYPE" = "prd" ]; then
     SUBNET_LLM_15="brlsh-zidhj-3yy3e-6vqbz-7xnih-xeq2l-as5oc-g32c4-i5pdn-2wwof-oae"
 fi
 
-# go to the funnAI folder
-cd ../../../
-CANISTER_ID_GAME_STATE_CANISTER=$(dfx canister --network $NETWORK_TYPE id game_state_canister)
-# go back to the current folder
-cd PoAIW/llms/Judge/
+# Do this setting manually, once we add new LLMs to the protocol...
+# # go to the funnAI folder
+# cd ../../../
+# CANISTER_ID_GAME_STATE_CANISTER=$(dfx canister --network $NETWORK_TYPE id game_state_canister)
+# # go back to the current folder
+# cd PoAIW/llms/Judge/
 
-echo " "
-echo "--------------------------------------------------"
-echo "Calling Game State ($CANISTER_ID_GAME_STATE_CANISTER) setCyclesFlowAdmin to set numJudgeLlms to $NUM_LLMS_DEPLOYED & re-calculate the CyclesFlow variables"
-dfx canister call $CANISTER_ID_GAME_STATE_CANISTER setCyclesFlowAdmin "(record {numJudgeLlms = opt ($NUM_LLMS_DEPLOYED : nat);})" --network $NETWORK_TYPE
+# echo " "
+# echo "--------------------------------------------------"
+# echo "Calling Game State ($CANISTER_ID_GAME_STATE_CANISTER) setCyclesFlowAdmin to set numJudgeLlms to $NUM_LLMS_DEPLOYED & re-calculate the CyclesFlow variables"
+# dfx canister call $CANISTER_ID_GAME_STATE_CANISTER setCyclesFlowAdmin "(record {numJudgeLlms = opt ($NUM_LLMS_DEPLOYED : nat);})" --network $NETWORK_TYPE
 
 #######################################################################
 echo " "
