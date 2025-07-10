@@ -37,6 +37,13 @@ while [ $# -gt 0 ]; do
 done
 
 echo "Using network type: $NETWORK_TYPE"
+if [ "$NETWORK_TYPE" = "development" ] || [ "$NETWORK_TYPE" = "demo" ]; then
+    NUM_LLMS_DEPLOYED=2
+elif [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ]; then
+    NUM_LLMS_DEPLOYED=3
+elif [ "$NETWORK_TYPE" = "prd" ]; then
+    NUM_LLMS_DEPLOYED=13
+fi
 
 #######################################################################
 echo " "
