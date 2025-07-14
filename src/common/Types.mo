@@ -1079,6 +1079,38 @@ module Types {
 
     public type NotifyDisbursementResult = Result<NotifyDisbursementRecord, ApiError>;
 
+    public type TokenDisbursement = NotifyDisbursementInput and {
+        newIcpBalance : Nat;
+        creationTimestamp : Nat64;
+        sentBy : Principal;
+    };
+
+    public type TokenomicsActionType = {
+        #LiquidityProvision;
+        #Burn;
+        #Stake;
+        #Other : Text;
+    };
+
+    public type TokenomicsActionTokens = {
+        #ICP;
+        #FUNNAI;
+        #Other : Text;
+    };
+
+    public type TokenomicsAction = {
+        actionId : Nat64;
+        token : TokenomicsActionTokens;
+        amount : Nat;
+        creationTimestamp : Nat64;
+        actionType : TokenomicsActionType;
+        additionalToken : ?TokenomicsActionTokens;
+        additionalTokenAmount : Nat;
+        associatedTransactionId : ?Nat64;
+        transactionIdDisbursement : ?Nat64;
+        newIcpBalance : Nat;
+    };
+
     //-------------------------------------------------------------------------
 // Canister Actors
     public type GameStateCanister_Actor = actor {
