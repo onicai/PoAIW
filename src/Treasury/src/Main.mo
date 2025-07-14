@@ -64,11 +64,41 @@ actor class TreasuryCanister() = this {
         return #Ok(authRecord);
     };
 
-    // Official balance
+    // Official balances // TODO - Implementation: decide if needed   
+    stable var icpBalance : Nat = 0; 
+    stable var funnaiBalance : Nat = 0;
 
-    // Disbursements
+    // Disbursements (received from Game State)
+    stable var icpDisbursementsStorage : List.List<Types.TokenDisbursement> = List.nil<Types.TokenDisbursement>();
 
-    // Tokenomics actions taken
+    // Tokenomics actions taken by this canister
+    stable var tokenomicsActionsStorage : List.List<Types.TokenomicsAction> = List.nil<Types.TokenomicsAction>();
 
     // Function for Game State canister to notify treasury of a disbursement and kick off its handling
+    public shared (msg) func notifyDisbursement(disbursementInfo : Types.NotifyDisbursementInput) : async Types.NotifyDisbursementResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID))) {
+            return #Err(#Unauthorized);
+        };
+        D.print("treasury notifyDisbursement disbursementInfo: " # debug_show(disbursementInfo));
+
+        // Game State can make official disbursements
+        icpBalance := icpBalance + disbursementInfo.disbursementAmount;
+        let disbursementEntry : Types.TokenDisbursement = {
+            transactionId : Nat64 = disbursementInfo.transactionId;
+            disbursementAmount : Nat = disbursementInfo.disbursementAmount;
+            newIcpBalance : Nat = icpBalance;
+            creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+            sentBy : Principal = msg.caller;
+        };
+        icpDisbursementsStorage := List.push<Types.TokenDisbursement>(disbursementEntry, icpDisbursementsStorage);
+
+        // TODO - Implementation: trigger tokenomics actions to handle disbursementAmount
+        
+        return #Ok({
+            disbursementHandled : Bool = true;
+        });
+    };
 };
