@@ -7,6 +7,7 @@ import Prelude "mo:base/Prelude";
 
 import TokenLedger "./icp-ledger-interface";
 import CMC "./cycles-minting-canister-interface";
+import LiquidityPool "./icpswap-liquidity-pool-interface";
 
 module Types {
     //-------------------------------------------------------------------------
@@ -1086,6 +1087,7 @@ module Types {
     };
 
     public type TokenomicsActionType = {
+        #Swap;
         #LiquidityProvision;
         #Burn;
         #Stake;
@@ -1110,6 +1112,16 @@ module Types {
         transactionIdDisbursement : ?Nat64;
         newIcpBalance : Nat;
     };
+
+    public type TokenSwapRecord = {
+        token : TokenomicsActionTokens;
+        amount : Nat;
+        creationTimestamp : Nat64;
+        additionalToken : TokenomicsActionTokens;
+        additionalTokenAmount : Nat;
+    };
+
+    public type TokenSwapResult = Result<TokenSwapRecord, ApiError>;
 
     //-------------------------------------------------------------------------
 // Canister Actors
@@ -1191,6 +1203,10 @@ module Types {
     public type TreasuryCanister_Actor = actor {
         notifyDisbursement : (NotifyDisbursementInput) -> async NotifyDisbursementResult;
     };
+
+    // Liquidity Pool FUNNAI/ICP on ICPSwap
+    public let FUNNAI_ICP_LIQUIDITY_POOL_CANISTER_ID = "c5u7l-rqaaa-aaaar-qbqta-cai"; // https://app.icpswap.com/info-swap/pool/details/c5u7l-rqaaa-aaaar-qbqta-cai?path=L2xpcXVpZGl0eT90YWI9VG9wUG9vbHM=&label=TGlxdWlkaXR5
+    public let FunnaiIcpLiquidityPool_Actor : LiquidityPool.LIQUIDITY_POOL = actor (FUNNAI_ICP_LIQUIDITY_POOL_CANISTER_ID);
 
     // ICP Token Ledger
     public let ICP_TOKEN_LEDGER_CANISTER_ID = "ryjl3-tyaaa-aaaaa-aaaba-cai";
