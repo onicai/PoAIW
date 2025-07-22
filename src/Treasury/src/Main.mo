@@ -526,29 +526,116 @@ actor class TreasuryCanister() = this {
                         let totalIcpToConvert = amountReceived + randomExtraIcpToConvert; // in e8s
 
                         // Convert ICP to FUNNAI via swap
-                        let swapResult = await swapIcpToFunnai(totalIcpToConvert, disbursementEntry);
+                        let swapResult : Types.TokenSwapResult = await swapIcpToFunnai(totalIcpToConvert, disbursementEntry);
 
-                        // Handle received FUNNAI
+                        switch (swapResult) {
+                            case (#Ok(swapRecord)) {
 
-                        BURN_INCOMING_FUNNAI
+                                let result : Types.TokenSwapRecord = {
+                                    token : Types.TokenomicsActionTokens = #ICP;
+                                    amount : Nat = icpToConvert;
+                                    creationTimestamp : Nat64 = creationTimestamp;
+                                    additionalToken : Types.TokenomicsActionTokens = #FUNNAI;
+                                    additionalTokenAmount : Nat = receivedAmount;
+                                };
 
-                        BURN_SHARE_FUNNAI
-
-                        LIQUIDITY_ADDITION_INCOMING_FUNNAI
-
-                        LIQUIDITY_SHARE_FUNNAI
-
-                        MATCH_LIQUIDITY_ADDITION_ICP
-                        
-
-                        
-                        return #Ok({
-                            disbursementHandled : Bool = true;
-                        });
+                                // Handle received FUNNAI
+                                ignore handleReceivedFunnai(swapRecord.additionalTokenAmount, disbursementEntry);
+                                
+                                return #Ok({
+                                    disbursementHandled : Bool = true;
+                                });
+                            };
+                            case (#Err(err)) {
+                                D.print("Treasury: handleTokenomicsActions swapResult Err: " # debug_show(err));
+                                return #Err(#Other("Swap error: " # debug_show(err)));
+                            };
+                        };
                     };
                 };
             };
         };
+    };
+
+    // Helper function to burn FUNNAI tokens on the token ledger (by sending them to Game State)
+    private func burnFunnaiTransaction(funnaiToBurn : Nat) : async Nat {
+        let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (TOKEN_LEDGER_CANISTER_ID);
+
+        let args : TokenLedger.TransferArg = {
+            from_subaccount = null;
+            to = {
+                owner = Principal.fromText(MASTER_CANISTER_ID); // Game State is the minting account, sending tokens to it thus burns them
+                subaccount = null;
+            };
+            amount = funnaiToBurn;
+            fee = null;
+            memo = null;
+            created_at_time = null;
+        };
+
+        try {
+            // Call the ledger's icrc1_transfer function
+            let result = await TokenLedger_Actor.icrc1_transfer(args);
+
+            switch (result) {
+                case (#Ok(blockIndex)) {
+                    D.print("Treasury: burnFunnaiTransaction - sending tokens successful: " # debug_show(blockIndex));
+                    return blockIndex;
+                };
+                case (#Err(err)) {
+                    D.print("Treasury: burnFunnaiTransaction - Transfer error: " # debug_show(err));
+                    // TODO - Error Handling (e.g. put into queue and try again later)
+                    return 0;
+                };
+            };
+        } catch (e) {
+            D.print("Treasury: burnFunnaiTransaction - Failed to call ledger: " # Error.message(e));
+            // TODO - Error Handling (e.g. put into queue and try again later)
+            return 0;
+        };
+    };
+
+    private func handleReceivedFunnai(funnaiReceived : Nat, disbursementEntry : Types.TokenDisbursement) : async Types.TokenomicsActionResult {
+        var result : Types.TokenomicsActionResult = #Err(#Other("No action taken"));
+        if (BURN_INCOMING_FUNNAI) {
+            let funnaiToBurn : Nat = funnaiReceived * BURN_SHARE_FUNNAI / 10000; // Share is defined as part of 10000 (i.e. 10000 is 100%, 1 is 0.01%)
+            let burnResult = await burnFunnaiTransaction(funnaiToBurn);
+            if (burnResult > 0) {
+                // Store tokenomics action
+                let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                let newEntry : Types.TokenomicsAction = {
+                    token : Types.TokenomicsActionTokens = #FUNNAI;
+                    amount : Nat = funnaiToBurn;
+                    creationTimestamp : Nat64 = creationTimestamp;
+                    additionalToken : ?Types.TokenomicsActionTokens = null;
+                    additionalTokenAmount : Nat = 0;
+                    actionId : Nat64 = tokenomicsActionCounter;
+                    actionType : TokenomicsActionType = #Burn;
+                    associatedTransactionId : ?Nat64 = ?burnResult;
+                    transactionIdDisbursement : ?Nat64 = ?disbursementEntry.transactionId;
+                    newIcpBalance : Nat = disbursementEntry.newIcpBalance;
+                };                           
+
+                _ = putTokenomicsAction(newEntry);
+
+                result := #Ok(newEntry);
+            };
+        };
+
+        if (LIQUIDITY_ADDITION_INCOMING_FUNNAI) {
+            let funnaiForLiquidity : Nat = funnaiReceived * LIQUIDITY_SHARE_FUNNAI / 10000; // Share is defined as part of 10000 (i.e. 10000 is 100%, 1 is 0.01%)
+
+            if (MATCH_LIQUIDITY_ADDITION_ICP) {
+                // Add FUNNAI and ICP to liquidity pool
+
+            } else {
+                // Add FUNNAI to liquidity pool
+            };
+
+        };                                
+
+        // Remaining FUNNAI is kept in Treasury's balance 
+        return result;
     };
 
     private func swapIcpToFunnai(icpToConvert : Nat, disbursementEntry : Types.TokenDisbursement) : async Types.TokenSwapResult {

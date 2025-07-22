@@ -1123,6 +1123,8 @@ module Types {
 
     public type TokenSwapResult = Result<TokenSwapRecord, ApiError>;
 
+    public type TokenomicsActionResult = Result<TokenomicsAction, ApiError>;
+
     //-------------------------------------------------------------------------
 // Canister Actors
     public type GameStateCanister_Actor = actor {
