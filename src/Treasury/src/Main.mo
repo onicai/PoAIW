@@ -628,6 +628,19 @@ actor class TreasuryCanister() = this {
             if (MATCH_LIQUIDITY_ADDITION_ICP) {
                 // Add FUNNAI and ICP to liquidity pool
 
+                // Mint the initial liquidity position via a dedicated function (triggered by admin): https://github.com/ICPSwap-Labs/docs/blob/main/02.SwapPool/Liquidity/01.Minting_a_Position.md
+                    // Mint position on ICPSwap frontend: https://github.com/ICPSwap-Labs/icpswap-frontend/blob/main/apps/swap/src/hooks/swap/useAddLiquidity.ts
+                // Get the position's info (manually) 
+                // and use it to add liquidity to the position: https://github.com/ICPSwap-Labs/docs/blob/main/02.SwapPool/Liquidity/02.Adding_Liquidity.md
+                    // increase liquidity on ICPSwap frontend: https://github.com/ICPSwap-Labs/icpswap-frontend/blob/main/apps/swap/src/hooks/swap/useIncreaseLiquidity.ts
+                
+                // Increase liquidity position
+                    // approveToken0,
+                    // depositToken0,
+                    // approveToken1,
+                    // depositToken1,
+                    // increaseLiquidity on swap pool: https://github.com/ICPSwap-Labs/icpswap-v3-service/blob/52848ce6e718e6c35e84f77b60acaecb61febdba/src/SwapPool.mo#L1754
+
             } else {
                 // Add FUNNAI to liquidity pool
             };
