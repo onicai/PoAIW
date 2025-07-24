@@ -14,6 +14,7 @@ import List "mo:base/List";
 import Int "mo:base/Int";
 import Time "mo:base/Time";
 import Random "mo:base/Random";
+import Buffer "mo:base/Buffer";
 
 import Types "../../common/Types";
 import TokenLedger "../../common/icp-ledger-interface";
@@ -428,7 +429,7 @@ actor class TreasuryCanister() = this {
     stable var tokenomicsActionCounter : Nat64 = 0;
 
     private func putTokenomicsAction(actionEntry : Types.TokenomicsAction) : Types.TokenomicsAction {
-        tokenomicsActionsStorage := List.push<Text>(actionEntry, tokenomicsActionsStorage);
+        tokenomicsActionsStorage := List.push<Types.TokenomicsAction>(actionEntry, tokenomicsActionsStorage);
         tokenomicsActionCounter := tokenomicsActionCounter + 1;
         return actionEntry;
     };
@@ -477,7 +478,7 @@ actor class TreasuryCanister() = this {
         };
 
         if (DISBURSE_CYCLES_TO_DEVELOPERS) {
-            // TODO: call  Game State to disburse cycles
+            // TODO: call Game State to disburse cycles
         };
 
         if (CONVERT_ICP_TO_FUNNAI) {
@@ -535,7 +536,7 @@ actor class TreasuryCanister() = this {
                         D.print("Treasury: handleTokenomicsActions - amountReceived: " # debug_show (amountReceived));
 
                         // Determine how much extra ICP (from Treasury's balance) to convert as well
-                        let randomExtraIcpToConvert = ICP_BASE_AMOUNT;
+                        var randomExtraIcpToConvert = ICP_BASE_AMOUNT;
                         try {
                             let random = Random.Finite(await Random.blob());
                             let randomValueResult = random.range(4); // Uniformly distributes outcomes in the numeric range [0 .. 2^4 - 1] = [0 .. 15]
@@ -559,15 +560,6 @@ actor class TreasuryCanister() = this {
 
                         switch (swapResult) {
                             case (#Ok(swapRecord)) {
-
-                                let result : Types.TokenSwapRecord = {
-                                    token : Types.TokenomicsActionTokens = #ICP;
-                                    amount : Nat = icpToConvert;
-                                    creationTimestamp : Nat64 = creationTimestamp;
-                                    additionalToken : Types.TokenomicsActionTokens = #FUNNAI;
-                                    additionalTokenAmount : Nat = receivedAmount;
-                                };
-
                                 // Handle received FUNNAI
                                 ignore handleReceivedFunnai(swapRecord.additionalTokenAmount, disbursementEntry);
 
@@ -581,6 +573,7 @@ actor class TreasuryCanister() = this {
                             };
                         };
                     };
+                    case (_) { return #Err(#Other("Transaction wasn't sent correctly")); }
                 };
             };
         };
@@ -637,13 +630,13 @@ actor class TreasuryCanister() = this {
                     additionalToken : ?Types.TokenomicsActionTokens = null;
                     additionalTokenAmount : Nat = 0;
                     actionId : Nat64 = tokenomicsActionCounter;
-                    actionType : TokenomicsActionType = #Burn;
-                    associatedTransactionId : ?Nat64 = ?burnResult;
+                    actionType : Types.TokenomicsActionType = #Burn;
+                    associatedTransactionId : ?Nat64 = ?Nat64.fromNat(burnResult);
                     transactionIdDisbursement : ?Nat64 = ?disbursementEntry.transactionId;
                     newIcpBalance : Nat = disbursementEntry.newIcpBalance;
                 };
 
-                _ = putTokenomicsAction(newEntry);
+                let _ = putTokenomicsAction(newEntry);
 
                 result := #Ok(newEntry);
             };
@@ -831,13 +824,13 @@ actor class TreasuryCanister() = this {
                                 additionalToken : ?Types.TokenomicsActionTokens = ?#FUNNAI;
                                 additionalTokenAmount : Nat = receivedAmount;
                                 actionId : Nat64 = tokenomicsActionCounter;
-                                actionType : TokenomicsActionType = #Swap;
+                                actionType : Types.TokenomicsActionType = #Swap;
                                 associatedTransactionId : ?Nat64 = null;
                                 transactionIdDisbursement : ?Nat64 = ?disbursementEntry.transactionId;
-                                newIcpBalance : Nat = disbursementEntry.newIcpBalance;
+                                newIcpBalance : Nat = disbursementEntry.newIcpBalance - icpToConvert;
                             };
 
-                            _ = putTokenomicsAction(newEntry);
+                            let _ = putTokenomicsAction(newEntry);
 
                             let result : Types.TokenSwapRecord = {
                                 token : Types.TokenomicsActionTokens = #ICP;
