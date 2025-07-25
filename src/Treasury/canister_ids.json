@@ -1,10 +1,10 @@
 {
   "funnai_treasury_canister": {
-    "demo": "",
-    "development": "",
+    "demo": "qbhxa-ziaaa-aaaaa-qbqza-cai",
+    "development": "qbhxa-ziaaa-aaaaa-qbqza-cai",
     "ic": "",
     "local": "",
-    "prd": "",
+    "prd": "qbhxa-ziaaa-aaaaa-qbqza-cai",
     "testing": ""
   }
 }

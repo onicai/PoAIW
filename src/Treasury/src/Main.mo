@@ -38,7 +38,7 @@ actor class TreasuryCanister() = this {
         return #Ok(authRecord);
     };
 
-    public shared (msg) func getMasterCanisterId() : async Types.AuthRecordResult {
+    public query (msg) func getMasterCanisterId() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -153,7 +153,7 @@ actor class TreasuryCanister() = this {
         return #Ok(authRecord);
     };
 
-    public shared (msg) func getIcpBaseAmount() : async Types.AuthRecordResult {
+    public query (msg) func getIcpBaseAmount() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -238,7 +238,7 @@ actor class TreasuryCanister() = this {
         return #Ok(authRecord);
     };
 
-    public shared (msg) func getDeveloperShareIcp() : async Types.AuthRecordResult {
+    public query (msg) func getDeveloperShareIcp() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -296,7 +296,7 @@ actor class TreasuryCanister() = this {
         return #Ok(authRecord);
     };
 
-    public shared (msg) func getBurnShareFunnai() : async Types.AuthRecordResult {
+    public query (msg) func getBurnShareFunnai() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -354,7 +354,7 @@ actor class TreasuryCanister() = this {
         return #Ok(authRecord);
     };
 
-    public shared (msg) func getLiquidityShareFunnai() : async Types.AuthRecordResult {
+    public query (msg) func getLiquidityShareFunnai() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -472,6 +472,7 @@ actor class TreasuryCanister() = this {
         if (currentBalance < MINIMUM_ICP_BALANCE * E8S_PER_ICP) {
             return #Err(#Other("Below minimum ICP balance"));
         };
+        D.print("treasury handleDisbursement icpBalance: " # debug_show (icpBalance));
 
         // Disbursement to developers
         if (DISBURSE_FUNDS_TO_DEVELOPERS) {
@@ -538,29 +539,39 @@ actor class TreasuryCanister() = this {
 
                         // Determine how much extra ICP (from Treasury's balance) to convert as well
                         var randomExtraIcpToConvert = ICP_BASE_AMOUNT;
-                        try {
-                            let random = Random.Finite(await Random.blob());
-                            let randomValueResult = random.range(4); // Uniformly distributes outcomes in the numeric range [0 .. 2^4 - 1] = [0 .. 15]
-                            switch (randomValueResult) {
-                                case (?randomValue) {
-                                    randomExtraIcpToConvert := (randomValue + 1) * randomExtraIcpToConvert; // i.e. range is between ICP_BASE_AMOUNT and 16 times ICP_BASE_AMOUNT (e.g. 0.08 and 1.28 ICP)
+                        if (amountReceived + 16 * randomExtraIcpToConvert >= icpBalance) {
+                            // balance is too low to handle extra ICP
+                            randomExtraIcpToConvert := 0;
+                        } else {
+                            try {
+                                let random = Random.Finite(await Random.blob());
+                                let randomValueResult = random.range(4); // Uniformly distributes outcomes in the numeric range [0 .. 2^4 - 1] = [0 .. 15]
+                                switch (randomValueResult) {
+                                    case (?randomValue) {
+                                        randomExtraIcpToConvert := (randomValue + 1) * randomExtraIcpToConvert; // i.e. range is between ICP_BASE_AMOUNT and 16 times ICP_BASE_AMOUNT (e.g. 0.08 and 1.28 ICP)
+                                    };
+                                    case (_) {
+                                        // Something went wrong with the random generation, use default
+                                    };
                                 };
-                                case (_) {
-                                    // Something went wrong with the random generation, use default
-                                };
+                            } catch (error : Error) {
+                                D.print("Treasury: handleTokenomicsActions error in generating randomExtraIcpToConvert: " # Error.message(error));
+                                // Some error occurred, use default
                             };
-                        } catch (error : Error) {
-                            D.print("Treasury: handleTokenomicsActions error in generating randomExtraIcpToConvert: " # Error.message(error));
-                            // Some error occurred, use default
                         };
+                        
+                        D.print("Treasury: handleTokenomicsActions - randomExtraIcpToConvert: " # debug_show (randomExtraIcpToConvert));
 
                         let totalIcpToConvert = amountReceived + randomExtraIcpToConvert; // in e8s
+                        D.print("Treasury: handleTokenomicsActions - totalIcpToConvert: " # debug_show (totalIcpToConvert));
 
                         // Convert ICP to FUNNAI via swap
                         let swapResult : Types.TokenSwapResult = await swapIcpToFunnai(totalIcpToConvert, disbursementEntry);
+                        D.print("Treasury: handleTokenomicsActions - swapResult: " # debug_show (swapResult));
 
                         switch (swapResult) {
                             case (#Ok(swapRecord)) {
+                                D.print("Treasury: handleTokenomicsActions - swapRecord: " # debug_show (swapRecord));
                                 // Handle received FUNNAI
                                 ignore handleReceivedFunnai(swapRecord.additionalTokenAmount, disbursementEntry);
 
@@ -618,6 +629,10 @@ actor class TreasuryCanister() = this {
     };
 
     private func handleReceivedFunnai(funnaiReceived : Nat, disbursementEntry : Types.TokenDisbursement) : async Types.TokenomicsActionResult {
+        D.print("Treasury: handleReceivedFunnai - funnaiReceived: " # debug_show (funnaiReceived));
+        D.print("Treasury: handleReceivedFunnai - disbursementEntry: " # debug_show (disbursementEntry));
+        D.print("Treasury: handleReceivedFunnai - BURN_INCOMING_FUNNAI: " # debug_show (BURN_INCOMING_FUNNAI));
+        D.print("Treasury: handleReceivedFunnai - LIQUIDITY_ADDITION_INCOMING_FUNNAI: " # debug_show (LIQUIDITY_ADDITION_INCOMING_FUNNAI));
         var result : Types.TokenomicsActionResult = #Err(#Other("No action taken"));
         if (BURN_INCOMING_FUNNAI) {
             let funnaiToBurn : Nat = funnaiReceived * BURN_SHARE_FUNNAI / 10000; // Share is defined as part of 10000 (i.e. 10000 is 100%, 1 is 0.01%)
@@ -795,6 +810,8 @@ actor class TreasuryCanister() = this {
     };
 
     private func swapIcpToFunnai(icpToConvert : Nat, disbursementEntry : Types.TokenDisbursement) : async Types.TokenSwapResult {
+        D.print("Treasury: swapIcpToFunnai icpToConvert " # debug_show (icpToConvert));
+        D.print("Treasury: swapIcpToFunnai disbursementEntry " # debug_show (disbursementEntry));
         if (icpToConvert >= icpBalance) {
             D.print("Treasury: swapIcpToFunnai ICP Balance is too low: " # debug_show (icpToConvert) # " Balance: " # debug_show (icpBalance));
             return #Err(#Other("ICP Balance is too low: " # debug_show (icpToConvert) # " Balance: " # debug_show (icpBalance)));
@@ -802,13 +819,16 @@ actor class TreasuryCanister() = this {
         // Get a quote, then swap (https://github.com/ICPSwap-Labs/docs/blob/main/02.SwapPool/Swap/03.Executing_DepositAndSwap.md)
         let amountToConvert : Text = Nat.toText(icpToConvert);
         let amountOutMinimum : Nat = icpToConvert * 9 / 10; // max 10% slippage
+        D.print("Treasury: swapIcpToFunnai amountOutMinimum " # debug_show (amountOutMinimum));
         let swapArgs : LiquidityPool.SwapArgs = {
             amountIn : Text = amountToConvert;
             zeroForOne : Bool = true; // ICP for FUNNAI
             amountOutMinimum : Text = "0"; // not used in quote
         };
+        D.print("Treasury: swapIcpToFunnai swapArgs " # debug_show (swapArgs));
         try {
             let quoteResult : LiquidityPool.Result = await LIQUIDITY_POOL_ACTOR.quote(swapArgs);
+            D.print("Treasury: swapIcpToFunnai quoteResult " # debug_show (quoteResult));
             switch (quoteResult) {
                 case (#ok(quotedReceivedAmount)) {
                     D.print("Treasury: swapIcpToFunnai quotedReceivedAmount: " # debug_show (quotedReceivedAmount));
@@ -824,10 +844,13 @@ actor class TreasuryCanister() = this {
                         tokenInFee : Nat = 10000; // ICP
                         tokenOutFee : Nat = 1; // FUNNAI
                     };
+                    D.print("Treasury: swapIcpToFunnai depositAndSwapArgs " # debug_show (depositAndSwapArgs));
 
                     let depositAndSwapResult : LiquidityPool.Result = await LIQUIDITY_POOL_ACTOR.depositAndSwap(depositAndSwapArgs);
+                    D.print("Treasury: swapIcpToFunnai depositAndSwapResult " # debug_show (depositAndSwapResult));
                     switch (depositAndSwapResult) {
                         case (#ok(receivedAmount)) {
+                            D.print("Treasury: swapIcpToFunnai receivedAmount " # debug_show (receivedAmount));
                             // Store Swap tokenomics action
                             let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                             let newEntry : Types.TokenomicsAction = {
@@ -844,6 +867,7 @@ actor class TreasuryCanister() = this {
                             };
 
                             let _ = putTokenomicsAction(newEntry);
+                            D.print("Treasury: swapIcpToFunnai newEntry " # debug_show (newEntry));
 
                             icpBalance := icpBalance - icpToConvert;
                             funnaiBalance := funnaiBalance + receivedAmount;
@@ -855,6 +879,7 @@ actor class TreasuryCanister() = this {
                                 additionalToken : Types.TokenomicsActionTokens = #FUNNAI;
                                 additionalTokenAmount : Nat = receivedAmount;
                             };
+                            D.print("Treasury: swapIcpToFunnai result " # debug_show (result));
                             return #Ok(result);
                         };
                         case (#err(err)) {

@@ -75,9 +75,9 @@ dfx canister call game_state_canister unlockUserMainerAgent '(record { paymentTr
 
 dfx canister call game_state_canister getMainerAgentCanistersAdmin --network $NETWORK
 
-dfx canister call game_state_canister getMainerAgentCanistersForUserAdmin '"7lxg5-etr52-tmtb5-7b4ul-zvhri-wdpvh-3a2lx-72r5k-owcdo-qlci5-pae"' --network $NETWORK
+dfx canister call game_state_canister getMainerAgentCanistersForUserAdmin '"dno55-cf4cu-q2wwf-udihm-tq4ul-76yti-ywaee-khuyf-urcfy-r2vcz-hae"' --network $NETWORK
 
-dfx canister call game_state_canister getNumMainerAgentCanistersForUserAdmin '"7lxg5-etr52-tmtb5-7b4ul-zvhri-wdpvh-3a2lx-72r5k-owcdo-qlci5-pae"' --network $NETWORK
+dfx canister call game_state_canister getNumMainerAgentCanistersForUserAdmin '"dno55-cf4cu-q2wwf-udihm-tq4ul-76yti-ywaee-khuyf-urcfy-r2vcz-hae"' --network $NETWORK
 
 ## Set price of mAIner
 ### ShareAgent
@@ -125,5 +125,12 @@ dfx canister call game_state_canister getPauseProtocolFlag --network $NETWORK
 ### in trillion cycles
 dfx canister call game_state_canister setProtocolCyclesBalanceBuffer '500' --network $NETWORK
 dfx canister call game_state_canister getProtocolCyclesBalanceBuffer --network $NETWORK
+```
+
+## Treasury
+```bash
+# same treasury for all stages
+dfx canister call game_state_canister setTreasuryCanisterId '"qbhxa-ziaaa-aaaaa-qbqza-cai"' --network $NETWORK
+dfx canister call game_state_canister getTreasuryCanisterId --network $NETWORK
 ```
 
