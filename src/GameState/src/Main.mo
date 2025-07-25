@@ -463,9 +463,7 @@ actor class GameStateCanister() = this {
         };
 
         let transferArg : TokenLedger.TransferArg = {
-            // can be used to distinguish between transactions
             memo : ?Blob = null;
-            // the amount we want to transfer
             amount : Nat = Nat64.toNat(args.amount.e8s);
             // the ICP ledger charges 10_000 e8s for a transfer
             fee : ?Nat = null;
@@ -477,8 +475,7 @@ actor class GameStateCanister() = this {
             created_at_time : ?Nat64 = null;
         };
 
-        try {
-            // initiate the transfer            
+        try {           
             let transferResult : TokenLedger.Result = await ICP_LEDGER_ACTOR.icrc1_transfer(transferArg);
 
             // check if the transfer was successfull

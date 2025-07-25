@@ -83,6 +83,11 @@ actor class TreasuryCanister() = this {
 
     let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (TOKEN_LEDGER_CANISTER_ID);
 
+    let liquidityPoolAccountWithTreasurySubaccount : TokenLedger.Account = {
+        owner : Principal = Principal.fromActor(LIQUIDITY_POOL_ACTOR);
+        subaccount : ?Blob = ?TREASURY_SUBACCOUNT;
+    };
+
     // Parameters
     // Flag to toggle whether incoming ICP should be converted to FUNNAI
     stable var CONVERT_ICP_TO_FUNNAI : Bool = true;
@@ -666,7 +671,6 @@ actor class TreasuryCanister() = this {
                 // Add FUNNAI and ICP to liquidity pool
                 // Get a quote first
                 let amountToConvert : Text = Nat.toText(funnaiForLiquidity);
-                let amountOutMinimum : Nat = funnaiForLiquidity * 9 / 10; // max 10% slippage
                 let swapArgs : LiquidityPool.SwapArgs = {
                     amountIn : Text = amountToConvert;
                     zeroForOne : Bool = false; // FUNNAI for ICP
@@ -677,14 +681,11 @@ actor class TreasuryCanister() = this {
                     switch (quoteResult) {
                         case (#ok(quotedReceivedAmount)) {
                             D.print("Treasury: handleReceivedFunnai quotedReceivedAmount: " # debug_show (quotedReceivedAmount));
-                            if (quotedReceivedAmount < amountOutMinimum) {
-                                D.print("Treasury: handleReceivedFunnai Slippage is too high: " # debug_show (quotedReceivedAmount) # " " # debug_show (amountOutMinimum));
-                                return #Err(#Other("Slippage is too high: " # debug_show (quotedReceivedAmount) # " " # debug_show (amountOutMinimum)));
-                            };
                             if (quotedReceivedAmount >= icpBalance) {
                                 D.print("Treasury: handleReceivedFunnai ICP Balance is too low: " # debug_show (quotedReceivedAmount) # " Balance: " # debug_show (icpBalance));
                                 return #Err(#Other("ICP Balance is too low: " # debug_show (quotedReceivedAmount) # " Balance: " # debug_show (icpBalance)));
                             };
+                            let amountOutMinimum : Nat = quotedReceivedAmount * 9 / 10; // max 10% slippage
                             // Increase liquidity position in several steps
                             // approveToken0 (ICP)
                             let approve0Args : TokenLedger.ApproveArgs = {
@@ -695,7 +696,7 @@ actor class TreasuryCanister() = this {
                                 amount : Nat = quotedReceivedAmount;
                                 expected_allowance : ?Nat = null;
                                 expires_at : ?Nat64 = null;
-                                spender : TokenLedger.Account = liquidityPoolAccount;
+                                spender : TokenLedger.Account = liquidityPoolAccount; // TODO: might need to go to treasury canister's subaccount
                             };
                             D.print("Treasury: handleReceivedFunnai - approve0Args: " # debug_show (approve0Args));
                             let approve0Result : TokenLedger.Result_2 = await ICP_LEDGER_ACTOR.icrc2_approve(approve0Args);
@@ -711,7 +712,7 @@ actor class TreasuryCanister() = this {
                                         amount : Nat = funnaiForLiquidity;
                                         expected_allowance : ?Nat = null;
                                         expires_at : ?Nat64 = null;
-                                        spender : TokenLedger.Account = liquidityPoolAccount;
+                                        spender : TokenLedger.Account = liquidityPoolAccount; // TODO: might need to go to treasury canister's subaccount
                                     };
                                     D.print("Treasury: handleReceivedFunnai - approve1Args: " # debug_show (approve1Args));
                                     let approve1Result : TokenLedger.Result_2 = await TokenLedger_Actor.icrc2_approve(approve1Args);
@@ -818,8 +819,6 @@ actor class TreasuryCanister() = this {
         };
         // Get a quote, then swap (https://github.com/ICPSwap-Labs/docs/blob/main/02.SwapPool/Swap/03.Executing_DepositAndSwap.md)
         let amountToConvert : Text = Nat.toText(icpToConvert);
-        let amountOutMinimum : Nat = icpToConvert * 9 / 10; // max 10% slippage
-        D.print("Treasury: swapIcpToFunnai amountOutMinimum " # debug_show (amountOutMinimum));
         let swapArgs : LiquidityPool.SwapArgs = {
             amountIn : Text = amountToConvert;
             zeroForOne : Bool = true; // ICP for FUNNAI
@@ -832,59 +831,82 @@ actor class TreasuryCanister() = this {
             switch (quoteResult) {
                 case (#ok(quotedReceivedAmount)) {
                     D.print("Treasury: swapIcpToFunnai quotedReceivedAmount: " # debug_show (quotedReceivedAmount));
-                    if (quotedReceivedAmount < amountOutMinimum) {
-                        D.print("Treasury: swapIcpToFunnai Slippage is too high: " # debug_show (quotedReceivedAmount) # debug_show (amountOutMinimum));
-                        return #Err(#Other("Slippage is too high: " # debug_show (quotedReceivedAmount) # debug_show (amountOutMinimum)));
+                    // Transfer ICP to SwapPool
+                    let transferArg : TokenLedger.TransferArg = {
+                        memo : ?Blob = null;
+                        amount : Nat = icpToConvert;
+                        // the ICP ledger charges 10_000 e8s for a transfer
+                        fee : ?Nat = null;
+                        // we are transferring from the canisters default subaccount, therefore we don't need to specify it
+                        from_subaccount : ?Blob = null;
+                        // we hardcode the receiver info as an account identifier where the swap pool is the owner and the treasury canister the subaccount
+                        to : TokenLedger.Account = liquidityPoolAccountWithTreasurySubaccount;
+                        // a timestamp indicating when the transaction was created by the caller; if it is not specified by the caller then this is set to the current ICP time
+                        created_at_time : ?Nat64 = null;
                     };
-
-                    let depositAndSwapArgs : LiquidityPool.DepositAndSwapArgs = {
-                        amountIn : Text = amountToConvert;
-                        zeroForOne : Bool = true; // ICP for FUNNAI
-                        amountOutMinimum : Text = Nat.toText(amountOutMinimum);
-                        tokenInFee : Nat = 10000; // ICP
-                        tokenOutFee : Nat = 1; // FUNNAI
-                    };
-                    D.print("Treasury: swapIcpToFunnai depositAndSwapArgs " # debug_show (depositAndSwapArgs));
-
-                    let depositAndSwapResult : LiquidityPool.Result = await LIQUIDITY_POOL_ACTOR.depositAndSwap(depositAndSwapArgs);
-                    D.print("Treasury: swapIcpToFunnai depositAndSwapResult " # debug_show (depositAndSwapResult));
-                    switch (depositAndSwapResult) {
-                        case (#ok(receivedAmount)) {
-                            D.print("Treasury: swapIcpToFunnai receivedAmount " # debug_show (receivedAmount));
-                            // Store Swap tokenomics action
-                            let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                            let newEntry : Types.TokenomicsAction = {
-                                token : Types.TokenomicsActionTokens = #ICP;
-                                amount : Nat = icpToConvert;
-                                creationTimestamp : Nat64 = creationTimestamp;
-                                additionalToken : ?Types.TokenomicsActionTokens = ?#FUNNAI;
-                                additionalTokenAmount : Nat = receivedAmount;
-                                actionId : Nat64 = tokenomicsActionCounter;
-                                actionType : Types.TokenomicsActionType = #Swap;
-                                associatedTransactionId : ?Nat64 = null;
-                                transactionIdDisbursement : ?Nat64 = ?disbursementEntry.transactionId;
-                                newIcpBalance : Nat = disbursementEntry.newIcpBalance - icpToConvert;
-                            };
-
-                            let _ = putTokenomicsAction(newEntry);
-                            D.print("Treasury: swapIcpToFunnai newEntry " # debug_show (newEntry));
-
-                            icpBalance := icpBalance - icpToConvert;
-                            funnaiBalance := funnaiBalance + receivedAmount;
-
-                            let result : Types.TokenSwapRecord = {
-                                token : Types.TokenomicsActionTokens = #ICP;
-                                amount : Nat = icpToConvert;
-                                creationTimestamp : Nat64 = creationTimestamp;
-                                additionalToken : Types.TokenomicsActionTokens = #FUNNAI;
-                                additionalTokenAmount : Nat = receivedAmount;
-                            };
-                            D.print("Treasury: swapIcpToFunnai result " # debug_show (result));
-                            return #Ok(result);
+                    D.print("Treasury: swapIcpToFunnai transferArg " # debug_show (transferArg));      
+                    let transferResult : TokenLedger.Result = await ICP_LEDGER_ACTOR.icrc1_transfer(transferArg);
+                    D.print("Treasury: swapIcpToFunnai transferResult " # debug_show (transferResult));
+                    switch (transferResult) {
+                        case (#Err(transferError)) {
+                            D.print("Treasury: swapIcpToFunnai transferError " # debug_show (transferError));
+                            return #Err(#Other("Couldn't transfer ICP:\n" # debug_show (transferError)));
                         };
-                        case (#err(err)) {
-                            D.print("Treasury: swapIcpToFunnai depositAndSwapResult Err: " # debug_show (err));
-                            return #Err(#Other("DepositAndSwap error: " # debug_show (err)));
+                        case (#Ok(blockIndex)) {
+                            D.print("Treasury: swapIcpToFunnai blockIndex " # debug_show (blockIndex));
+                            // Swap ICP for FUNNAI
+                            let amountOutMinimum : Nat = quotedReceivedAmount * 9 / 10; // max 10% slippage
+                            D.print("Treasury: swapIcpToFunnai amountOutMinimum " # debug_show (amountOutMinimum));
+                            let depositAndSwapArgs : LiquidityPool.DepositAndSwapArgs = {
+                                amountIn : Text = amountToConvert;
+                                zeroForOne : Bool = true; // ICP for FUNNAI
+                                amountOutMinimum : Text = Nat.toText(amountOutMinimum);
+                                tokenInFee : Nat = 10000; // ICP
+                                tokenOutFee : Nat = 1; // FUNNAI
+                            };
+                            D.print("Treasury: swapIcpToFunnai depositAndSwapArgs " # debug_show (depositAndSwapArgs));
+
+                            let depositAndSwapResult : LiquidityPool.Result = await LIQUIDITY_POOL_ACTOR.depositAndSwap(depositAndSwapArgs);
+                            D.print("Treasury: swapIcpToFunnai depositAndSwapResult " # debug_show (depositAndSwapResult));
+                            switch (depositAndSwapResult) {
+                                case (#ok(receivedAmount)) {
+                                    D.print("Treasury: swapIcpToFunnai receivedAmount " # debug_show (receivedAmount));
+                                    // Store Swap tokenomics action
+                                    let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                                    let newEntry : Types.TokenomicsAction = {
+                                        token : Types.TokenomicsActionTokens = #ICP;
+                                        amount : Nat = icpToConvert;
+                                        creationTimestamp : Nat64 = creationTimestamp;
+                                        additionalToken : ?Types.TokenomicsActionTokens = ?#FUNNAI;
+                                        additionalTokenAmount : Nat = receivedAmount;
+                                        actionId : Nat64 = tokenomicsActionCounter;
+                                        actionType : Types.TokenomicsActionType = #Swap;
+                                        associatedTransactionId : ?Nat64 = null;
+                                        transactionIdDisbursement : ?Nat64 = ?disbursementEntry.transactionId;
+                                        newIcpBalance : Nat = disbursementEntry.newIcpBalance - icpToConvert;
+                                    };
+
+                                    let _ = putTokenomicsAction(newEntry);
+                                    D.print("Treasury: swapIcpToFunnai newEntry " # debug_show (newEntry));
+
+                                    icpBalance := icpBalance - icpToConvert;
+                                    funnaiBalance := funnaiBalance + receivedAmount;
+
+                                    let result : Types.TokenSwapRecord = {
+                                        token : Types.TokenomicsActionTokens = #ICP;
+                                        amount : Nat = icpToConvert;
+                                        creationTimestamp : Nat64 = creationTimestamp;
+                                        additionalToken : Types.TokenomicsActionTokens = #FUNNAI;
+                                        additionalTokenAmount : Nat = receivedAmount;
+                                    };
+                                    D.print("Treasury: swapIcpToFunnai result " # debug_show (result));
+                                    return #Ok(result);
+                                };
+                                case (#err(err)) {
+                                    D.print("Treasury: swapIcpToFunnai depositAndSwapResult Err: " # debug_show (err));
+                                    return #Err(#Other("DepositAndSwap error: " # debug_show (err)));
+                                };
+                            };
                         };
                     };
                 };
