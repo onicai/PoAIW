@@ -468,6 +468,7 @@ actor class TreasuryCanister() = this {
 
         // Only continue if the treasury currently has more than then minumim ICP balance
         let currentBalance : Nat = await ICP_LEDGER_ACTOR.icrc1_balance_of(thisAccount);
+        icpBalance := currentBalance; // Reset official balance
         if (currentBalance < MINIMUM_ICP_BALANCE * E8S_PER_ICP) {
             return #Err(#Other("Below minimum ICP balance"));
         };
@@ -600,6 +601,7 @@ actor class TreasuryCanister() = this {
             switch (result) {
                 case (#Ok(blockIndex)) {
                     D.print("Treasury: burnFunnaiTransaction - sending tokens successful: " # debug_show (blockIndex));
+                    funnaiBalance := funnaiBalance - funnaiToBurn;
                     return blockIndex;
                 };
                 case (#Err(err)) {
@@ -661,8 +663,12 @@ actor class TreasuryCanister() = this {
                         case (#ok(quotedReceivedAmount)) {
                             D.print("Treasury: handleReceivedFunnai quotedReceivedAmount: " # debug_show (quotedReceivedAmount));
                             if (quotedReceivedAmount < amountOutMinimum) {
-                                D.print("Treasury: handleReceivedFunnai Slippage is too high: " # debug_show (quotedReceivedAmount) # debug_show (amountOutMinimum));
-                                return #Err(#Other("Slippage is too high: " # debug_show (quotedReceivedAmount) # debug_show (amountOutMinimum)));
+                                D.print("Treasury: handleReceivedFunnai Slippage is too high: " # debug_show (quotedReceivedAmount) # " " # debug_show (amountOutMinimum));
+                                return #Err(#Other("Slippage is too high: " # debug_show (quotedReceivedAmount) # " " # debug_show (amountOutMinimum)));
+                            };
+                            if (quotedReceivedAmount >= icpBalance) {
+                                D.print("Treasury: handleReceivedFunnai ICP Balance is too low: " # debug_show (quotedReceivedAmount) # " Balance: " # debug_show (icpBalance));
+                                return #Err(#Other("ICP Balance is too low: " # debug_show (quotedReceivedAmount) # " Balance: " # debug_show (icpBalance)));
                             };
                             // Increase liquidity position in several steps
                             // approveToken0 (ICP)
@@ -745,6 +751,9 @@ actor class TreasuryCanister() = this {
 
                                                 _ = putTokenomicsAction(newEntry);
 
+                                                icpBalance := icpBalance - icpToConvert;
+                                                funnaiBalance := funnaiBalance - funnaiForLiquidity;
+
                                                 let result : Types.TokenSwapRecord = {
                                                     token : Types.TokenomicsActionTokens = #ICP;
                                                     amount : Nat = icpToConvert;
@@ -786,6 +795,10 @@ actor class TreasuryCanister() = this {
     };
 
     private func swapIcpToFunnai(icpToConvert : Nat, disbursementEntry : Types.TokenDisbursement) : async Types.TokenSwapResult {
+        if (icpToConvert >= icpBalance) {
+            D.print("Treasury: swapIcpToFunnai ICP Balance is too low: " # debug_show (icpToConvert) # " Balance: " # debug_show (icpBalance));
+            return #Err(#Other("ICP Balance is too low: " # debug_show (icpToConvert) # " Balance: " # debug_show (icpBalance)));
+        };
         // Get a quote, then swap (https://github.com/ICPSwap-Labs/docs/blob/main/02.SwapPool/Swap/03.Executing_DepositAndSwap.md)
         let amountToConvert : Text = Nat.toText(icpToConvert);
         let amountOutMinimum : Nat = icpToConvert * 9 / 10; // max 10% slippage
@@ -831,6 +844,9 @@ actor class TreasuryCanister() = this {
                             };
 
                             let _ = putTokenomicsAction(newEntry);
+
+                            icpBalance := icpBalance - icpToConvert;
+                            funnaiBalance := funnaiBalance + receivedAmount;
 
                             let result : Types.TokenSwapRecord = {
                                 token : Types.TokenomicsActionTokens = #ICP;

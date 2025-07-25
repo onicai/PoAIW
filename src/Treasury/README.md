@@ -25,7 +25,7 @@ dfx deploy funnai_treasury_canister
 dfx deploy --network development funnai_treasury_canister
 
 ## production
-dfx deploy --ic funnai_treasury_canister
+dfx deploy --network prd funnai_treasury_canister
 
 # Set Game State as master canister (you have to deploy that canister first and then return with its id)
 # local
@@ -36,7 +36,7 @@ dfx canister call funnai_treasury_canister setMasterCanisterId '("c5kvi-uuaaa-aa
 dfx canister call --network development funnai_treasury_canister setMasterCanisterId '("")'
 
 ## production
-dfx canister call --ic funnai_treasury_canister setMasterCanisterId '("")'
+dfx canister call --network prd funnai_treasury_canister setMasterCanisterId '("")'
 
 ```
 
