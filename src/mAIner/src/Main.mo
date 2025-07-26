@@ -543,6 +543,10 @@ actor class MainerAgentCtrlbCanister() = this {
                     let principalText = Principal.toText(Principal.fromActor(item));
                     if (principalText == targetCanisterText) {
                         ignore llmCanisters.remove(i);
+
+                        // For safety against out-of-bounds, reset roundRobinIndex
+                        roundRobinIndex := 0;
+
                         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "):  remove_llm_canister - Removed llm: " # targetCanisterText);
                         return #Ok({ status_code = 200 });
                     };
@@ -1738,6 +1742,12 @@ actor class MainerAgentCtrlbCanister() = this {
 
     private func _getRoundRobinCanister() : Types.LLMCanister {
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): _getRoundRobinCanister: using roundRobinIndex " # Nat.toText(roundRobinIndex));
+        
+        // Protect against invalid roundRobinIndex
+        if (roundRobinIndex >= llmCanisters.size()) {
+            roundRobinIndex := 0;
+        };
+
         let canister = llmCanisters.get(roundRobinIndex);
         roundRobinIndex += 1;
 
