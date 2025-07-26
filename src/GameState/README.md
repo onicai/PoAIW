@@ -132,5 +132,8 @@ dfx canister call game_state_canister getProtocolCyclesBalanceBuffer --network $
 # same treasury for all stages
 dfx canister call game_state_canister setTreasuryCanisterId '"qbhxa-ziaaa-aaaaa-qbqza-cai"' --network $NETWORK
 dfx canister call game_state_canister getTreasuryCanisterId --network $NETWORK
+
+dfx canister call game_state_canister toggleDisburseFundsToTreasuryFlagAdmin --network $NETWORK
+dfx canister call game_state_canister getDisburseFundsToTreasuryFlag --network $NETWORK
 ```
 
