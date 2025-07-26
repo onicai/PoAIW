@@ -159,6 +159,10 @@ actor class JudgeCtrlbCanister() = this {
                     let principalText = Principal.toText(Principal.fromActor(item));
                     if (principalText == targetCanisterText) {
                         ignore llmCanisters.remove(i);
+
+                        // For safety against out-of-bounds, reset roundRobinIndex
+                        roundRobinIndex := 0;
+                        
                         D.print("Judge: remove_llm_canister - Removed llm: " # targetCanisterText);
                         return #Ok({ status_code = 200 });
                     };
@@ -1015,6 +1019,12 @@ actor class JudgeCtrlbCanister() = this {
 
     private func _getRoundRobinCanister() : Types.LLMCanister {
         D.print("_getRoundRobinCanister: using roundRobinIndex " # Nat.toText(roundRobinIndex));
+
+        // Protect against invalid roundRobinIndex
+        if (roundRobinIndex >= llmCanisters.size()) {
+            roundRobinIndex := 0;
+        };
+
         let canister = llmCanisters.get(roundRobinIndex);
         roundRobinIndex += 1;
 
