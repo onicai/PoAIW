@@ -886,6 +886,10 @@ actor class TreasuryCanister() = this {
                                     D.print("Treasury: swapIcpToFunnai receivedAmount " # debug_show (receivedAmount));
                                     // Store Swap tokenomics action
                                     let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                                    var newIcpBalance : Nat = 0;
+                                    if (disbursementEntry.newIcpBalance > icpToConvert) {
+                                        newIcpBalance := disbursementEntry.newIcpBalance - icpToConvert;
+                                    };
                                     let newEntry : Types.TokenomicsAction = {
                                         token : Types.TokenomicsActionTokens = #ICP;
                                         amount : Nat = icpToConvert;
@@ -896,7 +900,7 @@ actor class TreasuryCanister() = this {
                                         actionType : Types.TokenomicsActionType = #Swap;
                                         associatedTransactionId : ?Nat64 = null;
                                         transactionIdDisbursement : ?Nat64 = ?disbursementEntry.transactionId;
-                                        newIcpBalance : Nat = disbursementEntry.newIcpBalance - icpToConvert;
+                                        newIcpBalance : Nat = newIcpBalance;
                                     };
 
                                     let _ = putTokenomicsAction(newEntry);
