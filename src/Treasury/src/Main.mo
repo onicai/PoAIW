@@ -617,7 +617,11 @@ actor class TreasuryCanister() = this {
             switch (result) {
                 case (#Ok(blockIndex)) {
                     D.print("Treasury: burnFunnaiTransaction - sending tokens successful: " # debug_show (blockIndex));
-                    funnaiBalance := funnaiBalance - funnaiToBurn;
+                    if (funnaiBalance > funnaiToBurn) {
+                        funnaiBalance := funnaiBalance - funnaiToBurn;
+                    } else {
+                        funnaiBalance := 0;
+                    };
                     return blockIndex;
                 };
                 case (#Err(err)) {
@@ -767,8 +771,17 @@ actor class TreasuryCanister() = this {
 
                                                 _ = putTokenomicsAction(newEntry);
 
-                                                icpBalance := icpBalance - icpToConvert;
-                                                funnaiBalance := funnaiBalance - funnaiForLiquidity;
+                                                if (icpBalance > icpToConvert) {
+                                                    icpBalance := icpBalance - icpToConvert;
+                                                } else {
+                                                    icpBalance := 0;
+                                                };
+                                                
+                                                if (funnaiBalance > funnaiForLiquidity) {
+                                                    funnaiBalance := funnaiBalance - funnaiForLiquidity;
+                                                } else {
+                                                    funnaiBalance := 0;
+                                                };
 
                                                 let result : Types.TokenSwapRecord = {
                                                     token : Types.TokenomicsActionTokens = #ICP;
@@ -888,8 +901,11 @@ actor class TreasuryCanister() = this {
 
                                     let _ = putTokenomicsAction(newEntry);
                                     D.print("Treasury: swapIcpToFunnai newEntry " # debug_show (newEntry));
-
-                                    icpBalance := icpBalance - icpToConvert;
+                                    if (icpBalance > icpToConvert) {
+                                        icpBalance := icpBalance - icpToConvert;
+                                    } else {
+                                        icpBalance := 0;
+                                    };
                                     funnaiBalance := funnaiBalance + receivedAmount;
 
                                     let result : Types.TokenSwapRecord = {
