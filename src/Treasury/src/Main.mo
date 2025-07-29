@@ -472,12 +472,17 @@ actor class TreasuryCanister() = this {
         D.print("treasury handleDisbursement disbursementEntry: " # debug_show (disbursementEntry));
 
         // Only continue if the treasury currently has more than then minumim ICP balance
-        let currentBalance : Nat = await ICP_LEDGER_ACTOR.icrc1_balance_of(thisAccount);
-        icpBalance := currentBalance; // Reset official balance
-        if (currentBalance < MINIMUM_ICP_BALANCE * E8S_PER_ICP) {
-            return #Err(#Other("Below minimum ICP balance"));
+        try {
+            let currentBalance : Nat = await ICP_LEDGER_ACTOR.icrc1_balance_of(thisAccount);
+            icpBalance := currentBalance; // Reset official balance
+            if (currentBalance < MINIMUM_ICP_BALANCE * E8S_PER_ICP) {
+                return #Err(#Other("Below minimum ICP balance"));
+            };
+            D.print("treasury handleDisbursement icpBalance: " # debug_show (icpBalance));
+        } catch (error : Error) {
+            D.print("Treasury: handleDisbursement error: " # Error.message(error));
+            return #Err(#FailedOperation);
         };
-        D.print("treasury handleDisbursement icpBalance: " # debug_show (icpBalance));
 
         // Disbursement to developers
         if (DISBURSE_FUNDS_TO_DEVELOPERS) {
@@ -506,93 +511,98 @@ actor class TreasuryCanister() = this {
         };
 
         // Convert ICP to FUNNAI
-        // Verify block
-        let getBlocksArgs : TokenLedger.GetBlocksArgs = {
-            start : Nat64 = disbursementEntry.transactionId;
-            length : Nat64 = 1;
-        };
-        D.print("Treasury: handleTokenomicsActions - getBlocksArgs: " # debug_show (getBlocksArgs));
-        let queryBlocksResponse : TokenLedger.QueryBlocksResponse = await ICP_LEDGER_ACTOR.query_blocks(getBlocksArgs);
-        D.print("Treasury: handleTokenomicsActions - queryBlocksResponse.blocks: " # debug_show (queryBlocksResponse.blocks));
-        // Verify transaction exists
-        if (queryBlocksResponse.blocks.size() < 1) {
-            return #Err(#InvalidId);
-        };
-        let retrievedTransaction : TokenLedger.CandidTransaction = queryBlocksResponse.blocks[0].transaction;
-        D.print("Treasury: handleTokenomicsActions - retrievedTransaction: " # debug_show (retrievedTransaction));
-        // Verify transaction went to Treasury's account
-        D.print("Treasury: handleTokenomicsActions - retrievedTransaction.operation: " # debug_show (retrievedTransaction.operation));
-        switch (retrievedTransaction.operation) {
-            case (null) {
-                D.print("Treasury: handleTokenomicsActions - retrievedTransaction.operation: null");
-                return #Err(#Other("Couldn't verify transaction operation details"));
+        try {
+            // Verify block
+            let getBlocksArgs : TokenLedger.GetBlocksArgs = {
+                start : Nat64 = disbursementEntry.transactionId;
+                length : Nat64 = 1;
             };
-            case (?transactionOperation) {
-                D.print("Treasury: handleTokenomicsActions - transactionOperation: " # debug_show (transactionOperation));
-                switch (transactionOperation) {
-                    case (#Transfer(transferDetails)) {
-                        D.print("Treasury: handleTokenomicsActions - #Transfer transferDetails: " # debug_show (transferDetails));
-                        D.print("Treasury: handleTokenomicsActions - transferDetails.to: " # debug_show (transferDetails.to));
-                        D.print("Treasury: handleTokenomicsActions - TREASURY_PRINCIPAL_BLOB: " # debug_show (TREASURY_PRINCIPAL_BLOB));
-                        D.print("Treasury: handleTokenomicsActions - toLedgerAccount: " # debug_show (Principal.toLedgerAccount(Principal.fromActor(this), null)));
-                        if (Blob.notEqual(transferDetails.to, TREASURY_PRINCIPAL_BLOB)) {
-                            return #Err(#Other("Transaction didn't go to Treasury's address"));
-                        };
+            D.print("Treasury: handleTokenomicsActions - getBlocksArgs: " # debug_show (getBlocksArgs));
+            let queryBlocksResponse : TokenLedger.QueryBlocksResponse = await ICP_LEDGER_ACTOR.query_blocks(getBlocksArgs);
+            D.print("Treasury: handleTokenomicsActions - queryBlocksResponse.blocks: " # debug_show (queryBlocksResponse.blocks));
+            // Verify transaction exists
+            if (queryBlocksResponse.blocks.size() < 1) {
+                return #Err(#InvalidId);
+            };
+            let retrievedTransaction : TokenLedger.CandidTransaction = queryBlocksResponse.blocks[0].transaction;
+            D.print("Treasury: handleTokenomicsActions - retrievedTransaction: " # debug_show (retrievedTransaction));
+            // Verify transaction went to Treasury's account
+            D.print("Treasury: handleTokenomicsActions - retrievedTransaction.operation: " # debug_show (retrievedTransaction.operation));
+            switch (retrievedTransaction.operation) {
+                case (null) {
+                    D.print("Treasury: handleTokenomicsActions - retrievedTransaction.operation: null");
+                    return #Err(#Other("Couldn't verify transaction operation details"));
+                };
+                case (?transactionOperation) {
+                    D.print("Treasury: handleTokenomicsActions - transactionOperation: " # debug_show (transactionOperation));
+                    switch (transactionOperation) {
+                        case (#Transfer(transferDetails)) {
+                            D.print("Treasury: handleTokenomicsActions - #Transfer transferDetails: " # debug_show (transferDetails));
+                            D.print("Treasury: handleTokenomicsActions - transferDetails.to: " # debug_show (transferDetails.to));
+                            D.print("Treasury: handleTokenomicsActions - TREASURY_PRINCIPAL_BLOB: " # debug_show (TREASURY_PRINCIPAL_BLOB));
+                            D.print("Treasury: handleTokenomicsActions - toLedgerAccount: " # debug_show (Principal.toLedgerAccount(Principal.fromActor(this), null)));
+                            if (Blob.notEqual(transferDetails.to, TREASURY_PRINCIPAL_BLOB)) {
+                                return #Err(#Other("Transaction didn't go to Treasury's address"));
+                            };
 
-                        let amountReceived = Nat64.toNat(transferDetails.amount.e8s);
-                        D.print("Treasury: handleTokenomicsActions - amountReceived: " # debug_show (amountReceived));
+                            let amountReceived = Nat64.toNat(transferDetails.amount.e8s);
+                            D.print("Treasury: handleTokenomicsActions - amountReceived: " # debug_show (amountReceived));
 
-                        // Determine how much extra ICP (from Treasury's balance) to convert as well
-                        var randomExtraIcpToConvert = ICP_BASE_AMOUNT;
-                        if (amountReceived + 16 * randomExtraIcpToConvert >= icpBalance) {
-                            // balance is too low to handle extra ICP
-                            randomExtraIcpToConvert := 0;
-                        } else {
-                            try {
-                                let random = Random.Finite(await Random.blob());
-                                let randomValueResult = random.range(4); // Uniformly distributes outcomes in the numeric range [0 .. 2^4 - 1] = [0 .. 15]
-                                switch (randomValueResult) {
-                                    case (?randomValue) {
-                                        randomExtraIcpToConvert := (randomValue + 1) * randomExtraIcpToConvert; // i.e. range is between ICP_BASE_AMOUNT and 16 times ICP_BASE_AMOUNT (e.g. 0.08 and 1.28 ICP)
+                            // Determine how much extra ICP (from Treasury's balance) to convert as well
+                            var randomExtraIcpToConvert = ICP_BASE_AMOUNT;
+                            if (amountReceived + 16 * randomExtraIcpToConvert >= icpBalance) {
+                                // balance is too low to handle extra ICP
+                                randomExtraIcpToConvert := 0;
+                            } else {
+                                try {
+                                    let random = Random.Finite(await Random.blob());
+                                    let randomValueResult = random.range(4); // Uniformly distributes outcomes in the numeric range [0 .. 2^4 - 1] = [0 .. 15]
+                                    switch (randomValueResult) {
+                                        case (?randomValue) {
+                                            randomExtraIcpToConvert := (randomValue + 1) * randomExtraIcpToConvert; // i.e. range is between ICP_BASE_AMOUNT and 16 times ICP_BASE_AMOUNT (e.g. 0.08 and 1.28 ICP)
+                                        };
+                                        case (_) {
+                                            // Something went wrong with the random generation, use default
+                                        };
                                     };
-                                    case (_) {
-                                        // Something went wrong with the random generation, use default
-                                    };
+                                } catch (error : Error) {
+                                    D.print("Treasury: handleTokenomicsActions error in generating randomExtraIcpToConvert: " # Error.message(error));
+                                    // Some error occurred, use default
                                 };
-                            } catch (error : Error) {
-                                D.print("Treasury: handleTokenomicsActions error in generating randomExtraIcpToConvert: " # Error.message(error));
-                                // Some error occurred, use default
+                            };
+                            
+                            D.print("Treasury: handleTokenomicsActions - randomExtraIcpToConvert: " # debug_show (randomExtraIcpToConvert));
+
+                            let totalIcpToConvert = amountReceived + randomExtraIcpToConvert; // in e8s
+                            D.print("Treasury: handleTokenomicsActions - totalIcpToConvert: " # debug_show (totalIcpToConvert));
+
+                            // Convert ICP to FUNNAI via swap
+                            let swapResult : Types.TokenSwapResult = await swapIcpToFunnai(totalIcpToConvert, disbursementEntry);
+                            D.print("Treasury: handleTokenomicsActions - swapResult: " # debug_show (swapResult));
+
+                            switch (swapResult) {
+                                case (#Ok(swapRecord)) {
+                                    D.print("Treasury: handleTokenomicsActions - swapRecord: " # debug_show (swapRecord));
+                                    // Handle received FUNNAI
+                                    ignore handleReceivedFunnai(swapRecord.additionalTokenAmount, disbursementEntry);
+
+                                    return #Ok({
+                                        disbursementHandled : Bool = true;
+                                    });
+                                };
+                                case (#Err(err)) {
+                                    D.print("Treasury: handleTokenomicsActions swapResult Err: " # debug_show (err));
+                                    return #Err(#Other("Swap error: " # debug_show (err)));
+                                };
                             };
                         };
-                        
-                        D.print("Treasury: handleTokenomicsActions - randomExtraIcpToConvert: " # debug_show (randomExtraIcpToConvert));
-
-                        let totalIcpToConvert = amountReceived + randomExtraIcpToConvert; // in e8s
-                        D.print("Treasury: handleTokenomicsActions - totalIcpToConvert: " # debug_show (totalIcpToConvert));
-
-                        // Convert ICP to FUNNAI via swap
-                        let swapResult : Types.TokenSwapResult = await swapIcpToFunnai(totalIcpToConvert, disbursementEntry);
-                        D.print("Treasury: handleTokenomicsActions - swapResult: " # debug_show (swapResult));
-
-                        switch (swapResult) {
-                            case (#Ok(swapRecord)) {
-                                D.print("Treasury: handleTokenomicsActions - swapRecord: " # debug_show (swapRecord));
-                                // Handle received FUNNAI
-                                ignore handleReceivedFunnai(swapRecord.additionalTokenAmount, disbursementEntry);
-
-                                return #Ok({
-                                    disbursementHandled : Bool = true;
-                                });
-                            };
-                            case (#Err(err)) {
-                                D.print("Treasury: handleTokenomicsActions swapResult Err: " # debug_show (err));
-                                return #Err(#Other("Swap error: " # debug_show (err)));
-                            };
-                        };
+                        case (_) { return #Err(#Other("Transaction wasn't sent correctly")); }
                     };
-                    case (_) { return #Err(#Other("Transaction wasn't sent correctly")); }
                 };
             };
+        } catch (error : Error) {
+            D.print("Treasury: handleTokenomicsActions error: " # Error.message(error));
+            return #Err(#FailedOperation);
         };
     };
 
@@ -868,64 +878,70 @@ actor class TreasuryCanister() = this {
                         case (#Ok(blockIndex)) {
                             D.print("Treasury: swapIcpToFunnai blockIndex " # debug_show (blockIndex));
                             // Swap ICP for FUNNAI
-                            let amountOutMinimum : Nat = quotedReceivedAmount * 9 / 10; // max 10% slippage
-                            D.print("Treasury: swapIcpToFunnai amountOutMinimum " # debug_show (amountOutMinimum));
-                            let depositAndSwapArgs : LiquidityPool.DepositAndSwapArgs = {
-                                amountIn : Text = amountToConvert;
-                                zeroForOne : Bool = true; // ICP for FUNNAI
-                                amountOutMinimum : Text = Nat.toText(amountOutMinimum);
-                                tokenInFee : Nat = 10000; // ICP
-                                tokenOutFee : Nat = 1; // FUNNAI
-                            };
-                            D.print("Treasury: swapIcpToFunnai depositAndSwapArgs " # debug_show (depositAndSwapArgs));
-
-                            let depositAndSwapResult : LiquidityPool.Result = await LIQUIDITY_POOL_ACTOR.depositAndSwap(depositAndSwapArgs);
-                            D.print("Treasury: swapIcpToFunnai depositAndSwapResult " # debug_show (depositAndSwapResult));
-                            switch (depositAndSwapResult) {
-                                case (#ok(receivedAmount)) {
-                                    D.print("Treasury: swapIcpToFunnai receivedAmount " # debug_show (receivedAmount));
-                                    // Store Swap tokenomics action
-                                    let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                                    var newIcpBalance : Nat = 0;
-                                    if (disbursementEntry.newIcpBalance > icpToConvert) {
-                                        newIcpBalance := disbursementEntry.newIcpBalance - icpToConvert;
-                                    };
-                                    let newEntry : Types.TokenomicsAction = {
-                                        token : Types.TokenomicsActionTokens = #ICP;
-                                        amount : Nat = icpToConvert;
-                                        creationTimestamp : Nat64 = creationTimestamp;
-                                        additionalToken : ?Types.TokenomicsActionTokens = ?#FUNNAI;
-                                        additionalTokenAmount : Nat = receivedAmount;
-                                        actionId : Nat64 = tokenomicsActionCounter;
-                                        actionType : Types.TokenomicsActionType = #Swap;
-                                        associatedTransactionId : ?Nat64 = null;
-                                        transactionIdDisbursement : ?Nat64 = ?disbursementEntry.transactionId;
-                                        newIcpBalance : Nat = newIcpBalance;
-                                    };
-
-                                    let _ = putTokenomicsAction(newEntry);
-                                    D.print("Treasury: swapIcpToFunnai newEntry " # debug_show (newEntry));
-                                    if (icpBalance > icpToConvert) {
-                                        icpBalance := icpBalance - icpToConvert;
-                                    } else {
-                                        icpBalance := 0;
-                                    };
-                                    funnaiBalance := funnaiBalance + receivedAmount;
-
-                                    let result : Types.TokenSwapRecord = {
-                                        token : Types.TokenomicsActionTokens = #ICP;
-                                        amount : Nat = icpToConvert;
-                                        creationTimestamp : Nat64 = creationTimestamp;
-                                        additionalToken : Types.TokenomicsActionTokens = #FUNNAI;
-                                        additionalTokenAmount : Nat = receivedAmount;
-                                    };
-                                    D.print("Treasury: swapIcpToFunnai result " # debug_show (result));
-                                    return #Ok(result);
+                            try { 
+                                let amountOutMinimum : Nat = quotedReceivedAmount * 9 / 10; // max 10% slippage
+                                D.print("Treasury: swapIcpToFunnai amountOutMinimum " # debug_show (amountOutMinimum));
+                                let depositAndSwapArgs : LiquidityPool.DepositAndSwapArgs = {
+                                    amountIn : Text = amountToConvert;
+                                    zeroForOne : Bool = true; // ICP for FUNNAI
+                                    amountOutMinimum : Text = Nat.toText(amountOutMinimum);
+                                    tokenInFee : Nat = 10000; // ICP
+                                    tokenOutFee : Nat = 1; // FUNNAI
                                 };
-                                case (#err(err)) {
-                                    D.print("Treasury: swapIcpToFunnai depositAndSwapResult Err: " # debug_show (err));
-                                    return #Err(#Other("DepositAndSwap error: " # debug_show (err)));
+                                D.print("Treasury: swapIcpToFunnai depositAndSwapArgs " # debug_show (depositAndSwapArgs));
+
+                                let depositAndSwapResult : LiquidityPool.Result = await LIQUIDITY_POOL_ACTOR.depositAndSwap(depositAndSwapArgs);
+                                D.print("Treasury: swapIcpToFunnai depositAndSwapResult " # debug_show (depositAndSwapResult));
+                                switch (depositAndSwapResult) {
+                                    case (#ok(receivedAmount)) {
+                                        D.print("Treasury: swapIcpToFunnai receivedAmount " # debug_show (receivedAmount));
+                                        // Store Swap tokenomics action
+                                        let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                                        var newIcpBalance : Nat = 0;
+                                        if (disbursementEntry.newIcpBalance > icpToConvert) {
+                                            newIcpBalance := disbursementEntry.newIcpBalance - icpToConvert;
+                                        };
+                                        let newEntry : Types.TokenomicsAction = {
+                                            token : Types.TokenomicsActionTokens = #ICP;
+                                            amount : Nat = icpToConvert;
+                                            creationTimestamp : Nat64 = creationTimestamp;
+                                            additionalToken : ?Types.TokenomicsActionTokens = ?#FUNNAI;
+                                            additionalTokenAmount : Nat = receivedAmount;
+                                            actionId : Nat64 = tokenomicsActionCounter;
+                                            actionType : Types.TokenomicsActionType = #Swap;
+                                            associatedTransactionId : ?Nat64 = null;
+                                            transactionIdDisbursement : ?Nat64 = ?disbursementEntry.transactionId;
+                                            newIcpBalance : Nat = newIcpBalance;
+                                        };
+
+                                        let _ = putTokenomicsAction(newEntry);
+                                        D.print("Treasury: swapIcpToFunnai newEntry " # debug_show (newEntry));
+                                        if (icpBalance > icpToConvert) {
+                                            icpBalance := icpBalance - icpToConvert;
+                                        } else {
+                                            icpBalance := 0;
+                                        };
+                                        funnaiBalance := funnaiBalance + receivedAmount;
+
+                                        let result : Types.TokenSwapRecord = {
+                                            token : Types.TokenomicsActionTokens = #ICP;
+                                            amount : Nat = icpToConvert;
+                                            creationTimestamp : Nat64 = creationTimestamp;
+                                            additionalToken : Types.TokenomicsActionTokens = #FUNNAI;
+                                            additionalTokenAmount : Nat = receivedAmount;
+                                        };
+                                        D.print("Treasury: swapIcpToFunnai result " # debug_show (result));
+                                        return #Ok(result);
+                                    };
+                                    case (#err(err)) {
+                                        D.print("Treasury: swapIcpToFunnai depositAndSwapResult Err: " # debug_show (err));
+                                        return #Err(#Other("DepositAndSwap error: " # debug_show (err)));
+                                    };
                                 };
+                            } catch (error : Error) {
+                                D.print("Treasury: swapIcpToFunnai depositAndSwapResult error: " # Error.message(error));
+                                // TODO: try again, otherwise transferred ICP need to be reclaimed
+                                return #Err(#FailedOperation);
                             };
                         };
                     };
