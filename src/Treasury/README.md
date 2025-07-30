@@ -79,6 +79,9 @@ https://637g5-siaaa-aaaaj-aasja-cai.raw.ic0.app/address/vpyot-zqaaa-aaaaa-qavaq-
 
 or icrc1_balance_of for qbhxa-ziaaa-aaaaa-qbqza-cai on https://dashboard.internetcomputer.org/canister/vpyot-zqaaa-aaaaa-qavaq-cai
 
+### Prd Game State
+https://dashboard.internetcomputer.org/account/300d6f0058417bb5131c7313a3fe7f7b90510ca2f413ab863d39b1e35eceebad?s=100
+
 # Test
 ## Demo
 - Upgrade demo Game State
