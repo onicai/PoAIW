@@ -927,6 +927,28 @@ actor class GameStateCanister() = this {
         return #Ok({ price = WHITELIST_PRICE_FOR_OWN_MAINER_ICP });
     };
 
+    // Price at which users can buy cycles with FUNNAI from Game State
+    stable var FUNNAI_CYCLES_PRICE : Nat = 400 * Constants.CYCLES_BILLION; // How many cycles one gets for 1 FUNNAI
+
+    public shared (msg) func setFunnaiCyclesPrice(newPrice : Nat) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (newPrice > 2 * Constants.CYCLES_TRILLION) {
+            return #Err(#Unauthorized);
+        };
+        FUNNAI_CYCLES_PRICE := newPrice;
+        let authRecord = { auth = "You set the price." };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getFunnaiCyclesPrice() : async Types.NatResult {
+        return #Ok(FUNNAI_CYCLES_PRICE);
+    };
+
     // Protocol parameters used in the mAIner Creation Cycles Flow calculations      
     let DEFAULT_CYCLES_CREATE_MAINER_MARGIN_GS          : Nat  =    25 * Constants.CYCLES_BILLION ; // Margin kept in GameState canister (includes actual costs)
     let DEFAULT_CYCLES_CREATE_MAINER_MARGIN_MC          : Nat  =   300 * Constants.CYCLES_BILLION ; // Margin kept in mAIner Creator canister (excludes actual costs)
