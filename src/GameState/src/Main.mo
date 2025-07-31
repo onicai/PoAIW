@@ -369,10 +369,39 @@ actor class GameStateCanister() = this {
         };
     };
 
-    private func disburseIncomingFundsToTreasury(amountToDisburse : Nat) : async Types.AuthRecordResult {
+    // Function for admin to test disbursement of incoming ICP to treasury (with small amount)
+    public shared (msg) func testDisbursementToTreasuryAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not DISBURSE_FUNDS_TO_TREASURY) {
             return #Err(#Unauthorized);
         };
+        let icpToDisburse : Nat = 10_000_000; // 10^8 e8s per ICP, so 0.1 ICP
+        D.print("GameState: testDisbursementToTreasuryAdmin - icpToDisburse: " # debug_show(icpToDisburse)); 
+
+        let transferResult : Types.AuthRecordResult = await disburseIncomingFundsToTreasury(icpToDisburse);
+        D.print("GameState: testDisbursementToTreasuryAdmin - transferResult: " # debug_show(transferResult)); 
+        // check if the transfer was successfull
+        switch (transferResult) {
+            case (#Err(transferError)) {
+                return #Err(#Other("Couldn't transfer funds:\n" # debug_show (transferError)));
+            };
+            case (#Ok(authRecord)) {
+                return #Ok(authRecord);
+            };
+        };
+    };
+
+    private func disburseIncomingFundsToTreasury(amountToDisburse : Nat) : async Types.AuthRecordResult {
+        D.print("GameState: disburseIncomingFundsToTreasury - DISBURSE_FUNDS_TO_TREASURY: " # debug_show(DISBURSE_FUNDS_TO_TREASURY)); 
+        if (not DISBURSE_FUNDS_TO_TREASURY) {
+            return #Err(#Unauthorized);
+        };
+        D.print("GameState: disburseIncomingFundsToTreasury - amountToDisburse: " # debug_show(amountToDisburse)); 
         // amountToDisburse is in e8s
         let E8S_PER_ICP : Nat = 100_000_000; // 10^8 e8s per ICP
         if (amountToDisburse > 10 * E8S_PER_ICP) {
@@ -381,20 +410,25 @@ actor class GameStateCanister() = this {
         };
         
         let amountForTransfer : TokenLedger.Tokens = { e8s : Nat64 = Nat64.fromNat(amountToDisburse); };
+        D.print("GameState: disburseIncomingFundsToTreasury - amountForTransfer: " # debug_show(amountForTransfer)); 
         let transferArgs : Types.IcpTransferArgs = {
             amount : TokenLedger.Tokens = amountForTransfer;
             toPrincipal : Principal = Principal.fromText(TREASURY_CANISTER_ID);
             toSubaccount : ?Blob = null;            
         };
+        D.print("GameState: disburseIncomingFundsToTreasury - transferArgs: " # debug_show(transferArgs)); 
 
         let transferResult : Types.IcpTransferResult = await transfer(transferArgs);
+        D.print("GameState: disburseIncomingFundsToTreasury - transferResult: " # debug_show(transferResult)); 
 
         // check if the transfer was successfull
         switch (transferResult) {
             case (#Err(transferError)) {
+                D.print("GameState: disburseIncomingFundsToTreasury - transferError: " # debug_show(transferError)); 
                 return #Err(#Other("Couldn't transfer funds:\n" # debug_show (transferError)));
             };
             case (#Ok(blockIndex)) {
+                D.print("GameState: disburseIncomingFundsToTreasury - blockIndex: " # debug_show(blockIndex)); 
                 // Notify treasury canister so it can handle the disbursement
                 let Treasury_Actor : Types.TreasuryCanister_Actor = actor (TREASURY_CANISTER_ID);
                 try {
@@ -429,9 +463,7 @@ actor class GameStateCanister() = this {
         };
 
         let transferArg : TokenLedger.TransferArg = {
-            // can be used to distinguish between transactions
             memo : ?Blob = null;
-            // the amount we want to transfer
             amount : Nat = Nat64.toNat(args.amount.e8s);
             // the ICP ledger charges 10_000 e8s for a transfer
             fee : ?Nat = null;
@@ -443,8 +475,7 @@ actor class GameStateCanister() = this {
             created_at_time : ?Nat64 = null;
         };
 
-        try {
-            // initiate the transfer            
+        try {           
             let transferResult : TokenLedger.Result = await ICP_LEDGER_ACTOR.icrc1_transfer(transferArg);
 
             // check if the transfer was successfull
