@@ -945,7 +945,21 @@ actor class GameStateCanister() = this {
         return #Ok(authRecord);
     };
 
-    public query (msg) func getFunnaiCyclesPrice() : async Types.NatResult {
+    public query (msg) func getFunnaiCyclesPriceAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(FUNNAI_CYCLES_PRICE);
+    };
+
+    public query func getFunnaiCyclesPrice() : async Types.NatResult {
+        if (CYCLES_BALANCE_THRESHOLD_FUNNAI_TOPUPS > Cycles.balance()) {
+            // No topups with FUNNAI supported anymore, so the price is 0 (i.e. one gets 0 cycles for 1 FUNNAI)
+            return #Ok(0);
+        };
         return #Ok(FUNNAI_CYCLES_PRICE);
     };
 
@@ -3600,7 +3614,7 @@ actor class GameStateCanister() = this {
     // e.g. this is for dev stage, verify with: https://dashboard.internetcomputer.org/account/c88ef9865df034927487e4178da1f80a1648ec5a764e4959cba513c372ceb520
     //let PROTOCOL_PRINCIPAL_BLOB : Blob = "\C8\8E\F9\86\5D\F0\34\92\74\87\E4\17\8D\A1\F8\0A\16\48\EC\5A\76\4E\49\59\CB\A5\13\C3\72\CE\B5\20";
 
-    stable var PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * Constants.CYCLES_TRILLION; // TODO - Implementation: set final value
+    stable var PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * Constants.CYCLES_TRILLION;
 
     public shared (msg) func setProtocolCyclesBalanceBuffer(newBufferInTrillionCycles : Nat) : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -3616,6 +3630,30 @@ actor class GameStateCanister() = this {
             return #Err(#Unauthorized);
         };
         return #Ok(PROTOCOL_CYCLES_BALANCE_BUFFER);
+    };
+
+    stable var CYCLES_BALANCE_THRESHOLD_FUNNAI_TOPUPS : Nat = 600 * Constants.CYCLES_TRILLION;
+
+    public shared (msg) func setCyclesBalanceThresholdFunnaiTopups(newThresholdInTrillionCycles : Nat) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        CYCLES_BALANCE_THRESHOLD_FUNNAI_TOPUPS := newThresholdInTrillionCycles * Constants.CYCLES_TRILLION;
+        let authRecord = { auth = "You set the threshold." };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getCyclesBalanceThresholdFunnaiTopups() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(CYCLES_BALANCE_THRESHOLD_FUNNAI_TOPUPS);
     };
 
     // Decide on usage of incoming funds (e.g. for mAIner creation or top ups)
@@ -3929,20 +3967,7 @@ actor class GameStateCanister() = this {
             // Calculate the amount of cycles that the mAIner will get based on the payment
             D.print("GameState: handleIncomingFunnai - no conversion necessary, calculate mAIner's cycles");
             // Get the conversion rate of FUNNAI to cycles as set by the Game State
-            let queryResult : Types.NatResult = await getFunnaiCyclesPrice();
-            D.print("GameState: handleIncomingFunnai - no conversion necessary, queryResult: "# debug_show(queryResult));
             var cyclesPerFunnai : Nat = FUNNAI_CYCLES_PRICE;
-            switch (queryResult) {
-                case (#Ok(funnaiPrice)) {
-                    D.print("GameState: handleIncomingFunnai - funnaiPrice: "# debug_show(funnaiPrice)); 
-                    cyclesPerFunnai := funnaiPrice;
-                };
-                case (_) {
-                    // keep the default
-                    D.print("GameState: handleIncomingFunnai - funnaiPrice couldn't be queried, using default: " # debug_show(cyclesPerFunnai)); 
-                }
-            };
-
             // Calculate cycles
             let cycles : Nat = amountForMainer * cyclesPerFunnai;
             D.print("GameState: handleIncomingFunnai - cycles: "# debug_show(cycles));
@@ -6097,6 +6122,12 @@ actor class GameStateCanister() = this {
         };
         if (PAUSE_PROTOCOL and not Principal.isController(msg.caller)) {
             return #Err(#Other("Protocol is currently paused"));
+        };
+
+        // Only allowed if the Game State's cycles balance is above the set threshold
+        let minimumBalance = CYCLES_BALANCE_THRESHOLD_FUNNAI_TOPUPS * 8 / 10; // Allow for a buffer of 20% to avoid blocking concurrent requests
+        if (minimumBalance > Cycles.balance()) {
+            return #Err(#Other("No topups with FUNNAI are possible currently"));
         };
 
         // Ensure this transaction block hasn't been redeemed yet (no double spending)     
