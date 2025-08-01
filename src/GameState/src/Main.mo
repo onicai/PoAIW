@@ -4141,7 +4141,8 @@ actor class GameStateCanister() = this {
             length : Nat64 = 1;
         };
         D.print("GameState: verifyIncomingFunnaiPayment - getBlocksArgs: "# debug_show(getBlocksArgs));
-        let queryBlocksResponse : TokenLedger.QueryBlocksResponse = await T.query_blocks(getBlocksArgs);
+        let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (TOKEN_LEDGER_CANISTER_ID);
+        let queryBlocksResponse : TokenLedger.QueryBlocksResponse = await TokenLedger_Actor.query_blocks(getBlocksArgs);
         D.print("GameState: verifyIncomingFunnaiPayment - queryBlocksResponse.blocks: "# debug_show(queryBlocksResponse.blocks));
         // Verify transaction exists
         if (queryBlocksResponse.blocks.size() < 1) {
