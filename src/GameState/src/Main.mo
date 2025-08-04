@@ -963,6 +963,42 @@ actor class GameStateCanister() = this {
         return #Ok(FUNNAI_CYCLES_PRICE);
     };
 
+    // Maximum amount of cycles users can buy with FUNNAI from Game State
+    stable var MAX_FUNNAI_TOPUP_CYCLES_AMOUNT : Nat = 1 * Constants.CYCLES_TRILLION; // Max cycles per topup with FUNNAI
+
+    public shared (msg) func setMaxFunnaiTopupCyclesAmount(newAmount : Nat) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (newAmount > 7 * Constants.CYCLES_TRILLION) {
+            return #Err(#Unauthorized);
+        };
+        MAX_FUNNAI_TOPUP_CYCLES_AMOUNT := newAmount;
+        let authRecord = { auth = "You set the amount." };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getMaxFunnaiTopupCyclesAmountAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(MAX_FUNNAI_TOPUP_CYCLES_AMOUNT);
+    };
+
+    public query func getMaxFunnaiTopupCyclesAmount() : async Types.NatResult {
+        if (CYCLES_BALANCE_THRESHOLD_FUNNAI_TOPUPS > Cycles.balance()) {
+            // No topups with FUNNAI supported anymore, so the amount is 0 (i.e. no cycles available)
+            return #Ok(0);
+        };
+        return #Ok(MAX_FUNNAI_TOPUP_CYCLES_AMOUNT);
+    };
+
     // Protocol parameters used in the mAIner Creation Cycles Flow calculations      
     let DEFAULT_CYCLES_CREATE_MAINER_MARGIN_GS          : Nat  =    25 * Constants.CYCLES_BILLION ; // Margin kept in GameState canister (includes actual costs)
     let DEFAULT_CYCLES_CREATE_MAINER_MARGIN_MC          : Nat  =   300 * Constants.CYCLES_BILLION ; // Margin kept in mAIner Creator canister (excludes actual costs)
@@ -3969,8 +4005,12 @@ actor class GameStateCanister() = this {
             // Get the conversion rate of FUNNAI to cycles as set by the Game State
             var cyclesPerFunnai : Nat = FUNNAI_CYCLES_PRICE;
             // Calculate cycles
-            let cycles : Nat = amountForMainer * cyclesPerFunnai;
+            var cycles : Nat = amountForMainer * cyclesPerFunnai;
             D.print("GameState: handleIncomingFunnai - cycles: "# debug_show(cycles));
+            if (cycles > MAX_FUNNAI_TOPUP_CYCLES_AMOUNT) {
+                D.print("GameState: handleIncomingFunnai - cycles are bigger than max allowed amount: "# debug_show(MAX_FUNNAI_TOPUP_CYCLES_AMOUNT));
+                cycles := MAX_FUNNAI_TOPUP_CYCLES_AMOUNT;
+            };
             
             let cyclesForMainer : Nat = cycles;
             let cyclesForProtocol : Nat = 0; // Protocol already took its cut
