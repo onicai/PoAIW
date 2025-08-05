@@ -241,6 +241,109 @@ module TokenLedger {
     icrc1_minting_account : ?Account;
     feature_flags : ?FeatureFlags;
   };
+  public type Vec = [
+    {
+      #Int : Int;
+      #Map : [(Text, Value)];
+      #Nat : Nat;
+      #Nat64 : Nat64;
+      #Blob : Blob;
+      #Text : Text;
+      #Array : Vec;
+    }
+  ];
+  public type Value = {
+    #Int : Int;
+    #Map : [(Text, Value)];
+    #Nat : Nat;
+    #Nat64 : Nat64;
+    #Blob : Blob;
+    #Text : Text;
+    #Array : Vec;
+  };
+  public type ICRC3Value = {
+    #Int : Int;
+    #Map : [(Text, ICRC3Value)];
+    #Nat : Nat;
+    #Blob : Blob;
+    #Text : Text;
+    #Array : [ICRC3Value];
+  };
+  public type BlockWithId = { id : Nat; block : ICRC3Value };
+  public type ArchivedBlocks = {
+    args : [GetBlocksRequest];
+    callback : shared query [GetBlocksRequest] -> async GetBlocksResult;
+  };
+  public type ArchivedRange = {
+    callback : shared query GetBlocksRequest -> async BlockRange;
+    start : Nat;
+    length : Nat;
+  };
+  public type GetBlocksRequest = { start : Nat; length : Nat };
+  public type GetBlocksResponse = {
+    certificate : ?Blob;
+    first_index : Nat;
+    blocks : [Value];
+    chain_length : Nat64;
+    archived_blocks : [ArchivedRange];
+  };
+  public type GetBlocksResult = {
+    log_length : Nat;
+    blocks : [BlockWithId];
+    archived_blocks : [ArchivedBlocks];
+  };
+  public type Burn = {
+    from : Account;
+    memo : ?Blob;
+    created_at_time : ?Nat64;
+    amount : Nat;
+    spender : ?Account;
+  };
+  public type Mint = {
+    to : Account;
+    memo : ?Blob;
+    created_at_time : ?Nat64;
+    amount : Nat;
+  };
+  public type Approve = {
+    fee : ?Nat;
+    from : Account;
+    memo : ?Blob;
+    created_at_time : ?Nat64;
+    amount : Nat;
+    expected_allowance : ?Nat;
+    expires_at : ?Nat64;
+    spender : Account;
+  };
+  public type Transfer = {
+    to : Account;
+    fee : ?Nat;
+    from : Account;
+    memo : ?Blob;
+    created_at_time : ?Nat64;
+    amount : Nat;
+    spender : ?Account;
+  };
+  public type Transaction = {
+    burn : ?Burn;
+    kind : Text;
+    mint : ?Mint;
+    approve : ?Approve;
+    timestamp : Nat64;
+    transfer : ?Transfer;
+  };
+  public type TransactionRange = { transactions : [Transaction] };
+  public type ArchivedRange_1 = {
+    callback : shared query GetBlocksRequest -> async TransactionRange;
+    start : Nat;
+    length : Nat;
+  };
+  public type GetTransactionsResponse = {
+    first_index : Nat;
+    log_length : Nat;
+    transactions : [Transaction];
+    archived_transactions : [ArchivedRange_1];
+  };
   public type TOKEN_LEDGER = actor {
     account_balance : shared query AccountIdentifierByteBuf -> async Tokens;
     account_balance_dfx : shared query AccountBalanceArgs -> async Tokens;
@@ -270,5 +373,7 @@ module TokenLedger {
     symbol : shared query () -> async Symbol;
     transfer : shared TransferArgs -> async Result_6;
     transfer_fee : shared query {} -> async TransferFee;
+    get_blocks : shared query GetBlocksRequest -> async GetBlocksResponse;
+    get_transactions : shared query GetBlocksRequest -> async GetTransactionsResponse;
   }
 }
