@@ -3268,9 +3268,9 @@ actor class GameStateCanister() = this {
                     return #Err(#Unauthorized);
                 };
 
-                // For debug purposes, print current number of open challenges
+                // For debug purposes, print number of open challenges
                 let openChallenges : [Types.Challenge] = getOpenChallenges();
-                D.print("GameState: addChallenge - current number of open challenges: " # Nat.toText(openChallenges.size()));
+                D.print("GameState: addChallenge - number of open challenges before adding: " # Nat.toText(openChallenges.size()));
 
                 D.print("GameState: addChallenge - generating new challenge ID with newRandomUniqueId");
                 let challengeId : Text = await Utils.newRandomUniqueId();
@@ -3308,6 +3308,10 @@ actor class GameStateCanister() = this {
 
                 D.print("GameState: addChallenge - storing challenge in open challenges storage");
                 let putResult = putOpenChallenge(challengeId, challengeAdded);
+                // For debug purposes, print number of open challenges
+                let openChallengesAfter : [Types.Challenge] = getOpenChallenges();
+                D.print("GameState: addChallenge - number of open challenges affter adding: " # Nat.toText(openChallengesAfter.size()));
+
                 ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_CHALLENGE_CREATION);
                 D.print("GameState: addChallenge - returning to Challenger");
                 return #Ok(challengeAdded);                        
