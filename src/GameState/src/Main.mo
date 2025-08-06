@@ -3244,6 +3244,7 @@ actor class GameStateCanister() = this {
 
     // Function for Challenger canister to add new challenge
     public shared (msg) func addChallenge(newChallenge : Types.NewChallengeInput) : async Types.ChallengeAdditionResult {
+        D.print("GameState: addChallenge - entered");
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -3255,14 +3256,25 @@ actor class GameStateCanister() = this {
 
         // Only official Challenger canisters may call this
         switch (getChallengerCanister(Principal.toText(msg.caller))) {
-            case (null) { return #Err(#Unauthorized); };
+            case (null) { 
+                D.print("GameState: addChallenge - REJECTED: caller is not an official challenger canister");
+                return #Err(#Unauthorized); 
+            };
             case (?challengerEntry) {
+                D.print("GameState: addChallenge - found challengerEntry");
                 // Verify consistency of the caller
                 if (challengerEntry.address != Principal.toText(msg.caller)) {
+                    D.print("GameState: addChallenge - REJECTED: challenger address mismatch");
                     return #Err(#Unauthorized);
                 };
 
+                // For debug purposes, print current number of open challenges
+                let openChallenges : [Types.Challenge] = getOpenChallenges();
+                D.print("GameState: addChallenge - current number of open challenges: " # Nat.toText(openChallenges.size()));
+
+                D.print("GameState: addChallenge - generating new challenge ID with newRandomUniqueId");
                 let challengeId : Text = await Utils.newRandomUniqueId();
+                D.print("GameState: addChallenge - generated challengeId: " # debug_show(challengeId));
 
                 let challengeAdded : Types.Challenge = {
                     challengeTopic : Text = newChallenge.challengeTopic;
@@ -3294,8 +3306,10 @@ actor class GameStateCanister() = this {
                     cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = cyclesGenerateResponseOwnctrlOwnllmHIGH;
                 };
 
+                D.print("GameState: addChallenge - storing challenge in open challenges storage");
                 let putResult = putOpenChallenge(challengeId, challengeAdded);
                 ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_CHALLENGE_CREATION);
+                D.print("GameState: addChallenge - returning to Challenger");
                 return #Ok(challengeAdded);                        
             };             
         };
@@ -6453,19 +6467,19 @@ actor class GameStateCanister() = this {
                     switch (agentCanisterInfo.module_hash) {
                         case (null) {
                             let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
-                            D.print("GameState: submitChallengeResponse - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
-                            D.print("GameState: submitChallengeResponse - agentCanisterInfo with null as module hash: " # debug_show(agentCanisterInfo)); 
+                            D.print("GameState: submitChallengeResponse - 05 - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
+                            D.print("GameState: submitChallengeResponse - mAIner module hash is null: " # debug_show(agentCanisterInfo)); 
                             // TODO - Design: further measurements?
                             return #Err(#Unauthorized);
                         };
                         case (?agentModuleHash) {
                             if (Blob.equal(agentModuleHash, officialMainerAgentCanisterWasmHashRecord.wasmHash)) {
-                                D.print("GameState: testMainerCodeIntegrityAdmin - agentCanisterInfo with official module hash: " # debug_show(agentCanisterInfo));
+                                D.print("GameState: testMainerCodeIntegrityAdmin - mAIner module hash is correct - agentCanisterInfo with official module hash: " # debug_show(agentCanisterInfo));
                                 // continue as check passed
                             } else {
                                 let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
-                                D.print("GameState: submitChallengeResponse - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
-                                D.print("GameState: submitChallengeResponse - agentCanisterInfo didn't pass verification: " # debug_show(agentCanisterInfo) # " - expected wasm hash = " # debug_show(officialMainerAgentCanisterWasmHash));
+                                D.print("GameState: submitChallengeResponse - 06 - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
+                                D.print("GameState: submitChallengeResponse - mAIner module hash is wrong : " # debug_show(agentCanisterInfo) # " - expected wasm hash = " # debug_show(officialMainerAgentCanisterWasmHash));
                                  
                                 // TODO - Design: further measurements?
                                 return #Err(#Unauthorized);
@@ -6474,7 +6488,7 @@ actor class GameStateCanister() = this {
                     };
                 } catch (e) {
                     let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
-                    D.print("GameState: submitChallengeResponse - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
+                    D.print("GameState: submitChallengeResponse - 07 - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
                     D.print("GameState: submitChallengeResponse - Failed to retrieve info for mAIner: " # debug_show(challengeResponseSubmissionInput) # Error.message(e));      
                     return #Err(#Other("GameState: testMainerCodeIntegrityAdmin - Failed to retrieve info for mAIner: " # debug_show(challengeResponseSubmissionInput) # Error.message(e)));
                 };
@@ -6484,7 +6498,8 @@ actor class GameStateCanister() = this {
                 switch (getOpenChallenge(challengeResponseSubmissionInput.challengeId)) {
                     case (null) { 
                         let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
-                        D.print("GameState: submitChallengeResponse - 05 - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
+                        D.print("GameState: submitChallengeResponse - 08 - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
+                        D.print("GameState: submitChallengeResponse - Submission already closed for challengeId: " # challengeResponseSubmissionInput.challengeId);
                         return #Err(#InvalidId);
                     };
                     case (?challengeEntry) {
@@ -6494,8 +6509,8 @@ actor class GameStateCanister() = this {
 
                         if (Cycles.available() < challengeEntry.cyclesSubmitResponse) {
                             let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
-                            D.print("GameState: submitChallengeResponse - 02- kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
-                            D.print("GameState: submitChallengeResponse - cycles available: " # debug_show(Cycles.available()));
+                            D.print("GameState: submitChallengeResponse - 09- kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
+                            D.print("GameState: submitChallengeResponse - not sufficient cycles sent: " # debug_show(Cycles.available()));
                             D.print("GameState: submitChallengeResponse - cycles required : " # debug_show(challengeEntry.cyclesSubmitResponse));
                             return #Err(#InsuffientCycles(challengeEntry.cyclesSubmitResponse));                    
                         };
@@ -6505,7 +6520,7 @@ actor class GameStateCanister() = this {
                         D.print("GameState: submitChallengeResponse - Accepting cycles for successful submission: " # debug_show(cyclesAcceptedForSubmission) # " from caller " # Principal.toText(msg.caller));
                         if (cyclesAcceptedForSubmission < challengeEntry.cyclesSubmitResponse) {
                             // Sanity check: At this point, this should never fail
-                            D.print("GameState: submitChallengeResponse - 07");
+                            D.print("GameState: submitChallengeResponse - 10 - not sufficient cycles sent.");
                             return #Err(#Unauthorized);                    
                         };
 
@@ -6561,7 +6576,7 @@ actor class GameStateCanister() = this {
                             cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
                             cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
                         };
-                        D.print("GameState: submitChallengeResponse - submitted!");
+                        D.print("GameState: submitChallengeResponse - submitted! response for challengeId: " # challengeResponseSubmissionInput.challengeId );
                         // TODO - Implementation: adapt cycles burnt stats
                         ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
                         return #Ok(submissionMetada);       
