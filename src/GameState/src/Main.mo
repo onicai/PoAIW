@@ -1971,6 +1971,9 @@ actor class GameStateCanister() = this {
     // Open topics for Challenges to be generated
     stable var openChallengeTopicsStorageStable : [(Text, Types.ChallengeTopic)] = [];
     var openChallengeTopicsStorage : HashMap.HashMap<Text, Types.ChallengeTopic> = HashMap.HashMap(0, Text.equal, Text.hash);
+    
+    // Round-robin counter for challenge topic selection
+    stable var roundRobinTopicIndex : Nat = 0;
 
     private func putOpenChallengeTopic(challengeTopicId : Text, challengeTopicEntry : Types.ChallengeTopic) : Bool {
         openChallengeTopicsStorage.put(challengeTopicId, challengeTopicEntry);
@@ -1986,6 +1989,28 @@ actor class GameStateCanister() = this {
 
     private func getOpenChallengeTopics() : [Types.ChallengeTopic] {
         return Iter.toArray(openChallengeTopicsStorage.vals());
+    };
+
+    // Admin functions for round-robin topic selection
+    public shared query (msg) func getRoundRobinTopicIndexAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(roundRobinTopicIndex);
+    };
+
+    public shared (msg) func resetRoundRobinTopicIndexAdmin() : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        roundRobinTopicIndex := 0;
+        return #Ok({ status_code = 200 });
     };
 
     // Open challenges
@@ -2277,6 +2302,47 @@ actor class GameStateCanister() = this {
                     };
                     case (_) { return null; };
                 };
+            };
+            case (_) { return null; };
+        };
+    };
+
+    private func getRoundRobinChallengeTopic(challengeTopicStatus : Types.ChallengeTopicStatus) : async ?Types.ChallengeTopic {
+        D.print("GameState: getRoundRobinChallengeTopic - challengeTopicStatus: " # debug_show(challengeTopicStatus));
+        switch (challengeTopicStatus) {
+            case (#Open) {
+                let topicIds : [Text] = Iter.toArray(openChallengeTopicsStorage.keys());
+                
+                let numberOfTopics : Nat = topicIds.size();
+                
+                // Return null if no topics are available
+                if (numberOfTopics == 0) {
+                    D.print("GameState: getRoundRobinChallengeTopic - no topics available");
+                    return null;
+                };
+
+                // Use round-robin selection of the topic
+                var selectedIndex : Nat = roundRobinTopicIndex % numberOfTopics;
+
+                // Protect against overflow
+                if (selectedIndex >= numberOfTopics) {
+                    selectedIndex := 0;
+                };
+
+                // Update round-robin index for next call
+                roundRobinTopicIndex := (roundRobinTopicIndex + 1) % numberOfTopics;
+
+                // Protect against overflow
+                if (roundRobinTopicIndex >= numberOfTopics) {
+                    roundRobinTopicIndex := 0;
+                };
+
+                D.print("GameState: getRoundRobinChallengeTopic - topicIds: " # debug_show(topicIds));
+                D.print("GameState: getRoundRobinChallengeTopic - numberOfTopics: " # debug_show(numberOfTopics));
+                D.print("GameState: getRoundRobinChallengeTopic - selectedIndex: " # debug_show(selectedIndex));
+                D.print("GameState: getRoundRobinChallengeTopic - next roundRobinTopicIndex: " # debug_show(roundRobinTopicIndex));
+                
+                return getOpenChallengeTopic(topicIds[selectedIndex]);
             };
             case (_) { return null; };
         };
@@ -3196,6 +3262,25 @@ actor class GameStateCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
+    // Test function for admin to test getRandomOpenChallengeTopic
+    public shared (msg) func getRandomOpenChallengeTopicAdmin() : async Types.ChallengeTopicResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let challengeTopicResult : ?Types.ChallengeTopic = await getRoundRobinChallengeTopic(#Open);
+        switch (challengeTopicResult) {
+            case (?challengeTopic) {
+                // Now we can return the challenge topic
+                D.print("GameState: getRandomOpenChallengeTopicAdmin - Returning the challenge topic" # debug_show(challengeTopic));
+                return #Ok(challengeTopic);
+            };
+            case (_) { return #Err(#FailedOperation); };
+        };             
+    };
+
     // Function for Challenger agent canister to retrieve a random challenge topic
     public shared (msg) func getRandomOpenChallengeTopic() : async Types.ChallengeTopicResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -3204,7 +3289,7 @@ actor class GameStateCanister() = this {
         if (PAUSE_PROTOCOL) {
             return #Err(#Other("Protocol is currently paused"));
         };
-        // Only official Challenger canisters may call this
+        D.print("GameState: getRandomOpenChallengeTopic - entered");
         switch (getChallengerCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
             case (?_challengerEntry) {
@@ -3213,7 +3298,9 @@ actor class GameStateCanister() = this {
                 if (openChallenges.size() >= THRESHOLD_MAX_OPEN_CHALLENGES) {
                     return #Err(#Other("We already have sufficient open challenges."));
                 };
-                let challengeTopicResult : ?Types.ChallengeTopic = await getRandomChallengeTopic(#Open);
+                D.print("GameState: getRandomOpenChallengeTopic - getting the ChallengeTopic");
+                // let challengeTopicResult : ?Types.ChallengeTopic = await getRandomChallengeTopic(#Open);
+                let challengeTopicResult : ?Types.ChallengeTopic = await getRoundRobinChallengeTopic(#Open);
                 switch (challengeTopicResult) {
                     case (?challengeTopic) {
                         // First send cycles to the Challenger to pay for the challenge generation
@@ -3222,12 +3309,13 @@ actor class GameStateCanister() = this {
                         Cycles.add<system>(cyclesAdded);
                         try {
                             let deposit_cycles_args = { canister_id : Principal = msg.caller; };
-                            let _ = await IC0.deposit_cycles(deposit_cycles_args);
+                            let _ = ignore IC0.deposit_cycles(deposit_cycles_args);
 
-                            D.print("GameState: getRandomOpenChallengeTopic - Successfully deposited " # debug_show(cyclesAdded) # " cycles to Challenger canister " # Principal.toText(msg.caller) );
+                            D.print("GameState: getRandomOpenChallengeTopic - Successfully send to system via ignore " # debug_show(cyclesAdded) # " cycles to Challenger canister " # Principal.toText(msg.caller) );
 
                             // Now we can return the challenge topic
-                            return #Ok(challengeTopic);  
+                            D.print("GameState: getRandomOpenChallengeTopic - Returning the challenge topic" # debug_show(challengeTopic));
+                            return #Ok(challengeTopic);
 
                         } catch (e) {
                             D.print("GameState: getRandomOpenChallengeTopic - Failed to deposit " # debug_show(cyclesAdded) # " cycles to Challenger canister " # Principal.toText(msg.caller));
