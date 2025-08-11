@@ -6833,9 +6833,9 @@ actor class GameStateCanister() = this {
                                         Cycles.add<system>(cyclesAdded);
                                         try {
                                             let deposit_cycles_args = { canister_id : Principal = msg.caller; };
-                                            let _ = await IC0.deposit_cycles(deposit_cycles_args);
+                                            let _ = ignore IC0.deposit_cycles(deposit_cycles_args);
 
-                                            D.print("GameState: getNextSubmissionToJudge - Successfully deposited " # debug_show(cyclesAdded) # " cycles to Judge canister " # Principal.toText(msg.caller) );
+                                            D.print("GameState: getNextSubmissionToJudge - Successfully deposited (via ignore) " # debug_show(cyclesAdded) # " cycles to Judge canister " # Principal.toText(msg.caller) );
 
                                         } catch (e) {
                                             D.print("GameState: getNextSubmissionToJudge - Failed to deposit " # debug_show(cyclesAdded) # " cycles to Judge canister " # Principal.toText(msg.caller));
