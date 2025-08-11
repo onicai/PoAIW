@@ -1712,7 +1712,7 @@ actor class ChallengerCtrlbCanister() {
     };
 
     // Timer
-    stable var actionRegularityInSeconds = 300;
+    stable var actionRegularityInSeconds = 420;
 
     public shared (msg) func setTimerActionRegularityInSecondsAdmin(_actionRegularityInSeconds : Nat) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
