@@ -102,6 +102,12 @@ actor class GameStateCanister() = this {
     // Counter for generating sequential challenge IDs
     stable var challengeIdCounter : Nat = 0;
 
+    // Counter for generating sequential mainer prompt IDs
+    stable var mainerPromptIdCounter : Nat = 0;
+
+    // Counter for generating sequential judge prompt IDs
+    stable var judgePromptIdCounter : Nat = 0;
+
     public shared (msg) func setLimitForCreatingMainerAdmin(newLimitInput : Types.MainerLimitInput) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -2428,7 +2434,8 @@ actor class GameStateCanister() = this {
                     return #Err(#Unauthorized);
                 };
 
-                let mainerPromptId : Text = await Utils.newRandomUniqueId();
+                mainerPromptIdCounter += 1;
+                let mainerPromptId : Text = Nat.toText(mainerPromptIdCounter);
                 D.print("GameState: startUploadMainerPromptCache - mainerPromptId: " # debug_show(mainerPromptId));
 
                 // Initialize the prompt cache upload session for this Challenge
@@ -2639,7 +2646,8 @@ actor class GameStateCanister() = this {
                     return #Err(#Unauthorized);
                 };
 
-                let judgePromptId : Text = await Utils.newRandomUniqueId();
+                judgePromptIdCounter += 1;
+                let judgePromptId : Text = Nat.toText(judgePromptIdCounter);
                 D.print("GameState: startUploadJudgePromptCache - judgePromptId: " # debug_show(judgePromptId));
 
                 // Initialize the prompt cache upload session for this Challenge
