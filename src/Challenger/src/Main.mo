@@ -90,6 +90,11 @@ actor class ChallengerCtrlbCanister() {
     // timer ID, so we can stop it after starting
     stable var recurringTimerId : ?Timer.TimerId = null;
 
+    // Flag to track if challenge generation is in progress
+    // Note: This is NOT stable - resets to false on canister upgrades for self-healing
+    //       It does not reset on canister restarts. You must manually call resetIsGeneratingChallengeFlag to reset it.
+    private transient var IS_GENERATING_CHALLENGE : Bool = false;
+
     // Record of all generated challenges
     stable var generatedChallenges : List.List<Types.GeneratedChallenge> = List.nil<Types.GeneratedChallenge>();
 
@@ -125,6 +130,24 @@ actor class ChallengerCtrlbCanister() {
         };
 
         return generatedChallenges;
+    };
+
+
+    // Admin function to check if currently generating a challenge
+    public shared query (msg) func getIsGeneratingChallengeFlag() : async Types.FlagResult {
+        return #Ok({ flag = IS_GENERATING_CHALLENGE });
+    };
+
+    public shared (msg) func resetIsGeneratingChallengeFlag() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        IS_GENERATING_CHALLENGE := false;
+        let authRecord = { auth = "You set the flag to " # debug_show(IS_GENERATING_CHALLENGE) };
+        return #Ok(authRecord);
     };
 
     // -------------------------------------------------------------------------------
@@ -278,8 +301,28 @@ actor class ChallengerCtrlbCanister() {
             return #Err(#StatusCode(401));
         };
 
-        let generatedChallengeOutput : Types.GeneratedChallengeResult = await generateChallenge();
-        return generatedChallengeOutput;
+        // Check if already generating a challenge
+        if (IS_GENERATING_CHALLENGE) {
+            D.print("Challenger: generateNewChallenge - Manual challenge generation requested, but already generating a challenge");
+            return #Err(#Other("Challenge generation already in progress. Use resetGeneratingChallengeStateAdmin() if needed to reset state."));
+        };
+
+        // Set the flag to indicate we're starting challenge generation
+        IS_GENERATING_CHALLENGE := true;
+        D.print("Challenger: generateNewChallenge - Starting manual challenge generation");
+        
+        try {
+            let generatedChallengeOutput : Types.GeneratedChallengeResult = await generateChallenge();
+            // Reset the flag when done (success case)
+            IS_GENERATING_CHALLENGE := false;
+            D.print("Challenger: generateNewChallenge - Manual challenge generation completed successfully");
+            return generatedChallengeOutput;
+        } catch (e) {
+            // Reset the flag when done (error case)
+            IS_GENERATING_CHALLENGE := false;
+            D.print("Challenger: generateNewChallenge - Manual challenge generation failed: " # Error.message(e));
+            return #Err(#Other("Challenge generation failed: " # Error.message(e)));
+        };
     };
 
     private func getChallengeTopicFromGameStateCanister() : async Types.ChallengeTopicResult {
@@ -1689,12 +1732,29 @@ actor class ChallengerCtrlbCanister() {
     };
 
     private func triggerRecurringAction() : async () {
-        D.print("Challenger: Recurring action was triggered");
-        //ignore generateChallenge(); TODO - Testing
-        let result = await generateChallenge();
-        D.print("Challenger: Recurring action result");
-        D.print(debug_show (result));
-        D.print("Challenger: Recurring action result");
+        D.print("Challenger: triggerRecurringAction - Recurring action was triggered");
+        
+        // Check if already working on a challenge
+        if (IS_GENERATING_CHALLENGE) {
+            D.print("Challenger: triggerRecurringAction - Already generating a challenge, skipping this timer trigger");
+            return;
+        };
+        
+        // Set the flag to indicate we're starting challenge generation
+        IS_GENERATING_CHALLENGE := true;
+        D.print("Challenger: triggerRecurringAction - Starting challenge generation. Set IS_GENERATING_CHALLENGE to true");
+
+        try {
+            let result = await generateChallenge();
+            D.print("Challenger: triggerRecurringAction - Recurring action result");
+            D.print(debug_show (result));
+        } catch (e) {
+            D.print("Challenger: triggerRecurringAction - Error during challenge generation: " # Error.message(e));
+        };
+        
+        // Reset the flag when done (regardless of success/failure)
+        IS_GENERATING_CHALLENGE := false;
+        D.print("Challenger: triggerRecurringAction - Challenge generation completed. Reset IS_GENERATING_CHALLENGE to false");
     };
 
     public shared (msg) func startTimerExecutionAdmin() : async Types.AuthRecordResult {
@@ -1707,6 +1767,9 @@ actor class ChallengerCtrlbCanister() {
     private func startTimerExecution() : async Types.AuthRecordResult {
         // First stop an existing timer if it exists
         let _ = await stopTimerExecution();
+
+        // Reset challenge generation flag
+        IS_GENERATING_CHALLENGE := false;
 
         // Now start the timer
         ignore setTimer<system>(#seconds 5,
