@@ -99,6 +99,9 @@ actor class GameStateCanister() = this {
     stable var LIMIT_SHARED_MAINERS : Nat = 0;
     stable var LIMIT_OWN_MAINERS : Nat = 0;
 
+    // Counter for generating sequential challenge IDs
+    stable var challengeIdCounter : Nat = 0;
+
     public shared (msg) func setLimitForCreatingMainerAdmin(newLimitInput : Types.MainerLimitInput) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -3360,8 +3363,9 @@ actor class GameStateCanister() = this {
                 let openChallenges : [Types.Challenge] = getOpenChallenges();
                 D.print("GameState: addChallenge - number of open challenges before adding: " # Nat.toText(openChallenges.size()));
 
-                D.print("GameState: addChallenge - generating new challenge ID with newRandomUniqueId");
-                let challengeId : Text = await Utils.newRandomUniqueId();
+                D.print("GameState: addChallenge - generating new challenge ID with incremental counter");
+                challengeIdCounter += 1;
+                let challengeId : Text = Nat.toText(challengeIdCounter);
                 D.print("GameState: addChallenge - generated challengeId: " # debug_show(challengeId));
 
                 let challengeAdded : Types.Challenge = {
