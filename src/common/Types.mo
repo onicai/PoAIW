@@ -1078,6 +1078,26 @@ module Types {
 
     public type SubmissionMigrationResult = Result<SubmissionMigrationRecord, ApiError>;
 
+    public type WinnerDeclarationMigrationInput = {
+        winnerDeclarations : [ChallengeWinnerDeclaration];
+    };
+
+    public type WinnerDeclarationMigrationRecord = {
+        migrated : Bool;
+    };
+
+    public type WinnerDeclarationMigrationResult = Result<WinnerDeclarationMigrationRecord, ApiError>;
+
+    public type ScoredResponsesForChallengeMigrationInput = {
+        scoredResponses : [ScoredResponse];
+    };
+
+    public type ScoredResponsesMigrationRecord = {
+        migrated : Bool;
+    };
+
+    public type ScoredResponsesMigrationResult = Result<ScoredResponsesMigrationRecord, ApiError>;
+
 // Treasury Canister
     public type NotifyDisbursementInput = {
         transactionId : Nat64;
@@ -1210,6 +1230,8 @@ module Types {
         addChallenges : (ChallengeMigrationInput) -> async ChallengeMigrationResult;
         addMainersAdmin : (MainerBackupInput) -> async MainerBackupResult;
         addSubmissions : (SubmissionMigrationInput) -> async SubmissionMigrationResult;
+        addWinnerDeclarations : (WinnerDeclarationMigrationInput) -> async WinnerDeclarationMigrationResult;
+        addScoredResponsesForChallenge : (ScoredResponsesForChallengeMigrationInput) -> async ScoredResponsesMigrationResult;
     };
 
     // Treasury canister

@@ -3072,6 +3072,7 @@ actor class GameStateCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        let initialArchivedSubmissionsSize : Nat = archivedSubmissions.size();
         // Take submissions from archivedSubmissions, and migrate them to the archive canister
         let submissionsToMigrateArray = Array.take<Types.ChallengeResponseSubmission>(archivedSubmissions, NUM_SUBMISSIONS_TO_MIGRATE);
 
@@ -3102,8 +3103,8 @@ actor class GameStateCanister() = this {
                 return #Err(#FailedOperation);
             }
         };
-
-        let authRecord = { auth = "Submissions migrated" };
+        let finalArchivedSubmissionsSize : Nat = archivedSubmissions.size();
+        let authRecord = { auth = "Submissions migrated. initialArchivedSubmissionsSize: " # debug_show(initialArchivedSubmissionsSize) # "; finalArchivedSubmissionsSize: " # debug_show(finalArchivedSubmissionsSize) };
         return #Ok(authRecord);
     };    
 
@@ -3169,6 +3170,55 @@ actor class GameStateCanister() = this {
         return List.toArray<Types.ChallengeWinnerDeclaration>(returnList);
     };
 
+    public shared (msg) func migrateWinnerDeclarationsAdmin(challengeIdsToMigrate : [Text]) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let initialWinnerDeclarationsSize : Nat = winnerDeclarationForChallenge.size();
+        // Get winner declarations for the challenge ids
+        var winnerDeclarationsToMigrate : List.List<Types.ChallengeWinnerDeclaration> = List.nil<Types.ChallengeWinnerDeclaration>();
+        for (challengeId in challengeIdsToMigrate.vals()) {
+            switch (winnerDeclarationForChallenge.get(challengeId)) {
+                case (null) { };
+                case (?challengeEntry) { winnerDeclarationsToMigrate := List.push<Types.ChallengeWinnerDeclaration>(challengeEntry, winnerDeclarationsToMigrate); };
+            };
+        };
+        let winnerDeclarationsToMigrateArray = List.toArray<Types.ChallengeWinnerDeclaration>(winnerDeclarationsToMigrate);
+
+        let archiveCanisterActor = actor(ARCHIVE_CHALLENGES_CANISTER_ID) : Types.ArchiveChallengesCanister_Actor;
+
+        let input : Types.WinnerDeclarationMigrationInput = {
+            winnerDeclarations = winnerDeclarationsToMigrateArray;
+        };
+
+        D.print("GameState: migrateWinnerDeclarationsAdmin - migrating winnerDeclarations: "# debug_show(winnerDeclarationsToMigrateArray.size()));
+        let migrateResult : Types.WinnerDeclarationMigrationResult = await archiveCanisterActor.addWinnerDeclarations(input);
+        D.print("GameState: migrateWinnerDeclarationsAdmin - migrateResult: "# debug_show(migrateResult));
+        switch (migrateResult) {
+            case (#Ok(migrated)) {
+                D.print("GameState: migrateWinnerDeclarationsAdmin - migrated: "# debug_show(migrated));
+                // Remove the migrated winner declarations
+                for (challengeId in challengeIdsToMigrate.vals()) {
+                    ignore winnerDeclarationForChallenge.remove(challengeId);
+                };
+            };
+            case (#Err(migrationError)) {
+                D.print("GameState: migrateWinnerDeclarationsAdmin - migrationError: "# debug_show(migrationError));
+                return #Err(#Other("Error during winner declarations migration: " # debug_show(migrationError)));
+            };
+            case (_) {
+                return #Err(#FailedOperation);
+            }
+        };
+
+        let finalWinnerDeclarationsSize : Nat = winnerDeclarationForChallenge.size();
+        let authRecord = { auth = "Winner declarations migrated. initialWinnerDeclarationsSize: " # debug_show(initialWinnerDeclarationsSize) # "; finalWinnerDeclarationsSize: " # debug_show(finalWinnerDeclarationsSize) };
+        return #Ok(authRecord);
+    };
+
     // Scored responses mapped to challenge id
     stable var scoredResponsesPerChallengeStable : [(Text, List.List<Types.ScoredResponse>)] = [];
     var scoredResponsesPerChallenge : HashMap.HashMap<Text, List.List<Types.ScoredResponse>> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -3220,6 +3270,49 @@ actor class GameStateCanister() = this {
         let scoredChallengesArray : [(Text, List.List<Types.ScoredResponse>)] = Iter.toArray(scoredResponsesPerChallenge.entries());
 
         return #Ok(scoredChallengesArray.size());
+    };
+
+    public shared (msg) func migrateScoredResponsesForChallenge(challengeIdToMigrate : Text) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let initialScoredResponsesPerChallengeSize : Nat = scoredResponsesPerChallenge.size();
+        // Get scored responses for the challenge id
+        var scoredResponsesToMigrate : [Types.ScoredResponse] = [];
+        switch (scoredResponsesPerChallenge.get(challengeIdToMigrate)) {
+            case (null) { return #Err(#InvalidId); };
+            case (?scoredResponsesForChallenge) { scoredResponsesToMigrate := List.toArray<Types.ScoredResponse>(scoredResponsesForChallenge); };
+        };
+        let archiveCanisterActor = actor(ARCHIVE_CHALLENGES_CANISTER_ID) : Types.ArchiveChallengesCanister_Actor;
+
+        let input : Types.ScoredResponsesForChallengeMigrationInput = {
+            scoredResponses = scoredResponsesToMigrate;
+        };
+
+        D.print("GameState: migrateScoredResponsesForChallenge - migrating scoredResponses: "# debug_show(scoredResponsesToMigrate.size()));
+        let migrateResult : Types.ScoredResponsesMigrationResult = await archiveCanisterActor.addScoredResponsesForChallenge(input);
+        D.print("GameState: migrateScoredResponsesForChallenge - migrateResult: "# debug_show(migrateResult));
+        switch (migrateResult) {
+            case (#Ok(migrated)) {
+                D.print("GameState: migrateScoredResponsesForChallenge - migrated: "# debug_show(migrated));
+                // Remove the migrated scored responses
+                ignore scoredResponsesPerChallenge.remove(challengeIdToMigrate);
+            };
+            case (#Err(migrationError)) {
+                D.print("GameState: migrateScoredResponsesForChallenge - migrationError: "# debug_show(migrationError));
+                return #Err(#Other("Error during scored responses migration: " # debug_show(migrationError)));
+            };
+            case (_) {
+                return #Err(#FailedOperation);
+            }
+        };
+
+        let finalScoredResponsesPerChallengeSize : Nat = scoredResponsesPerChallenge.size();
+        let authRecord = { auth = "Scored responses for challenge migrated. initialScoredResponsesPerChallengeSize: " # debug_show(initialScoredResponsesPerChallengeSize) # "; finalScoredResponsesPerChallengeSize: " # debug_show(finalScoredResponsesPerChallengeSize) };
+        return #Ok(authRecord);
     };
 
     // TODO - Design: determine exact reward
