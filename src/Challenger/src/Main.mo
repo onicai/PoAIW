@@ -135,6 +135,12 @@ actor class ChallengerCtrlbCanister() {
 
     // Admin function to check if currently generating a challenge
     public shared query (msg) func getIsGeneratingChallengeFlag() : async Types.FlagResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         return #Ok({ flag = IS_GENERATING_CHALLENGE });
     };
 
