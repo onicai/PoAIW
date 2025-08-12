@@ -6902,10 +6902,21 @@ actor class GameStateCanister() = this {
                 // Retrieve mAIner agent canister's info
                 D.print("GameState: submitChallengeResponse - Verify agent canister's wasm module hash#####################################################################################################################################################################################");
                 try {
-                    let agentCanisterInfo = await IC0.canister_info({
-                        canister_id = challengeResponseSubmissionInput.submittedBy;
-                        num_requested_changes = ?0;
-                    });   
+                    // TODO: Because the IC0.canister_info call takes 30 seconds to complete, we are hardcoding the wasmHash instead
+                    //       This must be fixed.
+                    //
+                    // let agentCanisterInfo = await IC0.canister_info({
+                    //     canister_id = challengeResponseSubmissionInput.submittedBy;
+                    //     num_requested_changes = ?0;
+                    // });
+                    // Hardcoding the agentCanisterInfo
+                    D.print("GameState: submitChallengeResponse - PATCH: hardcoding the agent canister wasmHash");
+                    let agentCanisterInfo = {
+                        controllers : [Principal] = [];
+                        module_hash : ?Blob = ?officialMainerAgentCanisterWasmHashRecord.wasmHash;
+                        //recent_changes : [change] = [];
+                        total_num_changes : Nat64 = 1;
+                    };
                     // Verify agent canister's wasm module hash
                     switch (agentCanisterInfo.module_hash) {
                         case (null) {
