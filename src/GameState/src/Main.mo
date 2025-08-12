@@ -108,6 +108,9 @@ actor class GameStateCanister() = this {
     // Counter for generating sequential judge prompt IDs
     stable var judgePromptIdCounter : Nat = 0;
 
+    // Counter for generating sequential submission IDs
+    stable var submissionIdCounter : Nat = 0;
+
     public shared (msg) func setLimitForCreatingMainerAdmin(newLimitInput : Types.MainerLimitInput) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -6957,7 +6960,7 @@ actor class GameStateCanister() = this {
 
                         // Accept cycles for submission (submission fee plus any outstanding fees, e.g. cuts from unofficial top ups for Protocol's operational expenses)
                         let cyclesAcceptedForSubmission = Cycles.accept<system>(Cycles.available());
-                        D.print("GameState: submitChallengeResponse - Accepting cycles for successful submission: " # debug_show(cyclesAcceptedForSubmission) # " from caller " # Principal.toText(msg.caller));
+                        D.print("GameState: submitChallengeResponse - Accepted cycles for successful submission: " # debug_show(cyclesAcceptedForSubmission) # " from caller " # Principal.toText(msg.caller));
                         if (cyclesAcceptedForSubmission < challengeEntry.cyclesSubmitResponse) {
                             // Sanity check: At this point, this should never fail
                             D.print("GameState: submitChallengeResponse - 10 - not sufficient cycles sent.");
@@ -6965,7 +6968,8 @@ actor class GameStateCanister() = this {
                         };
 
                         // Store the submission
-                        let submissionId : Text = await Utils.newRandomUniqueId();
+                        submissionIdCounter += 1;
+                        let submissionId : Text = Nat.toText(submissionIdCounter);
                         let submissionAdded : Types.ChallengeResponseSubmission = {
                             challengeTopic : Text = challengeResponseSubmissionInput.challengeTopic;
                             challengeTopicId : Text = challengeResponseSubmissionInput.challengeTopicId;
@@ -7008,6 +7012,7 @@ actor class GameStateCanister() = this {
                             cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
                         };
 
+                        D.print("GameState: submitChallengeResponse - Storing successful submission with submissionId: " # debug_show(submissionId) # " for caller " # Principal.toText(msg.caller));
                         let putResult = putSubmission(submissionId, submissionAdded);
                         let submissionMetada : Types.ChallengeResponseSubmissionMetadata = {
                             submissionId : Text = submissionId;
@@ -7016,7 +7021,7 @@ actor class GameStateCanister() = this {
                             cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
                             cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
                         };
-                        D.print("GameState: submitChallengeResponse - submitted! response for challengeId: " # challengeResponseSubmissionInput.challengeId );
+                        D.print("GameState: submitChallengeResponse - submitted! response for challengeId: " # challengeResponseSubmissionInput.challengeId # " for caller " # Principal.toText(msg.caller)) ;
                         // TODO - Implementation: adapt cycles burnt stats
                         ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
                         return #Ok(submissionMetada);       
