@@ -2155,8 +2155,9 @@ actor class GameStateCanister() = this {
     private func archiveClosedChallenges() : Bool {
         let numberOfClosedChallenges = List.size<Types.Challenge>(closedChallenges);
         if (numberOfClosedChallenges >= THRESHOLD_ARCHIVE_CLOSED_CHALLENGES) {
-            let numberOfChallengesToArchive : Nat = THRESHOLD_ARCHIVE_CLOSED_CHALLENGES / 2;
-            let (newClosedChallenges, challengesToArchive) = List.split<Types.Challenge>(numberOfChallengesToArchive, closedChallenges);
+            let numberOfChallengesToArchive : Nat = THRESHOLD_ARCHIVE_CLOSED_CHALLENGES / 10;
+            let indexToSplit : Nat = THRESHOLD_ARCHIVE_CLOSED_CHALLENGES - numberOfChallengesToArchive;
+            let (newClosedChallenges, challengesToArchive) = List.split<Types.Challenge>(indexToSplit, closedChallenges);
             // Archive challenges
             switch (addArchivedChallenges(challengesToArchive)) {
                 case (false) {
@@ -2236,6 +2237,31 @@ actor class GameStateCanister() = this {
         return #Ok(authRecord);
     };
 
+    // Flag to coordinate migration (only one at a time)
+    var IS_MIGRATING_CHALLENGES : Bool = false;
+
+    public shared (msg) func resetIsMigratingChallengesFlagAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        IS_MIGRATING_CHALLENGES := false;
+        let authRecord = { auth = "You set the flag to " # debug_show(IS_MIGRATING_CHALLENGES) };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getIsMigratingChallengesFlagAdmin() : async Types.FlagResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok({ flag = IS_MIGRATING_CHALLENGES });
+    };
+
     private func removePromptCachesForChallenge(challenge : Types.Challenge) : Bool {
         D.print("GameState: removePromptCachesForChallenge - challenge: "# debug_show(challenge));
         let resultMainer = removeMainerPromptCacheForChallenge(challenge);
@@ -2246,32 +2272,50 @@ actor class GameStateCanister() = this {
     };
 
     private func migrateArchivedChallenges() : async Types.NatResult {
-        let archivedChallengesArray : [Types.Challenge] = getArchivedChallenges();
-
-        let archiveCanisterActor = actor(ARCHIVE_CHALLENGES_CANISTER_ID) : Types.ArchiveChallengesCanister_Actor;
-
-        let input : Types.ChallengeMigrationInput = {
-            challenges = archivedChallengesArray;
+        if (IS_MIGRATING_CHALLENGES) {
+            return #Err(#Other("Migration is already ongoing"));
         };
+        try {
+            IS_MIGRATING_CHALLENGES := true;
 
-        D.print("GameState: migrateArchivedChallenges - migrating challenges: "# debug_show(archivedChallengesArray.size()));
-        let migrateResult : Types.ChallengeMigrationResult = await archiveCanisterActor.addChallenges(input);
-        D.print("GameState: migrateArchivedChallenges - migrateResult: "# debug_show(migrateResult));
-        switch (migrateResult) {
-            case (#Ok(migrated)) {
-                D.print("GameState: migrateArchivedChallenges - migrated: "# debug_show(migrated));
-                // Remove prompt caches for the migrated challenges
-                let removalResult = Array.map<Types.Challenge, Bool>(archivedChallengesArray, removePromptCachesForChallenge);
-                D.print("GameState: migrateArchivedChallenges - removalResult: "# debug_show(removalResult));
-                // Reset archived challenges
-                archivedChallenges := List.nil<Types.Challenge>();
-                return #Ok(archivedChallengesArray.size());            
+            let archivedChallengesArray : [Types.Challenge] = getArchivedChallenges();
+
+            let archiveCanisterActor = actor(ARCHIVE_CHALLENGES_CANISTER_ID) : Types.ArchiveChallengesCanister_Actor;
+
+            let input : Types.ChallengeMigrationInput = {
+                challenges = archivedChallengesArray;
             };
-            case (#Err(migrationError)) {
-                D.print("GameState: migrateArchivedChallenges - migrationError: "# debug_show(migrationError));
-                return #Err(#Other("Error during archived challenges migration: " # debug_show(migrationError)));
+
+            D.print("GameState: migrateArchivedChallenges - migrating challenges: "# debug_show(archivedChallengesArray.size()));
+            let migrateResult : Types.ChallengeMigrationResult = await archiveCanisterActor.addChallenges(input);
+            D.print("GameState: migrateArchivedChallenges - migrateResult: "# debug_show(migrateResult));
+            switch (migrateResult) {
+                case (#Ok(migrated)) {
+                    D.print("GameState: migrateArchivedChallenges - migrated: "# debug_show(migrated));
+                    // Remove prompt caches for the migrated challenges
+                    let removalResult = Array.map<Types.Challenge, Bool>(archivedChallengesArray, removePromptCachesForChallenge);
+                    D.print("GameState: migrateArchivedChallenges - removalResult: "# debug_show(removalResult));
+                    // Reset archived challenges
+                    archivedChallenges := List.nil<Types.Challenge>();
+                    IS_MIGRATING_CHALLENGES := false;
+                    return #Ok(archivedChallengesArray.size());            
+                };
+                case (#Err(migrationError)) {
+                    IS_MIGRATING_CHALLENGES := false;
+                    D.print("GameState: migrateArchivedChallenges - migrationError: "# debug_show(migrationError));
+                    return #Err(#Other("Error during archived challenges migration: " # debug_show(migrationError)));
+                };
+                case (_) {
+                    IS_MIGRATING_CHALLENGES := false;
+                    return #Err(#FailedOperation);
+                }
             };
-            case (_) { return #Err(#FailedOperation); }
+        } catch (e) {
+            IS_MIGRATING_CHALLENGES := false;
+            D.print("GameState: migrateArchivedChallenges - error: " # Error.message(e));
+            return #Err(#FailedOperation);
+        } finally {
+            IS_MIGRATING_CHALLENGES := false;        
         };
     };
 
@@ -7009,7 +7053,7 @@ actor class GameStateCanister() = this {
                             case (true) {
                                 // TODO - Implementation: adapt cycles burnt stats
                                 ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_WINNER_DECLARATION);
-                                if (List.size<Types.Challenge>(archivedChallenges) >= THRESHOLD_ARCHIVE_CLOSED_CHALLENGES) {
+                                if (List.size<Types.Challenge>(archivedChallenges) >= THRESHOLD_ARCHIVE_CLOSED_CHALLENGES / 10) {
                                     // If the archived challenges storage is getting too big, migrate them to another canister and remove related data
                                     ignore migrateArchivedChallenges();
                                 };
