@@ -2096,6 +2096,7 @@ actor class GameStateCanister() = this {
                     case (false) { return false; };
                     case (true) {
                         let removeResult = removeOpenChallenge(challengeId);
+                        ignore removePromptCachesForChallenge(challengeEntry);
                         return removeResult;
                     };
                 };
