@@ -3272,7 +3272,7 @@ actor class GameStateCanister() = this {
         return #Ok(scoredChallengesArray.size());
     };
 
-    public shared (msg) func migrateScoredResponsesForChallenge(challengeIdToMigrate : Text) : async Types.AuthRecordResult {
+    public shared (msg) func migrateScoredResponsesForChallengeAdmin(challengeIdToMigrate : Text) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
