@@ -2994,6 +2994,119 @@ actor class GameStateCanister() = this {
         };
     };
 
+    stable var archivedSubmissions : [Types.ChallengeResponseSubmission] = [];
+
+    public shared (msg) func archiveSubmissionsAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let sevenDaysInNanoseconds = 7 * 24 * 60 * 60 * 1_000_000_000;
+        let timestampMinus7Days = Nat64.fromNat(Int.abs(Time.now() - sevenDaysInNanoseconds));
+        archivedSubmissions := Iter.toArray(Iter.filter(submissionsStorage.vals(), func(submission: Types.ChallengeResponseSubmission) : Bool {
+            if (submission.submittedTimestamp < timestampMinus7Days) {
+                // Submission was more than 7 days ago, so archive
+                return true;                
+            };
+            return false;
+        }));
+        return #Ok(archivedSubmissions.size());
+    };
+
+    public shared (msg) func cleanSubmissionsAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let initialSubmissionsSize : Nat = submissionsStorage.size();
+        for (submission in archivedSubmissions.vals()) {
+            // Remove the entry from the general submissions HashMap
+            ignore submissionsStorage.remove(submission.submissionId);
+        };
+        let finalSubmissionsSize : Nat = submissionsStorage.size();
+        let authRecord = { auth = "initialSubmissionsSize: " # debug_show(initialSubmissionsSize) # "; finalSubmissionsSize: " # debug_show(finalSubmissionsSize) };
+        return #Ok(authRecord);
+    };
+
+    public shared query (msg) func getNumArchivedSubmissionsAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(archivedSubmissions.size());
+    };
+
+    stable var NUM_SUBMISSIONS_TO_MIGRATE : Nat = 100;
+    
+    public shared (msg) func setNumSubmissionsToMigrateAdmin(newNum : Nat) : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        NUM_SUBMISSIONS_TO_MIGRATE := newNum;
+        return #Ok(NUM_SUBMISSIONS_TO_MIGRATE);
+    };
+
+    public shared query (msg) func getNumSubmissionsToMigrateAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(NUM_SUBMISSIONS_TO_MIGRATE);
+    };
+
+    public shared (msg) func migrateSubmissionsAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Take submissions from archivedSubmissions, and migrate them to the archive canister
+        let submissionsToMigrateArray = Array.take<Types.ChallengeResponseSubmission>(archivedSubmissions, NUM_SUBMISSIONS_TO_MIGRATE);
+
+        let archiveCanisterActor = actor(ARCHIVE_CHALLENGES_CANISTER_ID) : Types.ArchiveChallengesCanister_Actor;
+
+        let input : Types.SubmissionMigrationInput = {
+            submissions = submissionsToMigrateArray;
+        };
+
+        D.print("GameState: migrateSubmissionsAdmin - migrating submissions: "# debug_show(submissionsToMigrateArray.size()));
+        let migrateResult : Types.SubmissionMigrationResult = await archiveCanisterActor.addSubmissions(input);
+        D.print("GameState: migrateSubmissionsAdmin - migrateResult: "# debug_show(migrateResult));
+        switch (migrateResult) {
+            case (#Ok(migrated)) {
+                D.print("GameState: migrateSubmissionsAdmin - migrated: "# debug_show(migrated));
+                // Remove the migrated submissions from archivedSubmissions
+                archivedSubmissions := Iter.toArray(Array.slice<Types.ChallengeResponseSubmission>(
+                    archivedSubmissions,
+                    submissionsToMigrateArray.size(),
+                    archivedSubmissions.size()
+                ));   
+            };
+            case (#Err(migrationError)) {
+                D.print("GameState: migrateSubmissionsAdmin - migrationError: "# debug_show(migrationError));
+                return #Err(#Other("Error during archived submissions migration: " # debug_show(migrationError)));
+            };
+            case (_) {
+                return #Err(#FailedOperation);
+            }
+        };
+
+        let authRecord = { auth = "Submissions migrated" };
+        return #Ok(authRecord);
+    };    
+
     // Admin functions to get all open submissions
     public shared query (msg) func getOpenSubmissionsAdmin() : async Types.ChallengeResponseSubmissionsResult {
         if (not Principal.isController(msg.caller)) {

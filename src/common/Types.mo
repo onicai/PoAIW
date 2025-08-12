@@ -1068,6 +1068,16 @@ module Types {
 
     public type MainersResult = Result<[(Text, OfficialMainerAgentCanister)], ApiError>;
 
+    public type SubmissionMigrationInput = {
+        submissions : [ChallengeResponseSubmission];
+    };
+
+    public type SubmissionMigrationRecord = {
+        migrated : Bool;
+    };
+
+    public type SubmissionMigrationResult = Result<SubmissionMigrationRecord, ApiError>;
+
 // Treasury Canister
     public type NotifyDisbursementInput = {
         transactionId : Nat64;
@@ -1199,6 +1209,7 @@ module Types {
     public type ArchiveChallengesCanister_Actor = actor {
         addChallenges : (ChallengeMigrationInput) -> async ChallengeMigrationResult;
         addMainersAdmin : (MainerBackupInput) -> async MainerBackupResult;
+        addSubmissions : (SubmissionMigrationInput) -> async SubmissionMigrationResult;
     };
 
     // Treasury canister
