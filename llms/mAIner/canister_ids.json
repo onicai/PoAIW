@@ -1,9 +1,11 @@
 {
   "llm_0": {
-    "prd": "4yuew-ziaaa-aaaag-auc7a-cai"
+    "prd": "4yuew-ziaaa-aaaag-auc7a-cai",
+    "testing": "gkyvn-gaaaa-aaaab-aakva-cai"
   },
   "llm_1": {
-    "prd": "47vcc-uqaaa-aaaag-auc7q-cai"
+    "prd": "47vcc-uqaaa-aaaag-auc7q-cai",
+    "testing": "gnztz-lyaaa-aaaab-aakvq-cai"
   },
   "llm_10": {
     "prd": "iiulj-6iaaa-aaaan-qz4rq-cai"
