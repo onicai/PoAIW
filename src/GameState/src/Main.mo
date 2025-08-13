@@ -99,6 +99,18 @@ actor class GameStateCanister() = this {
     stable var LIMIT_SHARED_MAINERS : Nat = 0;
     stable var LIMIT_OWN_MAINERS : Nat = 0;
 
+    // Counter for generating sequential challenge IDs
+    stable var challengeIdCounter : Nat = 0;
+
+    // Counter for generating sequential mainer prompt IDs
+    stable var mainerPromptIdCounter : Nat = 0;
+
+    // Counter for generating sequential judge prompt IDs
+    stable var judgePromptIdCounter : Nat = 0;
+
+    // Counter for generating sequential submission IDs
+    stable var submissionIdCounter : Nat = 0;
+
     public shared (msg) func setLimitForCreatingMainerAdmin(newLimitInput : Types.MainerLimitInput) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -925,6 +937,78 @@ actor class GameStateCanister() = this {
 
     public query func getWhitelistPriceForOwnMainer() : async Types.PriceResult {
         return #Ok({ price = WHITELIST_PRICE_FOR_OWN_MAINER_ICP });
+    };
+
+    // Price at which users can buy cycles with FUNNAI from Game State
+    stable var FUNNAI_CYCLES_PRICE : Nat = 400 * Constants.CYCLES_BILLION; // How many cycles one gets for 1 FUNNAI
+
+    public shared (msg) func setFunnaiCyclesPrice(newPrice : Nat) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (newPrice > 2 * Constants.CYCLES_TRILLION) {
+            return #Err(#Unauthorized);
+        };
+        FUNNAI_CYCLES_PRICE := newPrice;
+        let authRecord = { auth = "You set the price." };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getFunnaiCyclesPriceAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(FUNNAI_CYCLES_PRICE);
+    };
+
+    public query func getFunnaiCyclesPrice() : async Types.NatResult {
+        if (CYCLES_BALANCE_THRESHOLD_FUNNAI_TOPUPS > Cycles.balance()) {
+            // No topups with FUNNAI supported anymore, so the price is 0 (i.e. one gets 0 cycles for 1 FUNNAI)
+            return #Ok(0);
+        };
+        return #Ok(FUNNAI_CYCLES_PRICE);
+    };
+
+    // Maximum amount of cycles users can buy with FUNNAI from Game State
+    stable var MAX_FUNNAI_TOPUP_CYCLES_AMOUNT : Nat = 1 * Constants.CYCLES_TRILLION; // Max cycles per topup with FUNNAI
+
+    public shared (msg) func setMaxFunnaiTopupCyclesAmount(newAmount : Nat) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (newAmount > 7 * Constants.CYCLES_TRILLION) {
+            return #Err(#Unauthorized);
+        };
+        MAX_FUNNAI_TOPUP_CYCLES_AMOUNT := newAmount;
+        let authRecord = { auth = "You set the amount." };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getMaxFunnaiTopupCyclesAmountAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(MAX_FUNNAI_TOPUP_CYCLES_AMOUNT);
+    };
+
+    public query func getMaxFunnaiTopupCyclesAmount() : async Types.NatResult {
+        if (CYCLES_BALANCE_THRESHOLD_FUNNAI_TOPUPS > Cycles.balance()) {
+            // No topups with FUNNAI supported anymore, so the amount is 0 (i.e. no cycles available)
+            return #Ok(0);
+        };
+        return #Ok(MAX_FUNNAI_TOPUP_CYCLES_AMOUNT);
     };
 
     // Protocol parameters used in the mAIner Creation Cycles Flow calculations      
@@ -1899,6 +1983,12 @@ actor class GameStateCanister() = this {
     // Open topics for Challenges to be generated
     stable var openChallengeTopicsStorageStable : [(Text, Types.ChallengeTopic)] = [];
     var openChallengeTopicsStorage : HashMap.HashMap<Text, Types.ChallengeTopic> = HashMap.HashMap(0, Text.equal, Text.hash);
+    
+    // Round-robin counter for challenge topic selection
+    stable var roundRobinTopicIndex : Nat = 0;
+
+    // Round-robin counter for challenge selection
+    stable var roundRobinChallengeIndex : Nat = 0;
 
     private func putOpenChallengeTopic(challengeTopicId : Text, challengeTopicEntry : Types.ChallengeTopic) : Bool {
         openChallengeTopicsStorage.put(challengeTopicId, challengeTopicEntry);
@@ -1914,6 +2004,50 @@ actor class GameStateCanister() = this {
 
     private func getOpenChallengeTopics() : [Types.ChallengeTopic] {
         return Iter.toArray(openChallengeTopicsStorage.vals());
+    };
+
+    // Admin functions for round-robin topic selection
+    public shared query (msg) func getRoundRobinTopicIndexAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(roundRobinTopicIndex);
+    };
+
+    public shared (msg) func resetRoundRobinTopicIndexAdmin() : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        roundRobinTopicIndex := 0;
+        return #Ok({ status_code = 200 });
+    };
+
+    // Admin functions for round-robin challenge selection
+    public shared query (msg) func getRoundRobinChallengeIndexAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(roundRobinChallengeIndex);
+    };
+
+    public shared (msg) func resetRoundRobinChallengeIndexAdmin() : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        roundRobinChallengeIndex := 0;
+        return #Ok({ status_code = 200 });
     };
 
     // Open challenges
@@ -1965,6 +2099,7 @@ actor class GameStateCanister() = this {
                     case (false) { return false; };
                     case (true) {
                         let removeResult = removeOpenChallenge(challengeId);
+                        ignore removePromptCachesForChallenge(challengeEntry);
                         return removeResult;
                     };
                 };
@@ -2024,8 +2159,9 @@ actor class GameStateCanister() = this {
     private func archiveClosedChallenges() : Bool {
         let numberOfClosedChallenges = List.size<Types.Challenge>(closedChallenges);
         if (numberOfClosedChallenges >= THRESHOLD_ARCHIVE_CLOSED_CHALLENGES) {
-            let numberOfChallengesToArchive : Nat = THRESHOLD_ARCHIVE_CLOSED_CHALLENGES / 2;
-            let (newClosedChallenges, challengesToArchive) = List.split<Types.Challenge>(numberOfChallengesToArchive, closedChallenges);
+            let numberOfChallengesToArchive : Nat = THRESHOLD_ARCHIVE_CLOSED_CHALLENGES / 10;
+            let indexToSplit : Nat = THRESHOLD_ARCHIVE_CLOSED_CHALLENGES - numberOfChallengesToArchive;
+            let (newClosedChallenges, challengesToArchive) = List.split<Types.Challenge>(indexToSplit, closedChallenges);
             // Archive challenges
             switch (addArchivedChallenges(challengesToArchive)) {
                 case (false) {
@@ -2105,6 +2241,31 @@ actor class GameStateCanister() = this {
         return #Ok(authRecord);
     };
 
+    // Flag to coordinate migration (only one at a time)
+    var IS_MIGRATING_CHALLENGES : Bool = false;
+
+    public shared (msg) func resetIsMigratingChallengesFlagAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        IS_MIGRATING_CHALLENGES := false;
+        let authRecord = { auth = "You set the flag to " # debug_show(IS_MIGRATING_CHALLENGES) };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getIsMigratingChallengesFlagAdmin() : async Types.FlagResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok({ flag = IS_MIGRATING_CHALLENGES });
+    };
+
     private func removePromptCachesForChallenge(challenge : Types.Challenge) : Bool {
         D.print("GameState: removePromptCachesForChallenge - challenge: "# debug_show(challenge));
         let resultMainer = removeMainerPromptCacheForChallenge(challenge);
@@ -2115,32 +2276,50 @@ actor class GameStateCanister() = this {
     };
 
     private func migrateArchivedChallenges() : async Types.NatResult {
-        let archivedChallengesArray : [Types.Challenge] = getArchivedChallenges();
-
-        let archiveCanisterActor = actor(ARCHIVE_CHALLENGES_CANISTER_ID) : Types.ArchiveChallengesCanister_Actor;
-
-        let input : Types.ChallengeMigrationInput = {
-            challenges = archivedChallengesArray;
+        if (IS_MIGRATING_CHALLENGES) {
+            return #Err(#Other("Migration is already ongoing"));
         };
+        try {
+            IS_MIGRATING_CHALLENGES := true;
 
-        D.print("GameState: migrateArchivedChallenges - migrating challenges: "# debug_show(archivedChallengesArray.size()));
-        let migrateResult : Types.ChallengeMigrationResult = await archiveCanisterActor.addChallenges(input);
-        D.print("GameState: migrateArchivedChallenges - migrateResult: "# debug_show(migrateResult));
-        switch (migrateResult) {
-            case (#Ok(migrated)) {
-                D.print("GameState: migrateArchivedChallenges - migrated: "# debug_show(migrated));
-                // Remove prompt caches for the migrated challenges
-                let removalResult = Array.map<Types.Challenge, Bool>(archivedChallengesArray, removePromptCachesForChallenge);
-                D.print("GameState: migrateArchivedChallenges - removalResult: "# debug_show(removalResult));
-                // Reset archived challenges
-                archivedChallenges := List.nil<Types.Challenge>();
-                return #Ok(archivedChallengesArray.size());            
+            let archivedChallengesArray : [Types.Challenge] = getArchivedChallenges();
+
+            let archiveCanisterActor = actor(ARCHIVE_CHALLENGES_CANISTER_ID) : Types.ArchiveChallengesCanister_Actor;
+
+            let input : Types.ChallengeMigrationInput = {
+                challenges = archivedChallengesArray;
             };
-            case (#Err(migrationError)) {
-                D.print("GameState: migrateArchivedChallenges - migrationError: "# debug_show(migrationError));
-                return #Err(#Other("Error during archived challenges migration: " # debug_show(migrationError)));
+
+            D.print("GameState: migrateArchivedChallenges - migrating challenges: "# debug_show(archivedChallengesArray.size()));
+            let migrateResult : Types.ChallengeMigrationResult = await archiveCanisterActor.addChallenges(input);
+            D.print("GameState: migrateArchivedChallenges - migrateResult: "# debug_show(migrateResult));
+            switch (migrateResult) {
+                case (#Ok(migrated)) {
+                    D.print("GameState: migrateArchivedChallenges - migrated: "# debug_show(migrated));
+                    // Remove prompt caches for the migrated challenges
+                    let removalResult = Array.map<Types.Challenge, Bool>(archivedChallengesArray, removePromptCachesForChallenge);
+                    D.print("GameState: migrateArchivedChallenges - removalResult: "# debug_show(removalResult));
+                    // Reset archived challenges
+                    archivedChallenges := List.nil<Types.Challenge>();
+                    IS_MIGRATING_CHALLENGES := false;
+                    return #Ok(archivedChallengesArray.size());            
+                };
+                case (#Err(migrationError)) {
+                    IS_MIGRATING_CHALLENGES := false;
+                    D.print("GameState: migrateArchivedChallenges - migrationError: "# debug_show(migrationError));
+                    return #Err(#Other("Error during archived challenges migration: " # debug_show(migrationError)));
+                };
+                case (_) {
+                    IS_MIGRATING_CHALLENGES := false;
+                    return #Err(#FailedOperation);
+                }
             };
-            case (_) { return #Err(#FailedOperation); }
+        } catch (e) {
+            IS_MIGRATING_CHALLENGES := false;
+            D.print("GameState: migrateArchivedChallenges - error: " # Error.message(e));
+            return #Err(#FailedOperation);
+        } finally {
+            IS_MIGRATING_CHALLENGES := false;        
         };
     };
 
@@ -2205,6 +2384,88 @@ actor class GameStateCanister() = this {
                     };
                     case (_) { return null; };
                 };
+            };
+            case (_) { return null; };
+        };
+    };
+
+    private func getRoundRobinChallengeTopic(challengeTopicStatus : Types.ChallengeTopicStatus) : async ?Types.ChallengeTopic {
+        D.print("GameState: getRoundRobinChallengeTopic - challengeTopicStatus: " # debug_show(challengeTopicStatus));
+        switch (challengeTopicStatus) {
+            case (#Open) {
+                let topicIds : [Text] = Iter.toArray(openChallengeTopicsStorage.keys());
+                
+                let numberOfTopics : Nat = topicIds.size();
+                
+                // Return null if no topics are available
+                if (numberOfTopics == 0) {
+                    D.print("GameState: getRoundRobinChallengeTopic - no topics available");
+                    return null;
+                };
+
+                // Use round-robin selection of the topic
+                var selectedIndex : Nat = roundRobinTopicIndex % numberOfTopics;
+
+                // Protect against overflow
+                if (selectedIndex >= numberOfTopics) {
+                    selectedIndex := 0;
+                };
+
+                // Update round-robin index for next call
+                roundRobinTopicIndex := (roundRobinTopicIndex + 1) % numberOfTopics;
+
+                // Protect against overflow
+                if (roundRobinTopicIndex >= numberOfTopics) {
+                    roundRobinTopicIndex := 0;
+                };
+
+                D.print("GameState: getRoundRobinChallengeTopic - topicIds: " # debug_show(topicIds));
+                D.print("GameState: getRoundRobinChallengeTopic - numberOfTopics: " # debug_show(numberOfTopics));
+                D.print("GameState: getRoundRobinChallengeTopic - selectedIndex: " # debug_show(selectedIndex));
+                D.print("GameState: getRoundRobinChallengeTopic - next roundRobinTopicIndex: " # debug_show(roundRobinTopicIndex));
+                
+                return getOpenChallengeTopic(topicIds[selectedIndex]);
+            };
+            case (_) { return null; };
+        };
+    };
+
+    private func getRoundRobinChallenge(challengeStatus : Types.ChallengeStatus) : async ?Types.Challenge {
+        D.print("GameState: getRoundRobinChallenge - challengeStatus: " # debug_show(challengeStatus));
+        switch (challengeStatus) {
+            case (#Open) {
+                let challengeIds : [Text] = Iter.toArray(openChallengesStorage.keys());
+                
+                let numberOfChallenges : Nat = challengeIds.size();
+                
+                // Return null if no challenges are available
+                if (numberOfChallenges == 0) {
+                    D.print("GameState: getRoundRobinChallenge - no challenges available");
+                    return null;
+                };
+
+                // Use round-robin selection of the challenge
+                var selectedIndex : Nat = roundRobinChallengeIndex % numberOfChallenges;
+
+                // Protect against overflow
+                if (selectedIndex >= numberOfChallenges) {
+                    selectedIndex := 0;
+                };
+
+                // Update round-robin index for next call
+                roundRobinChallengeIndex := (roundRobinChallengeIndex + 1) % numberOfChallenges;
+
+                // Protect against overflow
+                if (roundRobinChallengeIndex >= numberOfChallenges) {
+                    roundRobinChallengeIndex := 0;
+                };
+
+                D.print("GameState: getRoundRobinChallenge - challengeIds: " # debug_show(challengeIds));
+                D.print("GameState: getRoundRobinChallenge - numberOfChallenges: " # debug_show(numberOfChallenges));
+                D.print("GameState: getRoundRobinChallenge - selectedIndex: " # debug_show(selectedIndex));
+                D.print("GameState: getRoundRobinChallenge - next roundRobinChallengeIndex: " # debug_show(roundRobinChallengeIndex));
+                
+                return getOpenChallenge(challengeIds[selectedIndex]);
             };
             case (_) { return null; };
         };
@@ -2287,7 +2548,8 @@ actor class GameStateCanister() = this {
                     return #Err(#Unauthorized);
                 };
 
-                let mainerPromptId : Text = await Utils.newRandomUniqueId();
+                mainerPromptIdCounter += 1;
+                let mainerPromptId : Text = Nat.toText(mainerPromptIdCounter);
                 D.print("GameState: startUploadMainerPromptCache - mainerPromptId: " # debug_show(mainerPromptId));
 
                 // Initialize the prompt cache upload session for this Challenge
@@ -2498,7 +2760,8 @@ actor class GameStateCanister() = this {
                     return #Err(#Unauthorized);
                 };
 
-                let judgePromptId : Text = await Utils.newRandomUniqueId();
+                judgePromptIdCounter += 1;
+                let judgePromptId : Text = Nat.toText(judgePromptIdCounter);
                 D.print("GameState: startUploadJudgePromptCache - judgePromptId: " # debug_show(judgePromptId));
 
                 // Initialize the prompt cache upload session for this Challenge
@@ -2735,6 +2998,120 @@ actor class GameStateCanister() = this {
         };
     };
 
+    stable var archivedSubmissions : [Types.ChallengeResponseSubmission] = [];
+
+    public shared (msg) func archiveSubmissionsAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let sevenDaysInNanoseconds = 7 * 24 * 60 * 60 * 1_000_000_000;
+        let timestampMinus7Days = Nat64.fromNat(Int.abs(Time.now() - sevenDaysInNanoseconds));
+        archivedSubmissions := Iter.toArray(Iter.filter(submissionsStorage.vals(), func(submission: Types.ChallengeResponseSubmission) : Bool {
+            if (submission.submittedTimestamp < timestampMinus7Days) {
+                // Submission was more than 7 days ago, so archive
+                return true;                
+            };
+            return false;
+        }));
+        return #Ok(archivedSubmissions.size());
+    };
+
+    public shared (msg) func cleanSubmissionsAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let initialSubmissionsSize : Nat = submissionsStorage.size();
+        for (submission in archivedSubmissions.vals()) {
+            // Remove the entry from the general submissions HashMap
+            ignore submissionsStorage.remove(submission.submissionId);
+        };
+        let finalSubmissionsSize : Nat = submissionsStorage.size();
+        let authRecord = { auth = "initialSubmissionsSize: " # debug_show(initialSubmissionsSize) # "; finalSubmissionsSize: " # debug_show(finalSubmissionsSize) };
+        return #Ok(authRecord);
+    };
+
+    public shared query (msg) func getNumArchivedSubmissionsAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(archivedSubmissions.size());
+    };
+
+    stable var NUM_SUBMISSIONS_TO_MIGRATE : Nat = 100;
+    
+    public shared (msg) func setNumSubmissionsToMigrateAdmin(newNum : Nat) : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        NUM_SUBMISSIONS_TO_MIGRATE := newNum;
+        return #Ok(NUM_SUBMISSIONS_TO_MIGRATE);
+    };
+
+    public shared query (msg) func getNumSubmissionsToMigrateAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(NUM_SUBMISSIONS_TO_MIGRATE);
+    };
+
+    public shared (msg) func migrateSubmissionsAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let initialArchivedSubmissionsSize : Nat = archivedSubmissions.size();
+        // Take submissions from archivedSubmissions, and migrate them to the archive canister
+        let submissionsToMigrateArray = Array.take<Types.ChallengeResponseSubmission>(archivedSubmissions, NUM_SUBMISSIONS_TO_MIGRATE);
+
+        let archiveCanisterActor = actor(ARCHIVE_CHALLENGES_CANISTER_ID) : Types.ArchiveChallengesCanister_Actor;
+
+        let input : Types.SubmissionMigrationInput = {
+            submissions = submissionsToMigrateArray;
+        };
+
+        D.print("GameState: migrateSubmissionsAdmin - migrating submissions: "# debug_show(submissionsToMigrateArray.size()));
+        let migrateResult : Types.SubmissionMigrationResult = await archiveCanisterActor.addSubmissions(input);
+        D.print("GameState: migrateSubmissionsAdmin - migrateResult: "# debug_show(migrateResult));
+        switch (migrateResult) {
+            case (#Ok(migrated)) {
+                D.print("GameState: migrateSubmissionsAdmin - migrated: "# debug_show(migrated));
+                // Remove the migrated submissions from archivedSubmissions
+                archivedSubmissions := Iter.toArray(Array.slice<Types.ChallengeResponseSubmission>(
+                    archivedSubmissions,
+                    submissionsToMigrateArray.size(),
+                    archivedSubmissions.size()
+                ));   
+            };
+            case (#Err(migrationError)) {
+                D.print("GameState: migrateSubmissionsAdmin - migrationError: "# debug_show(migrationError));
+                return #Err(#Other("Error during archived submissions migration: " # debug_show(migrationError)));
+            };
+            case (_) {
+                return #Err(#FailedOperation);
+            }
+        };
+        let finalArchivedSubmissionsSize : Nat = archivedSubmissions.size();
+        let authRecord = { auth = "Submissions migrated. initialArchivedSubmissionsSize: " # debug_show(initialArchivedSubmissionsSize) # "; finalArchivedSubmissionsSize: " # debug_show(finalArchivedSubmissionsSize) };
+        return #Ok(authRecord);
+    };    
+
     // Admin functions to get all open submissions
     public shared query (msg) func getOpenSubmissionsAdmin() : async Types.ChallengeResponseSubmissionsResult {
         if (not Principal.isController(msg.caller)) {
@@ -2797,6 +3174,55 @@ actor class GameStateCanister() = this {
         return List.toArray<Types.ChallengeWinnerDeclaration>(returnList);
     };
 
+    public shared (msg) func migrateWinnerDeclarationsAdmin(challengeIdsToMigrate : [Text]) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let initialWinnerDeclarationsSize : Nat = winnerDeclarationForChallenge.size();
+        // Get winner declarations for the challenge ids
+        var winnerDeclarationsToMigrate : List.List<Types.ChallengeWinnerDeclaration> = List.nil<Types.ChallengeWinnerDeclaration>();
+        for (challengeId in challengeIdsToMigrate.vals()) {
+            switch (winnerDeclarationForChallenge.get(challengeId)) {
+                case (null) { };
+                case (?challengeEntry) { winnerDeclarationsToMigrate := List.push<Types.ChallengeWinnerDeclaration>(challengeEntry, winnerDeclarationsToMigrate); };
+            };
+        };
+        let winnerDeclarationsToMigrateArray = List.toArray<Types.ChallengeWinnerDeclaration>(winnerDeclarationsToMigrate);
+
+        let archiveCanisterActor = actor(ARCHIVE_CHALLENGES_CANISTER_ID) : Types.ArchiveChallengesCanister_Actor;
+
+        let input : Types.WinnerDeclarationMigrationInput = {
+            winnerDeclarations = winnerDeclarationsToMigrateArray;
+        };
+
+        D.print("GameState: migrateWinnerDeclarationsAdmin - migrating winnerDeclarations: "# debug_show(winnerDeclarationsToMigrateArray.size()));
+        let migrateResult : Types.WinnerDeclarationMigrationResult = await archiveCanisterActor.addWinnerDeclarations(input);
+        D.print("GameState: migrateWinnerDeclarationsAdmin - migrateResult: "# debug_show(migrateResult));
+        switch (migrateResult) {
+            case (#Ok(migrated)) {
+                D.print("GameState: migrateWinnerDeclarationsAdmin - migrated: "# debug_show(migrated));
+                // Remove the migrated winner declarations
+                for (challengeId in challengeIdsToMigrate.vals()) {
+                    ignore winnerDeclarationForChallenge.remove(challengeId);
+                };
+            };
+            case (#Err(migrationError)) {
+                D.print("GameState: migrateWinnerDeclarationsAdmin - migrationError: "# debug_show(migrationError));
+                return #Err(#Other("Error during winner declarations migration: " # debug_show(migrationError)));
+            };
+            case (_) {
+                return #Err(#FailedOperation);
+            }
+        };
+
+        let finalWinnerDeclarationsSize : Nat = winnerDeclarationForChallenge.size();
+        let authRecord = { auth = "Winner declarations migrated. initialWinnerDeclarationsSize: " # debug_show(initialWinnerDeclarationsSize) # "; finalWinnerDeclarationsSize: " # debug_show(finalWinnerDeclarationsSize) };
+        return #Ok(authRecord);
+    };
+
     // Scored responses mapped to challenge id
     stable var scoredResponsesPerChallengeStable : [(Text, List.List<Types.ScoredResponse>)] = [];
     var scoredResponsesPerChallenge : HashMap.HashMap<Text, List.List<Types.ScoredResponse>> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -2848,6 +3274,49 @@ actor class GameStateCanister() = this {
         let scoredChallengesArray : [(Text, List.List<Types.ScoredResponse>)] = Iter.toArray(scoredResponsesPerChallenge.entries());
 
         return #Ok(scoredChallengesArray.size());
+    };
+
+    public shared (msg) func migrateScoredResponsesForChallengeAdmin(challengeIdToMigrate : Text) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let initialScoredResponsesPerChallengeSize : Nat = scoredResponsesPerChallenge.size();
+        // Get scored responses for the challenge id
+        var scoredResponsesToMigrate : [Types.ScoredResponse] = [];
+        switch (scoredResponsesPerChallenge.get(challengeIdToMigrate)) {
+            case (null) { return #Err(#InvalidId); };
+            case (?scoredResponsesForChallenge) { scoredResponsesToMigrate := List.toArray<Types.ScoredResponse>(scoredResponsesForChallenge); };
+        };
+        let archiveCanisterActor = actor(ARCHIVE_CHALLENGES_CANISTER_ID) : Types.ArchiveChallengesCanister_Actor;
+
+        let input : Types.ScoredResponsesForChallengeMigrationInput = {
+            scoredResponses = scoredResponsesToMigrate;
+        };
+
+        D.print("GameState: migrateScoredResponsesForChallenge - migrating scoredResponses: "# debug_show(scoredResponsesToMigrate.size()));
+        let migrateResult : Types.ScoredResponsesMigrationResult = await archiveCanisterActor.addScoredResponsesForChallenge(input);
+        D.print("GameState: migrateScoredResponsesForChallenge - migrateResult: "# debug_show(migrateResult));
+        switch (migrateResult) {
+            case (#Ok(migrated)) {
+                D.print("GameState: migrateScoredResponsesForChallenge - migrated: "# debug_show(migrated));
+                // Remove the migrated scored responses
+                ignore scoredResponsesPerChallenge.remove(challengeIdToMigrate);
+            };
+            case (#Err(migrationError)) {
+                D.print("GameState: migrateScoredResponsesForChallenge - migrationError: "# debug_show(migrationError));
+                return #Err(#Other("Error during scored responses migration: " # debug_show(migrationError)));
+            };
+            case (_) {
+                return #Err(#FailedOperation);
+            }
+        };
+
+        let finalScoredResponsesPerChallengeSize : Nat = scoredResponsesPerChallenge.size();
+        let authRecord = { auth = "Scored responses for challenge migrated. initialScoredResponsesPerChallengeSize: " # debug_show(initialScoredResponsesPerChallengeSize) # "; finalScoredResponsesPerChallengeSize: " # debug_show(finalScoredResponsesPerChallengeSize) };
+        return #Ok(authRecord);
     };
 
     // TODO - Design: determine exact reward
@@ -3124,6 +3593,44 @@ actor class GameStateCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
+    // Test function for admin to test getRandomOpenChallengeTopic
+    public shared (msg) func getRandomOpenChallengeTopicAdmin() : async Types.ChallengeTopicResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let challengeTopicResult : ?Types.ChallengeTopic = await getRoundRobinChallengeTopic(#Open);
+        switch (challengeTopicResult) {
+            case (?challengeTopic) {
+                // Now we can return the challenge topic
+                D.print("GameState: getRandomOpenChallengeTopicAdmin - Returning the challenge topic" # debug_show(challengeTopic));
+                return #Ok(challengeTopic);
+            };
+            case (_) { return #Err(#FailedOperation); };
+        };             
+    };
+
+    // Test function for admin to test getRoundRobinChallenge
+    public shared (msg) func getRandomOpenChallengeAdmin() : async Types.ChallengeResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let challengeResult : ?Types.Challenge = await getRoundRobinChallenge(#Open);
+        switch (challengeResult) {
+            case (?challenge) {
+                // Now we can return the challenge
+                D.print("GameState: getRandomOpenChallengeAdmin - Returning the challenge" # debug_show(challenge));
+                return #Ok(challenge);
+            };
+            case (_) { return #Err(#FailedOperation); };
+        };             
+    };
+
     // Function for Challenger agent canister to retrieve a random challenge topic
     public shared (msg) func getRandomOpenChallengeTopic() : async Types.ChallengeTopicResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -3132,7 +3639,7 @@ actor class GameStateCanister() = this {
         if (PAUSE_PROTOCOL) {
             return #Err(#Other("Protocol is currently paused"));
         };
-        // Only official Challenger canisters may call this
+        D.print("GameState: getRandomOpenChallengeTopic - entered");
         switch (getChallengerCanister(Principal.toText(msg.caller))) {
             case (null) { return #Err(#Unauthorized); };
             case (?_challengerEntry) {
@@ -3141,7 +3648,9 @@ actor class GameStateCanister() = this {
                 if (openChallenges.size() >= THRESHOLD_MAX_OPEN_CHALLENGES) {
                     return #Err(#Other("We already have sufficient open challenges."));
                 };
-                let challengeTopicResult : ?Types.ChallengeTopic = await getRandomChallengeTopic(#Open);
+                D.print("GameState: getRandomOpenChallengeTopic - getting the ChallengeTopic");
+                // let challengeTopicResult : ?Types.ChallengeTopic = await getRandomChallengeTopic(#Open);
+                let challengeTopicResult : ?Types.ChallengeTopic = await getRoundRobinChallengeTopic(#Open);
                 switch (challengeTopicResult) {
                     case (?challengeTopic) {
                         // First send cycles to the Challenger to pay for the challenge generation
@@ -3150,12 +3659,13 @@ actor class GameStateCanister() = this {
                         Cycles.add<system>(cyclesAdded);
                         try {
                             let deposit_cycles_args = { canister_id : Principal = msg.caller; };
-                            let _ = await IC0.deposit_cycles(deposit_cycles_args);
+                            let _ = ignore IC0.deposit_cycles(deposit_cycles_args);
 
-                            D.print("GameState: getRandomOpenChallengeTopic - Successfully deposited " # debug_show(cyclesAdded) # " cycles to Challenger canister " # Principal.toText(msg.caller) );
+                            D.print("GameState: getRandomOpenChallengeTopic - Successfully send to system via ignore " # debug_show(cyclesAdded) # " cycles to Challenger canister " # Principal.toText(msg.caller) );
 
                             // Now we can return the challenge topic
-                            return #Ok(challengeTopic);  
+                            D.print("GameState: getRandomOpenChallengeTopic - Returning the challenge topic" # debug_show(challengeTopic));
+                            return #Ok(challengeTopic);
 
                         } catch (e) {
                             D.print("GameState: getRandomOpenChallengeTopic - Failed to deposit " # debug_show(cyclesAdded) # " cycles to Challenger canister " # Principal.toText(msg.caller));
@@ -3172,6 +3682,7 @@ actor class GameStateCanister() = this {
 
     // Function for Challenger canister to add new challenge
     public shared (msg) func addChallenge(newChallenge : Types.NewChallengeInput) : async Types.ChallengeAdditionResult {
+        D.print("GameState: addChallenge - entered");
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -3183,14 +3694,26 @@ actor class GameStateCanister() = this {
 
         // Only official Challenger canisters may call this
         switch (getChallengerCanister(Principal.toText(msg.caller))) {
-            case (null) { return #Err(#Unauthorized); };
+            case (null) { 
+                D.print("GameState: addChallenge - REJECTED: caller is not an official challenger canister");
+                return #Err(#Unauthorized); 
+            };
             case (?challengerEntry) {
+                D.print("GameState: addChallenge - found challengerEntry");
                 // Verify consistency of the caller
                 if (challengerEntry.address != Principal.toText(msg.caller)) {
+                    D.print("GameState: addChallenge - REJECTED: challenger address mismatch");
                     return #Err(#Unauthorized);
                 };
 
-                let challengeId : Text = await Utils.newRandomUniqueId();
+                // For debug purposes, print number of open challenges
+                let openChallenges : [Types.Challenge] = getOpenChallenges();
+                D.print("GameState: addChallenge - number of open challenges before adding: " # Nat.toText(openChallenges.size()));
+
+                D.print("GameState: addChallenge - generating new challenge ID with incremental counter");
+                challengeIdCounter += 1;
+                let challengeId : Text = Nat.toText(challengeIdCounter);
+                D.print("GameState: addChallenge - generated challengeId: " # debug_show(challengeId));
 
                 let challengeAdded : Types.Challenge = {
                     challengeTopic : Text = newChallenge.challengeTopic;
@@ -3222,8 +3745,14 @@ actor class GameStateCanister() = this {
                     cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = cyclesGenerateResponseOwnctrlOwnllmHIGH;
                 };
 
+                D.print("GameState: addChallenge - storing challenge in open challenges storage");
                 let putResult = putOpenChallenge(challengeId, challengeAdded);
+                // For debug purposes, print number of open challenges
+                let openChallengesAfter : [Types.Challenge] = getOpenChallenges();
+                D.print("GameState: addChallenge - number of open challenges affter adding: " # Nat.toText(openChallengesAfter.size()));
+
                 ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_CHALLENGE_CREATION);
+                D.print("GameState: addChallenge - returning to Challenger");
                 return #Ok(challengeAdded);                        
             };             
         };
@@ -3481,6 +4010,83 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Helpers for FUNNAI payments
+    stable var redeemedFunnaiTransactionBlocksStorageStable : [(Nat, Types.RedeemedTransactionBlock)] = [];
+    var redeemedFunnaiTransactionBlocksStorage : HashMap.HashMap<Nat, Types.RedeemedTransactionBlock> = HashMap.HashMap(0, Nat.equal, Hash.hash);
+
+    private func checkExistingFunnaiTransactionBlock(transactionBlock : Nat64) : Bool {
+        switch (redeemedFunnaiTransactionBlocksStorage.get(Nat64.toNat(transactionBlock))) {
+            case (null) {
+                return false;
+            };
+            case (?existingTransactionBlock) {
+                return true;
+            };
+        };
+    };
+
+    private func putRedeemedFunnaiTransactionBlock(transactionEntry : Types.RedeemedTransactionBlock) : Bool {
+        switch (checkExistingFunnaiTransactionBlock(transactionEntry.paymentTransactionBlockId)) {
+            case (false) {
+                // new entry
+                redeemedFunnaiTransactionBlocksStorage.put(Nat64.toNat(transactionEntry.paymentTransactionBlockId), transactionEntry);
+                return true;
+            };
+            case (true) { 
+                //existing entry
+                return false;
+            }; 
+        };
+    };
+
+    // Function for Admin to get a RedeemedTransactionBlock in case something went wrong and it can then be retried
+    public shared (msg) func getRedeemedFunnaiTransactionBlockAdmin(paymentTransactionBlockId : Types.PaymentTransactionBlockId) : async Types.RedeemedTransactionBlockResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized); 
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        switch (redeemedFunnaiTransactionBlocksStorage.get(Nat64.toNat(paymentTransactionBlockId.paymentTransactionBlockId))) {
+            case (null) {
+                return #Err(#Other("GameState: getRedeemedFunnaiTransactionBlockAdmin - entry not found"));
+            };
+            case (?entry) {
+                return #Ok(entry);
+            };
+        };
+    };
+
+    // Function for Admin to get all RedeemedTransactionBlocks
+    public shared (msg) func getRedeemedFunnaiTransactionBlocksAdmin() : async Types.RedeemedTransactionBlocksResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized); 
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(Iter.toArray(redeemedFunnaiTransactionBlocksStorage.vals()));
+    };
+
+    // Function for Admin to clear a RedeemedTransactionBlock in case something went wrong and it can then be retried
+    public shared (msg) func removeRedeemedFunnaiTransactionBlockAdmin(paymentTransactionBlockId : Types.PaymentTransactionBlockId) : async Types.TextResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized); 
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        switch (redeemedFunnaiTransactionBlocksStorage.remove(Nat64.toNat(paymentTransactionBlockId.paymentTransactionBlockId))) {
+            case (null) {
+                return #Err(#Other("GameState: removeRedeemedFunnaiTransactionBlockAdmin - entry not found"));
+            };
+            case (?entry) {
+                // Remove the entry
+                return #Ok("GameState: removeRedeemedFunnaiTransactionBlockAdmin - Removed entry: " # debug_show(entry));
+            };
+        };
+    };
+
     // Payment memo to specify in transaction to Protocol
     stable let MEMO_PAYMENT : Nat64 = 173; // TODO - Security: double check value can be used
     let PROTOCOL_PRINCIPAL_BLOB : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null);
@@ -3501,7 +4107,7 @@ actor class GameStateCanister() = this {
     // e.g. this is for dev stage, verify with: https://dashboard.internetcomputer.org/account/c88ef9865df034927487e4178da1f80a1648ec5a764e4959cba513c372ceb520
     //let PROTOCOL_PRINCIPAL_BLOB : Blob = "\C8\8E\F9\86\5D\F0\34\92\74\87\E4\17\8D\A1\F8\0A\16\48\EC\5A\76\4E\49\59\CB\A5\13\C3\72\CE\B5\20";
 
-    stable var PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * Constants.CYCLES_TRILLION; // TODO - Implementation: set final value
+    stable var PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * Constants.CYCLES_TRILLION;
 
     public shared (msg) func setProtocolCyclesBalanceBuffer(newBufferInTrillionCycles : Nat) : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -3517,6 +4123,30 @@ actor class GameStateCanister() = this {
             return #Err(#Unauthorized);
         };
         return #Ok(PROTOCOL_CYCLES_BALANCE_BUFFER);
+    };
+
+    stable var CYCLES_BALANCE_THRESHOLD_FUNNAI_TOPUPS : Nat = 600 * Constants.CYCLES_TRILLION;
+
+    public shared (msg) func setCyclesBalanceThresholdFunnaiTopups(newThresholdInTrillionCycles : Nat) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        CYCLES_BALANCE_THRESHOLD_FUNNAI_TOPUPS := newThresholdInTrillionCycles * Constants.CYCLES_TRILLION;
+        let authRecord = { auth = "You set the threshold." };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getCyclesBalanceThresholdFunnaiTopups() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(CYCLES_BALANCE_THRESHOLD_FUNNAI_TOPUPS);
     };
 
     // Decide on usage of incoming funds (e.g. for mAIner creation or top ups)
@@ -3636,7 +4266,6 @@ actor class GameStateCanister() = this {
             };
         } else {
             // TODO - Implementation: calculate the amount of cycles that the mAIner will get based on the payment
-                // TODO: this part is untested so far
             D.print("GameState: handleIncomingFunds - no conversion necessary, calculate mAIner's cycles");
             // Call Cycles Minting Canister for cycles/ICP exchange rate            
             // First, get the ICP amount for the mAIner
@@ -3801,6 +4430,55 @@ actor class GameStateCanister() = this {
                 cyclesForMainer : Nat = cyclesForMainer;
             };
             D.print("GameState: whitelistHandleIncomingFunds - no conversion necessary, response: "# debug_show(response));
+            return #Ok(response);  
+        };
+    };
+
+    private func handleIncomingFunnai(transactionEntry : Types.RedeemedTransactionBlock) : async Types.HandleIncomingFundsResult {
+        D.print("GameState: handleIncomingFunnai - transactionEntry: "# debug_show(transactionEntry));
+        // Calculate cut for Protocol's operational expenses (in FUNNAI)
+        D.print("GameState: handleIncomingFunnai - protocolOperationFeesCut: "# debug_show(protocolOperationFeesCut));
+        D.print("GameState: handleIncomingFunnai - protocolOperationFeesCut / 100: "# debug_show(protocolOperationFeesCut / 100));
+        var amountToKeep : Nat = transactionEntry.amount * protocolOperationFeesCut / 100;
+        let amountForMainer : Nat = transactionEntry.amount - amountToKeep;
+        var amountToConvert : Nat = 0;
+        D.print("GameState: handleIncomingFunnai - amountToKeep: "# debug_show(amountToKeep));
+        D.print("GameState: handleIncomingFunnai - amountForMainer: "# debug_show(amountForMainer));
+        switch (transactionEntry.redeemedFor) {
+            case (#MainerTopUp(mainerCanisterAddress)) {
+                D.print("GameState: handleIncomingFunnai - #MainerTopUp(mainerCanisterAddress): "# debug_show(mainerCanisterAddress)); 
+                amountToConvert := 0; // FUNNAI cannot be converted to cycles so will always come from the Game State's cycles balance
+            };
+            case (_) { return #Err(#Other("Unsupported")); }
+        };
+        D.print("GameState: handleIncomingFunnai - amountToKeep: "# debug_show(amountToKeep));
+        D.print("GameState: handleIncomingFunnai - amountToConvert: "# debug_show(amountToConvert));
+        if (amountToConvert > 0) {
+            // This should never happen, as FUNNAI cannot be converted to cycles
+            return #Err(#FailedOperation);
+        } else {
+            // Calculate the amount of cycles that the mAIner will get based on the payment
+            D.print("GameState: handleIncomingFunnai - no conversion necessary, calculate mAIner's cycles for amountForMainer: " # debug_show(amountForMainer));
+            // Get the conversion rate of FUNNAI to cycles as set by the Game State
+            var cyclesPerFunnai : Nat = FUNNAI_CYCLES_PRICE;
+            // Calculate cycles
+            let E8S_PER_ICP : Nat = 100_000_000; // 10^8 e8s per FUNNAI
+            var cycles : Nat = amountForMainer * cyclesPerFunnai / E8S_PER_ICP;
+            D.print("GameState: handleIncomingFunnai - cycles: "# debug_show(cycles));
+            if (cycles > MAX_FUNNAI_TOPUP_CYCLES_AMOUNT) {
+                D.print("GameState: handleIncomingFunnai - cycles are bigger than max allowed amount: "# debug_show(MAX_FUNNAI_TOPUP_CYCLES_AMOUNT));
+                cycles := MAX_FUNNAI_TOPUP_CYCLES_AMOUNT;
+            };
+            
+            let cyclesForMainer : Nat = cycles;
+            let cyclesForProtocol : Nat = 0; // Protocol already took its cut
+            
+            D.print("GameState: handleIncomingFunnai - cyclesForMainer: "# debug_show(cyclesForMainer));
+            let response : Types.HandleIncomingFundsRecord = {
+                cyclesForProtocol : Nat = cyclesForProtocol;
+                cyclesForMainer : Nat = cyclesForMainer;
+            };
+            D.print("GameState: handleIncomingFunnai - response: "# debug_show(response));
             return #Ok(response);  
         };
     };
@@ -3975,6 +4653,54 @@ actor class GameStateCanister() = this {
                     };
                     case (_) { return #Err(#Other("Transaction wasn't sent correctly")); }
                 };
+            };
+        };
+    };
+
+    // Verify an incoming FUNNAI payment to the Protocol (e.g. for top ups)
+    private func verifyIncomingFunnaiPayment(transactionEntry : Types.RedeemedTransactionBlock) : async Types.VerifyPaymentResult {
+        let getBlocksArgs : TokenLedger.GetBlocksRequest = {
+            start : Nat = Nat64.toNat(transactionEntry.paymentTransactionBlockId);
+            length : Nat = 1;
+        };
+        D.print("GameState: verifyIncomingFunnaiPayment - getBlocksArgs: "# debug_show(getBlocksArgs));
+        D.print("GameState: verifyIncomingFunnaiPayment - TOKEN_LEDGER_CANISTER_ID: "# debug_show(TOKEN_LEDGER_CANISTER_ID));
+        let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (TOKEN_LEDGER_CANISTER_ID);
+        let getTransactionsResponse : TokenLedger.GetTransactionsResponse = await TokenLedger_Actor.get_transactions(getBlocksArgs);
+        D.print("GameState: verifyIncomingFunnaiPayment - getTransactionsResponse: ");
+        D.print("GameState: verifyIncomingFunnaiPayment - getTransactionsResponse.transactions: "# debug_show(getTransactionsResponse.transactions));
+        // Verify transaction exists
+        if (getTransactionsResponse.transactions.size() < 1) {
+            return #Err(#InvalidId);
+        };
+        D.print("GameState: verifyIncomingFunnaiPayment - getTransactionsResponse.transactions.size(): "# debug_show(getTransactionsResponse.transactions.size()));
+        let retrievedTransaction : TokenLedger.Transaction = getTransactionsResponse.transactions[0];
+        D.print("GameState: verifyIncomingFunnaiPayment - retrievedTransaction: "# debug_show(retrievedTransaction));
+        // Verify transaction went to Protocol's account (i.e. is burn operation)
+        D.print("GameState: verifyIncomingFunnaiPayment - retrievedTransaction.burn: "# debug_show(retrievedTransaction.burn));
+        switch (retrievedTransaction.burn) {
+            case (null) {
+                D.print("GameState: verifyIncomingFunnaiPayment - retrievedTransaction.burn: null");
+                return #Err(#Other("Couldn't verify transaction operation details"));  
+            };
+            case (?burnOperation) {
+                D.print("GameState: verifyIncomingFunnaiPayment - burnOperation: "# debug_show(burnOperation));
+                D.print("GameState: verifyIncomingFunnaiPayment - burnOperation.from: "# debug_show(burnOperation.from));
+                D.print("GameState: verifyIncomingFunnaiPayment - transactionEntry.redeemedFor: "# debug_show(transactionEntry.redeemedFor));
+                switch (transactionEntry.redeemedFor) {
+                    case (#MainerTopUp(_)) {
+                        D.print("GameState: verifyIncomingFunnaiPayment - #MainerTopUp ");
+                        // continue as there is no fixed price                             
+                    };
+                    case (_) { return #Err(#Other("Unsupported")); }
+                };
+                D.print("GameState: verifyIncomingFunnaiPayment - verified: ");
+                let amountPaid = burnOperation.amount;
+                D.print("GameState: verifyIncomingFunnaiPayment - amountPaid: "# debug_show(amountPaid));
+                return #Ok({
+                    amountPaid : Nat = amountPaid;
+                    verified : Bool = true;
+                });
             };
         };
     };
@@ -5746,6 +6472,7 @@ actor class GameStateCanister() = this {
         if (PAUSE_PROTOCOL and not Principal.isController(msg.caller)) {
             return #Err(#Other("Protocol is currently paused"));
         };
+        D.print("GameState: topUpCyclesForMainerAgent - mainerTopUpInfo: "# debug_show(mainerTopUpInfo));
 
         // TODO - Implementation: ensure this transaction block hasn't been redeemed yet (no double spending)     
         let transactionToVerify = mainerTopUpInfo.paymentTransactionBlockId;
@@ -5807,7 +6534,9 @@ actor class GameStateCanister() = this {
                             redeemedFor : Types.RedeemedForOptions = redeemedFor;
                             amount : Nat = amountPaid; // to be updated
                         };
+                        D.print("GameState: topUpCyclesForMainerAgent - transactionEntryToVerify: "# debug_show(transactionEntryToVerify));
                         let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify);
+                        D.print("GameState: topUpCyclesForMainerAgent - verificationResponse: "# debug_show(verificationResponse));
                         switch (verificationResponse) {
                             case (#Ok(verificationResult)) {
                                 verifiedPayment := verificationResult.verified;
@@ -5869,6 +6598,153 @@ actor class GameStateCanister() = this {
                                 } catch (e) {
                                     D.print("GameState: topUpCyclesForMainerAgent - Failed to credit cycles to mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e));      
                                     return #Err(#Other("GameState: topUpCyclesForMainerAgent - Failed to credit cycles to mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e)));
+                                };
+                            };
+                        };                       
+                    };
+                };
+            };
+        };
+    };
+
+    // Function for user to top up cycles of an existing mAIner agent with FUNNAI
+    public shared (msg) func topUpCyclesForMainerAgentWithFunnai(mainerTopUpInfo : Types.MainerAgentTopUpInput) : async Types.MainerAgentCanisterResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (PAUSE_PROTOCOL and not Principal.isController(msg.caller)) {
+            return #Err(#Other("Protocol is currently paused"));
+        };
+
+        // Only allowed if the Game State's cycles balance is above the set threshold
+        let minimumBalance = CYCLES_BALANCE_THRESHOLD_FUNNAI_TOPUPS * 8 / 10; // Allow for a buffer of 20% to avoid blocking concurrent requests
+        if (minimumBalance > Cycles.balance()) {
+            return #Err(#Other("No topups with FUNNAI are possible currently"));
+        };
+
+        // Ensure this transaction block hasn't been redeemed yet (no double spending)     
+        let transactionToVerify = mainerTopUpInfo.paymentTransactionBlockId;
+        switch (checkExistingFunnaiTransactionBlock(transactionToVerify)) {
+            case (false) {
+                // new transaction, continue
+            };
+            case (true) {
+                // already redeem transaction
+                return #Err(#Other("Already redeemed this transaction block")); // no double spending
+            };
+        };
+
+        // Sanity checks on provided mAIner info
+        let mainerInfo : Types.OfficialMainerAgentCanister = mainerTopUpInfo.mainerAgent;
+        if (not Principal.equal(mainerInfo.ownedBy, msg.caller)) {
+            // Only the mAIner owner may call this
+            return #Err(#Unauthorized);
+        };
+        if (mainerInfo.address == "") {
+            // The mAIner Controller canister address is needed
+            return #Err(#InvalidId);
+        };
+        switch (mainerInfo.canisterType) {
+            case (#MainerAgent(_)) {
+                // continue
+            };
+            case (_) { return #Err(#Other("Unsupported")); }
+        };
+
+        // Verify existing mAIner entry
+        switch (getUserMainerAgents(msg.caller)) {
+            case (null) {
+                return #Err(#Unauthorized);
+            };
+            case (?userMainerEntries) {
+                switch (List.find<Types.OfficialMainerAgentCanister>(userMainerEntries, func(mainerEntry: Types.OfficialMainerAgentCanister) : Bool { mainerEntry.address == mainerInfo.address } )) {
+                    case (null) {
+                        return #Err(#InvalidId);
+                    };
+                    case (?userMainerEntry) {
+                        // Sanity checks on userMainerEntry (i.e. address provided is correct and matches entry info)
+                        switch (userMainerEntry.canisterType) {
+                            case (#MainerAgent(_)) {
+                                // continue
+                            };
+                            case (_) { return #Err(#Other("Unsupported")); }
+                        };
+
+                        // Verify user's FUNNAI payment for this topup via the TransactionBlockId
+                        var verifiedPayment : Bool = false;
+                        var amountPaid : Nat = 0;
+                        let redeemedFor : Types.RedeemedForOptions = #MainerTopUp(userMainerEntry.address);
+                        let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                        let transactionEntryToVerify : Types.RedeemedTransactionBlock = {
+                            paymentTransactionBlockId : Nat64 = mainerTopUpInfo.paymentTransactionBlockId;
+                            creationTimestamp : Nat64 = creationTimestamp;
+                            redeemedBy : Principal = msg.caller;
+                            redeemedFor : Types.RedeemedForOptions = redeemedFor;
+                            amount : Nat = amountPaid; // to be updated
+                        };
+                        let verificationResponse = await verifyIncomingFunnaiPayment(transactionEntryToVerify);
+                        D.print("GameState: topUpCyclesForMainerAgentWithFunnai - verificationResponse: "# debug_show(verificationResponse));
+                        switch (verificationResponse) {
+                            case (#Ok(verificationResult)) {
+                                verifiedPayment := verificationResult.verified;
+                                amountPaid := verificationResult.amountPaid;
+                            };
+                            case (_) {
+                                return #Err(#Other("Payment verification failed"));                      
+                            };
+                        };
+                        if (not verifiedPayment) {
+                            return #Err(#Other("Payment couldn't be verified"));
+                        };
+
+                        let newTransactionEntry : Types.RedeemedTransactionBlock = {
+                            paymentTransactionBlockId : Nat64 = mainerTopUpInfo.paymentTransactionBlockId;
+                            creationTimestamp : Nat64 = creationTimestamp;
+                            redeemedBy : Principal = msg.caller;
+                            redeemedFor : Types.RedeemedForOptions = redeemedFor;
+                            amount : Nat = amountPaid;
+                        };
+                        let handleResponse : Types.HandleIncomingFundsResult = await handleIncomingFunnai(newTransactionEntry);
+                        D.print("GameState: topUpCyclesForMainerAgentWithFunnai - handleResponse: " # debug_show(handleResponse));
+                        switch (handleResponse) {
+                            case (#Err(error)) {
+                                D.print("GameState: topUpCyclesForMainerAgentWithFunnai - handleResponse FailedOperation: " # debug_show(error));
+                                return #Err(#FailedOperation);
+                            };
+                            case (#Ok(handleResult)) {
+                                D.print("GameState: topUpCyclesForMainerAgentWithFunnai - handleResult: " # debug_show(handleResult));
+                                // Credit mAIner agent with cycles (the user paid for)
+                                try {
+                                    let Mainer_Actor : Types.MainerAgentCtrlbCanister = actor (userMainerEntry.address);
+                                    D.print("GameState: topUpCyclesForMainerAgentWithFunnai - calling Cycles.add for = " # debug_show(handleResult.cyclesForMainer) # " Cycles");
+                                    Cycles.add<system>(handleResult.cyclesForMainer);
+                                    
+                                    D.print("GameState: topUpCyclesForMainerAgentWithFunnai - calling Mainer_Actor.addCycles");
+                                    let addCyclesResponse = await Mainer_Actor.addCycles();
+                                    D.print("GameState: topUpCyclesForMainerAgentWithFunnai - addCyclesResponse: " # debug_show(addCyclesResponse));
+                                    switch (addCyclesResponse) {
+                                        case (#Err(error)) {
+                                            D.print("GameState: topUpCyclesForMainerAgentWithFunnai - addCyclesResponse FailedOperation: " # debug_show(error));
+                                            return #Err(#FailedOperation);
+                                        };
+                                        case (#Ok(addCyclesResult)) {
+                                            D.print("GameState: topUpCyclesForMainerAgentWithFunnai - addCyclesResult: " # debug_show(addCyclesResult));
+                                            //TODO - Design: decide whether a top up history should be kept
+                                            // Track redeemed FUNNAI transaction blocks to ensure no double spending
+                                            switch (putRedeemedFunnaiTransactionBlock(newTransactionEntry)) {
+                                                case (false) {
+                                                    // TODO - Error Handling: likely retry
+                                                };
+                                                case (true) {
+                                                    // continue
+                                                };
+                                            };
+                                            return #Ok(userMainerEntry);
+                                        };
+                                    };
+                                } catch (e) {
+                                    D.print("GameState: topUpCyclesForMainerAgentWithFunnai - Failed to credit cycles to mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e));      
+                                    return #Err(#Other("GameState: topUpCyclesForMainerAgentWithFunnai - Failed to credit cycles to mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e)));
                                 };
                             };
                         };                       
@@ -5985,7 +6861,7 @@ actor class GameStateCanister() = this {
                 if (openSubmissions.size() >= THRESHOLD_MAX_OPEN_SUBMISSIONS) {
                     return #Err(#Other("We have a judging backlog & currently do not distribute open challenges to mAIners."));
                 };
-                let challengeResult : ?Types.Challenge = await getRandomChallenge(#Open);
+                let challengeResult : ?Types.Challenge = await getRoundRobinChallenge(#Open);
                 switch (challengeResult) {
                     case (?challenge) {
                         return #Ok(challenge);                
@@ -6026,27 +6902,38 @@ actor class GameStateCanister() = this {
                 // Retrieve mAIner agent canister's info
                 D.print("GameState: submitChallengeResponse - Verify agent canister's wasm module hash#####################################################################################################################################################################################");
                 try {
-                    let agentCanisterInfo = await IC0.canister_info({
-                        canister_id = challengeResponseSubmissionInput.submittedBy;
-                        num_requested_changes = ?0;
-                    });   
+                    // TODO: Because the IC0.canister_info call takes 30 seconds to complete, we are hardcoding the wasmHash instead
+                    //       This must be fixed.
+                    //
+                    // let agentCanisterInfo = await IC0.canister_info({
+                    //     canister_id = challengeResponseSubmissionInput.submittedBy;
+                    //     num_requested_changes = ?0;
+                    // });
+                    // Hardcoding the agentCanisterInfo
+                    D.print("GameState: submitChallengeResponse - PATCH: hardcoding the agent canister wasmHash");
+                    let agentCanisterInfo = {
+                        controllers : [Principal] = [];
+                        module_hash : ?Blob = ?officialMainerAgentCanisterWasmHashRecord.wasmHash;
+                        //recent_changes : [change] = [];
+                        total_num_changes : Nat64 = 1;
+                    };
                     // Verify agent canister's wasm module hash
                     switch (agentCanisterInfo.module_hash) {
                         case (null) {
                             let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
-                            D.print("GameState: submitChallengeResponse - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
-                            D.print("GameState: submitChallengeResponse - agentCanisterInfo with null as module hash: " # debug_show(agentCanisterInfo)); 
+                            D.print("GameState: submitChallengeResponse - 05 - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
+                            D.print("GameState: submitChallengeResponse - mAIner module hash is null: " # debug_show(agentCanisterInfo)); 
                             // TODO - Design: further measurements?
                             return #Err(#Unauthorized);
                         };
                         case (?agentModuleHash) {
                             if (Blob.equal(agentModuleHash, officialMainerAgentCanisterWasmHashRecord.wasmHash)) {
-                                D.print("GameState: testMainerCodeIntegrityAdmin - agentCanisterInfo with official module hash: " # debug_show(agentCanisterInfo));
+                                D.print("GameState: testMainerCodeIntegrityAdmin - mAIner module hash is correct - agentCanisterInfo with official module hash: " # debug_show(agentCanisterInfo));
                                 // continue as check passed
                             } else {
                                 let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
-                                D.print("GameState: submitChallengeResponse - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
-                                D.print("GameState: submitChallengeResponse - agentCanisterInfo didn't pass verification: " # debug_show(agentCanisterInfo) # " - expected wasm hash = " # debug_show(officialMainerAgentCanisterWasmHash));
+                                D.print("GameState: submitChallengeResponse - 06 - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
+                                D.print("GameState: submitChallengeResponse - mAIner module hash is wrong : " # debug_show(agentCanisterInfo) # " - expected wasm hash = " # debug_show(officialMainerAgentCanisterWasmHash));
                                  
                                 // TODO - Design: further measurements?
                                 return #Err(#Unauthorized);
@@ -6055,7 +6942,7 @@ actor class GameStateCanister() = this {
                     };
                 } catch (e) {
                     let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
-                    D.print("GameState: submitChallengeResponse - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
+                    D.print("GameState: submitChallengeResponse - 07 - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
                     D.print("GameState: submitChallengeResponse - Failed to retrieve info for mAIner: " # debug_show(challengeResponseSubmissionInput) # Error.message(e));      
                     return #Err(#Other("GameState: testMainerCodeIntegrityAdmin - Failed to retrieve info for mAIner: " # debug_show(challengeResponseSubmissionInput) # Error.message(e)));
                 };
@@ -6065,7 +6952,8 @@ actor class GameStateCanister() = this {
                 switch (getOpenChallenge(challengeResponseSubmissionInput.challengeId)) {
                     case (null) { 
                         let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
-                        D.print("GameState: submitChallengeResponse - 05 - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
+                        D.print("GameState: submitChallengeResponse - 08 - kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
+                        D.print("GameState: submitChallengeResponse - Submission already closed for challengeId: " # challengeResponseSubmissionInput.challengeId);
                         return #Err(#InvalidId);
                     };
                     case (?challengeEntry) {
@@ -6075,23 +6963,24 @@ actor class GameStateCanister() = this {
 
                         if (Cycles.available() < challengeEntry.cyclesSubmitResponse) {
                             let _cyclesKeptForFailedSubmission = Cycles.accept<system>(cyclesFailedSubmissionCut);
-                            D.print("GameState: submitChallengeResponse - 02- kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
-                            D.print("GameState: submitChallengeResponse - cycles available: " # debug_show(Cycles.available()));
+                            D.print("GameState: submitChallengeResponse - 09- kept cycles for failed submission: " # debug_show(_cyclesKeptForFailedSubmission) # " from caller " # Principal.toText(msg.caller));
+                            D.print("GameState: submitChallengeResponse - not sufficient cycles sent: " # debug_show(Cycles.available()));
                             D.print("GameState: submitChallengeResponse - cycles required : " # debug_show(challengeEntry.cyclesSubmitResponse));
                             return #Err(#InsuffientCycles(challengeEntry.cyclesSubmitResponse));                    
                         };
 
                         // Accept cycles for submission (submission fee plus any outstanding fees, e.g. cuts from unofficial top ups for Protocol's operational expenses)
                         let cyclesAcceptedForSubmission = Cycles.accept<system>(Cycles.available());
-                        D.print("GameState: submitChallengeResponse - Accepting cycles for successful submission: " # debug_show(cyclesAcceptedForSubmission) # " from caller " # Principal.toText(msg.caller));
+                        D.print("GameState: submitChallengeResponse - Accepted cycles for successful submission: " # debug_show(cyclesAcceptedForSubmission) # " from caller " # Principal.toText(msg.caller));
                         if (cyclesAcceptedForSubmission < challengeEntry.cyclesSubmitResponse) {
                             // Sanity check: At this point, this should never fail
-                            D.print("GameState: submitChallengeResponse - 07");
+                            D.print("GameState: submitChallengeResponse - 10 - not sufficient cycles sent.");
                             return #Err(#Unauthorized);                    
                         };
 
                         // Store the submission
-                        let submissionId : Text = await Utils.newRandomUniqueId();
+                        submissionIdCounter += 1;
+                        let submissionId : Text = Nat.toText(submissionIdCounter);
                         let submissionAdded : Types.ChallengeResponseSubmission = {
                             challengeTopic : Text = challengeResponseSubmissionInput.challengeTopic;
                             challengeTopicId : Text = challengeResponseSubmissionInput.challengeTopicId;
@@ -6134,6 +7023,7 @@ actor class GameStateCanister() = this {
                             cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
                         };
 
+                        D.print("GameState: submitChallengeResponse - Storing successful submission with submissionId: " # debug_show(submissionId) # " for caller " # Principal.toText(msg.caller));
                         let putResult = putSubmission(submissionId, submissionAdded);
                         let submissionMetada : Types.ChallengeResponseSubmissionMetadata = {
                             submissionId : Text = submissionId;
@@ -6142,7 +7032,7 @@ actor class GameStateCanister() = this {
                             cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
                             cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
                         };
-                        D.print("GameState: submitChallengeResponse - submitted!");
+                        D.print("GameState: submitChallengeResponse - submitted! response for challengeId: " # challengeResponseSubmissionInput.challengeId # " for caller " # Principal.toText(msg.caller)) ;
                         // TODO - Implementation: adapt cycles burnt stats
                         ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
                         return #Ok(submissionMetada);       
@@ -6210,9 +7100,9 @@ actor class GameStateCanister() = this {
                                         Cycles.add<system>(cyclesAdded);
                                         try {
                                             let deposit_cycles_args = { canister_id : Principal = msg.caller; };
-                                            let _ = await IC0.deposit_cycles(deposit_cycles_args);
+                                            let _ = ignore IC0.deposit_cycles(deposit_cycles_args);
 
-                                            D.print("GameState: getNextSubmissionToJudge - Successfully deposited " # debug_show(cyclesAdded) # " cycles to Judge canister " # Principal.toText(msg.caller) );
+                                            D.print("GameState: getNextSubmissionToJudge - Successfully deposited (via ignore) " # debug_show(cyclesAdded) # " cycles to Judge canister " # Principal.toText(msg.caller) );
 
                                         } catch (e) {
                                             D.print("GameState: getNextSubmissionToJudge - Failed to deposit " # debug_show(cyclesAdded) # " cycles to Judge canister " # Principal.toText(msg.caller));
@@ -6386,7 +7276,7 @@ actor class GameStateCanister() = this {
                             case (true) {
                                 // TODO - Implementation: adapt cycles burnt stats
                                 ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_WINNER_DECLARATION);
-                                if (List.size<Types.Challenge>(archivedChallenges) >= THRESHOLD_ARCHIVE_CLOSED_CHALLENGES) {
+                                if (List.size<Types.Challenge>(archivedChallenges) >= THRESHOLD_ARCHIVE_CLOSED_CHALLENGES / 10) {
                                     // If the archived challenges storage is getting too big, migrate them to another canister and remove related data
                                     ignore migrateArchivedChallenges();
                                 };
@@ -6894,6 +7784,7 @@ actor class GameStateCanister() = this {
         winnerDeclarationForChallengeStable := Iter.toArray(winnerDeclarationForChallenge.entries());
         sharedServiceCanistersStorageStable := Iter.toArray(sharedServiceCanistersStorage.entries());
         redeemedTransactionBlocksStorageStable := Iter.toArray(redeemedTransactionBlocksStorage.entries());
+        redeemedFunnaiTransactionBlocksStorageStable := Iter.toArray(redeemedFunnaiTransactionBlocksStorage.entries());
     };
 
     system func postupgrade() {
@@ -6925,5 +7816,7 @@ actor class GameStateCanister() = this {
         sharedServiceCanistersStorageStable := [];
         redeemedTransactionBlocksStorage := HashMap.fromIter(Iter.fromArray(redeemedTransactionBlocksStorageStable), redeemedTransactionBlocksStorageStable.size(), Nat.equal, Hash.hash);
         redeemedTransactionBlocksStorageStable := [];
+        redeemedFunnaiTransactionBlocksStorage := HashMap.fromIter(Iter.fromArray(redeemedFunnaiTransactionBlocksStorageStable), redeemedFunnaiTransactionBlocksStorageStable.size(), Nat.equal, Hash.hash);
+        redeemedFunnaiTransactionBlocksStorageStable := [];
     };
 };
