@@ -63,6 +63,7 @@ dfx canister call funnai_treasury_canister getMinimumIcpBalance --network $NETWO
 # Update values
 dfx canister call funnai_treasury_canister setMinimumIcpBalance '0' --network $NETWORK
 dfx canister call funnai_treasury_canister toggleConvertIcpToFunnaiFlagAdmin --network $NETWORK
+dfx canister call funnai_treasury_canister toggleBurnIncomingFunnaiFlagAdmin --network $NETWORK
 
 ## Might come in handy during local testing
 dfx ledger fabricate-cycles --canister funnai_treasury_canister
