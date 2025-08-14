@@ -612,7 +612,8 @@ actor class TreasuryCanister() = this {
         let args : TokenLedger.TransferArg = {
             from_subaccount = null;
             to = {
-                owner = Principal.fromText(MASTER_CANISTER_ID); // Game State is the minting account, sending tokens to it thus burns them
+                //owner = Principal.fromText(MASTER_CANISTER_ID); // Game State is the minting account, sending tokens to it thus burns them
+                owner = Principal.fromText("r5m5y-diaaa-aaaaa-qanaa-cai"); // DEBUG testing
                 subaccount = null;
             };
             amount = funnaiToBurn;
