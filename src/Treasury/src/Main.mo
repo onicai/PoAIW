@@ -608,6 +608,7 @@ actor class TreasuryCanister() = this {
 
     // Helper function to burn FUNNAI tokens on the token ledger (by sending them to Game State)
     private func burnFunnaiTransaction(funnaiToBurn : Nat) : async Nat {
+        D.print("Treasury: burnFunnaiTransaction funnaiToBurn: " # debug_show (funnaiToBurn));
         let args : TokenLedger.TransferArg = {
             from_subaccount = null;
             to = {
@@ -619,19 +620,23 @@ actor class TreasuryCanister() = this {
             memo = null;
             created_at_time = null;
         };
+        D.print("Treasury: burnFunnaiTransaction args: " # debug_show (args));
 
         try {
             // Call the ledger's icrc1_transfer function
             let result = await TokenLedger_Actor.icrc1_transfer(args);
+            D.print("Treasury: burnFunnaiTransaction result: " # debug_show (result));
 
             switch (result) {
                 case (#Ok(blockIndex)) {
                     D.print("Treasury: burnFunnaiTransaction - sending tokens successful: " # debug_show (blockIndex));
+                    D.print("Treasury: burnFunnaiTransaction funnaiBalance initial: " # debug_show (funnaiBalance));
                     if (funnaiBalance > funnaiToBurn) {
                         funnaiBalance := funnaiBalance - funnaiToBurn;
                     } else {
                         funnaiBalance := 0;
                     };
+                    D.print("Treasury: burnFunnaiTransaction funnaiBalance after update: " # debug_show (funnaiBalance));
                     return blockIndex;
                 };
                 case (#Err(err)) {
@@ -654,8 +659,11 @@ actor class TreasuryCanister() = this {
         D.print("Treasury: handleReceivedFunnai - LIQUIDITY_ADDITION_INCOMING_FUNNAI: " # debug_show (LIQUIDITY_ADDITION_INCOMING_FUNNAI));
         var result : Types.TokenomicsActionResult = #Err(#Other("No action taken"));
         if (BURN_INCOMING_FUNNAI) {
+            D.print("Treasury: handleReceivedFunnai - BURN_SHARE_FUNNAI: " # debug_show (BURN_SHARE_FUNNAI));
             let funnaiToBurn : Nat = funnaiReceived * BURN_SHARE_FUNNAI / 10000; // Share is defined as part of 10000 (i.e. 10000 is 100%, 1 is 0.01%)
+            D.print("Treasury: handleReceivedFunnai - funnaiToBurn: " # debug_show (funnaiToBurn));
             let burnResult = await burnFunnaiTransaction(funnaiToBurn);
+            D.print("Treasury: handleReceivedFunnai - burnResult: " # debug_show (burnResult));
             if (burnResult > 0) {
                 // Store tokenomics action
                 let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
@@ -673,6 +681,7 @@ actor class TreasuryCanister() = this {
                 };
 
                 let _ = putTokenomicsAction(newEntry);
+                D.print("Treasury: handleReceivedFunnai - newEntry: " # debug_show (newEntry));
 
                 result := #Ok(newEntry);
             };
