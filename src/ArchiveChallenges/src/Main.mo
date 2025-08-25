@@ -187,7 +187,7 @@ actor class ArchiveChallengesCanister() = this {
         };
     };
 
-    // Submissions backup
+    // Submissions archive
     stable var archivedSubmissions : List.List<Types.ChallengeResponseSubmission> = List.nil<Types.ChallengeResponseSubmission>();
     
     private func putArchivedSubmission(entry : Types.ChallengeResponseSubmission) : Bool {
@@ -243,6 +243,68 @@ actor class ArchiveChallengesCanister() = this {
         };
         if (Principal.isController(msg.caller)) {
             let result = getArchivedSubmissions();
+            return #Ok(result.size());
+        } else {
+            return #Err(#Unauthorized);
+        };
+    };
+
+    // Winner declarations archive
+    stable var archivedWinnerDeclarations : List.List<Types.ChallengeWinnerDeclaration> = List.nil<Types.ChallengeWinnerDeclaration>();
+    
+    private func putArchivedWinnerDeclaration(entry : Types.ChallengeWinnerDeclaration) : Bool {
+        archivedWinnerDeclarations := List.push<Types.ChallengeWinnerDeclaration>(entry, archivedWinnerDeclarations);
+        return true;
+    };
+
+    private func getArchivedWinnerDeclarations() : [Types.ChallengeWinnerDeclaration] {
+        return List.toArray<Types.ChallengeWinnerDeclaration>(archivedWinnerDeclarations);
+    };
+
+    private func addArchivedWinnerDeclarations(entriesToAdd : List.List<Types.ChallengeWinnerDeclaration>) : Bool {
+        archivedWinnerDeclarations := List.append<Types.ChallengeWinnerDeclaration>(entriesToAdd, archivedWinnerDeclarations);
+        return true;
+    };
+
+    public shared (msg) func addWinnerDeclarations(backupInput : Types.WinnerDeclarationMigrationInput) : async Types.WinnerDeclarationMigrationResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID))) {
+            let result = addArchivedWinnerDeclarations(List.fromArray<Types.ChallengeWinnerDeclaration>(backupInput.winnerDeclarations));
+            switch (result) {
+                case (true) {
+                    return #Ok({migrated = true});            
+                };
+                case (false) {
+                    D.print("Archive Canister: addWinnerDeclarations - addArchivedWinnerDeclarations returned false");
+                    return #Err(#FailedOperation);
+                };
+                case (_) { return #Err(#FailedOperation); }
+            };
+        } else {
+            return #Err(#Unauthorized);
+        };
+    };
+
+    public query (msg) func getWinnerDeclarationsAdmin() : async Types.ChallengeWinnersResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (Principal.isController(msg.caller)) {
+            let result = getArchivedWinnerDeclarations();
+            return #Ok(result);
+        } else {
+            return #Err(#Unauthorized);
+        };
+    };
+
+    public query (msg) func getNumWinnerDeclarationsAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (Principal.isController(msg.caller)) {
+            let result = getArchivedWinnerDeclarations();
             return #Ok(result.size());
         } else {
             return #Err(#Unauthorized);
