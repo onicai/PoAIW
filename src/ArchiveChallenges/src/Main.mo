@@ -310,4 +310,66 @@ actor class ArchiveChallengesCanister() = this {
             return #Err(#Unauthorized);
         };
     };
+
+    // Scored responses archive
+    stable var archivedScoredResponses : List.List<Types.ScoredResponse> = List.nil<Types.ScoredResponse>();
+    
+    private func putArchivedScoredResponse(entry : Types.ScoredResponse) : Bool {
+        archivedScoredResponses := List.push<Types.ScoredResponse>(entry, archivedScoredResponses);
+        return true;
+    };
+
+    private func getArchivedScoredResponses() : [Types.ScoredResponse] {
+        return List.toArray<Types.ScoredResponse>(archivedScoredResponses);
+    };
+
+    private func addArchivedScoredResponses(entriesToAdd : List.List<Types.ScoredResponse>) : Bool {
+        archivedScoredResponses := List.append<Types.ScoredResponse>(entriesToAdd, archivedScoredResponses);
+        return true;
+    };
+
+    public shared (msg) func addScoredResponsesForChallenge(backupInput : Types.ScoredResponsesForChallengeMigrationInput) : async Types.ScoredResponsesMigrationResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID))) {
+            let result = addArchivedScoredResponses(List.fromArray<Types.ScoredResponse>(backupInput.scoredResponses));
+            switch (result) {
+                case (true) {
+                    return #Ok({migrated = true});            
+                };
+                case (false) {
+                    D.print("Archive Canister: addScoredResponses - addArchivedScoredResponses returned false");
+                    return #Err(#FailedOperation);
+                };
+                case (_) { return #Err(#FailedOperation); }
+            };
+        } else {
+            return #Err(#Unauthorized);
+        };
+    };
+
+    public query (msg) func getScoredResponsesAdmin() : async Types.ScoredResponsesResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (Principal.isController(msg.caller)) {
+            let result = getArchivedScoredResponses();
+            return #Ok(result);
+        } else {
+            return #Err(#Unauthorized);
+        };
+    };
+
+    public query (msg) func getNumScoredResponsesAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (Principal.isController(msg.caller)) {
+            let result = getArchivedScoredResponses();
+            return #Ok(result.size());
+        } else {
+            return #Err(#Unauthorized);
+        };
+    };
 };
