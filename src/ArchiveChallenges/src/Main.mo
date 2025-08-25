@@ -186,4 +186,66 @@ actor class ArchiveChallengesCanister() = this {
             return #Err(#Unauthorized);
         };
     };
+
+    // Submissions backup
+    stable var archivedSubmissions : List.List<Types.ChallengeResponseSubmission> = List.nil<Types.ChallengeResponseSubmission>();
+    
+    private func putArchivedSubmission(entry : Types.ChallengeResponseSubmission) : Bool {
+        archivedSubmissions := List.push<Types.ChallengeResponseSubmission>(entry, archivedSubmissions);
+        return true;
+    };
+
+    private func getArchivedSubmissions() : [Types.ChallengeResponseSubmission] {
+        return List.toArray<Types.ChallengeResponseSubmission>(archivedSubmissions);
+    };
+
+    private func addArchivedSubmissions(submissionsToAdd : List.List<Types.ChallengeResponseSubmission>) : Bool {
+        archivedSubmissions := List.append<Types.ChallengeResponseSubmission>(submissionsToAdd, archivedSubmissions);
+        return true;
+    };
+
+    public shared (msg) func addSubmissions(backupInput : Types.SubmissionMigrationInput) : async Types.SubmissionMigrationResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID))) {
+            let result = addArchivedSubmissions(List.fromArray<Types.ChallengeResponseSubmission>(backupInput.submissions));
+            switch (result) {
+                case (true) {
+                    return #Ok({migrated = true});            
+                };
+                case (false) {
+                    D.print("Archive Canister: addSubmissions - addArchivedSubmissions returned false");
+                    return #Err(#FailedOperation);
+                };
+                case (_) { return #Err(#FailedOperation); }
+            };
+        } else {
+            return #Err(#Unauthorized);
+        };
+    };
+
+    public query (msg) func getSubmissionsAdmin() : async Types.ChallengeResponseSubmissionsResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (Principal.isController(msg.caller)) {
+            let result = getArchivedSubmissions();
+            return #Ok(result);
+        } else {
+            return #Err(#Unauthorized);
+        };
+    };
+
+    public query (msg) func getNumSubmissionsAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (Principal.isController(msg.caller)) {
+            let result = getArchivedSubmissions();
+            return #Ok(result.size());
+        } else {
+            return #Err(#Unauthorized);
+        };
+    };
 };
