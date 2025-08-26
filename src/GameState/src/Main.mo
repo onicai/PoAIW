@@ -2946,6 +2946,10 @@ actor class GameStateCanister() = this {
     // Submissions to challenges
     stable var submissionsStorageStable : [(Text, Types.ChallengeResponseSubmission)] = [];
     var submissionsStorage : HashMap.HashMap<Text, Types.ChallengeResponseSubmission> = HashMap.HashMap(0, Text.equal, Text.hash);
+    
+    // Queue for open submissions (status = #Submitted) for efficient retrieval by Judge
+    stable var openSubmissionsQueueStable : [Text] = [];
+    var openSubmissionsQueue : Buffer.Buffer<Text> = Buffer.Buffer<Text>(0);
 
     private func putSubmission(submissionId : Text, submissionEntry : Types.ChallengeResponseSubmission) : Bool {
         if (submissionEntry.submissionId != submissionId) {
@@ -2953,6 +2957,16 @@ actor class GameStateCanister() = this {
             return false;
         };
         submissionsStorage.put(submissionId, submissionEntry);
+        
+        // Add to openSubmissionsQueue if status is #Submitted
+        switch (submissionEntry.submissionStatus) {
+            case (#Submitted) {
+                openSubmissionsQueue.add(submissionId);
+                D.print("GameState: putSubmission - Added submission " # submissionId # " to openSubmissionsQueue");
+            };
+            case (_) {}; // Do nothing for other statuses
+        };
+        
         return true;
     };
 
@@ -2977,15 +2991,24 @@ actor class GameStateCanister() = this {
     };
 
      private func getOpenSubmissionsForOpenChallenges() : [Types.ChallengeResponseSubmission] {
-        return Iter.toArray(Iter.filter(submissionsStorage.vals(), func(submission: Types.ChallengeResponseSubmission) : Bool {
-            if (verifyChallenge(#Open, submission.challengeId)) {
-                switch (submission.submissionStatus) {
-                case (#Submitted) { return true };
-                case (_) { return false };
-                }
+        // Use the queue for efficient retrieval - O(m) where m = queue size, not O(n) where n = all submissions
+        let buffer = Buffer.Buffer<Types.ChallengeResponseSubmission>(openSubmissionsQueue.size());
+        
+        for (submissionId in openSubmissionsQueue.vals()) {
+            switch (getSubmission(submissionId)) {
+                case (null) {
+                    // Submission doesn't exist, skip it
+                };
+                case (?submission) {
+                    // Verify submission is still #Submitted and challenge is still open
+                    if (submission.submissionStatus == #Submitted and verifyChallenge(#Open, submission.challengeId)) {
+                        buffer.add(submission);
+                    };
+                };
             };
-            return false;
-        }));
+        };
+        
+        return Buffer.toArray(buffer);
     };
 
     private func removeSubmission(submissionId : Text) : Bool {
@@ -2996,6 +3019,49 @@ actor class GameStateCanister() = this {
                 return true;
             };
         };
+    };
+
+    // Internal function to initialize the open submissions queue from existing storage
+    private func initializeOpenSubmissionsQueueFromStorage() : Nat {
+        // Clear existing queue to avoid duplicates
+        openSubmissionsQueue.clear();
+        
+        var countAdded = 0;
+        
+        // Iterate through all submissions and add those with #Submitted status
+        for ((submissionId, submission) in submissionsStorage.entries()) {
+            switch (submission.submissionStatus) {
+                case (#Submitted) {
+                    // Only add submissions for open challenges
+                    if (verifyChallenge(#Open, submission.challengeId)) {
+                        openSubmissionsQueue.add(submissionId);
+                        countAdded += 1;
+                        D.print("GameState: initializeOpenSubmissionsQueue - Added submission " # submissionId # " to queue");
+                    };
+                };
+                case (_) {}; // Skip other statuses
+            };
+        };
+        
+        D.print("GameState: initializeOpenSubmissionsQueue - Initialized with " # Nat.toText(countAdded) # " submissions");
+        return countAdded;
+    };
+
+    // Admin function to manually initialize the open submissions queue
+    public shared (msg) func initializeOpenSubmissionsQueueAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        
+        let countAdded = initializeOpenSubmissionsQueueFromStorage();
+        
+        let authRecord = { 
+            auth = "Initialized queue with " # Nat.toText(countAdded) # " open submissions. Total queue size: " # Nat.toText(openSubmissionsQueue.size())
+        };
+        return #Ok(authRecord);
     };
 
     stable var archivedSubmissions : [Types.ChallengeResponseSubmission] = [];
@@ -3143,6 +3209,14 @@ actor class GameStateCanister() = this {
         };
         let openSubmissions : [Types.ChallengeResponseSubmission] = getOpenSubmissionsForOpenChallenges();
         return #Ok(openSubmissions.size());
+    };
+    
+    // Admin function to get the open submissions queue size (efficient O(1) operation)
+    public shared query (msg) func getOpenSubmissionsQueueSizeAdmin() : async Types.NatResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(openSubmissionsQueue.size());
     };
 
     // Winner declaration per challenge id
@@ -6857,8 +6931,7 @@ actor class GameStateCanister() = this {
             case (null) { return #Err(#Unauthorized); };
             case (?mainerAgentEntry) {
                 // Do we already have enough open responses?
-                let openSubmissions : [Types.ChallengeResponseSubmission] = getOpenSubmissionsForOpenChallenges();
-                if (openSubmissions.size() >= THRESHOLD_MAX_OPEN_SUBMISSIONS) {
+                if (openSubmissionsQueue.size() >= THRESHOLD_MAX_OPEN_SUBMISSIONS) {
                     return #Err(#Other("We have a judging backlog & currently do not distribute open challenges to mAIners."));
                 };
                 let challengeResult : ?Types.Challenge = await getRoundRobinChallenge(#Open);
@@ -7075,98 +7148,100 @@ actor class GameStateCanister() = this {
                 return #Err(#Unauthorized); 
             };
             case (?_judgeEntry) {
-                var foundKey : ?Text = null;
-                var foundSubmission : ?Types.ChallengeResponseSubmission = null;
+                // Process submissions from the queue in FIFO order
+                // Always check the first element (index 0) since we remove invalid ones
+                while (openSubmissionsQueue.size() > 0) {
+                    let submissionId = openSubmissionsQueue.get(0);
+                    
+                    switch (getSubmission(submissionId)) {
+                        case (null) {
+                            // Submission doesn't exist, remove from queue and continue
+                            ignore openSubmissionsQueue.remove(0);
+                            D.print("GameState: getNextSubmissionToJudge - Removed non-existent submission " # submissionId # " from queue");
+                        };
+                        case (?submission) {
+                            // Verify submission is still #Submitted and challenge is still open
+                            if (submission.submissionStatus == #Submitted and verifyChallenge(#Open, submission.challengeId)) {
+                                // Found valid submission to judge
+                                D.print("GameState: getNextSubmissionToJudge - found a submission to judge: " # submissionId);
+                                
+                                // First send cycles to the Judge to pay for the score generation
+                                let cyclesAdded = submission.cyclesGenerateScoreGsJuctrl;
+                                D.print("GameState: getNextSubmissionToJudge - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
+                                Cycles.add<system>(cyclesAdded);
+                                try {
+                                    let deposit_cycles_args = { canister_id : Principal = msg.caller; };
+                                    let _ = ignore IC0.deposit_cycles(deposit_cycles_args);
 
-                D.print("GameState: getNextSubmissionToJudge - searching for a submission to judge");
-                for ((key, submission) in submissionsStorage.entries()) {
-                    // Check if the challenge for this submission still exists and is still open
-                    // If not, skip it & check the next submission
-                    // TODO - We need to do a regular cleanup of the submissionsStorage
-                    if (verifyChallenge(#Open, submission.challengeId)) {
-                        switch (submission.submissionStatus) {
-                            case (#Submitted) {
-                                D.print("GameState: getNextSubmissionToJudge - found a submission to judge");
-                                foundKey := ?key;
-                                foundSubmission := ?submission;
+                                    D.print("GameState: getNextSubmissionToJudge - Successfully deposited (via ignore) " # debug_show(cyclesAdded) # " cycles to Judge canister " # Principal.toText(msg.caller) );
 
-                                switch (foundKey, foundSubmission) {
-                                    case (?key, ?submission) {
-                                        // Found a submission with submissionStatus #Submitted
+                                } catch (e) {
+                                    D.print("GameState: getNextSubmissionToJudge - Failed to deposit " # debug_show(cyclesAdded) # " cycles to Judge canister " # Principal.toText(msg.caller));
+                                    D.print("GameState: getNextSubmissionToJudge - Failed to deposit error is" # Error.message(e));
 
-                                        // First send cycles to the Judge to pay for the score generation
-                                        let cyclesAdded = submission.cyclesGenerateScoreGsJuctrl;
-                                        D.print("GameState: getNextSubmissionToJudge - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
-                                        Cycles.add<system>(cyclesAdded);
-                                        try {
-                                            let deposit_cycles_args = { canister_id : Principal = msg.caller; };
-                                            let _ = ignore IC0.deposit_cycles(deposit_cycles_args);
+                                    return #Err(#FailedOperation);
+                                };  
 
-                                            D.print("GameState: getNextSubmissionToJudge - Successfully deposited (via ignore) " # debug_show(cyclesAdded) # " cycles to Judge canister " # Principal.toText(msg.caller) );
-
-                                        } catch (e) {
-                                            D.print("GameState: getNextSubmissionToJudge - Failed to deposit " # debug_show(cyclesAdded) # " cycles to Judge canister " # Principal.toText(msg.caller));
-                                            D.print("GameState: getNextSubmissionToJudge - Failed to deposit error is" # Error.message(e));
-
-                                            return #Err(#FailedOperation);
-                                        };  
-
-                                        // (-) Change submissionStatus to #Judging
-                                        // (-) Return it to the Judge
-                                        let updatedSubmission : Types.ChallengeResponseSubmission = {
-                                            challengeTopic : Text = submission.challengeTopic;
-                                            challengeTopicId : Text = submission.challengeTopicId;
-                                            challengeTopicCreationTimestamp : Nat64 = submission.challengeTopicCreationTimestamp;
-                                            challengeTopicStatus : Types.ChallengeTopicStatus = submission.challengeTopicStatus;
-                                            cyclesGenerateChallengeGsChctrl : Nat = submission.cyclesGenerateChallengeGsChctrl;
-                                            cyclesGenerateChallengeChctrlChllm : Nat = submission.cyclesGenerateChallengeChctrlChllm;
-                                            challengeQuestion : Text = submission.challengeQuestion;
-                                            challengeQuestionSeed : Nat32 = submission.challengeQuestionSeed;
-                                            mainerPromptId : Text = submission.mainerPromptId;
-                                            mainerMaxContinueLoopCount : Nat = submission.mainerMaxContinueLoopCount;
-                                            mainerNumTokens : Nat64 = submission.mainerNumTokens;
-                                            mainerTemp : Float = submission.mainerTemp;
-                                            judgePromptId : Text = submission.judgePromptId;
-                                            challengeId : Text = submission.challengeId;
-                                            challengeCreationTimestamp : Nat64 = submission.challengeCreationTimestamp;
-                                            challengeCreatedBy : Types.CanisterAddress = submission.challengeCreatedBy;
-                                            challengeStatus : Types.ChallengeStatus = submission.challengeStatus;
-                                            challengeClosedTimestamp : ?Nat64 = submission.challengeClosedTimestamp;
-                                            cyclesSubmitResponse : Nat = submission.cyclesSubmitResponse;
-                                            protocolOperationFeesCut : Nat = submission.protocolOperationFeesCut;
-                                            cyclesGenerateResponseSactrlSsctrl : Nat = submission.cyclesGenerateResponseSactrlSsctrl;
-                                            cyclesGenerateResponseSsctrlGs : Nat = submission.cyclesGenerateResponseSsctrlGs;
-                                            cyclesGenerateResponseSsctrlSsllm : Nat = submission.cyclesGenerateResponseSsctrlSsllm;
-                                            cyclesGenerateResponseOwnctrlGs : Nat = submission.cyclesGenerateResponseOwnctrlGs;
-                                            cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = submission.cyclesGenerateResponseOwnctrlOwnllmLOW;
-                                            cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = submission.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
-                                            cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = submission.cyclesGenerateResponseOwnctrlOwnllmHIGH;
-                                            challengeQueuedId : Text = submission.challengeQueuedId;
-                                            challengeQueuedBy : Principal = submission.challengeQueuedBy;
-                                            challengeQueuedTo : Principal = submission.challengeQueuedTo;
-                                            challengeQueuedTimestamp : Nat64 = submission.challengeQueuedTimestamp;
-                                            challengeAnswer : Text = submission.challengeAnswer;
-                                            challengeAnswerSeed : Nat32 = submission.challengeAnswerSeed;
-                                            submittedBy : Principal = submission.submittedBy;
-                                            submissionId : Text = submission.submissionId;
-                                            submittedTimestamp : Nat64 = submission.submittedTimestamp;
-                                            submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judging;
-                                            cyclesGenerateScoreGsJuctrl : Nat = submission.cyclesGenerateScoreGsJuctrl;
-                                            cyclesGenerateScoreJuctrlJullm : Nat = submission.cyclesGenerateScoreJuctrlJullm;
-                                        };
-                                        D.print("GameState: getNextSubmissionToJudge - updatedSubmission = " # debug_show(updatedSubmission));
-                                        submissionsStorage.put(key, updatedSubmission);
-                                        return #Ok(updatedSubmission);
-                                    };
-                                    case (_, _) {
-                                        return #Err(#Other("Unexpected Error"));
-                                    };
+                                // (-) Change submissionStatus to #Judging
+                                // (-) Return it to the Judge
+                                let updatedSubmission : Types.ChallengeResponseSubmission = {
+                                    challengeTopic : Text = submission.challengeTopic;
+                                    challengeTopicId : Text = submission.challengeTopicId;
+                                    challengeTopicCreationTimestamp : Nat64 = submission.challengeTopicCreationTimestamp;
+                                    challengeTopicStatus : Types.ChallengeTopicStatus = submission.challengeTopicStatus;
+                                    cyclesGenerateChallengeGsChctrl : Nat = submission.cyclesGenerateChallengeGsChctrl;
+                                    cyclesGenerateChallengeChctrlChllm : Nat = submission.cyclesGenerateChallengeChctrlChllm;
+                                    challengeQuestion : Text = submission.challengeQuestion;
+                                    challengeQuestionSeed : Nat32 = submission.challengeQuestionSeed;
+                                    mainerPromptId : Text = submission.mainerPromptId;
+                                    mainerMaxContinueLoopCount : Nat = submission.mainerMaxContinueLoopCount;
+                                    mainerNumTokens : Nat64 = submission.mainerNumTokens;
+                                    mainerTemp : Float = submission.mainerTemp;
+                                    judgePromptId : Text = submission.judgePromptId;
+                                    challengeId : Text = submission.challengeId;
+                                    challengeCreationTimestamp : Nat64 = submission.challengeCreationTimestamp;
+                                    challengeCreatedBy : Types.CanisterAddress = submission.challengeCreatedBy;
+                                    challengeStatus : Types.ChallengeStatus = submission.challengeStatus;
+                                    challengeClosedTimestamp : ?Nat64 = submission.challengeClosedTimestamp;
+                                    cyclesSubmitResponse : Nat = submission.cyclesSubmitResponse;
+                                    protocolOperationFeesCut : Nat = submission.protocolOperationFeesCut;
+                                    cyclesGenerateResponseSactrlSsctrl : Nat = submission.cyclesGenerateResponseSactrlSsctrl;
+                                    cyclesGenerateResponseSsctrlGs : Nat = submission.cyclesGenerateResponseSsctrlGs;
+                                    cyclesGenerateResponseSsctrlSsllm : Nat = submission.cyclesGenerateResponseSsctrlSsllm;
+                                    cyclesGenerateResponseOwnctrlGs : Nat = submission.cyclesGenerateResponseOwnctrlGs;
+                                    cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = submission.cyclesGenerateResponseOwnctrlOwnllmLOW;
+                                    cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = submission.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+                                    cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = submission.cyclesGenerateResponseOwnctrlOwnllmHIGH;
+                                    challengeQueuedId : Text = submission.challengeQueuedId;
+                                    challengeQueuedBy : Principal = submission.challengeQueuedBy;
+                                    challengeQueuedTo : Principal = submission.challengeQueuedTo;
+                                    challengeQueuedTimestamp : Nat64 = submission.challengeQueuedTimestamp;
+                                    challengeAnswer : Text = submission.challengeAnswer;
+                                    challengeAnswerSeed : Nat32 = submission.challengeAnswerSeed;
+                                    submittedBy : Principal = submission.submittedBy;
+                                    submissionId : Text = submission.submissionId;
+                                    submittedTimestamp : Nat64 = submission.submittedTimestamp;
+                                    submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judging;
+                                    cyclesGenerateScoreGsJuctrl : Nat = submission.cyclesGenerateScoreGsJuctrl;
+                                    cyclesGenerateScoreJuctrlJullm : Nat = submission.cyclesGenerateScoreJuctrlJullm;
                                 };
+                                D.print("GameState: getNextSubmissionToJudge - Returning submissionId " # submissionId # " to Judge canister " # Principal.toText(msg.caller));
+                                submissionsStorage.put(submissionId, updatedSubmission);
+                                
+                                // Remove from queue only after successful processing
+                                ignore openSubmissionsQueue.remove(0);
+                                
+                                return #Ok(updatedSubmission);
+                            } else {
+                                // Submission is not eligible (already being judged or challenge closed)
+                                // Remove from queue and continue
+                                ignore openSubmissionsQueue.remove(0);
+                                D.print("GameState: getNextSubmissionToJudge - Removed ineligible submission " # submissionId # " from queue (status: " # debug_show(submission.submissionStatus) # ")");
                             };
-                            case (_) {}; // Skip other statuses
                         };
                     };
                 };
+                
                 D.print("GameState: getNextSubmissionToJudge - There are no submissions for open challenges to judge");
                 return #Err(#Other("There are no submissions to judge"));
             };
@@ -7780,6 +7855,7 @@ actor class GameStateCanister() = this {
         mainerPromptsStable := Iter.toArray(mainerPrompts.entries());
         judgePromptsStable := Iter.toArray(judgePrompts.entries());
         submissionsStorageStable := Iter.toArray(submissionsStorage.entries());
+        openSubmissionsQueueStable := Buffer.toArray(openSubmissionsQueue);
         scoredResponsesPerChallengeStable := Iter.toArray(scoredResponsesPerChallenge.entries());
         winnerDeclarationForChallengeStable := Iter.toArray(winnerDeclarationForChallenge.entries());
         sharedServiceCanistersStorageStable := Iter.toArray(sharedServiceCanistersStorage.entries());
@@ -7808,6 +7884,19 @@ actor class GameStateCanister() = this {
         judgePromptsStable := [];
         submissionsStorage := HashMap.fromIter(Iter.fromArray(submissionsStorageStable), submissionsStorageStable.size(), Text.equal, Text.hash);
         submissionsStorageStable := [];
+        
+        // Check if this is the first upgrade with the queue feature
+        if (openSubmissionsQueueStable.size() == 0 and submissionsStorage.size() > 0) {
+            // First time upgrade - initialize queue from existing submissions
+            D.print("GameState: postupgrade - First upgrade with queue, initializing from existing submissions");
+            openSubmissionsQueue := Buffer.Buffer<Text>(100); // Initial capacity
+            let countAdded = initializeOpenSubmissionsQueueFromStorage();
+            D.print("GameState: postupgrade - Queue initialized with " # Nat.toText(countAdded) # " submissions");
+        } else {
+            // Normal restore from stable storage
+            openSubmissionsQueue := Buffer.fromArray(openSubmissionsQueueStable);
+        };
+        openSubmissionsQueueStable := [];
         scoredResponsesPerChallenge := HashMap.fromIter(Iter.fromArray(scoredResponsesPerChallengeStable), scoredResponsesPerChallengeStable.size(), Text.equal, Text.hash);
         scoredResponsesPerChallengeStable := [];
         winnerDeclarationForChallenge := HashMap.fromIter(Iter.fromArray(winnerDeclarationForChallengeStable), winnerDeclarationForChallengeStable.size(), Text.equal, Text.hash);

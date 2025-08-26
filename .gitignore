@@ -1,6 +1,7 @@
 # Repo specific
 *.log
 OLD/
+CLAUDE.md
 
 # Various IDEs and Editors
 .vscode/
