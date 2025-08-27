@@ -1098,6 +1098,8 @@ module Types {
 
     public type ScoredResponsesMigrationResult = Result<ScoredResponsesMigrationRecord, ApiError>;
 
+    public type ScoredResponsesResult = Result<[ScoredResponse], ApiError>;
+
 // Treasury Canister
     public type NotifyDisbursementInput = {
         transactionId : Nat64;
