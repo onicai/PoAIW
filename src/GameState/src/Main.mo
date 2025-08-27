@@ -7884,18 +7884,7 @@ actor class GameStateCanister() = this {
         judgePromptsStable := [];
         submissionsStorage := HashMap.fromIter(Iter.fromArray(submissionsStorageStable), submissionsStorageStable.size(), Text.equal, Text.hash);
         submissionsStorageStable := [];
-        
-        // Check if this is the first upgrade with the queue feature
-        if (openSubmissionsQueueStable.size() == 0 and submissionsStorage.size() > 0) {
-            // First time upgrade - initialize queue from existing submissions
-            D.print("GameState: postupgrade - First upgrade with queue, initializing from existing submissions");
-            openSubmissionsQueue := Buffer.Buffer<Text>(100); // Initial capacity
-            let countAdded = initializeOpenSubmissionsQueueFromStorage();
-            D.print("GameState: postupgrade - Queue initialized with " # Nat.toText(countAdded) # " submissions");
-        } else {
-            // Normal restore from stable storage
-            openSubmissionsQueue := Buffer.fromArray(openSubmissionsQueueStable);
-        };
+        openSubmissionsQueue := Buffer.fromArray(openSubmissionsQueueStable);
         openSubmissionsQueueStable := [];
         scoredResponsesPerChallenge := HashMap.fromIter(Iter.fromArray(scoredResponsesPerChallengeStable), scoredResponsesPerChallengeStable.size(), Text.equal, Text.hash);
         scoredResponsesPerChallengeStable := [];
