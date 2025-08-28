@@ -3073,11 +3073,11 @@ actor class GameStateCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        let sevenDaysInNanoseconds = 7 * 24 * 60 * 60 * 1_000_000_000;
-        let timestampMinus7Days = Nat64.fromNat(Int.abs(Time.now() - sevenDaysInNanoseconds));
+        let thresholdOfDaysInNanoseconds = 3 * 24 * 60 * 60 * 1_000_000_000; // 3 days (UI might query for submissions up to 3 days old)
+        let timestampThreshold = Nat64.fromNat(Int.abs(Time.now() - thresholdOfDaysInNanoseconds));
         archivedSubmissions := Iter.toArray(Iter.filter(submissionsStorage.vals(), func(submission: Types.ChallengeResponseSubmission) : Bool {
-            if (submission.submittedTimestamp < timestampMinus7Days) {
-                // Submission was more than 7 days ago, so archive
+            if (submission.submittedTimestamp < timestampThreshold) {
+                // Submission is old, so archive
                 return true;                
             };
             return false;
