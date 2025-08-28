@@ -310,6 +310,7 @@ actor class JudgeCtrlbCanister() = this {
         let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
         D.print("Judge: calling addScoredResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let result : Types.ScoredResponseResult = await gameStateCanisterActor.addScoredResponse(scoredResponseInput);
+        D.print("Judge: returned from addScoredResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         return result;
     };
 
@@ -324,13 +325,13 @@ actor class JudgeCtrlbCanister() = this {
     };
 
     private func processSubmission(submissionEntry : Types.ChallengeResponseSubmission) : async () {
-        D.print("Judge: processSubmission");
+        D.print("Judge: processSubmission - calling judgeChallengeResponseDoIt_");
         let judgingResult : Types.JudgeChallengeResponseResult = await judgeChallengeResponseDoIt_(submissionEntry);
-        D.print("Judge: processSubmission judgingResult");
-        D.print(debug_show (judgingResult));
+        // D.print("Judge: processSubmission judgingResult");
+        // D.print(debug_show (judgingResult));
         switch (judgingResult) {
             case (#Err(error)) {
-                D.print("Judge: processSubmission error");
+                D.print("Judge: processSubmission - processSubmission error");
                 D.print(debug_show (error));
                 // TODO - Error Handling
             };
@@ -386,7 +387,7 @@ actor class JudgeCtrlbCanister() = this {
 
                 switch (pushResult) {
                     case (false) {
-                        D.print("Judge: pushResult error");
+                        D.print("Judge: processSubmission - pushResult error");
                         // TODO - Error Handling
                     };
                     case (true) {
@@ -439,7 +440,7 @@ actor class JudgeCtrlbCanister() = this {
                         let sendResult : Types.ScoredResponseResult = await sendScoredResponseToGameStateCanister(scoredResponse);
                         switch (sendResult) {
                             case (#Err(error)) {
-                                D.print("Judge: sendResult error");
+                                D.print("Judge: processSubmission - sendResult error");
                                 D.print(debug_show (error));
                                 // TODO - Error Handling
                             };

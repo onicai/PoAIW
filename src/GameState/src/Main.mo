@@ -2891,8 +2891,7 @@ actor class GameStateCanister() = this {
                             promptCacheFilename = judgePrompt.promptCacheFilename;
                             promptCacheNumberOfChunks = judgePrompt.promptCacheNumberOfChunks;
                         };
-                        D.print("GameState: getJudgePromptInfo - Returning judgePromptInfo for judgePromptId: " # debug_show(judgePromptId) # "\n" #
-                            "judgePromptInfo: " # debug_show(judgePromptInfo) );
+                        D.print("GameState: getJudgePromptInfo - Returning judgePromptInfo for judgePromptId: " # debug_show(judgePromptId) );
                         return #Ok(judgePromptInfo);
                     };
                 };
