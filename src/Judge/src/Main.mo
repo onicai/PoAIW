@@ -983,7 +983,8 @@ actor class JudgeCtrlbCanister() = this {
         switch (submissionResult) {
             case (#Err(error)) {
                 D.print("Judge:  scoreNextSubmission - submissionResult error : " # debug_show (error));
-                // TODO - Error Handling
+                // No more submissions or error - exit and wait for next timer
+                return;
             };
             case (#Ok(submissionEntry : Types.ChallengeResponseSubmission)) {
                 D.print("Judge:  scoreNextSubmission submissionResult submissionEntry");
@@ -999,6 +1000,10 @@ actor class JudgeCtrlbCanister() = this {
                 // Trigger processing submission but don't wait on result
                 D.print("Judge: scoreNextSubmission - calling ignore processSubmission");
                 ignore processSubmission(submissionEntry);
+                
+                // Immediately check for another submission
+                D.print("Judge: scoreNextSubmission - found submission, immediately checking for next one");
+                await scoreNextSubmission();
                 return;
             };
         }
