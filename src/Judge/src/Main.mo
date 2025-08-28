@@ -1162,6 +1162,35 @@ actor class JudgeCtrlbCanister() = this {
         return #Ok(authRecord);
     };
 
+    // Admin function to reset the isProcessingSubmissions flag if it gets stuck
+    public shared (msg) func resetIsProcessingSubmissionsAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        
+        isProcessingSubmissions := false;
+        
+        let authRecord = { auth = "Processing flag reset to false" };
+        D.print("Judge: resetIsProcessingSubmissionsAdmin - " # authRecord.auth);
+        return #Ok(authRecord);
+    };
+
+    // Query function to check if submissions are currently being processed
+    public shared query (msg) func getIsProcessingSubmissionsAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        
+        let authRecord = { auth = "isProcessingSubmissions: " # Bool.toText(isProcessingSubmissions) };
+        return #Ok(authRecord);
+    };
+
     // Upgrade Hooks
     system func preupgrade() {
         // Convert Buffer<LLMCanister> to [Text] for stable storage
