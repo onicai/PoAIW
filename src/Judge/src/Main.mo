@@ -64,6 +64,9 @@ actor class JudgeCtrlbCanister() = this {
 
     // timer ID, so we can stop it after starting
     stable var recurringTimerId : ?Timer.TimerId = null;
+    
+    // Flag to track if we're currently processing submissions
+    private var isProcessingSubmissions : Bool = false;
 
     // Record of recently score responses
     stable var scoredResponses : List.List<Types.ScoredResponseByJudge> = List.nil<Types.ScoredResponseByJudge>();
@@ -1072,12 +1075,24 @@ actor class JudgeCtrlbCanister() = this {
     };
 
     private func triggerRecurringAction() : async () {
-        D.print("Judge:  Recurring action was triggered");
-        //ignore scoreNextSubmission(); TODO - Testing
-        let result = await scoreNextSubmission();
-        D.print("Judge:  Recurring action result");
-        D.print(debug_show (result));
-        D.print("Judge:  Recurring action result");
+        D.print("Judge: triggerRecurringAction - Recurring action was triggered");
+        
+        // Check if we're already processing to avoid overlapping executions
+        if (isProcessingSubmissions) {
+            D.print("Judge: triggerRecurringAction - Already processing submissions, skipping this timer trigger");
+            return;
+        };
+        
+        // Set flag to prevent overlapping executions
+        isProcessingSubmissions := true;
+        
+        // Process all available submissions
+        await scoreNextSubmission();
+        
+        // Clear flag after processing
+        isProcessingSubmissions := false;
+
+        D.print("Judge: triggerRecurringAction -  batch action completed");
     };
 
     public shared (msg) func startTimerExecutionAdmin() : async Types.AuthRecordResult {
