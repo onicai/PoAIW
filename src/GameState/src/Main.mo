@@ -7051,8 +7051,10 @@ actor class GameStateCanister() = this {
                         };
 
                         // Store the submission
+                        let timestampNow : Nat = Int.abs(Time.now());
+                        let submittedTimestamp : Nat64 = Nat64.fromNat(timestampNow);
                         submissionIdCounter += 1;
-                        let submissionId : Text = Nat.toText(submissionIdCounter);
+                        let submissionId : Text = challengeResponseSubmissionInput.challengeId # "-" # Principal.toText(msg.caller) # "-" # Nat.toText(timestampNow) # "-" # Nat.toText(submissionIdCounter); // ensure a unique id that holds up against race conditions without the random util (challengeId-mainerPrincipal-timestamp-counter)
                         let submissionAdded : Types.ChallengeResponseSubmission = {
                             challengeTopic : Text = challengeResponseSubmissionInput.challengeTopic;
                             challengeTopicId : Text = challengeResponseSubmissionInput.challengeTopicId;
@@ -7089,7 +7091,7 @@ actor class GameStateCanister() = this {
                             challengeAnswerSeed : Nat32 = challengeResponseSubmissionInput.challengeAnswerSeed;
                             submittedBy : Principal = challengeResponseSubmissionInput.submittedBy;
                             submissionId : Text = submissionId;
-                            submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            submittedTimestamp : Nat64 = submittedTimestamp;
                             submissionStatus: Types.ChallengeResponseSubmissionStatus = #Submitted;
                             cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
                             cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
