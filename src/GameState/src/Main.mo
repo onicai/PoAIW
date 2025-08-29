@@ -7132,7 +7132,7 @@ actor class GameStateCanister() = this {
     };
 
     // Function for Judge canister to retrieve the next submission to score
-    public shared (msg) func getNextSubmissionToJudge() : async Types.ChallengeResponseSubmissionResult {
+    public shared (msg) func getNextSubmissionToJudge() : async Types.ChallengeResponseSubmissionWithQueueStatusResult {
         D.print("GameState: getNextSubmissionToJudge - entered");
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -7230,7 +7230,13 @@ actor class GameStateCanister() = this {
                                 // Remove from queue only after successful processing
                                 ignore openSubmissionsQueue.remove(0);
                                 
-                                return #Ok(updatedSubmission);
+                                // Return submission with remaining queue size
+                                let result : Types.ChallengeResponseSubmissionWithQueueStatus = {
+                                    submission = updatedSubmission;
+                                    remainingInQueue = openSubmissionsQueue.size();
+                                };
+                                
+                                return #Ok(result);
                             } else {
                                 // Submission is not eligible (already being judged or challenge closed)
                                 // Remove from queue and continue

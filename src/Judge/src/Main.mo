@@ -316,10 +316,10 @@ actor class JudgeCtrlbCanister() = this {
 
     // Score submissions
 
-    private func getSubmissionFromGameStateCanister() : async Types.ChallengeResponseSubmissionResult {
+    private func getSubmissionFromGameStateCanister() : async Types.ChallengeResponseSubmissionWithQueueStatusResult {
         let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
         D.print("Judge:  calling getNextSubmissionToJudge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
-        let result : Types.ChallengeResponseSubmissionResult = await gameStateCanisterActor.getNextSubmissionToJudge();
+        let result : Types.ChallengeResponseSubmissionWithQueueStatusResult = await gameStateCanisterActor.getNextSubmissionToJudge();
         D.print("Judge:  getNextSubmissionToJudge returned.");
         return result;
     };
@@ -982,7 +982,7 @@ actor class JudgeCtrlbCanister() = this {
 
         // Get the next submission to score
         D.print("Judge:  scoreNextSubmission - calling getSubmissionFromGameStateCanister.");
-        let submissionResult : Types.ChallengeResponseSubmissionResult = await getSubmissionFromGameStateCanister();
+        let submissionResult : Types.ChallengeResponseSubmissionWithQueueStatusResult = await getSubmissionFromGameStateCanister();
         D.print("Judge:  scoreNextSubmission - received submissionResult from getSubmissionFromGameStateCanister: " # debug_show (submissionResult));
         switch (submissionResult) {
             case (#Err(error)) {
@@ -990,8 +990,11 @@ actor class JudgeCtrlbCanister() = this {
                 // No more submissions or error - exit and wait for next timer
                 return;
             };
-            case (#Ok(submissionEntry : Types.ChallengeResponseSubmission)) {
-                D.print("Judge:  scoreNextSubmission submissionResult submissionEntry");
+            case (#Ok(submissionData)) {
+                let submissionEntry = submissionData.submission;
+                let remainingInQueue = submissionData.remainingInQueue;
+                
+                D.print("Judge:  scoreNextSubmission - received submission, remaining in queue: " # Nat.toText(remainingInQueue));
                 D.print(debug_show (submissionEntry));
 
                 // Sanity checks on submitted response
@@ -1005,9 +1008,13 @@ actor class JudgeCtrlbCanister() = this {
                 D.print("Judge: scoreNextSubmission - calling ignore processSubmission");
                 ignore processSubmission(submissionEntry);
                 
-                // Immediately check for another submission
-                D.print("Judge: scoreNextSubmission - found submission, immediately checking for next one");
-                await scoreNextSubmission();
+                // Only check for another submission if there are more in the queue
+                if (remainingInQueue > 0) {
+                    D.print("Judge: scoreNextSubmission - " # Nat.toText(remainingInQueue) # " submissions remaining, immediately checking for next one");
+                    await scoreNextSubmission();
+                } else {
+                    D.print("Judge: scoreNextSubmission - queue is empty, waiting for next timer trigger");
+                };
                 return;
             };
         }

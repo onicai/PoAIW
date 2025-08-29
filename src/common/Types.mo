@@ -667,8 +667,14 @@ module Types {
 
     public type ChallengeResponseSubmission = ChallengeResponseSubmissionInput and ChallengeResponseSubmissionMetadata;
 
+    public type ChallengeResponseSubmissionWithQueueStatus = {
+        submission : ChallengeResponseSubmission;
+        remainingInQueue : Nat;
+    };
+
     public type ChallengeResponseSubmissionMetadataResult = Result<ChallengeResponseSubmissionMetadata, ApiError>;
     public type ChallengeResponseSubmissionResult = Result<ChallengeResponseSubmission, ApiError>;
+    public type ChallengeResponseSubmissionWithQueueStatusResult = Result<ChallengeResponseSubmissionWithQueueStatus, ApiError>;
     public type ChallengeResponseSubmissionsResult = Result<[ChallengeResponseSubmission], ApiError>;
 
     public type UploadMainerLlmCanisterWasmBytesChunkInput = {
@@ -1160,7 +1166,7 @@ module Types {
     public type GameStateCanister_Actor = actor {
         getRandomOpenChallengeTopic : () -> async ChallengeTopicResult;
         addChallenge : (NewChallengeInput) -> async ChallengeAdditionResult;
-        getNextSubmissionToJudge : () -> async ChallengeResponseSubmissionResult;
+        getNextSubmissionToJudge : () -> async ChallengeResponseSubmissionWithQueueStatusResult;
         addScoredResponse : (ScoredResponseInput) -> async ScoredResponseResult;
         submitChallengeResponse : (ChallengeResponseSubmissionInput) -> async ChallengeResponseSubmissionMetadataResult;
         getRandomOpenChallenge : () -> async ChallengeResult;
