@@ -1094,11 +1094,14 @@ actor class JudgeCtrlbCanister() = this {
         // Set flag to prevent overlapping executions
         isProcessingSubmissions := true;
         
-        // Process all available submissions
-        await scoreNextSubmission();
-        
-        // Clear flag after processing
-        isProcessingSubmissions := false;
+        try {
+            // Process all available submissions
+            await scoreNextSubmission();
+        } catch (e) {
+            D.print("Judge: triggerRecurringAction - Error during scoreNextSubmission: " # Error.message(e));
+        } finally {
+            isProcessingSubmissions := false;
+        };
 
         D.print("Judge: triggerRecurringAction -  batch action completed");
     };
