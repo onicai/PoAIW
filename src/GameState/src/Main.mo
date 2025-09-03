@@ -3218,6 +3218,47 @@ actor class GameStateCanister() = this {
         return #Ok(openSubmissionsQueue.size());
     };
 
+    // Admin function to clean the open submissions queue by removing non-Submitted entries
+    public shared (msg) func cleanOpenSubmissionsQueueAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        
+        let initialSize = openSubmissionsQueue.size();
+        
+        // Filter the queue in place, keeping only valid submissions
+        openSubmissionsQueue.filterEntries(func(_, submissionId) : Bool {
+            switch (getSubmission(submissionId)) {
+                case (null) {
+                    // Submission doesn't exist, remove from queue
+                    D.print("GameState: cleanOpenSubmissionsQueueAdmin - Removed non-existent submission " # submissionId);
+                    false
+                };
+                case (?submission) {
+                    // Check if submission is still in Submitted status
+                    switch (submission.submissionStatus) {
+                        case (#Submitted) {
+                            // Keep this submission in the queue
+                            true
+                        };
+                        case (_) {
+                            // Remove submissions with any other status
+                            D.print("GameState: cleanOpenSubmissionsQueueAdmin - Removed submission " # submissionId # " with status: " # debug_show(submission.submissionStatus));
+                            false
+                        };
+                    };
+                };
+            };
+        });
+        
+        let finalSize = openSubmissionsQueue.size();
+        D.print("GameState: cleanOpenSubmissionsQueueAdmin - Initial size: " # Nat.toText(initialSize) # ", final size: " # Nat.toText(finalSize));
+        return #Ok(finalSize);
+    };
+
     // Winner declaration per challenge id
     stable var winnerDeclarationForChallengeStable : [(Text, Types.ChallengeWinnerDeclaration)] = [];
     var winnerDeclarationForChallenge : HashMap.HashMap<Text, Types.ChallengeWinnerDeclaration> = HashMap.HashMap(0, Text.equal, Text.hash);
