@@ -64,6 +64,9 @@ actor class JudgeCtrlbCanister() = this {
 
     // timer ID, so we can stop it after starting
     stable var recurringTimerId : ?Timer.TimerId = null;
+    
+    // Flag to track if we're currently processing submissions
+    private var isProcessingSubmissions : Bool = false;
 
     // Record of recently score responses
     stable var scoredResponses : List.List<Types.ScoredResponseByJudge> = List.nil<Types.ScoredResponseByJudge>();
@@ -307,27 +310,28 @@ actor class JudgeCtrlbCanister() = this {
         let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
         D.print("Judge: calling addScoredResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         let result : Types.ScoredResponseResult = await gameStateCanisterActor.addScoredResponse(scoredResponseInput);
+        D.print("Judge: returned from addScoredResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
         return result;
     };
 
     // Score submissions
 
-    private func getSubmissionFromGameStateCanister() : async Types.ChallengeResponseSubmissionResult {
+    private func getSubmissionFromGameStateCanister() : async Types.ChallengeResponseSubmissionWithQueueStatusResult {
         let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
         D.print("Judge:  calling getNextSubmissionToJudge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
-        let result : Types.ChallengeResponseSubmissionResult = await gameStateCanisterActor.getNextSubmissionToJudge();
+        let result : Types.ChallengeResponseSubmissionWithQueueStatusResult = await gameStateCanisterActor.getNextSubmissionToJudge();
         D.print("Judge:  getNextSubmissionToJudge returned.");
         return result;
     };
 
     private func processSubmission(submissionEntry : Types.ChallengeResponseSubmission) : async () {
-        D.print("Judge: processSubmission");
+        D.print("Judge: processSubmission - calling judgeChallengeResponseDoIt_");
         let judgingResult : Types.JudgeChallengeResponseResult = await judgeChallengeResponseDoIt_(submissionEntry);
-        D.print("Judge: processSubmission judgingResult");
-        D.print(debug_show (judgingResult));
+        // D.print("Judge: processSubmission judgingResult");
+        // D.print(debug_show (judgingResult));
         switch (judgingResult) {
             case (#Err(error)) {
-                D.print("Judge: processSubmission error");
+                D.print("Judge: processSubmission - processSubmission error");
                 D.print(debug_show (error));
                 // TODO - Error Handling
             };
@@ -383,7 +387,7 @@ actor class JudgeCtrlbCanister() = this {
 
                 switch (pushResult) {
                     case (false) {
-                        D.print("Judge: pushResult error");
+                        D.print("Judge: processSubmission - pushResult error");
                         // TODO - Error Handling
                     };
                     case (true) {
@@ -436,7 +440,7 @@ actor class JudgeCtrlbCanister() = this {
                         let sendResult : Types.ScoredResponseResult = await sendScoredResponseToGameStateCanister(scoredResponse);
                         switch (sendResult) {
                             case (#Err(error)) {
-                                D.print("Judge: sendResult error");
+                                D.print("Judge: processSubmission - sendResult error");
                                 D.print(debug_show (error));
                                 // TODO - Error Handling
                             };
@@ -978,15 +982,19 @@ actor class JudgeCtrlbCanister() = this {
 
         // Get the next submission to score
         D.print("Judge:  scoreNextSubmission - calling getSubmissionFromGameStateCanister.");
-        let submissionResult : Types.ChallengeResponseSubmissionResult = await getSubmissionFromGameStateCanister();
+        let submissionResult : Types.ChallengeResponseSubmissionWithQueueStatusResult = await getSubmissionFromGameStateCanister();
         D.print("Judge:  scoreNextSubmission - received submissionResult from getSubmissionFromGameStateCanister: " # debug_show (submissionResult));
         switch (submissionResult) {
             case (#Err(error)) {
                 D.print("Judge:  scoreNextSubmission - submissionResult error : " # debug_show (error));
-                // TODO - Error Handling
+                // No more submissions or error - exit and wait for next timer
+                return;
             };
-            case (#Ok(submissionEntry : Types.ChallengeResponseSubmission)) {
-                D.print("Judge:  scoreNextSubmission submissionResult submissionEntry");
+            case (#Ok(submissionData)) {
+                let submissionEntry = submissionData.submission;
+                let remainingInQueue = submissionData.remainingInQueue;
+                
+                D.print("Judge:  scoreNextSubmission - received submission, remaining in queue: " # Nat.toText(remainingInQueue));
                 D.print(debug_show (submissionEntry));
 
                 // Sanity checks on submitted response
@@ -999,6 +1007,14 @@ actor class JudgeCtrlbCanister() = this {
                 // Trigger processing submission but don't wait on result
                 D.print("Judge: scoreNextSubmission - calling ignore processSubmission");
                 ignore processSubmission(submissionEntry);
+                
+                // Only check for another submission if there are more in the queue
+                if (remainingInQueue > 0) {
+                    D.print("Judge: scoreNextSubmission - " # Nat.toText(remainingInQueue) # " submissions remaining, immediately checking for next one");
+                    await scoreNextSubmission();
+                } else {
+                    D.print("Judge: scoreNextSubmission - queue is empty, waiting for next timer trigger");
+                };
                 return;
             };
         }
@@ -1067,12 +1083,27 @@ actor class JudgeCtrlbCanister() = this {
     };
 
     private func triggerRecurringAction() : async () {
-        D.print("Judge:  Recurring action was triggered");
-        //ignore scoreNextSubmission(); TODO - Testing
-        let result = await scoreNextSubmission();
-        D.print("Judge:  Recurring action result");
-        D.print(debug_show (result));
-        D.print("Judge:  Recurring action result");
+        D.print("Judge: triggerRecurringAction - Recurring action was triggered");
+        
+        // Check if we're already processing to avoid overlapping executions
+        if (isProcessingSubmissions) {
+            D.print("Judge: triggerRecurringAction - Already processing submissions, skipping this timer trigger");
+            return;
+        };
+        
+        // Set flag to prevent overlapping executions
+        isProcessingSubmissions := true;
+        
+        try {
+            // Process all available submissions
+            await scoreNextSubmission();
+        } catch (e) {
+            D.print("Judge: triggerRecurringAction - Error during scoreNextSubmission: " # Error.message(e));
+        } finally {
+            isProcessingSubmissions := false;
+        };
+
+        D.print("Judge: triggerRecurringAction -  batch action completed");
     };
 
     public shared (msg) func startTimerExecutionAdmin() : async Types.AuthRecordResult {
@@ -1138,6 +1169,35 @@ actor class JudgeCtrlbCanister() = this {
         };
         let result = await scoreNextSubmission();
         let authRecord = { auth = "You triggered the score generation." };
+        return #Ok(authRecord);
+    };
+
+    // Admin function to reset the isProcessingSubmissions flag if it gets stuck
+    public shared (msg) func resetIsProcessingSubmissionsAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        
+        isProcessingSubmissions := false;
+        
+        let authRecord = { auth = "Processing flag reset to false" };
+        D.print("Judge: resetIsProcessingSubmissionsAdmin - " # authRecord.auth);
+        return #Ok(authRecord);
+    };
+
+    // Query function to check if submissions are currently being processed
+    public shared query (msg) func getIsProcessingSubmissionsAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        
+        let authRecord = { auth = "isProcessingSubmissions: " # Bool.toText(isProcessingSubmissions) };
         return #Ok(authRecord);
     };
 
