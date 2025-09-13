@@ -1,0 +1,10 @@
+{
+  "api_canister": {
+    "demo": "p6pu7-5aaaa-aaaap-qqdfa-cai",
+    "development": "",
+    "ic": "",
+    "local": "",
+    "prd": "bgm6p-5aaaa-aaaaf-qbzda-cai",
+    "testing": ""
+  }
+}

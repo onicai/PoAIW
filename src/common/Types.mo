@@ -1258,4 +1258,136 @@ module Types {
     // Cycles Minting Canister
     public let CYCLES_MINTING_CANISTER_ID = "rkp4c-7iaaa-aaaaa-aaaca-cai";
     public let CyclesMintingCanister_Actor : CMC.CYCLES_MINTING_CANISTER = actor (CYCLES_MINTING_CANISTER_ID);
+
+    //-------------------------------------------------------------------------
+    // Daily Metrics Types for API Canister
+    
+    // Mainers breakdown by tier (using existing CyclesBurnRateDefault categories)
+    // Maps to Low, Mid, High, VeryHigh
+    public type MainersTierBreakdown = {
+        low: Nat;
+        medium: Nat;
+        high: Nat;
+        very_high: Nat;
+    };
+
+    // Daily burn rate with cycles and USD values
+    public type DailyBurnRate = {
+        cycles: Nat;
+        usd: Float;
+    };
+
+    // System metrics for a specific day
+    public type SystemMetrics = {
+        funnai_index: Float;
+        daily_burn_rate: DailyBurnRate;
+    };
+
+    // Mainers statistics for a specific day
+    public type MainersMetrics = {
+        totals: {
+            created: Nat;
+            active: Nat;
+            paused: Nat;
+            total_cycles: Nat;  // in trillion cycles
+        };
+        breakdown_by_tier: {
+            active: MainersTierBreakdown;
+            paused: MainersTierBreakdown;
+        };
+    };
+
+    // Derived metrics calculated from the raw data
+    public type DerivedMetrics = {
+        active_percentage: Float;
+        paused_percentage: Float;
+        avg_cycles_per_mainer: Float;
+        burn_rate_per_active_mainer: Float;
+        tier_distribution: {
+            low: Float;
+            medium: Float;
+            high: Float;
+            very_high: Float;
+        };
+    };
+
+    // Metadata for a daily metric entry
+    public type DailyMetricMetadata = {
+        date: Text;  // Format: YYYY-MM-DD
+        created_at: Text;  // ISO 8601 timestamp
+        updated_at: Text;  // ISO 8601 timestamp
+    };
+
+    // Complete daily metric entry
+    public type DailyMetric = {
+        metadata: DailyMetricMetadata;
+        system_metrics: SystemMetrics;
+        mainers: MainersMetrics;
+        derived_metrics: DerivedMetrics;
+    };
+
+    // Input type for creating/updating daily metrics (admin use)
+    public type DailyMetricInput = {
+        date: Text;  // Format: YYYY-MM-DD
+        funnai_index: Float;
+        daily_burn_rate_cycles: Nat;
+        daily_burn_rate_usd: Float;
+        total_mainers_created: Nat;
+        total_active_mainers: Nat;
+        total_paused_mainers: Nat;
+        total_cycles_all_mainers: Nat;  // in trillion cycles
+        active_low_burn_rate_mainers: Nat;
+        active_medium_burn_rate_mainers: Nat;
+        active_high_burn_rate_mainers: Nat;
+        active_very_high_burn_rate_mainers: Nat;
+        paused_low_burn_rate_mainers: Nat;
+        paused_medium_burn_rate_mainers: Nat;
+        paused_high_burn_rate_mainers: Nat;
+        paused_very_high_burn_rate_mainers: Nat;
+    };
+
+    // Input type for partial updates (admin use)
+    public type DailyMetricUpdateInput = {
+        funnai_index: ?Float;
+        daily_burn_rate_cycles: ?Nat;
+        daily_burn_rate_usd: ?Float;
+        total_mainers_created: ?Nat;
+        total_active_mainers: ?Nat;
+        total_paused_mainers: ?Nat;
+        total_cycles_all_mainers: ?Nat;
+        active_low_burn_rate_mainers: ?Nat;
+        active_medium_burn_rate_mainers: ?Nat;
+        active_high_burn_rate_mainers: ?Nat;
+        active_very_high_burn_rate_mainers: ?Nat;
+        paused_low_burn_rate_mainers: ?Nat;
+        paused_medium_burn_rate_mainers: ?Nat;
+        paused_high_burn_rate_mainers: ?Nat;
+        paused_very_high_burn_rate_mainers: ?Nat;
+    };
+
+    // Query parameters for retrieving daily metrics
+    public type DailyMetricsQuery = {
+        start_date: ?Text;  // Optional start date (YYYY-MM-DD)
+        end_date: ?Text;    // Optional end date (YYYY-MM-DD)
+        limit: ?Nat;        // Optional limit on number of results
+    };
+
+    // Period information for query responses
+    public type PeriodInfo = {
+        start_date: Text;
+        end_date: Text;
+        total_days: Nat;
+    };
+
+    // Response format for public daily metrics queries
+    public type DailyMetricsResponse = {
+        period: PeriodInfo;
+        daily_metrics: [DailyMetric];
+    };
+
+    // Result types for API responses
+    public type DailyMetricResult = Result<DailyMetric, ApiError>;
+    public type DailyMetricsResult = Result<DailyMetricsResponse, ApiError>;
+    public type DailyMetricOperationResult = Result<Bool, ApiError>;
+    public type BulkCreateResult = Result<Nat, ApiError>;  // Returns number of created entries
 };
