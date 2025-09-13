@@ -67,16 +67,6 @@ persistent actor class ApiCanister() = this {
     stable var dailyMetricsEntries : [(Text, Types.DailyMetric)] = [];
     transient var dailyMetrics = HashMap.HashMap<Text, Types.DailyMetric>(10, Text.equal, Text.hash);
 
-    // System upgrade hooks
-    system func preupgrade() {
-        dailyMetricsEntries := Iter.toArray(dailyMetrics.entries());
-    };
-
-    system func postupgrade() {
-        dailyMetrics := HashMap.fromIter<Text, Types.DailyMetric>(dailyMetricsEntries.vals(), dailyMetricsEntries.size(), Text.equal, Text.hash);
-        dailyMetricsEntries := [];
-    };
-
     // -------------------------------------------------------------------------------
     // Helper Functions
 
@@ -497,5 +487,16 @@ persistent actor class ApiCanister() = this {
 
     public shared query func getNumDailyMetrics() : async Types.NatResult {
         return #Ok(dailyMetrics.size());
+    };
+
+
+    // System upgrade hooks
+    system func preupgrade() {
+        dailyMetricsEntries := Iter.toArray(dailyMetrics.entries());
+    };
+
+    system func postupgrade() {
+        dailyMetrics := HashMap.fromIter<Text, Types.DailyMetric>(dailyMetricsEntries.vals(), dailyMetricsEntries.size(), Text.equal, Text.hash);
+        dailyMetricsEntries := [];
     };
 };
