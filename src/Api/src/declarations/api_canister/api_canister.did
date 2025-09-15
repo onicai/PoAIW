@@ -1,0 +1,181 @@
+type SystemMetrics = 
+ record {
+   daily_burn_rate: DailyBurnRate;
+   funnai_index: float64;
+ };
+type StatusCodeRecordResult = 
+ variant {
+   Err: ApiError;
+   Ok: StatusCodeRecord;
+ };
+type StatusCodeRecord = record {status_code: StatusCode;};
+type StatusCode = nat16;
+type PeriodInfo = 
+ record {
+   end_date: text;
+   start_date: text;
+   total_days: nat;
+ };
+type NatResult = 
+ variant {
+   Err: ApiError;
+   Ok: nat;
+ };
+type MainersTierBreakdown = 
+ record {
+   high: nat;
+   low: nat;
+   medium: nat;
+   very_high: nat;
+ };
+type MainersMetrics = 
+ record {
+   breakdown_by_tier:
+    record {
+      active: MainersTierBreakdown;
+      paused: MainersTierBreakdown;
+    };
+   totals: record {
+             active: nat;
+             created: nat;
+             paused: nat;
+             total_cycles: nat;
+           };
+ };
+type DerivedMetrics = 
+ record {
+   active_percentage: float64;
+   avg_cycles_per_mainer: float64;
+   burn_rate_per_active_mainer: float64;
+   paused_percentage: float64;
+   tier_distribution:
+    record {
+      high: float64;
+      low: float64;
+      medium: float64;
+      very_high: float64;
+    };
+ };
+type DailyMetricsResult = 
+ variant {
+   Err: ApiError;
+   Ok: DailyMetricsResponse;
+ };
+type DailyMetricsResponse = 
+ record {
+   daily_metrics: vec DailyMetric;
+   period: PeriodInfo;
+ };
+type DailyMetricsQuery = 
+ record {
+   end_date: opt text;
+   limit: opt nat;
+   start_date: opt text;
+ };
+type DailyMetricUpdateInput = 
+ record {
+   active_high_burn_rate_mainers: opt nat;
+   active_low_burn_rate_mainers: opt nat;
+   active_medium_burn_rate_mainers: opt nat;
+   active_very_high_burn_rate_mainers: opt nat;
+   daily_burn_rate_cycles: opt nat;
+   daily_burn_rate_usd: opt float64;
+   funnai_index: opt float64;
+   paused_high_burn_rate_mainers: opt nat;
+   paused_low_burn_rate_mainers: opt nat;
+   paused_medium_burn_rate_mainers: opt nat;
+   paused_very_high_burn_rate_mainers: opt nat;
+   total_active_mainers: opt nat;
+   total_cycles_all_mainers: opt nat;
+   total_mainers_created: opt nat;
+   total_paused_mainers: opt nat;
+ };
+type DailyMetricResult = 
+ variant {
+   Err: ApiError;
+   Ok: DailyMetric;
+ };
+type DailyMetricOperationResult = 
+ variant {
+   Err: ApiError;
+   Ok: bool;
+ };
+type DailyMetricMetadata = 
+ record {
+   created_at: text;
+   date: text;
+   updated_at: text;
+ };
+type DailyMetricInput = 
+ record {
+   active_high_burn_rate_mainers: nat;
+   active_low_burn_rate_mainers: nat;
+   active_medium_burn_rate_mainers: nat;
+   active_very_high_burn_rate_mainers: nat;
+   daily_burn_rate_cycles: nat;
+   daily_burn_rate_usd: float64;
+   date: text;
+   funnai_index: float64;
+   paused_high_burn_rate_mainers: nat;
+   paused_low_burn_rate_mainers: nat;
+   paused_medium_burn_rate_mainers: nat;
+   paused_very_high_burn_rate_mainers: nat;
+   total_active_mainers: nat;
+   total_cycles_all_mainers: nat;
+   total_mainers_created: nat;
+   total_paused_mainers: nat;
+ };
+type DailyMetric = 
+ record {
+   derived_metrics: DerivedMetrics;
+   mainers: MainersMetrics;
+   metadata: DailyMetricMetadata;
+   system_metrics: SystemMetrics;
+ };
+type DailyBurnRate = 
+ record {
+   cycles: nat;
+   usd: float64;
+ };
+type BulkCreateResult = 
+ variant {
+   Err: ApiError;
+   Ok: nat;
+ };
+type AuthRecordResult = 
+ variant {
+   Err: ApiError;
+   Ok: AuthRecord;
+ };
+type AuthRecord = record {auth: text;};
+type ApiError = 
+ variant {
+   FailedOperation;
+   InsuffientCycles: nat;
+   InvalidId;
+   Other: text;
+   StatusCode: StatusCode;
+   Unauthorized;
+   ZeroAddress;
+ };
+type ApiCanister = 
+ service {
+   amiController: () -> (AuthRecordResult) query;
+   bulkCreateDailyMetricsAdmin: (inputs: vec DailyMetricInput) ->
+    (BulkCreateResult);
+   createDailyMetricAdmin: (input: DailyMetricInput) -> (DailyMetricResult);
+   deleteDailyMetricAdmin: (date: text) -> (DailyMetricOperationResult);
+   getDailyMetricByDate: (date: text) -> (DailyMetricResult) query;
+   getDailyMetrics: (dailyMetricsQuery: opt DailyMetricsQuery) ->
+    (DailyMetricsResult) query;
+   getDailyMetricsAdmin: () -> (DailyMetricsResult) query;
+   getLatestDailyMetric: () -> (DailyMetricResult) query;
+   getMasterCanisterId: () -> (AuthRecordResult) query;
+   getNumDailyMetrics: () -> (NatResult) query;
+   health: () -> (StatusCodeRecordResult) query;
+   setMasterCanisterId: (newMasterCanisterId: text) -> (AuthRecordResult);
+   updateDailyMetricAdmin: (date: text, input: DailyMetricUpdateInput) ->
+    (DailyMetricResult);
+   whoami: () -> (principal) query;
+ };
+service : () -> ApiCanister
