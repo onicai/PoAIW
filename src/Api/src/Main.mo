@@ -211,7 +211,7 @@ persistent actor class ApiCanister() = this {
         };
     };
 
-    public shared (msg) func updateDailyMetricAdmin(date: Text, input: Types.DailyMetricUpdateInput) : async Types.DailyMetricResult {
+    public shared (msg) func updateDailyMetricAdmin(params: Types.UpdateDailyMetricAdminInput) : async Types.DailyMetricResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -220,38 +220,38 @@ persistent actor class ApiCanister() = this {
         };
         
         // Validate date format
-        if (not isValidDateFormat(date)) {
+        if (not isValidDateFormat(params.date)) {
             return #Err(#Other("Invalid date format. Use YYYY-MM-DD"));
         };
-        
+
         // Get existing metric
-        switch (dailyMetrics.get(date)) {
+        switch (dailyMetrics.get(params.date)) {
             case null {
-                return #Err(#Other("Metric for date " # date # " not found"));
+                return #Err(#Other("Metric for date " # params.date # " not found"));
             };
             case (?existing) {
                 // Create full input from partial update
                 let fullInput : Types.DailyMetricInput = {
-                    date = date;
-                    funnai_index = Option.get(input.funnai_index, existing.system_metrics.funnai_index);
-                    daily_burn_rate_cycles = Option.get(input.daily_burn_rate_cycles, existing.system_metrics.daily_burn_rate.cycles);
-                    daily_burn_rate_usd = Option.get(input.daily_burn_rate_usd, existing.system_metrics.daily_burn_rate.usd);
-                    total_mainers_created = Option.get(input.total_mainers_created, existing.mainers.totals.created);
-                    total_active_mainers = Option.get(input.total_active_mainers, existing.mainers.totals.active);
-                    total_paused_mainers = Option.get(input.total_paused_mainers, existing.mainers.totals.paused);
-                    total_cycles_all_mainers = Option.get(input.total_cycles_all_mainers, existing.mainers.totals.total_cycles);
-                    active_low_burn_rate_mainers = Option.get(input.active_low_burn_rate_mainers, existing.mainers.breakdown_by_tier.active.low);
-                    active_medium_burn_rate_mainers = Option.get(input.active_medium_burn_rate_mainers, existing.mainers.breakdown_by_tier.active.medium);
-                    active_high_burn_rate_mainers = Option.get(input.active_high_burn_rate_mainers, existing.mainers.breakdown_by_tier.active.high);
-                    active_very_high_burn_rate_mainers = Option.get(input.active_very_high_burn_rate_mainers, existing.mainers.breakdown_by_tier.active.very_high);
-                    paused_low_burn_rate_mainers = Option.get(input.paused_low_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.low);
-                    paused_medium_burn_rate_mainers = Option.get(input.paused_medium_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.medium);
-                    paused_high_burn_rate_mainers = Option.get(input.paused_high_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.high);
-                    paused_very_high_burn_rate_mainers = Option.get(input.paused_very_high_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.very_high);
+                    date = params.date;
+                    funnai_index = Option.get(params.input.funnai_index, existing.system_metrics.funnai_index);
+                    daily_burn_rate_cycles = Option.get(params.input.daily_burn_rate_cycles, existing.system_metrics.daily_burn_rate.cycles);
+                    daily_burn_rate_usd = Option.get(params.input.daily_burn_rate_usd, existing.system_metrics.daily_burn_rate.usd);
+                    total_mainers_created = Option.get(params.input.total_mainers_created, existing.mainers.totals.created);
+                    total_active_mainers = Option.get(params.input.total_active_mainers, existing.mainers.totals.active);
+                    total_paused_mainers = Option.get(params.input.total_paused_mainers, existing.mainers.totals.paused);
+                    total_cycles_all_mainers = Option.get(params.input.total_cycles_all_mainers, existing.mainers.totals.total_cycles);
+                    active_low_burn_rate_mainers = Option.get(params.input.active_low_burn_rate_mainers, existing.mainers.breakdown_by_tier.active.low);
+                    active_medium_burn_rate_mainers = Option.get(params.input.active_medium_burn_rate_mainers, existing.mainers.breakdown_by_tier.active.medium);
+                    active_high_burn_rate_mainers = Option.get(params.input.active_high_burn_rate_mainers, existing.mainers.breakdown_by_tier.active.high);
+                    active_very_high_burn_rate_mainers = Option.get(params.input.active_very_high_burn_rate_mainers, existing.mainers.breakdown_by_tier.active.very_high);
+                    paused_low_burn_rate_mainers = Option.get(params.input.paused_low_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.low);
+                    paused_medium_burn_rate_mainers = Option.get(params.input.paused_medium_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.medium);
+                    paused_high_burn_rate_mainers = Option.get(params.input.paused_high_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.high);
+                    paused_very_high_burn_rate_mainers = Option.get(params.input.paused_very_high_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.very_high);
                 };
                 
                 let updatedMetric = inputToDailyMetric(fullInput, true);
-                dailyMetrics.put(date, updatedMetric);
+                dailyMetrics.put(params.date, updatedMetric);
                 return #Ok(updatedMetric);
             };
         };

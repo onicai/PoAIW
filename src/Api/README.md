@@ -12,11 +12,11 @@ dfx canister call game_state_canister setApiCanisterId '("...-cai")' --network $
 ./seed_data.sh --network $NETWORK
 
 # Get daily metrics with public queries:
-dfx canister call api_canister getDailyMetrics 'null' --network $NETWORK
-dfx canister call api_canister getDailyMetrics '(opt record {start_date=opt "2025-09-06"; end_date=opt "2025-09-08"; limit=null})' --network $NETWORK
-dfx canister call api_canister getLatestDailyMetric --network $NETWORK
-dfx canister call api_canister getDailyMetricByDate '("2025-09-08")' --network $NETWORK
-dfx canister call api_canister getNumDailyMetrics --network $NETWORK
+dfx canister call api_canister getDailyMetrics 'null' --network $NETWORK  --output json
+dfx canister call api_canister getDailyMetrics '(opt record {start_date=opt "2025-09-06"; end_date=opt "2025-09-08"; limit=null})' --network $NETWORK  --output json
+dfx canister call api_canister getLatestDailyMetric --network $NETWORK  --output json
+dfx canister call api_canister getDailyMetricByDate '("2025-09-08")' --network $NETWORK  --output json
+dfx canister call api_canister getNumDailyMetrics --network $NETWORK  --output json
 
 # CRUD daily metrics as Admin:
 dfx canister call api_canister createDailyMetricAdmin '(record {date="2025-09-08"; funnai_index=0.32; daily_burn_rate_cycles=1365; daily_burn_rate_usd=1871.83; total_mainers_created=701; total_active_mainers=474; total_paused_mainers=227; total_cycles_all_mainers=8276; active_low_burn_rate_mainers=121; active_medium_burn_rate_mainers=84; active_high_burn_rate_mainers=269; active_very_high_burn_rate_mainers=0; paused_low_burn_rate_mainers=56; paused_medium_burn_rate_mainers=36; paused_high_burn_rate_mainers=135; paused_very_high_burn_rate_mainers=0})' --network $NETWORK

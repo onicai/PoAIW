@@ -1365,6 +1365,12 @@ module Types {
         paused_very_high_burn_rate_mainers: ?Nat;
     };
 
+    // Input type for update endpoint with date and update data
+    public type UpdateDailyMetricAdminInput = {
+        date: Text;
+        input: DailyMetricUpdateInput;
+    };
+
     // Query parameters for retrieving daily metrics
     public type DailyMetricsQuery = {
         start_date: ?Text;  // Optional start date (YYYY-MM-DD)
