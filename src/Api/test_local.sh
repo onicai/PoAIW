@@ -111,22 +111,25 @@ dfx canister call api_canister getDailyMetrics '(opt record {
 # Test update functionality
 echo ""
 echo "13. Updating metric for 2025-09-08..."
-dfx canister call api_canister updateDailyMetricAdmin '("2025-09-08", record {
-    funnai_index = opt 0.35;
-    daily_burn_rate_cycles = null;
-    daily_burn_rate_usd = null;
-    total_mainers_created = null;
-    total_active_mainers = null;
-    total_paused_mainers = null;
-    total_cycles_all_mainers = null;
-    active_low_burn_rate_mainers = null;
-    active_medium_burn_rate_mainers = null;
-    active_high_burn_rate_mainers = null;
-    active_very_high_burn_rate_mainers = null;
-    paused_low_burn_rate_mainers = null;
-    paused_medium_burn_rate_mainers = null;
-    paused_high_burn_rate_mainers = null;
-    paused_very_high_burn_rate_mainers = null;
+dfx canister call api_canister updateDailyMetricAdmin '(record {
+    date = "2025-09-08";
+    input = record {
+        funnai_index = opt 0.35;
+        daily_burn_rate_cycles = null;
+        daily_burn_rate_usd = null;
+        total_mainers_created = null;
+        total_active_mainers = null;
+        total_paused_mainers = null;
+        total_cycles_all_mainers = null;
+        active_low_burn_rate_mainers = null;
+        active_medium_burn_rate_mainers = null;
+        active_high_burn_rate_mainers = null;
+        active_very_high_burn_rate_mainers = null;
+        paused_low_burn_rate_mainers = null;
+        paused_medium_burn_rate_mainers = null;
+        paused_high_burn_rate_mainers = null;
+        paused_very_high_burn_rate_mainers = null;
+    }
 })'
 
 # Get updated metric
