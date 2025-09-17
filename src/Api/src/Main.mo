@@ -257,7 +257,7 @@ persistent actor class ApiCanister() = this {
         };
     };
 
-    public shared (msg) func deleteDailyMetricAdmin(date: Text) : async Types.DailyMetricOperationResult {
+    public shared (msg) func deleteDailyMetricAdmin(date: Text) : async Types.NatResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -275,7 +275,7 @@ persistent actor class ApiCanister() = this {
                 return #Err(#Other("Metric for date " # date # " not found"));
             };
             case (?_) {
-                return #Ok(true);
+                return #Ok(1);  // Return 1 to indicate successful deletion
             };
         };
     };
@@ -323,16 +323,16 @@ persistent actor class ApiCanister() = this {
         return #Ok(response);
     };
 
-    public shared (msg) func bulkCreateDailyMetricsAdmin(inputs: [Types.DailyMetricInput]) : async Types.BulkCreateResult {
+    public shared (msg) func bulkCreateDailyMetricsAdmin(inputs: [Types.DailyMetricInput]) : async Types.NatResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
         if (not (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID)))) {
             return #Err(#Unauthorized);
         };
-        
+
         var created = 0;
-        
+
         for (input in inputs.vals()) {
             // Validate date format
             if (isValidDateFormat(input.date)) {
@@ -349,8 +349,26 @@ persistent actor class ApiCanister() = this {
                 };
             };
         };
-        
+
         return #Ok(created);
+    };
+
+    public shared (msg) func resetDailyMetricsAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let count = dailyMetrics.size();
+
+        // Clear all metrics from the HashMap
+        for (key in dailyMetrics.keys()) {
+            dailyMetrics.delete(key);
+        };
+
+        return #Ok(count);  // Return the number of metrics that were deleted
     };
 
     // -------------------------------------------------------------------------------

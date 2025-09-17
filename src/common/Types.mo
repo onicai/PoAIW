@@ -1394,6 +1394,4 @@ module Types {
     // Result types for API responses
     public type DailyMetricResult = Result<DailyMetric, ApiError>;
     public type DailyMetricsResult = Result<DailyMetricsResponse, ApiError>;
-    public type DailyMetricOperationResult = Result<Bool, ApiError>;
-    public type BulkCreateResult = Result<Nat, ApiError>;  // Returns number of created entries
 };
