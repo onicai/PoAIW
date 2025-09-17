@@ -113,10 +113,11 @@ persistent actor class ApiCanister() = this {
         let burnRatePerActiveMainer = if (active > 0) { Float.fromInt(input.daily_burn_rate_cycles) / active } else { 0.0 };
         
         let totalActiveTiers = Float.fromInt(
-            input.active_low_burn_rate_mainers + 
-            input.active_medium_burn_rate_mainers + 
-            input.active_high_burn_rate_mainers + 
-            input.active_very_high_burn_rate_mainers
+            input.active_low_burn_rate_mainers +
+            input.active_medium_burn_rate_mainers +
+            input.active_high_burn_rate_mainers +
+            input.active_very_high_burn_rate_mainers +
+            input.active_custom_burn_rate_mainers
         );
         
         {
@@ -129,6 +130,7 @@ persistent actor class ApiCanister() = this {
                 medium = if (totalActiveTiers > 0) { (Float.fromInt(input.active_medium_burn_rate_mainers) / totalActiveTiers) * 100 } else { 0.0 };
                 high = if (totalActiveTiers > 0) { (Float.fromInt(input.active_high_burn_rate_mainers) / totalActiveTiers) * 100 } else { 0.0 };
                 very_high = if (totalActiveTiers > 0) { (Float.fromInt(input.active_very_high_burn_rate_mainers) / totalActiveTiers) * 100 } else { 0.0 };
+                custom = if (totalActiveTiers > 0) { (Float.fromInt(input.active_custom_burn_rate_mainers) / totalActiveTiers) * 100 } else { 0.0 };
             };
         }
     };
@@ -169,12 +171,14 @@ persistent actor class ApiCanister() = this {
                         medium = input.active_medium_burn_rate_mainers;
                         high = input.active_high_burn_rate_mainers;
                         very_high = input.active_very_high_burn_rate_mainers;
+                        custom = input.active_custom_burn_rate_mainers;
                     };
                     paused = {
                         low = input.paused_low_burn_rate_mainers;
                         medium = input.paused_medium_burn_rate_mainers;
                         high = input.paused_high_burn_rate_mainers;
                         very_high = input.paused_very_high_burn_rate_mainers;
+                        custom = input.paused_custom_burn_rate_mainers;
                     };
                 };
             };
@@ -244,10 +248,12 @@ persistent actor class ApiCanister() = this {
                     active_medium_burn_rate_mainers = Option.get(params.input.active_medium_burn_rate_mainers, existing.mainers.breakdown_by_tier.active.medium);
                     active_high_burn_rate_mainers = Option.get(params.input.active_high_burn_rate_mainers, existing.mainers.breakdown_by_tier.active.high);
                     active_very_high_burn_rate_mainers = Option.get(params.input.active_very_high_burn_rate_mainers, existing.mainers.breakdown_by_tier.active.very_high);
+                    active_custom_burn_rate_mainers = Option.get(params.input.active_custom_burn_rate_mainers, existing.mainers.breakdown_by_tier.active.custom);
                     paused_low_burn_rate_mainers = Option.get(params.input.paused_low_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.low);
                     paused_medium_burn_rate_mainers = Option.get(params.input.paused_medium_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.medium);
                     paused_high_burn_rate_mainers = Option.get(params.input.paused_high_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.high);
                     paused_very_high_burn_rate_mainers = Option.get(params.input.paused_very_high_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.very_high);
+                    paused_custom_burn_rate_mainers = Option.get(params.input.paused_custom_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.custom);
                 };
                 
                 let updatedMetric = inputToDailyMetric(fullInput, true);

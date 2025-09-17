@@ -50,11 +50,13 @@ generate_daily_metric() {
     local active_medium=$(echo "$active_mainers * 18 / 100" | bc | cut -d. -f1)
     local active_high=$(echo "$active_mainers - $active_low - $active_medium" | bc | cut -d. -f1)
     local active_very_high=0
-    
+    local active_custom=0
+
     local paused_low=$(echo "$paused_mainers * 24 / 100" | bc | cut -d. -f1)
     local paused_medium=$(echo "$paused_mainers * 17 / 100" | bc | cut -d. -f1)
     local paused_high=$(echo "$paused_mainers - $paused_low - $paused_medium" | bc | cut -d. -f1)
     local paused_very_high=0
+    local paused_custom=0
     
     echo "record {
         date=\"$date\";
@@ -69,10 +71,12 @@ generate_daily_metric() {
         active_medium_burn_rate_mainers=$active_medium;
         active_high_burn_rate_mainers=$active_high;
         active_very_high_burn_rate_mainers=$active_very_high;
+        active_custom_burn_rate_mainers=$active_custom;
         paused_low_burn_rate_mainers=$paused_low;
         paused_medium_burn_rate_mainers=$paused_medium;
         paused_high_burn_rate_mainers=$paused_high;
-        paused_very_high_burn_rate_mainers=$paused_very_high
+        paused_very_high_burn_rate_mainers=$paused_very_high;
+        paused_custom_burn_rate_mainers=$paused_custom
     }"
 }
 

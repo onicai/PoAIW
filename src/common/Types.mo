@@ -1269,6 +1269,7 @@ module Types {
         medium: Nat;
         high: Nat;
         very_high: Nat;
+        custom: Nat;
     };
 
     // Daily burn rate with cycles and USD values
@@ -1308,6 +1309,7 @@ module Types {
             medium: Float;
             high: Float;
             very_high: Float;
+            custom: Float;
         };
     };
 
@@ -1340,10 +1342,12 @@ module Types {
         active_medium_burn_rate_mainers: Nat;
         active_high_burn_rate_mainers: Nat;
         active_very_high_burn_rate_mainers: Nat;
+        active_custom_burn_rate_mainers: Nat;
         paused_low_burn_rate_mainers: Nat;
         paused_medium_burn_rate_mainers: Nat;
         paused_high_burn_rate_mainers: Nat;
         paused_very_high_burn_rate_mainers: Nat;
+        paused_custom_burn_rate_mainers: Nat;
     };
 
     // Input type for partial updates (admin use)
@@ -1359,10 +1363,12 @@ module Types {
         active_medium_burn_rate_mainers: ?Nat;
         active_high_burn_rate_mainers: ?Nat;
         active_very_high_burn_rate_mainers: ?Nat;
+        active_custom_burn_rate_mainers: ?Nat;
         paused_low_burn_rate_mainers: ?Nat;
         paused_medium_burn_rate_mainers: ?Nat;
         paused_high_burn_rate_mainers: ?Nat;
         paused_very_high_burn_rate_mainers: ?Nat;
+        paused_custom_burn_rate_mainers: ?Nat;
     };
 
     // Input type for update endpoint with date and update data

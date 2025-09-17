@@ -51,10 +51,12 @@ dfx canister call api_canister createDailyMetricAdmin '(record {
     active_medium_burn_rate_mainers = 84;
     active_high_burn_rate_mainers = 269;
     active_very_high_burn_rate_mainers = 0;
+    active_custom_burn_rate_mainers = 0;
     paused_low_burn_rate_mainers = 56;
     paused_medium_burn_rate_mainers = 36;
     paused_high_burn_rate_mainers = 135;
     paused_very_high_burn_rate_mainers = 0;
+    paused_custom_burn_rate_mainers = 0;
 })'
 
 # Create another test metric
@@ -73,10 +75,12 @@ dfx canister call api_canister createDailyMetricAdmin '(record {
     active_medium_burn_rate_mainers = 82;
     active_high_burn_rate_mainers = 258;
     active_very_high_burn_rate_mainers = 0;
+    active_custom_burn_rate_mainers = 0;
     paused_low_burn_rate_mainers = 58;
     paused_medium_burn_rate_mainers = 38;
     paused_high_burn_rate_mainers = 141;
     paused_very_high_burn_rate_mainers = 0;
+    paused_custom_burn_rate_mainers = 0;
 })'
 
 # Get metrics count after creation
@@ -125,10 +129,12 @@ dfx canister call api_canister updateDailyMetricAdmin '(record {
         active_medium_burn_rate_mainers = null;
         active_high_burn_rate_mainers = null;
         active_very_high_burn_rate_mainers = null;
+        active_custom_burn_rate_mainers = null;
         paused_low_burn_rate_mainers = null;
         paused_medium_burn_rate_mainers = null;
         paused_high_burn_rate_mainers = null;
         paused_very_high_burn_rate_mainers = null;
+        paused_custom_burn_rate_mainers = null;
     }
 })'
 
@@ -154,10 +160,12 @@ dfx canister call api_canister bulkCreateDailyMetricsAdmin '(vec {
         active_medium_burn_rate_mainers = 79;
         active_high_burn_rate_mainers = 248;
         active_very_high_burn_rate_mainers = 0;
+        active_custom_burn_rate_mainers = 0;
         paused_low_burn_rate_mainers = 61;
         paused_medium_burn_rate_mainers = 42;
         paused_high_burn_rate_mainers = 144;
         paused_very_high_burn_rate_mainers = 0;
+        paused_custom_burn_rate_mainers = 0;
     };
     record {
         date = "2025-09-05";
@@ -172,10 +180,12 @@ dfx canister call api_canister bulkCreateDailyMetricsAdmin '(vec {
         active_medium_burn_rate_mainers = 77;
         active_high_burn_rate_mainers = 246;
         active_very_high_burn_rate_mainers = 0;
+        active_custom_burn_rate_mainers = 0;
         paused_low_burn_rate_mainers = 62;
         paused_medium_burn_rate_mainers = 43;
         paused_high_burn_rate_mainers = 142;
         paused_very_high_burn_rate_mainers = 0;
+        paused_custom_burn_rate_mainers = 0;
     };
 })'
 
