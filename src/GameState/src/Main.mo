@@ -2233,6 +2233,9 @@ actor class GameStateCanister() = this {
     stable var ARCHIVE_CHALLENGES_CANISTER_ID : Text = "474n2-qiaaa-aaaaf-qasoq-cai";
 
     public shared (msg) func setArchiveCanisterId(archive_canister_id : Text) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -2244,6 +2247,9 @@ actor class GameStateCanister() = this {
     stable var API_CANISTER_ID : Text = "bgm6p-5aaaa-aaaaf-qbzda-cai";
 
     public shared (msg) func setApiCanisterId(api_canister_id : Text) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
