@@ -1163,6 +1163,14 @@ module Types {
 
     public type TokenomicsActionResult = Result<TokenomicsAction, ApiError>;
 
+    public type LiquidityPositionsRecord = {
+        liquidityPositions : [LiquidityPool.UserPositionInfo];
+    };
+
+    public type LiquidityPositionsResult = Result<LiquidityPositionsRecord, ApiError>;
+
+    public type LiquidityPositionResult = Result<LiquidityPool.UserPositionInfo, ApiError>;
+
     //-------------------------------------------------------------------------
 // Canister Actors
     public type GameStateCanister_Actor = actor {
