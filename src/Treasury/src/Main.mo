@@ -652,156 +652,6 @@ actor class TreasuryCanister() = this {
         };
     };
 
-    // Helper function to add liquidity to the FUNNAI/ICP pool
-    private func addLiquidity(funnaiForLiquidity : Nat) : async Nat {
-        if (MATCH_LIQUIDITY_ADDITION_ICP) {
-            // Add FUNNAI and ICP to liquidity pool
-            // Get a quote first
-            let amountToConvert : Text = Nat.toText(funnaiForLiquidity);
-            let swapArgs : LiquidityPool.SwapArgs = {
-                amountIn : Text = amountToConvert;
-                zeroForOne : Bool = false; // FUNNAI for ICP
-                amountOutMinimum : Text = "0"; // not used in quote
-            };
-            try {
-                let quoteResult : LiquidityPool.Result = await LIQUIDITY_POOL_ACTOR.quote(swapArgs);
-                switch (quoteResult) {
-                    case (#ok(quotedReceivedAmount)) {
-                        D.print("Treasury: addLiquidity quotedReceivedAmount: " # debug_show (quotedReceivedAmount));
-                        if (quotedReceivedAmount >= icpBalance) {
-                            D.print("Treasury: addLiquidity ICP Balance is too low: " # debug_show (quotedReceivedAmount) # " Balance: " # debug_show (icpBalance));
-                            return #Err(#Other("ICP Balance is too low: " # debug_show (quotedReceivedAmount) # " Balance: " # debug_show (icpBalance)));
-                        };
-                        let amountOutMinimum : Nat = quotedReceivedAmount * 9 / 10; // max 10% slippage
-                        // Increase liquidity position in several steps
-                        // approveToken0 (ICP)
-                        let approve0Args : TokenLedger.ApproveArgs = {
-                            fee : ?Nat = null;
-                            memo : ?Blob = null;
-                            from_subaccount : ?Blob = null;
-                            created_at_time : ?Nat64 = null;
-                            amount : Nat = quotedReceivedAmount;
-                            expected_allowance : ?Nat = null;
-                            expires_at : ?Nat64 = null;
-                            spender : TokenLedger.Account = liquidityPoolAccount;
-                        };
-                        D.print("Treasury: handleReceivedFunnai - approve0Args: " # debug_show (approve0Args));
-                        let approve0Result : TokenLedger.Result_2 = await ICP_LEDGER_ACTOR.icrc2_approve(approve0Args);
-                        D.print("Treasury: handleReceivedFunnai - approve0Result: " # debug_show (approve0Result));
-                        switch (approve0Result) {
-                            case (#Ok(approve0Nat)) {
-                                /* // approveToken1 (FUNNAI)
-                                let approve1Args : TokenLedger.ApproveArgs = {
-                                    fee : ?Nat = null;
-                                    memo : ?Blob = null;
-                                    from_subaccount : ?Blob = null;
-                                    created_at_time : ?Nat64 = null;
-                                    amount : Nat = funnaiForLiquidity;
-                                    expected_allowance : ?Nat = null;
-                                    expires_at : ?Nat64 = null;
-                                    spender : TokenLedger.Account = liquidityPoolAccount; // TODO: might need to go to treasury canister's subaccount
-                                };
-                                D.print("Treasury: handleReceivedFunnai - approve1Args: " # debug_show (approve1Args));
-                                let approve1Result : TokenLedger.Result_2 = await TokenLedger_Actor.icrc2_approve(approve1Args);
-                                D.print("Treasury: handleReceivedFunnai - approve1Result: " # debug_show (approve1Result));
-                                switch (approve1Result) {
-                                    case (#Ok(approve1Nat)) {
-                                        
-                                        
-                                        D.print("Treasury: handleReceivedFunnai - approve1Args: " # debug_show (approve1Args));
-                                        D.print("Treasury: handleReceivedFunnai - approve1Result: " # debug_show (approve1Result));
-
-                                    };
-                                    case (#Err(err)) {
-                                        D.print("Treasury: handleReceivedFunnai approve1Result Err: " # debug_show (err));
-                                        return #Err(#Other("Approve 1 (FUNNAI) error: " # debug_show (err)));
-                                    };
-                                }; */
-
-                                // depositToken0 (ICP): depositFrom to SwapPool
-
-                                // transfer token 1 
-
-                                // depositToken1,
-
-                                // increaseLiquidity on swap pool: https://github.com/ICPSwap-Labs/icpswap-v3-service/blob/52848ce6e718e6c35e84f77b60acaecb61febdba/src/SwapPool.mo#L1754
-
-                                    /* let depositAndSwapArgs : LiquidityPool.DepositAndSwapArgs = {
-                                        amountIn : Text = amountToConvert;
-                                        zeroForOne : Bool = true; // ICP for FUNNAI
-                                        amountOutMinimum : Text = Nat.toText(amountOutMinimum);
-                                        tokenInFee : Nat = 10000; // ICP
-                                        tokenOutFee : Nat = 1; // FUNNAI
-                                    };
-
-                                    let depositAndSwapResult : LiquidityPool.Result = await LIQUIDITY_POOL_ACTOR.depositAndSwap(depositAndSwapArgs);
-                                    switch (depositAndSwapResult) {
-                                        case (#ok(receivedAmount)) {
-                                            // Store Swap tokenomics action
-                                            let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                                            let newEntry : Types.TokenomicsAction = {
-                                                token : Types.TokenomicsActionTokens = #ICP;
-                                                amount : Nat = icpToConvert;
-                                                creationTimestamp : Nat64 = creationTimestamp;
-                                                additionalToken : ?Types.TokenomicsActionTokens = ?#FUNNAI;
-                                                additionalTokenAmount : Nat = receivedAmount;
-                                                actionId : Nat64 = tokenomicsActionCounter;
-                                                actionType : TokenomicsActionType = #Swap;
-                                                associatedTransactionId : ?Nat64 = null;
-                                                transactionIdDisbursement : ?Nat64 = ?disbursementEntry.transactionId;
-                                                newIcpBalance : Nat = disbursementEntry.newIcpBalance;
-                                            };
-
-                                            _ = putTokenomicsAction(newEntry);
-
-                                            if (icpBalance > icpToConvert) {
-                                                icpBalance := icpBalance - icpToConvert;
-                                            } else {
-                                                icpBalance := 0;
-                                            };
-                                            
-                                            if (funnaiBalance > funnaiForLiquidity) {
-                                                funnaiBalance := funnaiBalance - funnaiForLiquidity;
-                                            } else {
-                                                funnaiBalance := 0;
-                                            };
-
-                                            let result : Types.TokenSwapRecord = {
-                                                token : Types.TokenomicsActionTokens = #ICP;
-                                                amount : Nat = icpToConvert;
-                                                creationTimestamp : Nat64 = creationTimestamp;
-                                                additionalToken : Types.TokenomicsActionTokens = #FUNNAI;
-                                                additionalTokenAmount : Nat = receivedAmount;
-                                            };
-                                            return #Ok(result);
-                                        };
-                                        case (#err(err)) {
-                                            D.print("Treasury: swapIcpToFunnai depositAndSwapResult Err: " # debug_show (err));
-                                            return #Err(#Other("DepositAndSwap error: " # debug_show (err)));
-                                        };
-                                    }; */
-                            };
-                            case (#Err(err)) {
-                                D.print("Treasury: handleReceivedFunnai approve0Result Err: " # debug_show (err));
-                                return #Err(#Other("Approve 0 (ICP) error: " # debug_show (err)));
-                            };
-                        };
-                    };
-                    case (#err(err)) {
-                        D.print("Treasury: handleReceivedFunnai quoteResult Err: " # debug_show (err));
-                        return #Err(#Other("Quote error: " # debug_show (err)));
-                    };
-                };
-            } catch (error : Error) {
-                D.print("Treasury: swapIcpToFunnai error: " # Error.message(error));
-                return #Err(#FailedOperation);
-            };
-        } else {
-            // Add FUNNAI to liquidity pool
-        };
-
-    };
-
     private func handleReceivedFunnai(funnaiReceived : Nat, disbursementEntry : Types.TokenDisbursement) : async Types.TokenomicsActionResult {
         D.print("Treasury: handleReceivedFunnai - funnaiReceived: " # debug_show (funnaiReceived));
         D.print("Treasury: handleReceivedFunnai - disbursementEntry: " # debug_show (disbursementEntry));
@@ -840,10 +690,29 @@ actor class TreasuryCanister() = this {
         if (LIQUIDITY_ADDITION_INCOMING_FUNNAI) {
             let funnaiForLiquidity : Nat = funnaiReceived * LIQUIDITY_SHARE_FUNNAI / 10000; // Share is defined as part of 10000 (i.e. 10000 is 100%, 1 is 0.01%)
             D.print("Treasury: handleReceivedFunnai - funnaiForLiquidity: " # debug_show (funnaiForLiquidity));
-            let liquidityAdditionResult = await burnFunnaiTransaction(funnaiForLiquidity);
+            let liquidityAdditionResult = await addLiquidity(funnaiForLiquidity);
             D.print("Treasury: handleReceivedFunnai - liquidityAdditionResult: " # debug_show (liquidityAdditionResult));
-            
+            if (liquidityAdditionResult > 0) {
+                // Store tokenomics action
+                let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                let newEntry : Types.TokenomicsAction = {
+                    token : Types.TokenomicsActionTokens = #ICP;
+                    amount : Nat = quotedReceivedAmount;
+                    creationTimestamp : Nat64 = creationTimestamp;
+                    additionalToken : ?Types.TokenomicsActionTokens = ?#FUNNAI;
+                    additionalTokenAmount : Nat = funnaiForLiquidity;
+                    actionId : Nat64 = tokenomicsActionCounter;
+                    actionType : Types.TokenomicsActionType = #LiquidityProvision;
+                    associatedTransactionId : ?Nat64 = ?Nat64.fromNat(mintBlockIndex);
+                    transactionIdDisbursement : ?Nat64 = ?disbursementEntry.transactionId;
+                    newIcpBalance : Nat = disbursementEntry.newIcpBalance;
+                };
 
+                let _ = putTokenomicsAction(newEntry);
+                D.print("Treasury: handleReceivedFunnai - newEntry: " # debug_show (newEntry));
+
+                result := #Ok(newEntry);
+            };
         };
 
         // Remaining FUNNAI is kept in Treasury's balance
@@ -987,6 +856,79 @@ actor class TreasuryCanister() = this {
         return #Ok({ liquidityPositions = List.toArray(liquidityPositionsStorage) });
     };
 
+    // Helper function to add liquidity to the FUNNAI/ICP pool
+    private func addLiquidity(funnaiForLiquidity : Nat) : async Nat {
+        if (MATCH_LIQUIDITY_ADDITION_ICP) {
+            // Add FUNNAI and ICP to liquidity pool
+            // Get a quote first
+            let amountToConvert : Text = Nat.toText(funnaiForLiquidity);
+            let swapArgs : LiquidityPool.SwapArgs = {
+                amountIn : Text = amountToConvert;
+                zeroForOne : Bool = false; // FUNNAI for ICP
+                amountOutMinimum : Text = "0"; // not used in quote
+            };
+            try {
+                let quoteResult : LiquidityPool.Result = await LIQUIDITY_POOL_ACTOR.quote(swapArgs);
+                switch (quoteResult) {
+                    case (#ok(quotedReceivedAmount)) {
+                        D.print("Treasury: addLiquidity quotedReceivedAmount: " # debug_show (quotedReceivedAmount));
+                        if (quotedReceivedAmount >= icpBalance) {
+                            D.print("Treasury: addLiquidity ICP Balance is too low: " # debug_show (quotedReceivedAmount) # " Balance: " # debug_show (icpBalance));
+                            return #Err(#Other("ICP Balance is too low: " # debug_show (quotedReceivedAmount) # " Balance: " # debug_show (icpBalance)));
+                        };
+                        let amountOutMinimum : Nat = quotedReceivedAmount * 9 / 10; // max 10% slippage
+                        // Increase liquidity position in several steps
+                        // approveToken0 (ICP)
+                        let approve0Args : TokenLedger.ApproveArgs = {
+                            fee : ?Nat = null;
+                            memo : ?Blob = null;
+                            from_subaccount : ?Blob = null;
+                            created_at_time : ?Nat64 = null;
+                            amount : Nat = quotedReceivedAmount;
+                            expected_allowance : ?Nat = null;
+                            expires_at : ?Nat64 = null;
+                            spender : TokenLedger.Account = liquidityPoolAccount;
+                        };
+                        D.print("Treasury: handleReceivedFunnai - approve0Args: " # debug_show (approve0Args));
+                        let approve0Result : TokenLedger.Result_2 = await ICP_LEDGER_ACTOR.icrc2_approve(approve0Args);
+                        D.print("Treasury: handleReceivedFunnai - approve0Result: " # debug_show (approve0Result));
+                        switch (approve0Result) {
+                            case (#Ok(approve0Nat)) {
+                                // approveToken1 (FUNNAI)
+
+                                // depositToken0 (ICP): depositFrom to SwapPool
+
+                                // transfer token 1 
+
+                                // depositToken1,
+
+                                // get lp, then same as mint but increaseLiquidity on swap pool: https://github.com/ICPSwap-Labs/icpswap-v3-service/blob/52848ce6e718e6c35e84f77b60acaecb61febdba/src/SwapPool.mo#L1754
+
+                                    
+                            };
+                            case (#Err(err)) {
+                                D.print("Treasury: handleReceivedFunnai approve0Result Err: " # debug_show (err));
+                                return #Err(#Other("Approve 0 (ICP) error: " # debug_show (err)));
+                            };
+                        };
+                    };
+                    case (#err(err)) {
+                        D.print("Treasury: handleReceivedFunnai quoteResult Err: " # debug_show (err));
+                        return #Err(#Other("Quote error: " # debug_show (err)));
+                    };
+                };
+            } catch (error : Error) {
+                D.print("Treasury: swapIcpToFunnai error: " # Error.message(error));
+                return #Err(#FailedOperation);
+            };
+        } else {
+            // TODO: Decide if only FUNNAI should be added to liquidity pool
+            D.print("Treasury: mintLiquidityPosition MATCH_LIQUIDITY_ADDITION_ICP is false");
+            return #Err(#FailedOperation);
+        };
+
+    };
+
     // Helper function to create a new liquidity in the FUNNAI/ICP pool
     private func mintLiquidityPosition(funnaiForLiquidity : Nat) : async Nat {
         if (MATCH_LIQUIDITY_ADDITION_ICP) {
@@ -1095,94 +1037,60 @@ actor class TreasuryCanister() = this {
                                                             };
                                                             case (#Ok(depositToken1BlockIndex)) {
                                                                 D.print("Treasury: mintLiquidityPosition depositToken1BlockIndex " # debug_show (depositToken1BlockIndex));
-                                                                // Calculate ticks (for liquidity range)
-                                                                /* So first round tick = 37,304 to the nearest multiple of tickSpacing.
-
-                                                                    Example: fee=3000 → tickSpacing=60
-
-                                                                    Nearest multiple of 60 to 37,304 is 37,260 (since 37,260 ÷ 60 = integer).
-
-                                                                    2. Setting a range
-
-                                                                    Once you have the current tick aligned, you can pick a band around it:
-
-                                                                    Wide range (safe but less fee-efficient):
-
-                                                                    tickLower = alignedTick - 6000
-                                                                    tickUpper = alignedTick + 6000
-
-
-                                                                    (≈ covers about ±10% price movement depending on where you are). */
+                                                                // Calculate ticks (for liquidity range) given current tick from metadata
+                                                                let MIN_TICK : Int = -887_272;
+                                                                let MAX_TICK : Int =  887_272;
+                                                                // Fixed tick spacing for 0.3% fee tier
+                                                                let tickSpacing : Int = 60;
+                                                                /// Compute a ~50% price range around current tick
+                                                                func computeRange(currentTick : Int) : (Int, Int) {
+                                                                    // align current tick to spacing
+                                                                    let alignedTick = currentTick - (currentTick % tickSpacing);
+                                                                    // 50% price up/down roughly corresponds to about ±4000 ticks
+                                                                    let lower = alignedTick - 4000;
+                                                                    let upper = alignedTick + 4000;
+                                                                    // clamp to valid range and align to spacing
+                                                                    let tickLower = Int.max(MIN_TICK, lower - (lower % tickSpacing));
+                                                                    let tickUpper = Int.min(MAX_TICK, upper - (upper % tickSpacing));
+                                                                    (tickLower, tickUpper)
+                                                                };
+                                                                D.print("Treasury: mintLiquidityPosition metadataLiquidityPool.tick " # debug_show (metadataLiquidityPool.tick));
+                                                                let (tickLower, tickUpper) = computeRange(metadataLiquidityPool.tick);
+                                                                D.print("Treasury: mintLiquidityPosition tickLower " # debug_show (tickLower));
+                                                                D.print("Treasury: mintLiquidityPosition tickUpper " # debug_show (tickUpper));
                                                                 // Mint new liquidity position
                                                                 let mintLPArgs : LiquidityPool.MintArgs = {
                                                                     fee : Nat = metadataLiquidityPool.fee;
-                                                                    tickUpper : Int = ;
+                                                                    tickUpper : Int = tickUpper;
                                                                     token0 : Text = metadataLiquidityPool.token0;
                                                                     token1 : Text = metadataLiquidityPool.token1;
                                                                     amount0Desired : Text = quotedReceivedAmount;
                                                                     amount1Desired : Text = funnaiForLiquidity;
-                                                                    tickLower : Int = ;
+                                                                    tickLower : Int = tickLower;
                                                                 };
-
-                                                                let mintLPResult : LiquidityPool.Result = await LIQUIDITY_POOL_ACTOR.depositFrom(mintLPArgs);
-
-
-                                                                // increaseLiquidity on swap pool: https://github.com/ICPSwap-Labs/icpswap-v3-service/blob/52848ce6e718e6c35e84f77b60acaecb61febdba/src/SwapPool.mo#L1754
-
-                                            /* let depositAndSwapArgs : LiquidityPool.DepositAndSwapArgs = {
-                                                amountIn : Text = amountToConvert;
-                                                zeroForOne : Bool = true; // ICP for FUNNAI
-                                                amountOutMinimum : Text = Nat.toText(amountOutMinimum);
-                                                tokenInFee : Nat = 10000; // ICP
-                                                tokenOutFee : Nat = 1; // FUNNAI
-                                            };
-
-                                            let depositAndSwapResult : LiquidityPool.Result = await LIQUIDITY_POOL_ACTOR.depositAndSwap(depositAndSwapArgs);
-                                            switch (depositAndSwapResult) {
-                                                case (#ok(receivedAmount)) {
-                                                    // Store Swap tokenomics action
-                                                    let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                                                    let newEntry : Types.TokenomicsAction = {
-                                                        token : Types.TokenomicsActionTokens = #ICP;
-                                                        amount : Nat = icpToConvert;
-                                                        creationTimestamp : Nat64 = creationTimestamp;
-                                                        additionalToken : ?Types.TokenomicsActionTokens = ?#FUNNAI;
-                                                        additionalTokenAmount : Nat = receivedAmount;
-                                                        actionId : Nat64 = tokenomicsActionCounter;
-                                                        actionType : TokenomicsActionType = #Swap;
-                                                        associatedTransactionId : ?Nat64 = null;
-                                                        transactionIdDisbursement : ?Nat64 = ?disbursementEntry.transactionId;
-                                                        newIcpBalance : Nat = disbursementEntry.newIcpBalance;
-                                                    };
-
-                                                    _ = putTokenomicsAction(newEntry);
-
-                                                    if (icpBalance > icpToConvert) {
-                                                        icpBalance := icpBalance - icpToConvert;
-                                                    } else {
-                                                        icpBalance := 0;
-                                                    };
-                                                    
-                                                    if (funnaiBalance > funnaiForLiquidity) {
-                                                        funnaiBalance := funnaiBalance - funnaiForLiquidity;
-                                                    } else {
-                                                        funnaiBalance := 0;
-                                                    };
-
-                                                    let result : Types.TokenSwapRecord = {
-                                                        token : Types.TokenomicsActionTokens = #ICP;
-                                                        amount : Nat = icpToConvert;
-                                                        creationTimestamp : Nat64 = creationTimestamp;
-                                                        additionalToken : Types.TokenomicsActionTokens = #FUNNAI;
-                                                        additionalTokenAmount : Nat = receivedAmount;
-                                                    };
-                                                    return #Ok(result);
-                                                };
-                                                case (#err(err)) {
-                                                    D.print("Treasury: swapIcpToFunnai depositAndSwapResult Err: " # debug_show (err));
-                                                    return #Err(#Other("DepositAndSwap error: " # debug_show (err)));
-                                                };
-                                            }; */
+                                                                D.print("Treasury: mintLiquidityPosition mintLPArgs " # debug_show (mintLPArgs));
+                                                                let mintLPResult : LiquidityPool.Result = await LIQUIDITY_POOL_ACTOR.mint(mintLPArgs);
+                                                                D.print("Treasury: mintLiquidityPosition mintLPResult " # debug_show (mintLPResult));
+                                                                switch (mintLPResult) {
+                                                                    case (#err(err)) {
+                                                                        D.print("Treasury: mintLiquidityPosition mintLPResult Err: " # debug_show (err));
+                                                                        return #Err(#Other("Mint LP error: " # debug_show (err)));
+                                                                    };
+                                                                    case (#ok(mintBlockIndex)) {
+                                                                        if (icpBalance > quotedReceivedAmount) {
+                                                                            icpBalance := icpBalance - quotedReceivedAmount;
+                                                                        } else {
+                                                                            icpBalance := 0;
+                                                                        };
+                                                                        
+                                                                        if (funnaiBalance > funnaiForLiquidity) {
+                                                                            funnaiBalance := funnaiBalance - funnaiForLiquidity;
+                                                                        } else {
+                                                                            funnaiBalance := 0;
+                                                                        };
+                                                                        return #Ok(mintBlockIndex);
+                                                                    };
+                                                                };
                                                             };
                                                         };
                                                     };
@@ -1199,7 +1107,9 @@ actor class TreasuryCanister() = this {
                 return #Err(#FailedOperation);
             };
         } else {
-            // Add FUNNAI to liquidity pool
+            // TODO: Decide if only FUNNAI should be added to liquidity pool
+            D.print("Treasury: mintLiquidityPosition MATCH_LIQUIDITY_ADDITION_ICP is false");
+            return #Err(#FailedOperation);
         };
     };
 
@@ -1216,13 +1126,20 @@ actor class TreasuryCanister() = this {
     // and use it to add liquidity to the position: https://github.com/ICPSwap-Labs/docs/blob/main/02.SwapPool/Liquidity/02.Adding_Liquidity.md
     // increase liquidity on ICPSwap frontend: https://github.com/ICPSwap-Labs/icpswap-frontend/blob/main/apps/swap/src/hooks/swap/useIncreaseLiquidity.ts
 
-
-        mint
-        
-        getUserPosition
-
-        let newLiquidityPosition : LiquidityPool.UserPositionInfo = ;
-        liquidityPositionsStorage := List.push<LiquidityPool.UserPositionInfo>(newLiquidityPosition, liquidityPositionsStorage);
-        return #Ok(newLiquidityPosition);
+        let newPosition : Nat = await mintLiquidityPosition(1000000); 
+        D.print("Treasury: createLiquidityPositionAdmin newPosition " # debug_show (newPosition));
+        let userLPResult : LiquidityPool.Result = await LIQUIDITY_POOL_ACTOR.getUserPosition(newPosition);
+        D.print("Treasury: createLiquidityPositionAdmin userLPResult " # debug_show (userLPResult));
+        switch (userLPResult) {
+            case (#err(err)) {
+                D.print("Treasury: createLiquidityPositionAdmin userLPResult Err: " # debug_show (err));
+                return #Err(#Other("Get new LP error: " # debug_show (err)));
+            };
+            case (#ok(userPositionInfo)) {
+                D.print("Treasury: createLiquidityPositionAdmin userPositionInfo: " # debug_show (userPositionInfo));
+                liquidityPositionsStorage := List.push<LiquidityPool.UserPositionInfo>(userPositionInfo, liquidityPositionsStorage);
+                return #Ok(userPositionInfo);
+            };
+        };
     };
 };
