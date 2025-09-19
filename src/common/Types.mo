@@ -1164,12 +1164,12 @@ module Types {
     public type TokenomicsActionResult = Result<TokenomicsAction, ApiError>;
 
     public type LiquidityPositionsRecord = {
-        liquidityPositions : [LiquidityPool.UserPositionInfo];
+        liquidityPositions : [LiquidityPool.UserPositionInfoWithId];
     };
 
     public type LiquidityPositionsResult = Result<LiquidityPositionsRecord, ApiError>;
 
-    public type LiquidityPositionResult = Result<LiquidityPool.UserPositionInfo, ApiError>;
+    public type LiquidityPositionResult = Result<LiquidityPool.UserPositionInfoWithId, ApiError>;
 
     //-------------------------------------------------------------------------
 // Canister Actors
