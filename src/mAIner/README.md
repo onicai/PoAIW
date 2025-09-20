@@ -19,3 +19,10 @@ dfx canister call ywrcf-liaaa-aaaaa-qbcfq-cai --network ic getShareServiceCanist
 dfx canister call ywrcf-liaaa-aaaaa-qbcfq-cai --network ic getTimerActionRegularityInSecondsAdmin
 dfx canister call ywrcf-liaaa-aaaaa-qbcfq-cai --network ic timeToNextAgentSettingsUpdate
 ```
+
+## Reset a mAIner
+```bash
+# in this folder (mAIner), make sure you got the correct mAIner code
+dfx deploy ywrcf-liaaa-aaaaa-qbcfq-cai --network ic
+dfx canister call ywrcf-liaaa-aaaaa-qbcfq-cai --network ic startTimerExecutionAdmin
+```
