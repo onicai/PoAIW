@@ -75,7 +75,7 @@ dfx canister call game_state_canister unlockUserMainerAgent '(record { paymentTr
 
 dfx canister call game_state_canister getMainerAgentCanistersAdmin --network $NETWORK
 
-dfx canister call game_state_canister getMainerAgentCanistersForUserAdmin '"dno55-cf4cu-q2wwf-udihm-tq4ul-76yti-ywaee-khuyf-urcfy-r2vcz-hae"' --network $NETWORK
+dfx canister call game_state_canister getMainerAgentCanistersForUserAdmin '"dno55-cf4cu-q2wwf-udihm-tq4ul-76yti-ywaee-khuyf-urcfy-r2vcz-hae"' --network $NETWORK --output json
 
 dfx canister call game_state_canister getNumMainerAgentCanistersForUserAdmin '"dno55-cf4cu-q2wwf-udihm-tq4ul-76yti-ywaee-khuyf-urcfy-r2vcz-hae"' --network $NETWORK
 
