@@ -887,10 +887,10 @@ actor class TreasuryCanister() = this {
                             };
                             case (#ok(quotedReceivedAmount)) {
                                 D.print("Treasury: mintLiquidityPosition quotedReceivedAmount: " # debug_show (quotedReceivedAmount));
-                                if (quotedReceivedAmount >= icpBalance) {
+                                /* if (quotedReceivedAmount >= icpBalance) {
                                     D.print("Treasury: mintLiquidityPosition ICP Balance is too low: " # debug_show (quotedReceivedAmount) # " Balance: " # debug_show (icpBalance));
                                     return 0;
-                                };
+                                }; */
                                 let amountOutMinimum : Nat = quotedReceivedAmount * 9 / 10; // max 10% slippage
                                 // Create liquidity position in several steps
                                 // approveToken0 (ICP)
@@ -899,10 +899,10 @@ actor class TreasuryCanister() = this {
                                     memo : ?Blob = null;
                                     from_subaccount : ?Blob = null;
                                     created_at_time : ?Nat64 = null;
-                                    amount : Nat = quotedReceivedAmount;
+                                    amount : Nat = quotedReceivedAmount * 2; // Higher allowance to ensure it works
                                     expected_allowance : ?Nat = null;
                                     expires_at : ?Nat64 = null;
-                                    spender : TokenLedger.Account = liquidityPoolAccount;
+                                    spender : TokenLedger.Account = liquidityPoolAccountWithTreasurySubaccount; // changed from liquidityPoolAccount
                                 };
                                 D.print("Treasury: mintLiquidityPosition - approve0Args: " # debug_show (approve0Args));
                                 let approve0Result : TokenLedger.Result_2 = await ICP_LEDGER_ACTOR.icrc2_approve(approve0Args);
@@ -923,11 +923,11 @@ actor class TreasuryCanister() = this {
                                         let depositToken0Result : LiquidityPool.Result = await LIQUIDITY_POOL_ACTOR.depositFrom(depositToken0Args);
                                         D.print("Treasury: mintLiquidityPosition - depositToken0Result: " # debug_show (depositToken0Result));
                                         switch (depositToken0Result) {
-                                            case (#Err(err)) {
+                                            case (#err(err)) {
                                                 D.print("Treasury: mintLiquidityPosition depositToken0Result Err: " # debug_show (err));
                                                 return 0;
                                             };
-                                            case (#Ok(depositToken0BlockIndex)) {
+                                            case (#ok(depositToken0BlockIndex)) {
                                                 // transfer token 1 (FUNNAI)
                                                 let transferToken1Args : TokenLedger.TransferArg = {
                                                     memo : ?Blob = null;
@@ -961,11 +961,11 @@ actor class TreasuryCanister() = this {
                                                         let depositToken1Result : LiquidityPool.Result = await LIQUIDITY_POOL_ACTOR.depositFrom(depositToken1Args);
                                                         D.print("Treasury: mintLiquidityPosition depositToken1Result " # debug_show (depositToken1Result));
                                                         switch (depositToken1Result) {
-                                                            case (#Err(depositToken1Error)) {
+                                                            case (#err(depositToken1Error)) {
                                                                 D.print("Treasury: mintLiquidityPosition depositToken1Error " # debug_show (depositToken1Error));
                                                                 return 0;
                                                             };
-                                                            case (#Ok(depositToken1BlockIndex)) {
+                                                            case (#ok(depositToken1BlockIndex)) {
                                                                 D.print("Treasury: mintLiquidityPosition depositToken1BlockIndex " # debug_show (depositToken1BlockIndex));
                                                                 // Calculate ticks (for liquidity range) given current tick from metadata
                                                                 let MIN_TICK : Int = -887_272;
@@ -1162,11 +1162,11 @@ actor class TreasuryCanister() = this {
                                                 let depositToken0Result : LiquidityPool.Result = await LIQUIDITY_POOL_ACTOR.depositFrom(depositToken0Args);
                                                 D.print("Treasury: addLiquidity - depositToken0Result: " # debug_show (depositToken0Result));
                                                 switch (depositToken0Result) {
-                                                    case (#Err(err)) {
+                                                    case (#err(err)) {
                                                         D.print("Treasury: addLiquidity depositToken0Result Err: " # debug_show (err));
                                                         return (0, 0);
                                                     };
-                                                    case (#Ok(depositToken0BlockIndex)) {
+                                                    case (#ok(depositToken0BlockIndex)) {
                                                         // transfer token 1 (FUNNAI)
                                                         let transferToken1Args : TokenLedger.TransferArg = {
                                                             memo : ?Blob = null;
@@ -1200,11 +1200,11 @@ actor class TreasuryCanister() = this {
                                                                 let depositToken1Result : LiquidityPool.Result = await LIQUIDITY_POOL_ACTOR.depositFrom(depositToken1Args);
                                                                 D.print("Treasury: addLiquidity depositToken1Result " # debug_show (depositToken1Result));
                                                                 switch (depositToken1Result) {
-                                                                    case (#Err(depositToken1Error)) {
+                                                                    case (#err(depositToken1Error)) {
                                                                         D.print("Treasury: addLiquidity depositToken1Error " # debug_show (depositToken1Error));
                                                                         return (0, 0);
                                                                     };
-                                                                    case (#Ok(depositToken1BlockIndex)) {
+                                                                    case (#ok(depositToken1BlockIndex)) {
                                                                         D.print("Treasury: addLiquidity depositToken1BlockIndex " # debug_show (depositToken1BlockIndex));
                                                                         // Increase the liquidity position
                                                                         let increaseLPArgs : LiquidityPool.IncreaseLiquidityArgs = {

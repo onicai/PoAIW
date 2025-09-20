@@ -64,6 +64,8 @@ dfx canister call funnai_treasury_canister getMinimumIcpBalance --network $NETWO
 dfx canister call funnai_treasury_canister setMinimumIcpBalance '0' --network $NETWORK
 dfx canister call funnai_treasury_canister toggleConvertIcpToFunnaiFlagAdmin --network $NETWORK
 dfx canister call funnai_treasury_canister toggleBurnIncomingFunnaiFlagAdmin --network $NETWORK
+dfx canister call funnai_treasury_canister toggleLiquidityAdditionIncomingFunnaiFlagAdmin --network $NETWORK
+dfx canister call funnai_treasury_canister toggleMatchLiquidityAdditionIcpFlagAdmin --network $NETWORK
 
 ## Might come in handy during local testing
 dfx ledger fabricate-cycles --canister funnai_treasury_canister
@@ -88,15 +90,14 @@ https://dashboard.internetcomputer.org/account/300d6f0058417bb5131c7313a3fe7f7b9
 - Upgrade demo Game State
 - Set treasury on Game State
 ```bash
-# same treasury for all stages
-dfx canister call game_state_canister setTreasuryCanisterId '"qbhxa-ziaaa-aaaaa-qbqza-cai"' --network $NETWORK
-dfx canister call game_state_canister getTreasuryCanisterId --network $NETWORK
+dfx canister call game_state_canister setTreasuryCanisterId '"pm62h-jyaaa-aaaag-aughq-cai"' --network demo
+dfx canister call game_state_canister getTreasuryCanisterId --network demo
 ```
 
 - Toggle disburse flag on Game State
 ```bash
-dfx canister call game_state_canister toggleDisburseFundsToTreasuryFlagAdmin --network $NETWORK
-dfx canister call game_state_canister getDisburseFundsToTreasuryFlag --network $NETWORK
+dfx canister call game_state_canister toggleDisburseFundsToTreasuryFlagAdmin --network demo
+dfx canister call game_state_canister getDisburseFundsToTreasuryFlag --network demo
 ```
 
 - Set Game State as master on Treasury
