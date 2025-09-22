@@ -902,7 +902,7 @@ actor class TreasuryCanister() = this {
                                     amount : Nat = quotedReceivedAmount * 2; // Higher allowance to ensure it works
                                     expected_allowance : ?Nat = null;
                                     expires_at : ?Nat64 = null;
-                                    spender : TokenLedger.Account = liquidityPoolAccountWithTreasurySubaccount; // changed from liquidityPoolAccount
+                                    spender : TokenLedger.Account = liquidityPoolAccount;
                                 };
                                 D.print("Treasury: mintLiquidityPosition - approve0Args: " # debug_show (approve0Args));
                                 let approve0Result : TokenLedger.Result_2 = await ICP_LEDGER_ACTOR.icrc2_approve(approve0Args);
@@ -928,29 +928,27 @@ actor class TreasuryCanister() = this {
                                                 return 0;
                                             };
                                             case (#ok(depositToken0BlockIndex)) {
-                                                // transfer token 1 (FUNNAI)
-                                                let transferToken1Args : TokenLedger.TransferArg = {
-                                                    memo : ?Blob = null;
-                                                    amount : Nat = funnaiForLiquidity;
+                                                // approve token 1 (FUNNAI)
+                                                let approve1Args : TokenLedger.ApproveArgs = {
                                                     fee : ?Nat = null;
-                                                    // we are transferring from the canisters default subaccount, therefore we don't need to specify it
+                                                    memo : ?Blob = null;
                                                     from_subaccount : ?Blob = null;
-                                                    // we hardcode the receiver info as an account identifier where the swap pool is the owner and the treasury canister the subaccount
-                                                    to : TokenLedger.Account = liquidityPoolAccountWithTreasurySubaccount;
-                                                    // a timestamp indicating when the transaction was created by the caller; if it is not specified by the caller then this is set to the current ICP time
                                                     created_at_time : ?Nat64 = null;
+                                                    amount : Nat = funnaiForLiquidity * 2; // Higher allowance to ensure it works
+                                                    expected_allowance : ?Nat = null;
+                                                    expires_at : ?Nat64 = null;
+                                                    spender : TokenLedger.Account = liquidityPoolAccount;
                                                 };
-                                                D.print("Treasury: mintLiquidityPosition - transferToken1Args: " # debug_show (transferToken1Args));
-                                                // Call the ledger's icrc1_transfer function
-                                                let transferToken1Result = await TokenLedger_Actor.icrc1_transfer(transferToken1Args);
-                                                D.print("Treasury: mintLiquidityPosition - transferToken1Result: " # debug_show (transferToken1Result));
-                                                switch (transferToken1Result) {
-                                                    case (#Err(transferToken1Error)) {
-                                                        D.print("Treasury: mintLiquidityPosition transferToken1Error " # debug_show (transferToken1Error));
+                                                D.print("Treasury: mintLiquidityPosition - approve1Args: " # debug_show (approve1Args));
+                                                let approve1Result : TokenLedger.Result_2 = await TokenLedger_Actor.icrc2_approve(approve1Args);
+                                                D.print("Treasury: mintLiquidityPosition - approve1Result: " # debug_show (approve1Result));
+                                                switch (approve1Result) {
+                                                    case (#Err(approveToken1Error)) {
+                                                        D.print("Treasury: mintLiquidityPosition approveToken1Error " # debug_show (approveToken1Error));
                                                         return 0;
                                                     };
-                                                    case (#Ok(transferToken1BlockIndex)) {
-                                                        D.print("Treasury: mintLiquidityPosition transferToken1BlockIndex " # debug_show (transferToken1BlockIndex));
+                                                    case (#Ok(approveToken1BlockIndex)) {
+                                                        D.print("Treasury: mintLiquidityPosition approveToken1BlockIndex " # debug_show (approveToken1BlockIndex));
                                                         // depositToken1 (FUNNAI)
                                                         let depositToken1Args : LiquidityPool.DepositArgs = {
                                                             amount : Nat = funnaiForLiquidity;
@@ -1059,7 +1057,7 @@ actor class TreasuryCanister() = this {
     // and use it to add liquidity to the position: https://github.com/ICPSwap-Labs/docs/blob/main/02.SwapPool/Liquidity/02.Adding_Liquidity.md
     // increase liquidity on ICPSwap frontend: https://github.com/ICPSwap-Labs/icpswap-frontend/blob/main/apps/swap/src/hooks/swap/useIncreaseLiquidity.ts
 
-        let newPosition : Nat = await mintLiquidityPosition(1000000); 
+        let newPosition : Nat = await mintLiquidityPosition(1000000000); 
         D.print("Treasury: createLiquidityPositionAdmin newPosition " # debug_show (newPosition));
         let userLPResult : LiquidityPool.Result_14 = await LIQUIDITY_POOL_ACTOR.getUserPosition(newPosition);
         D.print("Treasury: createLiquidityPositionAdmin userLPResult " # debug_show (userLPResult));
