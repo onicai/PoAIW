@@ -1128,6 +1128,11 @@ actor class TreasuryCanister() = this {
                                             D.print("Treasury: addLiquidity ICP Balance is too low: " # debug_show (quotedReceivedAmount) # " Balance: " # debug_show (icpBalance));
                                             return (0, 0);
                                         };
+                                        if (quotedReceivedAmount < 1000000) {
+                                            // Given there are fees involved, very small amounts are not worth processing, e.g. smaller than 0.01 ICP
+                                            D.print("Treasury: addLiquidity transaction amount is too low, not worth it: " # debug_show (quotedReceivedAmount));
+                                            return (0, 0);
+                                        };
                                         let amountOutMinimum : Nat = quotedReceivedAmount * 9 / 10; // max 10% slippage
                                         // Add to liquidity position in several steps
                                         // approveToken0 (ICP)
@@ -1136,7 +1141,7 @@ actor class TreasuryCanister() = this {
                                             memo : ?Blob = null;
                                             from_subaccount : ?Blob = null;
                                             created_at_time : ?Nat64 = null;
-                                            amount : Nat = quotedReceivedAmount;
+                                            amount : Nat = quotedReceivedAmount * 2; // Higher allowance to ensure it works
                                             expected_allowance : ?Nat = null;
                                             expires_at : ?Nat64 = null;
                                             spender : TokenLedger.Account = liquidityPoolAccount;
@@ -1165,29 +1170,27 @@ actor class TreasuryCanister() = this {
                                                         return (0, 0);
                                                     };
                                                     case (#ok(depositToken0BlockIndex)) {
-                                                        // transfer token 1 (FUNNAI)
-                                                        let transferToken1Args : TokenLedger.TransferArg = {
-                                                            memo : ?Blob = null;
-                                                            amount : Nat = funnaiForLiquidity;
+                                                        // approve token 1 (FUNNAI)
+                                                        let approve1Args : TokenLedger.ApproveArgs = {
                                                             fee : ?Nat = null;
-                                                            // we are transferring from the canisters default subaccount, therefore we don't need to specify it
+                                                            memo : ?Blob = null;
                                                             from_subaccount : ?Blob = null;
-                                                            // we hardcode the receiver info as an account identifier where the swap pool is the owner and the treasury canister the subaccount
-                                                            to : TokenLedger.Account = liquidityPoolAccountWithTreasurySubaccount;
-                                                            // a timestamp indicating when the transaction was created by the caller; if it is not specified by the caller then this is set to the current ICP time
                                                             created_at_time : ?Nat64 = null;
+                                                            amount : Nat = funnaiForLiquidity * 2; // Higher allowance to ensure it works
+                                                            expected_allowance : ?Nat = null;
+                                                            expires_at : ?Nat64 = null;
+                                                            spender : TokenLedger.Account = liquidityPoolAccount;
                                                         };
-                                                        D.print("Treasury: addLiquidity - transferToken1Args: " # debug_show (transferToken1Args));
-                                                        // Call the ledger's icrc1_transfer function
-                                                        let transferToken1Result = await TokenLedger_Actor.icrc1_transfer(transferToken1Args);
-                                                        D.print("Treasury: addLiquidity - transferToken1Result: " # debug_show (transferToken1Result));
-                                                        switch (transferToken1Result) {
-                                                            case (#Err(transferToken1Error)) {
-                                                                D.print("Treasury: addLiquidity transferToken1Error " # debug_show (transferToken1Error));
+                                                        D.print("Treasury: addLiquidity - approve1Args: " # debug_show (approve1Args));
+                                                        let approve1Result : TokenLedger.Result_2 = await TokenLedger_Actor.icrc2_approve(approve1Args);
+                                                        D.print("Treasury: addLiquidity - approve1Result: " # debug_show (approve1Result));
+                                                        switch (approve1Result) {
+                                                            case (#Err(approveToken1Error)) {
+                                                                D.print("Treasury: addLiquidity approveToken1Error " # debug_show (approveToken1Error));
                                                                 return (0, 0);
                                                             };
-                                                            case (#Ok(transferToken1BlockIndex)) {
-                                                                D.print("Treasury: addLiquidity transferToken1BlockIndex " # debug_show (transferToken1BlockIndex));
+                                                            case (#Ok(approveToken1BlockIndex)) {
+                                                                D.print("Treasury: addLiquidity approveToken1BlockIndex " # debug_show (approveToken1BlockIndex));
                                                                 // depositToken1 (FUNNAI)
                                                                 let depositToken1Args : LiquidityPool.DepositArgs = {
                                                                     amount : Nat = funnaiForLiquidity;

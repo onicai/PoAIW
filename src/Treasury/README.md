@@ -66,6 +66,7 @@ dfx canister call funnai_treasury_canister toggleConvertIcpToFunnaiFlagAdmin --n
 dfx canister call funnai_treasury_canister toggleBurnIncomingFunnaiFlagAdmin --network $NETWORK
 dfx canister call funnai_treasury_canister toggleLiquidityAdditionIncomingFunnaiFlagAdmin --network $NETWORK
 dfx canister call funnai_treasury_canister toggleMatchLiquidityAdditionIcpFlagAdmin --network $NETWORK
+dfx canister call funnai_treasury_canister setLiquidityShareFunnai '100' --network $NETWORK
 
 ## Might come in handy during local testing
 dfx ledger fabricate-cycles --canister funnai_treasury_canister
