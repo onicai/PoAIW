@@ -887,10 +887,6 @@ actor class TreasuryCanister() = this {
                             };
                             case (#ok(quotedReceivedAmount)) {
                                 D.print("Treasury: mintLiquidityPosition quotedReceivedAmount: " # debug_show (quotedReceivedAmount));
-                                /* if (quotedReceivedAmount >= icpBalance) {
-                                    D.print("Treasury: mintLiquidityPosition ICP Balance is too low: " # debug_show (quotedReceivedAmount) # " Balance: " # debug_show (icpBalance));
-                                    return 0;
-                                }; */
                                 let amountOutMinimum : Nat = quotedReceivedAmount * 9 / 10; // max 10% slippage
                                 // Create liquidity position in several steps
                                 // approveToken0 (ICP)
@@ -1051,11 +1047,6 @@ actor class TreasuryCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        // TODO: admin function to mint the initial liquidity position: https://github.com/ICPSwap-Labs/docs/blob/main/02.SwapPool/Liquidity/01.Minting_a_Position.md
-    // Mint position on ICPSwap frontend: https://github.com/ICPSwap-Labs/icpswap-frontend/blob/main/apps/swap/src/hooks/swap/useAddLiquidity.ts
-    // Get the position's info (manually)
-    // and use it to add liquidity to the position: https://github.com/ICPSwap-Labs/docs/blob/main/02.SwapPool/Liquidity/02.Adding_Liquidity.md
-    // increase liquidity on ICPSwap frontend: https://github.com/ICPSwap-Labs/icpswap-frontend/blob/main/apps/swap/src/hooks/swap/useIncreaseLiquidity.ts
 
         let newPosition : Nat = await mintLiquidityPosition(1000000000); 
         D.print("Treasury: createLiquidityPositionAdmin newPosition " # debug_show (newPosition));
