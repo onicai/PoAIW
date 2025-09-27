@@ -355,6 +355,22 @@ actor class MainerAgentCtrlbCanister() = this {
     stable var recurringTimerId1 : ?Timer.TimerId = null;
     stable var recurringTimerId2 : ?Timer.TimerId = null;
 
+    // Non-stable buffers to track timer IDs created since last upgrade
+    // These reset to empty after each upgrade, which is the desired behavior
+    // FIFO buffers with max length 3
+    transient let bufferTimerId1 = Buffer.Buffer<Timer.TimerId>(3);
+    transient let bufferTimerId2 = Buffer.Buffer<Timer.TimerId>(3);
+
+    // Helper function to add timer ID using FIFO approach with max length 3
+    private func addTimerToBuffer(buffer : Buffer.Buffer<Timer.TimerId>, timerId : Timer.TimerId) : () {
+        if (buffer.size() >= 3) {
+            // Remove the oldest entry (FIFO)
+            ignore buffer.removeLast();
+        };
+        // Add new timer ID to the beginning
+        buffer.insert(0, timerId);
+    };
+
     // Record of settings
     stable var agentSettings : List.List<Types.MainerAgentSettings> = List.nil<Types.MainerAgentSettings>();
 
@@ -1838,6 +1854,9 @@ actor class MainerAgentCtrlbCanister() = this {
     stable var cyclesBurnRateFromGameState = CYCLES_BURN_RATE_DEFAULT; // Just set it to some default value. The actual value is retrieved from the GameState in startTimerExecution()
    
     public shared (msg) func setTimerAction2RegularityInSecondsAdmin(_action2RegularityInSeconds : Nat) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -1949,6 +1968,7 @@ actor class MainerAgentCtrlbCanister() = this {
                     let id =  recurringTimer<system>(#seconds timerRegularity, triggerRecurringAction1);
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - Successfully start timer 1 with id = " # debug_show (id));
                     recurringTimerId1 := ?id;
+                    addTimerToBuffer(bufferTimerId1, id);
                     await triggerRecurringAction1();
             });
 
@@ -1962,7 +1982,8 @@ actor class MainerAgentCtrlbCanister() = this {
             D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - setTimer 2");
             let id =  recurringTimer<system>(#seconds action2RegularityInSeconds, triggerRecurringAction2);
             D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - Successfully start timer 2 with id = " # debug_show (id) # ", regularity = " # Nat.toText(action2RegularityInSeconds) # " seconds");
-            recurringTimerId2 := ?id;            
+            recurringTimerId2 := ?id;
+            addTimerToBuffer(bufferTimerId2, id);            
             // Trigger it right away. Without this, the first action would be delayed by the recurring timer regularity
             await triggerRecurringAction2();
         };
@@ -1974,36 +1995,37 @@ actor class MainerAgentCtrlbCanister() = this {
     private func stopTimerExecution() : async Types.AuthRecordResult {
         var res = "You stopped the timers: ";
 
-        switch (recurringTimerId1) {
-            case (?id) {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - Stopping timer 1 with id = " # debug_show (id));
-                Timer.cancelTimer(id);
-                recurringTimerId1 := null;
-                res := res # " 1 (id = " # Nat.toText(id) # "), ";
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - Timer 1 stopped successfully.");
-            };
-            case null {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - There is no active timer 1.");
-            };
+        // Cancel all timers in buffer 1
+        for (i in Iter.range(0, bufferTimerId1.size() - 1)) {
+            let timerId = bufferTimerId1.get(i);
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - Cancelling timer 1 with id = " # debug_show(timerId));
+            Timer.cancelTimer(timerId);
+            res := res # " 1 (id = " # Nat.toText(timerId) # "), ";
         };
+        // NOT clearing bufferTimerId1 on purpose, to handle the case if Timer.cancelTimer did not actually cancel the timer
+        recurringTimerId1 := null;
 
-        switch (recurringTimerId2) {
-            case (?id) {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - Stopping timer 2 with id = " # debug_show (id));
-                Timer.cancelTimer(id);
-                recurringTimerId2 := null;
-                res := res # " 2 (id = " # Nat.toText(id) # ")";
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - Timer 2 stopped successfully.");
-            };
-            case null {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - There is no active timer 2.");
-            };
+        // Cancel all timers in buffer 2
+        for (i in Iter.range(0, bufferTimerId2.size() - 1)) {
+            let timerId = bufferTimerId2.get(i);
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - Cancelling timer 2 with id = " # debug_show(timerId));
+            Timer.cancelTimer(timerId);
+            res := res # " 2 (id = " # Nat.toText(timerId) # "), ";
+        };
+        // NOT clearing bufferTimerId2 on purpose, to handle the case if Timer.cancelTimer did not actually cancel the timer
+        recurringTimerId2 := null;
+
+        if (res == "You stopped the timers: ") {
+            res := "No timers were running";
         };
 
         return #Ok({ auth = res });
     };
 
     public shared (msg) func startTimerExecutionAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
@@ -2011,6 +2033,9 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
