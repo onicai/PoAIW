@@ -62,10 +62,126 @@ persistent actor class ApiCanister() = this {
 
     // -------------------------------------------------------------------------------
     // Daily Metrics Storage
-    
+
     // Using HashMap for O(1) lookups by date
     stable var dailyMetricsEntries : [(Text, Types.DailyMetric)] = [];
     transient var dailyMetrics = HashMap.HashMap<Text, Types.DailyMetric>(10, Text.equal, Text.hash);
+
+    // -------------------------------------------------------------------------------
+    // Token Rewards Data (Static)
+
+    private func getTokenRewardsDataInternal() : Types.TokenRewardsData {
+        {
+        metadata = {
+            dataset = "FUNNAI Token Minting Data";
+            description = "Quarterly minting data showing total supply and rewards per challenge";
+            version = "1.0";
+            last_updated = "2025-09-25";
+            units = {
+                total_minted = "FUNNAI tokens";
+                rewards_per_challenge = "FUNNAI tokens";
+            };
+        };
+        data = [
+            {
+                date = "2025-06-29";
+                quarter = "Q2 2025";
+                total_minted = 0.0;
+                rewards_per_challenge = 181.9032733;
+                quarterly_increase = 0.0;
+                notes = "";
+            },
+            {
+                date = "2025-09-29";
+                quarter = "Q3 2025";
+                total_minted = 2390209.011;
+                rewards_per_challenge = 139.9194939;
+                quarterly_increase = 2390209.011;
+                notes = "";
+            },
+            {
+                date = "2025-12-29";
+                quarter = "Q4 2025";
+                total_minted = 4228751.161;
+                rewards_per_challenge = 109.9310802;
+                quarterly_increase = 1838542.15;
+                notes = "";
+            },
+            {
+                date = "2026-03-29";
+                quarter = "Q1 2026";
+                total_minted = 5673245.554;
+                rewards_per_challenge = 88.51078458;
+                quarterly_increase = 1444494.393;
+                notes = "";
+            },
+            {
+                date = "2026-06-29";
+                quarter = "Q2 2026";
+                total_minted = 6836277.264;
+                rewards_per_challenge = 73.21057346;
+                quarterly_increase = 1163031.71;
+                notes = "";
+            },
+            {
+                date = "2026-09-29";
+                quarter = "Q3 2026";
+                total_minted = 7798264.199;
+                rewards_per_challenge = 62.28185123;
+                quarterly_increase = 961986.935;
+                notes = "";
+            },
+            {
+                date = "2026-12-29";
+                quarter = "Q4 2026";
+                total_minted = 8616647.724;
+                rewards_per_challenge = 54.47562107;
+                quarterly_increase = 818383.525;
+                notes = "";
+            },
+            {
+                date = "2027-03-29";
+                quarter = "Q1 2027";
+                total_minted = 9332457.385;
+                rewards_per_challenge = 48.89974238;
+                quarterly_increase = 715809.661;
+                notes = "";
+            },
+            {
+                date = "2027-06-29";
+                quarter = "Q2 2027";
+                total_minted = 9975000.0;
+                rewards_per_challenge = 34.96004566;
+                quarterly_increase = 642542.615;
+                notes = "";
+            },
+            {
+                date = "2027-09-29";
+                quarter = "Q3 2027";
+                total_minted = 10434375.0;
+                rewards_per_challenge = 34.96004566;
+                quarterly_increase = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2027-12-29";
+                quarter = "Q4 2027";
+                total_minted = 10893750.0;
+                rewards_per_challenge = 34.96004566;
+                quarterly_increase = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2033-06-29";
+                quarter = "Q2 2033";
+                total_minted = 21000000.0;
+                rewards_per_challenge = 0.0;
+                quarterly_increase = 459375.0;
+                notes = "Maximum supply reached - no further rewards";
+            }
+        ];
+        }
+    };
 
     // -------------------------------------------------------------------------------
     // Helper Functions
@@ -511,6 +627,13 @@ persistent actor class ApiCanister() = this {
 
     public shared query func getNumDailyMetrics() : async Types.NatResult {
         return #Ok(dailyMetrics.size());
+    };
+
+    // -------------------------------------------------------------------------------
+    // Token Rewards Public Query Endpoints
+
+    public shared query func getTokenRewardsData() : async Types.TokenRewardsDataResult {
+        return #Ok(getTokenRewardsDataInternal());
     };
 
 
