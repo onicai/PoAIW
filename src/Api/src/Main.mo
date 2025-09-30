@@ -62,10 +62,294 @@ persistent actor class ApiCanister() = this {
 
     // -------------------------------------------------------------------------------
     // Daily Metrics Storage
-    
+
     // Using HashMap for O(1) lookups by date
     stable var dailyMetricsEntries : [(Text, Types.DailyMetric)] = [];
     transient var dailyMetrics = HashMap.HashMap<Text, Types.DailyMetric>(10, Text.equal, Text.hash);
+
+    // -------------------------------------------------------------------------------
+    // Token Rewards Data (Static)
+
+    private func getTokenRewardsDataInternal() : Types.TokenRewardsData {
+        {
+        metadata = {
+            dataset = "FUNNAI Token Minting Data";
+            description = "Quarterly minting data showing total supply and rewards per challenge";
+            version = "1.0";
+            last_updated = "2025-09-25";
+            units = {
+                total_minted = "FUNNAI tokens";
+                rewards_per_challenge = "FUNNAI tokens";
+            };
+        };
+        data = [
+            {
+                date = "2025-06-29";
+                quarter = "Q3 2025";
+                total_minted = 0.0;
+                rewards_per_challenge = 181.9032733;
+                rewards_per_quarter = 2390209.011;
+                notes = "";
+            },
+            {
+                date = "2025-09-29";
+                quarter = "Q4 2025";
+                total_minted = 2390209.011;
+                rewards_per_challenge = 139.9194939;
+                rewards_per_quarter = 1838542.15;
+                notes = "";
+            },
+            {
+                date = "2025-12-29";
+                quarter = "Q1 2026";
+                total_minted = 4228751.161;
+                rewards_per_challenge = 109.9310802;
+                rewards_per_quarter = 1444494.393;
+                notes = "";
+            },
+            {
+                date = "2026-03-29";
+                quarter = "Q2 2026";
+                total_minted = 5673245.554;
+                rewards_per_challenge = 88.51078458;
+                rewards_per_quarter = 1163031.71;
+                notes = "";
+            },
+            {
+                date = "2026-06-29";
+                quarter = "Q3 2026";
+                total_minted = 6836277.264;
+                rewards_per_challenge = 73.21057346;
+                rewards_per_quarter = 961986.935;
+                notes = "";
+            },
+            {
+                date = "2026-09-29";
+                quarter = "Q4 2026";
+                total_minted = 7798264.199;
+                rewards_per_challenge = 62.28185123;
+                rewards_per_quarter = 818383.525;
+                notes = "";
+            },
+            {
+                date = "2026-12-29";
+                quarter = "Q1 2027";
+                total_minted = 8616647.724;
+                rewards_per_challenge = 54.47562107;
+                rewards_per_quarter = 715809.661;
+                notes = "";
+            },
+            {
+                date = "2027-03-29";
+                quarter = "Q2 2027";
+                total_minted = 9332457.385;
+                rewards_per_challenge = 48.89974238;
+                rewards_per_quarter = 642542.615;
+                notes = "";
+            },
+            {
+                date = "2027-06-29";
+                quarter = "Q3 2027";
+                total_minted = 9975000.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "Rewards per challenge stabilized at 34.96004566 from this date onward until max supply is reached";
+            },
+            {
+                date = "2027-09-29";
+                quarter = "Q4 2027";
+                total_minted = 10434375.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2027-12-29";
+                quarter = "Q1 2028";
+                total_minted = 10893750.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2028-03-29";
+                quarter = "Q2 2028";
+                total_minted = 11353125.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2028-06-29";
+                quarter = "Q3 2028";
+                total_minted = 11812500.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2028-09-29";
+                quarter = "Q4 2028";
+                total_minted = 12271875.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2028-12-29";
+                quarter = "Q1 2029";
+                total_minted = 12731250.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2029-03-29";
+                quarter = "Q2 2029";
+                total_minted = 13190625.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2029-06-29";
+                quarter = "Q3 2029";
+                total_minted = 13650000.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2029-09-29";
+                quarter = "Q4 2029";
+                total_minted = 14109375.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2029-12-29";
+                quarter = "Q1 2030";
+                total_minted = 14568750.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2030-03-29";
+                quarter = "Q2 2030";
+                total_minted = 15028125.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2030-06-29";
+                quarter = "Q3 2030";
+                total_minted = 15487500.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2030-09-29";
+                quarter = "Q4 2030";
+                total_minted = 15946875.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2030-12-29";
+                quarter = "Q1 2031";
+                total_minted = 16406250.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2031-03-29";
+                quarter = "Q2 2031";
+                total_minted = 16865625.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2031-06-29";
+                quarter = "Q3 2031";
+                total_minted = 17325000.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2031-09-29";
+                quarter = "Q4 2031";
+                total_minted = 17784375.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2031-12-29";
+                quarter = "Q1 2032";
+                total_minted = 18243750.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2032-03-29";
+                quarter = "Q2 2032";
+                total_minted = 18703125.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2032-06-29";
+                quarter = "Q3 2032";
+                total_minted = 19162500.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2032-09-29";
+                quarter = "Q4 2032";
+                total_minted = 19621875.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2032-12-29";
+                quarter = "Q1 2033";
+                total_minted = 20081250.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2033-03-29";
+                quarter = "Q2 2033";
+                total_minted = 20540625.0;
+                rewards_per_challenge = 34.96004566;
+                rewards_per_quarter = 459375.0;
+                notes = "";
+            },
+            {
+                date = "2033-06-29";
+                quarter = "Q3 2033";
+                total_minted = 21000000.0;
+                rewards_per_challenge = 0.0;
+                rewards_per_quarter = 0.0;
+                notes = "Maximum supply reached.";
+            }
+        ];
+        }
+    };
 
     // -------------------------------------------------------------------------------
     // Helper Functions
@@ -511,6 +795,13 @@ persistent actor class ApiCanister() = this {
 
     public shared query func getNumDailyMetrics() : async Types.NatResult {
         return #Ok(dailyMetrics.size());
+    };
+
+    // -------------------------------------------------------------------------------
+    // Token Rewards Public Query Endpoints
+
+    public shared query func getTokenRewardsData() : async Types.TokenRewardsDataResult {
+        return #Ok(getTokenRewardsDataInternal());
     };
 
 

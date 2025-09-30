@@ -8,8 +8,8 @@ dfx canister call api_canister setMasterCanisterId '("...-cai")' --network $NETW
 # Set api canister in Game State (funnAI folder):
 dfx canister call game_state_canister setApiCanisterId '("...-cai")' --network $NETWORK
 
-# Seed it with data
-./seed_data.sh --network $NETWORK
+# Get token rewards data:
+dfx canister call api_canister getTokenRewardsData --network $NETWORK  --output json
 
 # Get daily metrics with public queries:
 dfx canister call api_canister getDailyMetrics 'null' --network $NETWORK  --output json
@@ -37,6 +37,7 @@ test_local.sh
 
 
 # prd:
+# Initial Install
 mops install
 dfx deploy api_canister --network prd --with-cycles 1000000000000 --subnet csyj4-zmann-ys6ge-3kzi6-onexi-obayx-2fvak-zersm-euci4-6pslt-lae
 dfx canister --network prd update-settings bgm6p-5aaaa-aaaaf-qbzda-cai --add-controller ....
@@ -46,6 +47,14 @@ dfx canister call api_canister setMasterCanisterId '("r5m5y-diaaa-aaaaa-qanaa-ca
 dfx canister call api_canister getMasterCanisterId --network prd
 # Set api canister in Game State (funnAI folder):
 dfx canister call game_state_canister setApiCanisterId '("bgm6p-5aaaa-aaaaf-qbzda-cai")' --network prd
+#
+# Upgrade
+dfx canister --network prd stop api_canister
+dfx canister --network prd snapshot create api_canister
+dfx deploy   --network prd api_canister --mode upgrade
+dfx canister --network prd start api_canister
+dfx canister --network prd snapshot list api_canister
+dfx canister --network prd snapshot delete api_canister <snapshot-id>
 
 
 # demo:
@@ -56,8 +65,6 @@ dfx canister call api_canister setMasterCanisterId '("4tr6r-mqaaa-aaaae-qfcta-ca
 dfx canister call api_canister getMasterCanisterId --network demo
 # Set api canister in Game State (funnAI folder):
 dfx canister call game_state_canister setApiCanisterId '("bgm6p-5aaaa-aaaaf-qbzda-cai")' --network demo
-# Seed it with dummy data (optional)
-./seed_data.sh --network demo
 
 # testing:
 dfx deploy api_canister --network testing --with-cycles 1000000000000 --subnet nl6hn-ja4yw-wvmpy-3z2jx-ymc34-pisx3-3cp5z-3oj4a-qzzny-jbsv3-4qe
@@ -67,6 +74,4 @@ dfx canister call api_canister setMasterCanisterId '("vpa37-giaaa-aaaam-qdxeq-ca
 dfx canister call api_canister getMasterCanisterId --network testing
 # Set api canister in Game State (funnAI folder):
 dfx canister call game_state_canister setApiCanisterId '("nyxgs-uqaaa-aaaap-qqdia-cai")' --network testing
-# Seed it with dummy data (optional)
-./seed_data.sh --network testing
 ```
