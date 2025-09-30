@@ -1163,6 +1163,14 @@ module Types {
 
     public type TokenomicsActionResult = Result<TokenomicsAction, ApiError>;
 
+    public type LiquidityPositionsRecord = {
+        liquidityPositions : [LiquidityPool.UserPositionInfoWithId];
+    };
+
+    public type LiquidityPositionsResult = Result<LiquidityPositionsRecord, ApiError>;
+
+    public type LiquidityPositionResult = Result<LiquidityPool.UserPositionInfoWithId, ApiError>;
+
     //-------------------------------------------------------------------------
 // Canister Actors
     public type GameStateCanister_Actor = actor {
@@ -1400,4 +1408,38 @@ module Types {
     // Result types for API responses
     public type DailyMetricResult = Result<DailyMetric, ApiError>;
     public type DailyMetricsResult = Result<DailyMetricsResponse, ApiError>;
+
+    //-------------------------------------------------------------------------
+    // Token Rewards Data Types for API Canister
+
+    // Metadata for the token rewards dataset
+    public type TokenRewardsMetadata = {
+        dataset: Text;
+        description: Text;
+        version: Text;
+        last_updated: Text;
+        units: {
+            total_minted: Text;
+            rewards_per_challenge: Text;
+        };
+    };
+
+    // Individual quarterly token rewards data entry
+    public type TokenRewardsEntry = {
+        date: Text;
+        quarter: Text;
+        rewards_per_quarter: Float;
+        total_minted: Float;
+        rewards_per_challenge: Float;
+        notes: Text;
+    };
+
+    // Complete token rewards data structure
+    public type TokenRewardsData = {
+        metadata: TokenRewardsMetadata;
+        data: [TokenRewardsEntry];
+    };
+
+    // Simple result type for token rewards API
+    public type TokenRewardsDataResult = Result<TokenRewardsData, ApiError>;
 };

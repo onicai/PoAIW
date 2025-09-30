@@ -1,7 +1,9 @@
 {
   "mainer_ctrlb_canister_0": {},
   "mainer_ctrlb_canister_1": {},
-  "mainer_ctrlb_canister_2": {},
+  "mainer_ctrlb_canister_2": {
+    "ic": "33rok-raaaa-aaaaa-qbj6q-cai"
+  },
   "mainer_service_canister": {
     "development": "ecpt4-ayaaa-aaaad-qhk4a-cai",
     "ic": "",

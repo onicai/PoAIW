@@ -19,3 +19,11 @@ dfx canister call ywrcf-liaaa-aaaaa-qbcfq-cai --network ic getShareServiceCanist
 dfx canister call ywrcf-liaaa-aaaaa-qbcfq-cai --network ic getTimerActionRegularityInSecondsAdmin
 dfx canister call ywrcf-liaaa-aaaaa-qbcfq-cai --network ic timeToNextAgentSettingsUpdate
 ```
+
+## Reset a mAIner
+```bash
+# in this folder (mAIner), make sure you got the correct mAIner code
+# temporarily add mAIner's id to canister_ids.json, e.g. "mainer_ctrlb_canister_2": {     "ic": "ywrcf-liaaa-aaaaa-qbcfq-cai"  },
+dfx deploy mainer_ctrlb_canister_2 --network ic --mode upgrade
+dfx canister call mainer_ctrlb_canister_2 --network ic startTimerExecutionAdmin
+```

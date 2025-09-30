@@ -48,7 +48,7 @@ dfx canister call game_state_canister spinUpMainerControllerCanister '(record {s
 ### Create a new mAIner for a user 
 dfx canister call game_state_canister spinUpMainerControllerCanisterForUserAdmin '(record {        status = variant { Paid };        canisterType = variant { MainerAgent = variant { ShareAgent } };        ownedBy = principal "qhvia-unzwx-ewoal-5yepy-o577x-fc4dc-qzqm3-zqirv-j3icu-3h5jj-oqe";        creationTimestamp = 1_751_064_920_866_195_118 : nat64;        createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe";        mainerConfig = record {          selectedLLM = null;          subnetLlm = "";          mainerAgentCanisterType = variant { ShareAgent };          cyclesForMainer = 17_185_500_000_000 : nat;          subnetCtrl = "snjp4-xlbw4-mnbog-ddwy6-6ckfd-2w5a2-eipqo-7l436-pxqkh-l6fuv-vae";        };        subnet = "";        address = "";      } )' --network $NETWORK
 ### Finish the setup of a user's mAIner that had an issue (get the mAIner entry to fix as parameter for the call, especially the creationTimestamp which is used as identifier for the mAIner entry)
-dfx canister call game_state_canister completeMainerSetupForUserAdmin '(record {        status = variant { Paid };        canisterType = variant { MainerAgent = variant { ShareAgent } };        ownedBy = principal "7lxg5-etr52-tmtb5-7b4ul-zvhri-wdpvh-3a2lx-72r5k-owcdo-qlci5-pae";        creationTimestamp = 1_752_159_642_043_425_115 : nat64;        createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe";        mainerConfig = record {          selectedLLM = null;          subnetLlm = "";          mainerAgentCanisterType = variant { ShareAgent };          cyclesForMainer = 39_985_500_000_000 : nat;          subnetCtrl = "snjp4-xlbw4-mnbog-ddwy6-6ckfd-2w5a2-eipqo-7l436-pxqkh-l6fuv-vae";        };        subnet = "";        address = "";      } )' --network $NETWORK
+dfx canister call game_state_canister completeMainerSetupForUserAdmin '(record {        status = variant { Paid };        canisterType = variant { MainerAgent = variant { ShareAgent } };        ownedBy = principal "kpxiy-zhtf2-dbvq6-pwk7l-rm6nz-24mmb-qojc6-fgxs6-653ef-w5lqf-dae";        creationTimestamp = 1_756_472_106_967_051_969 : nat64;        createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe";        mainerConfig = record {          selectedLLM = null;          subnetLlm = "";          mainerAgentCanisterType = variant { ShareAgent };          cyclesForMainer = 39_985_500_000_000 : nat;          subnetCtrl = "snjp4-xlbw4-mnbog-ddwy6-6ckfd-2w5a2-eipqo-7l436-pxqkh-l6fuv-vae";        };        subnet = "";        address = "";      } )' --network $NETWORK
 # ----------------------------------------
 
 ## Derive new mAIner wasm hash
@@ -75,7 +75,7 @@ dfx canister call game_state_canister unlockUserMainerAgent '(record { paymentTr
 
 dfx canister call game_state_canister getMainerAgentCanistersAdmin --network $NETWORK
 
-dfx canister call game_state_canister getMainerAgentCanistersForUserAdmin '"x62bb-3lvfd-xosdw-6eydw-tticc-nyvhe-3hdst-fv2dn-fmsln-swrmw-uae"' --network $NETWORK
+dfx canister call game_state_canister getMainerAgentCanistersForUserAdmin '"dno55-cf4cu-q2wwf-udihm-tq4ul-76yti-ywaee-khuyf-urcfy-r2vcz-hae"' --network $NETWORK --output json
 
 dfx canister call game_state_canister getNumMainerAgentCanistersForUserAdmin '"dno55-cf4cu-q2wwf-udihm-tq4ul-76yti-ywaee-khuyf-urcfy-r2vcz-hae"' --network $NETWORK
 
