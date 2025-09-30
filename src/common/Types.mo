@@ -1420,9 +1420,9 @@ module Types {
     public type TokenRewardsEntry = {
         date: Text;
         quarter: Text;
+        rewards_per_quarter: Float;
         total_minted: Float;
         rewards_per_challenge: Float;
-        quarterly_increase: Float;
         notes: Text;
     };
 
