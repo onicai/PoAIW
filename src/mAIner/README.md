@@ -22,8 +22,15 @@ dfx canister call ywrcf-liaaa-aaaaa-qbcfq-cai --network ic timeToNextAgentSettin
 
 ## Reset a mAIner
 ```bash
-# in this folder (mAIner), make sure you got the correct mAIner code
-# temporarily add mAIner's id to canister_ids.json, e.g. "mainer_ctrlb_canister_2": {     "ic": "ywrcf-liaaa-aaaaa-qbcfq-cai"  },
-dfx deploy mainer_ctrlb_canister_2 --network ic --mode upgrade
-dfx canister call mainer_ctrlb_canister_2 --network ic startTimerExecutionAdmin
+# Get the correct mAIner canister id, by running from funnAI folder:
+scripts/get_mainers.sh --network prd --user $PRINCIPAL_ID
+
+# Verify that the canister id is in the canister_ids.json in this folder.
+# If it is not, do not edit it yourself, but run from funnAI folder:
+scripts/get_mainers.sh --network prd
+
+# Then, upgrade the mAIner from this folder (mAIner):
+# Get the mainer_ctrlb_canister_## from the canister_ids.json and run:
+dfx deploy mainer_ctrlb_canister_## --network prd --mode upgrade
+dfx canister call mainer_ctrlb_canister_## --network prd startTimerExecutionAdmin
 ```
