@@ -760,6 +760,10 @@ module Types {
         createdBy : Principal;
     };
 
+    public type MainerAgentSettingsResult = Result<MainerAgentSettings, ApiError>;
+
+    public type MainerAgentSettingsListResult = Result<[MainerAgentSettings], ApiError>;
+
     public type IssueFlagsRecord = {
         lowCycleBalance : Bool;
     };

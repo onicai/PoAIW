@@ -408,6 +408,36 @@ actor class MainerAgentCtrlbCanister() = this {
         return List.get<Types.MainerAgentSettings>(agentSettings, 0);
     };
 
+    public shared query (msg) func getCurrentAgentSettingsAdmin() : async Types.MainerAgentSettingsResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        switch (getCurrentAgentSettings()) {
+            case (null) {
+                return #Err(#Other("No agent settings found"));
+            };
+            case (?settings) {
+                return #Ok(settings);
+            };
+        };
+    };
+
+    public shared query (msg) func getAgentSettingsAdmin() : async Types.MainerAgentSettingsListResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let settingsArray = List.toArray<Types.MainerAgentSettings>(agentSettings);
+        return #Ok(settingsArray);
+    };
+
     // FIFO queue of challenges: retrieved from GameState; to be processed
     stable var MAX_CHALLENGES_IN_QUEUE : Nat = 5;
     stable var challengeQueue : List.List<Types.ChallengeQueueInput> = List.nil<Types.ChallengeQueueInput>();
