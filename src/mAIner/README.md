@@ -87,4 +87,8 @@ dfx canister --network $NETWORK logs $MAINER
 # if it does not look good, restore the snapshot
 dfx canister --network $NETWORK snapshot list $MAINER
 dfx canister --network $NETWORK snapshot load $MAINER <snapshot-id>
+
+# if it looks good, delete the snapshot
+dfx canister --network $NETWORK snapshot list $MAINER
+dfx canister --network $NETWORK snapshot delete $MAINER <snapshot-id>
 ```
