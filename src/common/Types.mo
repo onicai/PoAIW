@@ -764,6 +764,27 @@ module Types {
 
     public type MainerAgentSettingsListResult = Result<[MainerAgentSettings], ApiError>;
 
+    //-------------------------------------------------------------------------
+    public type MainerAgentTimersInput = {
+        action1RegularityInSeconds : Nat;
+        action2RegularityInSeconds : Nat;
+        initialTimerId1 : ?Nat;
+        randomInitialTimer1InSeconds : ?Nat;
+        recurringTimerId1 : ?Nat;
+        recurringTimerId2 : ?Nat;
+    };
+
+    public type MainerAgentTimers = MainerAgentTimersInput and {
+        creationTimestamp : Nat64;
+        createdBy : Principal;
+        calledFromEndpoint : Text;
+    };
+
+    public type MainerAgentTimersResult = Result<MainerAgentTimers, ApiError>;
+
+    public type MainerAgentTimersListResult = Result<[MainerAgentTimers], ApiError>;
+
+    //-------------------------------------------------------------------------
     public type IssueFlagsRecord = {
         lowCycleBalance : Bool;
     };

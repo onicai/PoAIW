@@ -39,6 +39,10 @@ dfx canister call ywrcf-liaaa-aaaaa-qbcfq-cai --network ic health
 dfx canister call ywrcf-liaaa-aaaaa-qbcfq-cai --network ic amiController
 dfx canister call ywrcf-liaaa-aaaaa-qbcfq-cai --network ic ready
 dfx canister call ywrcf-liaaa-aaaaa-qbcfq-cai --network ic getMainerCanisterType
+dfx canister call ywrcf-liaaa-aaaaa-qbcfq-cai --network ic getCurrentAgentTimersAdmin
+dfx canister call ywrcf-liaaa-aaaaa-qbcfq-cai --network ic getAgentTimersAdmin
+dfx canister call ywrcf-liaaa-aaaaa-qbcfq-cai --network ic getCurrentAgentSettingsAdmin
+dfx canister call ywrcf-liaaa-aaaaa-qbcfq-cai --network ic getAgentSettingsAdmin
 dfx canister call ywrcf-liaaa-aaaaa-qbcfq-cai --network ic canAgentSettingsBeUpdated
 dfx canister call ywrcf-liaaa-aaaaa-qbcfq-cai --network ic checkAccessToLLMs
 dfx canister call ywrcf-liaaa-aaaaa-qbcfq-cai --network ic getChallengeQueueAdmin
@@ -71,22 +75,33 @@ MAINER=mainer_ctrlb_canister_##
 dfx canister --network $NETWORK logs $MAINER --follow
 dfx canister --network $NETWORK call $MAINER getChallengeQueueAdmin --output json
 
+# toggle maintenance flag
+dfx canister --network $NETWORK call $MAINER getMaintenanceFlag
+dfx canister --network $NETWORK call $MAINER toggleMaintenanceFlagAdmin # if needed
+
 # stop & snapshot & start
 dfx canister --network $NETWORK stop $MAINER
 dfx canister --network $NETWORK snapshot create $MAINER
 dfx canister --network $NETWORK start $MAINER
 
-# Upgrade & start Timer
+# Upgrade & start Timer & toggle maintenance flag
 # IMPORTANT: make sure the correct branch is checked out !!!!!!!!!!!!!!
 dfx deploy   --network $NETWORK $MAINER --mode upgrade
 dfx canister --network $NETWORK call $MAINER startTimerExecutionAdmin
+dfx canister --network $NETWORK call $MAINER getMaintenanceFlag
+dfx canister --network $NETWORK call $MAINER toggleMaintenanceFlagAdmin # if needed
 
 # verify everything looks good (timer should have been restarted)
 dfx canister --network $NETWORK logs $MAINER
 
 # if it does not look good, restore the snapshot
 dfx canister --network $NETWORK snapshot list $MAINER
+dfx canister --network $NETWORK stop $MAINER
 dfx canister --network $NETWORK snapshot load $MAINER <snapshot-id>
+dfx canister --network $NETWORK start $MAINER
+dfx canister --network $NETWORK call $MAINER startTimerExecutionAdmin
+dfx canister --network $NETWORK call $MAINER getMaintenanceFlag
+dfx canister --network $NETWORK call $MAINER toggleMaintenanceFlagAdmin # if needed
 
 # if it looks good, delete the snapshot
 dfx canister --network $NETWORK snapshot list $MAINER

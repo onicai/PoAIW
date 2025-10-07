@@ -438,6 +438,48 @@ actor class MainerAgentCtrlbCanister() = this {
         return #Ok(settingsArray);
     };
 
+    // Record of timers since last upgrade
+    transient var agentTimers : List.List<Types.MainerAgentTimers> = List.nil<Types.MainerAgentTimers>();
+
+    private func putAgentTimers(timersEntry : Types.MainerAgentTimers) : Bool {
+        agentTimers := List.push<Types.MainerAgentTimers>(timersEntry, agentTimers);
+        return true;
+    };
+
+    private func getCurrentAgentTimers() : ?Types.MainerAgentTimers {
+        return List.get<Types.MainerAgentTimers>(agentTimers, 0);
+    };
+
+    public shared query (msg) func getCurrentAgentTimersAdmin() : async Types.MainerAgentTimersResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        switch (getCurrentAgentTimers()) {
+            case (null) {
+                return #Err(#Other("No agent timers found"));
+            };
+            case (?timers) {
+                return #Ok(timers);
+            };
+        };
+    };
+
+    public shared query (msg) func getAgentTimersAdmin() : async Types.MainerAgentTimersListResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let timersArray = List.toArray<Types.MainerAgentTimers>(agentTimers);
+        return #Ok(timersArray);
+    };
+
     // FIFO queue of challenges: retrieved from GameState; to be processed
     stable var MAX_CHALLENGES_IN_QUEUE : Nat = 5;
     stable var challengeQueue : List.List<Types.ChallengeQueueInput> = List.nil<Types.ChallengeQueueInput>();
@@ -852,7 +894,7 @@ actor class MainerAgentCtrlbCanister() = this {
 
         // Restart the timers to apply the new settings
         let stopResult = await stopTimerExecution();
-        ignore startTimerExecution();
+        ignore startTimerExecution(msg.caller, "updateAgentSettings");
 
         return #Ok({ status_code = 200 });
     };
@@ -1920,7 +1962,7 @@ actor class MainerAgentCtrlbCanister() = this {
         };
         action2RegularityInSeconds := _action2RegularityInSeconds;
         // Restart the timer with the new regularity
-        let _ = await startTimerExecution();
+        let _ = await startTimerExecution(msg.caller, "setTimerAction2RegularityInSecondsAdmin");
         return #Ok({ status_code = 200 });
     };
 
@@ -1952,8 +1994,8 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     
-    private func startTimerExecution() : async Types.AuthRecordResult {
-        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - entered");
+    private func startTimerExecution(callerPrincipal : Principal, calledFromEndpoint : Text) : async Types.AuthRecordResult {
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - entered" # ", calledFromEndpoint = " # calledFromEndpoint # ", callerPrincipal = " # Principal.toText(callerPrincipal));
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - initialTimerId1 = " # debug_show(initialTimerId1) # ", recurringTimerId1 = " # debug_show(recurringTimerId1) # ", bufferTimerId1 size = " # Nat.toText(bufferTimerId1.size()));
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - recurringTimerId2 = " # debug_show(recurringTimerId2) # ", bufferTimerId2 size = " # Nat.toText(bufferTimerId2.size()));
 
@@ -2033,11 +2075,40 @@ actor class MainerAgentCtrlbCanister() = this {
                     addTimerToBuffer(bufferTimerId1, id);
                     // Clear initialTimerId1 since it has fired
                     initialTimerId1 := null;
+
+                    // Record this timer creation (recurring timer 1)
+                    let timersEntry : Types.MainerAgentTimers = {
+                        action1RegularityInSeconds = action1RegularityInSeconds;
+                        action2RegularityInSeconds = action2RegularityInSeconds;
+                        initialTimerId1 = null;
+                        randomInitialTimer1InSeconds = null;
+                        recurringTimerId1 = ?id;
+                        recurringTimerId2 = null;
+                        creationTimestamp = Nat64.fromNat(Int.abs(Time.now()));
+                        createdBy = callerPrincipal;
+                        calledFromEndpoint = calledFromEndpoint;
+                    };
+                    ignore putAgentTimers(timersEntry);
+
                     await triggerRecurringAction1();
             });
             // Store the initial timer ID for reporting and cancellation
             initialTimerId1 := ?initialTimerId;
             addTimerToBuffer(bufferTimerId1, initialTimerId);
+
+            // Record this timer creation (initial timer 1)
+            let initialTimersEntry : Types.MainerAgentTimers = {
+                action1RegularityInSeconds = timerRegularity;
+                action2RegularityInSeconds = action2RegularityInSeconds;
+                initialTimerId1 = ?initialTimerId;
+                randomInitialTimer1InSeconds = ?randomInitialTimer;
+                recurringTimerId1 = null;
+                recurringTimerId2 = null;
+                creationTimestamp = Nat64.fromNat(Int.abs(Time.now()));
+                createdBy = callerPrincipal;
+                calledFromEndpoint = calledFromEndpoint;
+            };
+            ignore putAgentTimers(initialTimersEntry);
 
             // For reporting purposes
             action1RegularityInSeconds := timerRegularity;
@@ -2050,7 +2121,22 @@ actor class MainerAgentCtrlbCanister() = this {
             let id =  recurringTimer<system>(#seconds action2RegularityInSeconds, triggerRecurringAction2);
             D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - Successfully start timer 2 with id = " # debug_show (id) # ", regularity = " # Nat.toText(action2RegularityInSeconds) # " seconds");
             recurringTimerId2 := ?id;
-            addTimerToBuffer(bufferTimerId2, id);            
+            addTimerToBuffer(bufferTimerId2, id);
+
+            // Record this timer creation (recurring timer 2)
+            let timersEntry : Types.MainerAgentTimers = {
+                action1RegularityInSeconds = action1RegularityInSeconds;
+                action2RegularityInSeconds = action2RegularityInSeconds;
+                initialTimerId1 = null;
+                randomInitialTimer1InSeconds = null;
+                recurringTimerId1 = null;
+                recurringTimerId2 = ?id;
+                creationTimestamp = Nat64.fromNat(Int.abs(Time.now()));
+                createdBy = callerPrincipal;
+                calledFromEndpoint = calledFromEndpoint;
+            };
+            ignore putAgentTimers(timersEntry);
+
             // Trigger it right away. Without this, the first action would be delayed by the recurring timer regularity
             await triggerRecurringAction2();
         };
@@ -2126,7 +2212,7 @@ actor class MainerAgentCtrlbCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#StatusCode(401));
         };
-        await startTimerExecution();
+        await startTimerExecution(msg.caller, "startTimerExecutionAdmin");
     };
 
     public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
