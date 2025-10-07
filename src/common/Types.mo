@@ -55,6 +55,14 @@ module Types {
     public type MainerTimersResult = Result<MainerTimers, ApiError>;
 
     //-------------------------------------------------------------------------
+    public type MainerTimerBuffers = {
+        bufferTimerId1 : [Nat];
+        bufferTimerId2 : [Nat];
+    };
+
+    public type MainerTimerBuffersResult = Result<MainerTimerBuffers, ApiError>;
+
+    //-------------------------------------------------------------------------
     public type SubnetIds = {
         subnetShareAgentCtrl : Text;
         subnetShareServiceCtrl : Text;

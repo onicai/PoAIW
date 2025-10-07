@@ -14,7 +14,8 @@
   },
   "mainer_ctrlb_canister_1": {
     "prd": "bge6t-haaaa-aaaaa-qblkq-cai",
-    "demo": "kvlg2-diaaa-aaaaj-a2coa-cai"
+    "demo": "kvlg2-diaaa-aaaaj-a2coa-cai",
+    "testing": "5suig-4yaaa-aaaam-qd5ba-cai"
   },
   "mainer_ctrlb_canister_2": {
     "ic": "33rok-raaaa-aaaaa-qbj6q-cai",
