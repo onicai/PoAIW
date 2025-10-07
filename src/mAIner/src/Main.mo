@@ -74,7 +74,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Flag to pause mAIner for maintenance
-    stable var MAINTENANCE : Bool = false;
+    stable var MAINTENANCE : Bool = true;
 
     public shared (msg) func toggleMaintenanceFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
