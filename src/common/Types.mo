@@ -454,6 +454,10 @@ module Types {
         sentBy : Principal;
     };
 
+    public type CyclesTransaction = OfficialMainerCycleTopUp and {
+        succeeded : Bool;
+    };
+
     public type PaymentTransactionBlockId = {
         paymentTransactionBlockId : Nat64;
     };
@@ -1226,6 +1230,7 @@ module Types {
         getJudgePromptInfo : (Text) -> async Types.JudgePromptInfoResult;
         getMainerCyclesUsedPerResponse : () -> async NatResult;
         getCyclesBurnRate : (Types.CyclesBurnRateDefault) -> async Types.CyclesBurnRateResult;
+        addCycles: () -> async AddCyclesResult;
     };
 
     public type MainerCreator_Actor = actor {

@@ -57,6 +57,33 @@ actor class GameStateCanister() = this {
         return #Ok({ flag = PAUSE_PROTOCOL });
     };
 
+    // Receive cycles from other protocol canisters
+    stable var cyclesTransactionsStorage : List.List<Types.CyclesTransaction> = List.nil<Types.CyclesTransaction>();
+    
+    public shared (msg) func addCycles() : async Types.AddCyclesResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Accept the cycles the call is charged with
+        let cyclesAdded = Cycles.accept<system>(Cycles.available());
+        D.print("Game State: addCycles - Accepted " # Nat.toText(cyclesAdded) # " Cycles from caller " # Principal.toText(msg.caller));
+
+        // Store the transaction
+        let transactionEntry : Types.CyclesTransaction = {
+            amountAdded : Nat = cyclesAdded;
+            newOfficialCycleBalance : Nat = Cycles.balance();
+            creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+            sentBy : Principal = msg.caller;
+            succeeded : Bool = true;
+        };
+        cyclesTransactionsStorage := List.push<Types.CyclesTransaction>(transactionEntry, cyclesTransactionsStorage);
+        
+        return #Ok({
+            added : Bool = true;
+            amount : Nat = cyclesAdded;
+        });
+    };
+
     // Flag to indicate if whitelist phase is going on
     stable var WHITELIST_PHASE_ACTIVE : Bool = false;
 
