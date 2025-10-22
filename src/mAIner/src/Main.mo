@@ -1068,7 +1068,8 @@ actor class MainerAgentCtrlbCanister() = this {
                     // Use protocolOperationFeesCut that was sent by the GameState canister with the Challenge
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - Unofficial top ups were made");
                     try {
-                        let cyclesForOperationalExpenses = (Cycles.balance() - officialCyclesBalance) * challengeResponseSubmissionInput.protocolOperationFeesCut / 100;
+                        let DIRECT_CYCLES_TOPUP_MULTIPLIER : Nat = 3;
+                        let cyclesForOperationalExpenses = (Cycles.balance() - officialCyclesBalance) * (challengeResponseSubmissionInput.protocolOperationFeesCut * DIRECT_CYCLES_TOPUP_MULTIPLIER) / 100;
                         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - Increasing cycles for operational expenses = " # debug_show(cyclesForOperationalExpenses));
                         cyclesToSend := cyclesToSend + cyclesForOperationalExpenses;
                     } catch (error : Error) {
