@@ -102,7 +102,7 @@ actor class ChallengerCtrlbCanister() {
         };
         try {
             // Only move cycles if cycles balance is big enough
-            let currentCyclesBalance = Cycles.balance(); 
+            let currentCyclesBalance : Nat = Cycles.balance(); 
             if (currentCyclesBalance - CYCLES_AMOUNT_TO_GAME_STATE_CANISTER < MIN_CYCLES_BALANCE) {
                 D.print("Challenger: sendCyclesToGameStateCanister - requested cycles transaction but balance is not big enough: " # debug_show(currentCyclesBalance) # debug_show(msg));
                 return #Err(#Unauthorized);
@@ -172,7 +172,7 @@ actor class ChallengerCtrlbCanister() {
 
     public query (msg) func getMinCyclesBalanceAdmin() : async Nat {
         if (not Principal.isController(msg.caller)) {
-            return "#Err(#StatusCode(401))";
+            return 0;
         };
 
         return MIN_CYCLES_BALANCE;
@@ -191,7 +191,7 @@ actor class ChallengerCtrlbCanister() {
 
     public query (msg) func getCyclesToSendToGameStateAdmin() : async Nat {
         if (not Principal.isController(msg.caller)) {
-            return "#Err(#StatusCode(401))";
+            return 0;
         };
 
         return CYCLES_AMOUNT_TO_GAME_STATE_CANISTER;
