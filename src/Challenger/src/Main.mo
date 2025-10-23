@@ -87,6 +87,32 @@ actor class ChallengerCtrlbCanister() {
         return GAME_STATE_CANISTER_ID;
     };
 
+    // Flag to decide whether cycles should be sent to LLMs automatically as part of flow
+    stable var SEND_CYCLES_TO_LLM : Bool = true;
+
+    public shared (msg) func toggleSendCyclesToLlmFlagAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        SEND_CYCLES_TO_LLM := not SEND_CYCLES_TO_LLM;
+        let authRecord = { auth = "You set the flag to " # debug_show(SEND_CYCLES_TO_LLM) };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getSendCyclesToLlmFlagAdmin() : async Types.FlagResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        return #Ok({ flag = SEND_CYCLES_TO_LLM });
+    };
+
     // Move cycles to Game State canister
     stable var cyclesTransactionsStorage : List.List<Types.CyclesTransaction> = List.nil<Types.CyclesTransaction>();
 
@@ -1526,22 +1552,24 @@ actor class ChallengerCtrlbCanister() {
             };
         };
 
-        // First send cycles to the LLM
-        let cyclesAdded = challengeTopic.cyclesGenerateChallengeChctrlChllm;
-        try {
-            D.print("Challenger: challengeGenerationDoIt_ - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
-            Cycles.add<system>(cyclesAdded);
+        // First send cycles to the LLM, if enabled
+        if (SEND_CYCLES_TO_LLM) {
+            let cyclesAdded = challengeTopic.cyclesGenerateChallengeChctrlChllm;
+            try {
+                D.print("Challenger: challengeGenerationDoIt_ - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
+                Cycles.add<system>(cyclesAdded);
 
-            let deposit_cycles_args = { canister_id : Principal = llmCanisterPrincipal; };
-            let _ = await IC0.deposit_cycles(deposit_cycles_args);
+                let deposit_cycles_args = { canister_id : Principal = llmCanisterPrincipal; };
+                let _ = await IC0.deposit_cycles(deposit_cycles_args);
 
-            D.print("Challenger: challengeGenerationDoIt_ - Successfully deposited " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal) ); 
-        } catch (e) {
-            D.print("Challenger: challengeGenerationDoIt_ - Failed to deposit " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal));
-            D.print("Challenger: challengeGenerationDoIt_ - Failed to deposit error is" # Error.message(e));
+                D.print("Challenger: challengeGenerationDoIt_ - Successfully deposited " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal) ); 
+            } catch (e) {
+                D.print("Challenger: challengeGenerationDoIt_ - Failed to deposit " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal));
+                D.print("Challenger: challengeGenerationDoIt_ - Failed to deposit error is" # Error.message(e));
 
-            return #Err(#FailedOperation);
-        };    
+                return #Err(#FailedOperation);
+            };
+        };   
 
         let generationId : Text = await Utils.newRandomUniqueId();
         
