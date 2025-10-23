@@ -62,6 +62,119 @@ actor class JudgeCtrlbCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
+    // Move cycles to Game State canister
+    stable var cyclesTransactionsStorage : List.List<Types.CyclesTransaction> = List.nil<Types.CyclesTransaction>();
+
+    stable var MIN_CYCLES_BALANCE : Nat = 30 * Constants.CYCLES_TRILLION;
+    stable var CYCLES_AMOUNT_TO_GAME_STATE_CANISTER : Nat = 10 * Constants.CYCLES_TRILLION;
+
+    public shared (msg) func sendCyclesToGameStateCanister() : async Types.AddCyclesResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let currentCyclesBalance : Nat = Cycles.balance();
+        try {
+            // Only move cycles if cycles balance is big enough
+            if (currentCyclesBalance - CYCLES_AMOUNT_TO_GAME_STATE_CANISTER < MIN_CYCLES_BALANCE) {
+                D.print("Judge: sendCyclesToGameStateCanister - requested cycles transaction but balance is not big enough: " # debug_show(currentCyclesBalance) # debug_show(msg));
+                return #Err(#Unauthorized);
+            };
+
+            let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
+            D.print("Judge: sendCyclesToGameStateCanister gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
+            D.print("Judge: sendCyclesToGameStateCanister - CYCLES_AMOUNT_TO_GAME_STATE_CANISTER: " # debug_show(CYCLES_AMOUNT_TO_GAME_STATE_CANISTER));
+            Cycles.add<system>(CYCLES_AMOUNT_TO_GAME_STATE_CANISTER);
+            
+            D.print("Judge: sendCyclesToGameStateCanister - calling gameStateCanisterActor.addCycles");
+            let addCyclesResponse = await gameStateCanisterActor.addCycles();
+            D.print("Judge: sendCyclesToGameStateCanister - addCyclesResponse: " # debug_show(addCyclesResponse));
+            switch (addCyclesResponse) {
+                case (#Err(error)) {
+                    D.print("Judge: sendCyclesToGameStateCanister - addCyclesResponse FailedOperation: " # debug_show(error));
+                    // Store the failed attempt
+                    let transactionEntry : Types.CyclesTransaction = {
+                        amountAdded : Nat = CYCLES_AMOUNT_TO_GAME_STATE_CANISTER;
+                        newOfficialCycleBalance : Nat = Cycles.balance();
+                        creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                        sentBy : Principal = msg.caller;
+                        succeeded : Bool = false;
+                        previousCyclesBalance : Nat = currentCyclesBalance;
+                    };
+                    cyclesTransactionsStorage := List.push<Types.CyclesTransaction>(transactionEntry, cyclesTransactionsStorage);
+                    return #Err(#FailedOperation);
+                };
+                case (#Ok(addCyclesResult)) {
+                    D.print("Judge: sendCyclesToGameStateCanister - addCyclesResult: " # debug_show(addCyclesResult));
+                    // Store the transaction
+                    let transactionEntry : Types.CyclesTransaction = {
+                        amountAdded : Nat = CYCLES_AMOUNT_TO_GAME_STATE_CANISTER;
+                        newOfficialCycleBalance : Nat = Cycles.balance();
+                        creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                        sentBy : Principal = msg.caller;
+                        succeeded : Bool = true;
+                        previousCyclesBalance : Nat = currentCyclesBalance;
+                    };
+                    cyclesTransactionsStorage := List.push<Types.CyclesTransaction>(transactionEntry, cyclesTransactionsStorage);
+                    return addCyclesResponse;
+                };
+            };
+        } catch (e) {
+            D.print("Judge: sendCyclesToGameStateCanister - Failed to send cycles to Game State: " # Error.message(e));      
+            // Store the failed attempt
+            let transactionEntry : Types.CyclesTransaction = {
+                amountAdded : Nat = CYCLES_AMOUNT_TO_GAME_STATE_CANISTER;
+                newOfficialCycleBalance : Nat = Cycles.balance();
+                creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                sentBy : Principal = msg.caller;
+                succeeded : Bool = false;
+                previousCyclesBalance : Nat = currentCyclesBalance;
+            };
+            cyclesTransactionsStorage := List.push<Types.CyclesTransaction>(transactionEntry, cyclesTransactionsStorage);
+            return #Err(#Other("Judge: sendCyclesToGameStateCanister - Failed to send cycles to Game State: " # Error.message(e)));
+        };
+    };
+
+    public shared (msg) func setMinCyclesBalanceAdmin(newCyclesBalance : Nat) : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        if (newCyclesBalance < 20 * Constants.CYCLES_TRILLION) {
+            return #Err(#StatusCode(401));
+        };
+        MIN_CYCLES_BALANCE := newCyclesBalance;
+        return #Ok({ status_code = 200 });
+    };
+
+    public query (msg) func getMinCyclesBalanceAdmin() : async Nat {
+        if (not Principal.isController(msg.caller)) {
+            return 0;
+        };
+
+        return MIN_CYCLES_BALANCE;
+    };
+
+    public shared (msg) func setCyclesToSendToGameStateAdmin(newValue : Nat) : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#StatusCode(401));
+        };
+        if (newValue > 100 * Constants.CYCLES_TRILLION) {
+            return #Err(#StatusCode(401));
+        };
+        CYCLES_AMOUNT_TO_GAME_STATE_CANISTER := newValue;
+        return #Ok({ status_code = 200 });
+    };
+
+    public query (msg) func getCyclesToSendToGameStateAdmin() : async Nat {
+        if (not Principal.isController(msg.caller)) {
+            return 0;
+        };
+
+        return CYCLES_AMOUNT_TO_GAME_STATE_CANISTER;
+    };
+
     // timer ID, so we can stop it after starting
     stable var recurringTimerId : ?Timer.TimerId = null;
     
