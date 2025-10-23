@@ -64,6 +64,7 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        let currentCyclesBalance : Nat = Cycles.balance();
         // Accept the cycles the call is charged with
         let cyclesAdded = Cycles.accept<system>(Cycles.available());
         D.print("Game State: addCycles - Accepted " # Nat.toText(cyclesAdded) # " Cycles from caller " # Principal.toText(msg.caller));
@@ -75,6 +76,7 @@ actor class GameStateCanister() = this {
             creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
             sentBy : Principal = msg.caller;
             succeeded : Bool = true;
+            previousCyclesBalance : Nat = currentCyclesBalance;
         };
         cyclesTransactionsStorage := List.push<Types.CyclesTransaction>(transactionEntry, cyclesTransactionsStorage);
         

@@ -100,9 +100,9 @@ actor class ChallengerCtrlbCanister() {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        let currentCyclesBalance : Nat = Cycles.balance();
         try {
             // Only move cycles if cycles balance is big enough
-            let currentCyclesBalance : Nat = Cycles.balance(); 
             if (currentCyclesBalance - CYCLES_AMOUNT_TO_GAME_STATE_CANISTER < MIN_CYCLES_BALANCE) {
                 D.print("Challenger: sendCyclesToGameStateCanister - requested cycles transaction but balance is not big enough: " # debug_show(currentCyclesBalance) # debug_show(msg));
                 return #Err(#Unauthorized);
@@ -126,6 +126,7 @@ actor class ChallengerCtrlbCanister() {
                         creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                         sentBy : Principal = msg.caller;
                         succeeded : Bool = false;
+                        previousCyclesBalance : Nat = currentCyclesBalance;
                     };
                     cyclesTransactionsStorage := List.push<Types.CyclesTransaction>(transactionEntry, cyclesTransactionsStorage);
                     return #Err(#FailedOperation);
@@ -139,6 +140,7 @@ actor class ChallengerCtrlbCanister() {
                         creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                         sentBy : Principal = msg.caller;
                         succeeded : Bool = true;
+                        previousCyclesBalance : Nat = currentCyclesBalance;
                     };
                     cyclesTransactionsStorage := List.push<Types.CyclesTransaction>(transactionEntry, cyclesTransactionsStorage);
                     return addCyclesResponse;
@@ -153,6 +155,7 @@ actor class ChallengerCtrlbCanister() {
                 creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                 sentBy : Principal = msg.caller;
                 succeeded : Bool = false;
+                previousCyclesBalance : Nat = currentCyclesBalance;
             };
             cyclesTransactionsStorage := List.push<Types.CyclesTransaction>(transactionEntry, cyclesTransactionsStorage);
             return #Err(#Other("Challenger: sendCyclesToGameStateCanister - Failed to send cycles to Game State: " # Error.message(e)));

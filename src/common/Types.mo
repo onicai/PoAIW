@@ -456,6 +456,7 @@ module Types {
 
     public type CyclesTransaction = OfficialMainerCycleTopUp and {
         succeeded : Bool;
+        previousCyclesBalance : Nat;
     };
 
     public type PaymentTransactionBlockId = {
