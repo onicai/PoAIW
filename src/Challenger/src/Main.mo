@@ -116,6 +116,16 @@ actor class ChallengerCtrlbCanister() {
     // Move cycles to Game State canister
     stable var cyclesTransactionsStorage : List.List<Types.CyclesTransaction> = List.nil<Types.CyclesTransaction>();
 
+    public query (msg) func getCyclesTransactionsAdmin() : async Types.CyclesTransactionsResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(List.toArray(cyclesTransactionsStorage));
+    };
+    
     stable var MIN_CYCLES_BALANCE : Nat = 30 * Constants.CYCLES_TRILLION;
     stable var CYCLES_AMOUNT_TO_GAME_STATE_CANISTER : Nat = 10 * Constants.CYCLES_TRILLION;
 
