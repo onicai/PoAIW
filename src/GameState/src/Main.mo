@@ -870,9 +870,9 @@ actor class GameStateCanister() = this {
         return true;
     };
 
-    // Price to create a mAIner TODO - Implementation: finalize prices (note that it's in 10000s)
-    // Cycles for ShareAgent mAIner Creation
-    stable var PRICE_FOR_SHARE_AGENT_ICP : Nat64 = 10; // TODO: Set to cost of a ShareAgent, in ICP
+    // Price to create a mAIner
+    stable var PRICE_FOR_SHARE_AGENT_ICP : Nat64 = 10; // Cost of a ShareAgent, in ICP
+
     public shared (msg) func setIcpForShareAgentAdmin(icpForShareAgent : Nat64) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -885,7 +885,8 @@ actor class GameStateCanister() = this {
         return #Ok({ price = PRICE_FOR_SHARE_AGENT_ICP });
     };
 
-    stable var WHITELIST_PRICE_FOR_SHARE_AGENT_ICP : Nat64 = PRICE_FOR_SHARE_AGENT_ICP / 2; // TODO: Set to cost of a ShareAgent, in ICP
+    stable var WHITELIST_PRICE_FOR_SHARE_AGENT_ICP : Nat64 = PRICE_FOR_SHARE_AGENT_ICP / 2; // Set to cost of a ShareAgent, in ICP
+
     public shared (msg) func setIcpForWhitelistShareAgentAdmin(icpForShareAgent : Nat64) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -945,10 +946,7 @@ actor class GameStateCanister() = this {
     stable var MAINER_AUCTION_ACTIVE : Bool = false;
 
     // Prices (in ICP) are consumed head-first; we store as a List so we can pop easily.
-    stable var pendingAuctionPrices : List.List<Nat> = List.nil<Nat>();
-
-    // Current price (in ICP) the frontend shows
-    stable var currentMainerAuctionPrice : Nat = 1000;
+    stable var pendingAuctionPrices : List.List<Nat64> = List.nil<Nat64>();
 
     // Cadence between price updates (seconds)
     stable var auctionIntervalSeconds : Nat = 60;
@@ -992,7 +990,7 @@ actor class GameStateCanister() = this {
             return;
         };
 
-        let (nextPrice, tail) = List.pop<Nat>(pendingAuctionPrices);
+        let (nextPrice, tail) = List.pop<Nat64>(pendingAuctionPrices);
 
         switch (nextPrice) {
             case (null) {
@@ -1000,12 +998,12 @@ actor class GameStateCanister() = this {
                 ignore await stopAuctionInternal("Price list exhausted");
             };
             case (?p) {
-                currentMainerAuctionPrice := p;
+                PRICE_FOR_SHARE_AGENT_ICP := p;
                 pendingAuctionPrices := tail;
                 lastAuctionPriceUpdateTimestampNs := nowNs();
                 D.print(
                     "Auction: new price set to " # debug_show(p)
-                    # "; remaining prices: " # debug_show(List.size<Nat>(pendingAuctionPrices))
+                    # "; remaining prices: " # debug_show(List.size<Nat64>(pendingAuctionPrices))
                 );
             };
         };
@@ -1025,21 +1023,22 @@ actor class GameStateCanister() = this {
     };
 
     private func getAvailableMainerCount(checkInput : Types.CheckMainerLimit) : Nat {
+        let buffer = BUFFER_MAINER_CREATION; // to guard against concurrent creations that would leave the user in a state where they paid for the mAIner creation but the protocol blocks it due to the limit
         switch (checkInput.mainerType) {
             case (#Own) {
                 let currentNumberOfMainers = getNumberMainerAgents(checkInput.mainerType);
-                if (currentNumberOfMainers >= LIMIT_OWN_MAINERS) {
+                if (currentNumberOfMainers + buffer >= LIMIT_OWN_MAINERS) {
                     return 0;
                 } else {
-                    return LIMIT_OWN_MAINERS - currentNumberOfMainers;
+                    return LIMIT_OWN_MAINERS - (currentNumberOfMainers + buffer);
                 };
             };
             case (#ShareAgent) {
                 let currentNumberOfMainers = getNumberMainerAgents(checkInput.mainerType);
-                if (currentNumberOfMainers >= LIMIT_SHARED_MAINERS) {
+                if (currentNumberOfMainers + buffer >= LIMIT_SHARED_MAINERS) {
                     return 0;
                 } else {
-                    return LIMIT_SHARED_MAINERS - currentNumberOfMainers;
+                    return LIMIT_SHARED_MAINERS - (currentNumberOfMainers + buffer);
                 };
             };
             case (_) { return 0; }
@@ -1047,7 +1046,7 @@ actor class GameStateCanister() = this {
     };
 
     // Admin endpoints for mAIner auction
-    public shared (msg) func setupAuctionAdmin(pricesInOrder : [Nat], intervalSeconds : Nat) : async Types.AuthRecordResult {
+    public shared (msg) func setupAuctionAdmin(pricesInOrder : [Nat64], intervalSeconds : Nat) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller) or not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -1060,13 +1059,12 @@ actor class GameStateCanister() = this {
         };
         // Prices are provided "in order" (early -> late). We want to pop head-first,
         // so store as a List with head = first upcoming price. No need to reverse.
-        pendingAuctionPrices := List.fromArray<Nat>(pricesInOrder);
+        pendingAuctionPrices := List.fromArray<Nat64>(pricesInOrder);
 
         auctionIntervalSeconds := intervalSeconds;
 
         // Reset running state and price to prepare a clean start
         MAINER_AUCTION_ACTIVE := false;
-        currentMainerAuctionPrice := pricesInOrder[0];
         lastAuctionPriceUpdateTimestampNs := 0;
 
         // Stop any previous timer if running
@@ -1123,14 +1121,14 @@ actor class GameStateCanister() = this {
         return #Ok({ auth = "Auction interval updated." });
     };
 
-    public shared (msg) func setAuctionPricesAdmin(pricesInOrder : [Nat]) : async Types.AuthRecordResult {
+    public shared (msg) func setAuctionPricesAdmin(pricesInOrder : [Nat64]) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller) or not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
         if (pricesInOrder.size() < 1) {
             return #Err(#Other("Provide at least 1 price"));
         };
-        pendingAuctionPrices := List.fromArray<Nat>(pricesInOrder);
+        pendingAuctionPrices := List.fromArray<Nat64>(pricesInOrder);
         return #Ok({ auth = "Auction prices replaced. Count=" # debug_show(Array.size(pricesInOrder)) });
     };
 
@@ -1155,16 +1153,9 @@ actor class GameStateCanister() = this {
         }
     };
 
-    public query func getCurrentMainerAuctionPrice() : async Types.NatResult {
-        return #Ok(currentMainerAuctionPrice);
-    };
-
     public query func getAvailableMainers() : async Types.NatResult {
         return #Ok( getAvailableMainerCount({ mainerType : Types.MainerAgentCanisterType = #ShareAgent; }) );
     };
-
-
-
 
     // Price at which users can buy cycles with FUNNAI from Game State
     stable var FUNNAI_CYCLES_PRICE : Nat = 400 * Constants.CYCLES_BILLION; // How many cycles one gets for 1 FUNNAI
