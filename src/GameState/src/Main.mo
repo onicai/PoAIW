@@ -60,6 +60,16 @@ actor class GameStateCanister() = this {
     // Receive cycles from other protocol canisters
     stable var cyclesTransactionsStorage : List.List<Types.CyclesTransaction> = List.nil<Types.CyclesTransaction>();
     
+    public query (msg) func getCyclesTransactionsAdmin() : async Types.CyclesTransactionsResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(List.toArray(cyclesTransactionsStorage));
+    };
+    
     public shared (msg) func addCycles() : async Types.AddCyclesResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);

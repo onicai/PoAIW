@@ -459,6 +459,8 @@ module Types {
         previousCyclesBalance : Nat;
     };
 
+    public type CyclesTransactionsResult = Result<[CyclesTransaction], ApiError>;
+
     public type PaymentTransactionBlockId = {
         paymentTransactionBlockId : Nat64;
     };
