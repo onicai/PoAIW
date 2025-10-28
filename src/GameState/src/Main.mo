@@ -79,6 +79,11 @@ actor class GameStateCanister() = this {
         let cyclesAdded = Cycles.accept<system>(Cycles.available());
         D.print("Game State: addCycles - Accepted " # Nat.toText(cyclesAdded) # " Cycles from caller " # Principal.toText(msg.caller));
 
+        if (cyclesAdded < 100 * Constants.CYCLES_BILLION) {
+            D.print("Game State: addCycles - call with few Cycles from caller " # Principal.toText(msg.caller));
+            return #Err(#Unauthorized);
+        };
+
         // Store the transaction
         let transactionEntry : Types.CyclesTransaction = {
             amountAdded : Nat = cyclesAdded;
