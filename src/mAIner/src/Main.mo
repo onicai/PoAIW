@@ -1063,12 +1063,14 @@ actor class MainerAgentCtrlbCanister() = this {
 
                 // Check if there were any unofficial cycle top ups and if so pay the appropriate fee for the Protocol's operational expenses
                 var cyclesToSend = challengeResponseSubmissionInput.cyclesSubmitResponse;
-                if (officialCyclesBalance < Cycles.balance()) {
+                let currentCyclesBalance = Cycles.balance();
+                if (officialCyclesBalance < currentCyclesBalance) {
                     // Unofficial top ups were made, thus pay the fee for these top ups to Game State now as a share of the balances difference
                     // Use protocolOperationFeesCut that was sent by the GameState canister with the Challenge
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - Unofficial top ups were made");
                     try {
-                        let cyclesForOperationalExpenses = (Cycles.balance() - officialCyclesBalance) * challengeResponseSubmissionInput.protocolOperationFeesCut / 100;
+                        let DIRECT_CYCLES_TOPUP_MULTIPLIER : Nat = 3;
+                        let cyclesForOperationalExpenses = (currentCyclesBalance - officialCyclesBalance) * (challengeResponseSubmissionInput.protocolOperationFeesCut * DIRECT_CYCLES_TOPUP_MULTIPLIER) / 100;
                         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - Increasing cycles for operational expenses = " # debug_show(cyclesForOperationalExpenses));
                         cyclesToSend := cyclesToSend + cyclesForOperationalExpenses;
                     } catch (error : Error) {
@@ -1135,8 +1137,16 @@ actor class MainerAgentCtrlbCanister() = this {
                             cyclesGenerateScoreGsJuctrl : Nat = submitMetada.cyclesGenerateScoreGsJuctrl;
                             cyclesGenerateScoreJuctrlJullm : Nat = submitMetada.cyclesGenerateScoreJuctrlJullm;
                         };
-                        // Any outstanding top up fees were paid so reset official balance to reflect this
-                        officialCyclesBalance := Cycles.balance();
+                        // Update official cycles balance after the successful submission
+                        // Any outstanding top up fees were paid and it's reflected in cyclesToSend
+                        officialCyclesBalance := currentCyclesBalance - cyclesToSend;
+                        // Sanity check
+                        let newCyclesBalance = Cycles.balance();
+                        if (officialCyclesBalance < newCyclesBalance) {
+                            D.print("mAIner storeAndSubmitResponse - after updating the official cycles balance, it is still smaller than the actual balance");
+                            D.print("mAIner storeAndSubmitResponse - officialCyclesBalance: " # debug_show(officialCyclesBalance));
+                            D.print("mAIner storeAndSubmitResponse - newCyclesBalance: " # debug_show(newCyclesBalance));                          
+                        };
 
                         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling putSubmittedResponse");
                         let putResult = putSubmittedResponse(challengeResponseSubmission);

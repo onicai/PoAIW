@@ -524,6 +524,14 @@ module Types {
         mainerAgent : OfficialMainerAgentCanister;
     };
 
+    public type MainerAuctionTimerInfoRecord = {        
+        lastUpdateNs : Nat;
+        intervalSeconds : Nat;
+        active : Bool;
+    };
+
+    public type MainerAuctionTimerInfoResult = Result<MainerAuctionTimerInfoRecord, ApiError>;
+
     //-------------------------------------------------------------------------
 // Challenger
     public type ChallengeTopicStatus = {
