@@ -297,7 +297,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Share Service: Move cycles to operator's wallet (e.g. onicai)
-    stable let OPERATOR_WALLET_ADDRESS : Text = "";
+    stable let OPERATOR_WALLET_ADDRESS : Text = "jh35u-eqaaa-aaaag-abf3a-cai";
     stable var cyclesTransactionsStorage : List.List<Types.CyclesTransaction> = List.nil<Types.CyclesTransaction>();
 
     public query (msg) func getCyclesTransactionsAdmin() : async Types.CyclesTransactionsResult {
@@ -324,50 +324,35 @@ actor class MainerAgentCtrlbCanister() = this {
         try {
             // Only move cycles if cycles balance is big enough
             if (currentCyclesBalance - CYCLES_AMOUNT_TO_OPERATOR < MIN_CYCLES_BALANCE) {
-                D.print("Challenger: sendCyclesToGameStateCanister - requested cycles transaction but balance is not big enough: " # debug_show(currentCyclesBalance) # debug_show(msg));
+                D.print("Challenger: sendCyclesToOperatorAdmin - requested cycles transaction but balance is not big enough: " # debug_show(currentCyclesBalance) # debug_show(msg));
                 return #Err(#Unauthorized);
             };
 
-            let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
-            D.print("Challenger: sendCyclesToGameStateCanister gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
-            D.print("Challenger: sendCyclesToGameStateCanister - CYCLES_AMOUNT_TO_OPERATOR: " # debug_show(CYCLES_AMOUNT_TO_OPERATOR));
+            D.print("Challenger: sendCyclesToOperatorAdmin - OPERATOR_WALLET_ADDRESS: " # debug_show(OPERATOR_WALLET_ADDRESS));
+            D.print("Challenger: sendCyclesToOperatorAdmin - CYCLES_AMOUNT_TO_OPERATOR: " # debug_show(CYCLES_AMOUNT_TO_OPERATOR));
             Cycles.add<system>(CYCLES_AMOUNT_TO_OPERATOR);
-            
-            D.print("Challenger: sendCyclesToGameStateCanister - calling gameStateCanisterActor.addCycles");
-            let addCyclesResponse = await gameStateCanisterActor.addCycles();
-            D.print("Challenger: sendCyclesToGameStateCanister - addCyclesResponse: " # debug_show(addCyclesResponse));
-            switch (addCyclesResponse) {
-                case (#Err(error)) {
-                    D.print("Challenger: sendCyclesToGameStateCanister - addCyclesResponse FailedOperation: " # debug_show(error));
-                    // Store the failed attempt
-                    let transactionEntry : Types.CyclesTransaction = {
-                        amountAdded : Nat = CYCLES_AMOUNT_TO_OPERATOR;
-                        newOfficialCycleBalance : Nat = Cycles.balance();
-                        creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                        sentBy : Principal = msg.caller;
-                        succeeded : Bool = false;
-                        previousCyclesBalance : Nat = currentCyclesBalance;
-                    };
-                    cyclesTransactionsStorage := List.push<Types.CyclesTransaction>(transactionEntry, cyclesTransactionsStorage);
-                    return #Err(#FailedOperation);
-                };
-                case (#Ok(addCyclesResult)) {
-                    D.print("Challenger: sendCyclesToGameStateCanister - addCyclesResult: " # debug_show(addCyclesResult));
-                    // Store the transaction
-                    let transactionEntry : Types.CyclesTransaction = {
-                        amountAdded : Nat = CYCLES_AMOUNT_TO_OPERATOR;
-                        newOfficialCycleBalance : Nat = Cycles.balance();
-                        creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                        sentBy : Principal = msg.caller;
-                        succeeded : Bool = true;
-                        previousCyclesBalance : Nat = currentCyclesBalance;
-                    };
-                    cyclesTransactionsStorage := List.push<Types.CyclesTransaction>(transactionEntry, cyclesTransactionsStorage);
-                    return addCyclesResponse;
-                };
+            // Send via system API
+            D.print("Challenger: sendCyclesToOperatorAdmin - calling system API to send cycles");
+            let deposit_cycles_args = { canister_id : Principal = Principal.fromText(OPERATOR_WALLET_ADDRESS); };
+            let _ = ignore IC0.deposit_cycles(deposit_cycles_args);
+            D.print("Challenger: sendCyclesToOperatorAdmin - deposit_cycles successful");
+            // Store the transaction
+            let transactionEntry : Types.CyclesTransaction = {
+                amountAdded : Nat = CYCLES_AMOUNT_TO_OPERATOR;
+                newOfficialCycleBalance : Nat = Cycles.balance();
+                creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                sentBy : Principal = msg.caller;
+                succeeded : Bool = true;
+                previousCyclesBalance : Nat = currentCyclesBalance;
             };
+            cyclesTransactionsStorage := List.push<Types.CyclesTransaction>(transactionEntry, cyclesTransactionsStorage);
+            let addCyclesResponse : Types.AddCyclesRecord = {
+                added : Bool = true; 
+                amount : Nat = CYCLES_AMOUNT_TO_OPERATOR;
+            };
+            return #Ok(addCyclesResponse);
         } catch (e) {
-            D.print("Challenger: sendCyclesToGameStateCanister - Failed to send cycles to Game State: " # Error.message(e));      
+            D.print("Challenger: sendCyclesToOperatorAdmin - Failed to send cycles: " # Error.message(e));      
             // Store the failed attempt
             let transactionEntry : Types.CyclesTransaction = {
                 amountAdded : Nat = CYCLES_AMOUNT_TO_OPERATOR;
@@ -378,7 +363,7 @@ actor class MainerAgentCtrlbCanister() = this {
                 previousCyclesBalance : Nat = currentCyclesBalance;
             };
             cyclesTransactionsStorage := List.push<Types.CyclesTransaction>(transactionEntry, cyclesTransactionsStorage);
-            return #Err(#Other("Challenger: sendCyclesToGameStateCanister - Failed to send cycles to Game State: " # Error.message(e)));
+            return #Err(#Other("Challenger: sendCyclesToOperatorAdmin - Failed to send cycles: " # Error.message(e)));
         };
     };
 
@@ -1367,26 +1352,28 @@ actor class MainerAgentCtrlbCanister() = this {
             };
         };
 
-        // First send cycles to the LLM
-        var cyclesAdded : Nat = challengeQueueInput.cyclesGenerateResponseSsctrlSsllm;
-        if (MAINER_AGENT_CANISTER_TYPE == #Own) {
-            cyclesAdded := challengeQueueInput.cyclesGenerateResponseOwnctrlOwnllmHIGH; // TODO: adjust for mAIners with setting LOW or MEDIUM
-        };
-        try {
-            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
-            Cycles.add<system>(cyclesAdded);
+        // First send cycles to the LLM, if enabled
+        if (SEND_CYCLES_TO_LLM) {
+            var cyclesAdded : Nat = challengeQueueInput.cyclesGenerateResponseSsctrlSsllm;
+            if (MAINER_AGENT_CANISTER_TYPE == #Own) {
+                cyclesAdded := challengeQueueInput.cyclesGenerateResponseOwnctrlOwnllmHIGH; // TODO: adjust for mAIners with setting LOW or MEDIUM
+            };
+            try {
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
+                Cycles.add<system>(cyclesAdded);
 
-            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - calling IC0.deposit_cycles for LLM " # debug_show(llmCanisterPrincipal));
-            let deposit_cycles_args = { canister_id : Principal = llmCanisterPrincipal; };
-            let _ = await IC0.deposit_cycles(deposit_cycles_args);
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - calling IC0.deposit_cycles for LLM " # debug_show(llmCanisterPrincipal));
+                let deposit_cycles_args = { canister_id : Principal = llmCanisterPrincipal; };
+                let _ = await IC0.deposit_cycles(deposit_cycles_args);
 
-            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - Successfully deposited " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal) ); 
-        } catch (e) {
-            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - Failed to deposit " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal));
-            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - Failed to deposit error is" # Error.message(e));
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - Successfully deposited " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal) ); 
+            } catch (e) {
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - Failed to deposit " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal));
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - Failed to deposit error is" # Error.message(e));
 
-            return #Err(#FailedOperation);
-        };    
+                return #Err(#FailedOperation);
+            };
+        }; 
 
         let generationId : Text = await Utils.newRandomUniqueId();
 
