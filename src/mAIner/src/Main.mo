@@ -324,18 +324,18 @@ actor class MainerAgentCtrlbCanister() = this {
         try {
             // Only move cycles if cycles balance is big enough
             if (currentCyclesBalance - CYCLES_AMOUNT_TO_OPERATOR < MIN_CYCLES_BALANCE) {
-                D.print("Challenger: sendCyclesToOperatorAdmin - requested cycles transaction but balance is not big enough: " # debug_show(currentCyclesBalance) # debug_show(msg));
+                D.print("ShareService: sendCyclesToOperatorAdmin - requested cycles transaction but balance is not big enough: " # debug_show(currentCyclesBalance) # debug_show(msg));
                 return #Err(#Unauthorized);
             };
 
-            D.print("Challenger: sendCyclesToOperatorAdmin - OPERATOR_WALLET_ADDRESS: " # debug_show(OPERATOR_WALLET_ADDRESS));
-            D.print("Challenger: sendCyclesToOperatorAdmin - CYCLES_AMOUNT_TO_OPERATOR: " # debug_show(CYCLES_AMOUNT_TO_OPERATOR));
+            D.print("ShareService: sendCyclesToOperatorAdmin - OPERATOR_WALLET_ADDRESS: " # debug_show(OPERATOR_WALLET_ADDRESS));
+            D.print("ShareService: sendCyclesToOperatorAdmin - CYCLES_AMOUNT_TO_OPERATOR: " # debug_show(CYCLES_AMOUNT_TO_OPERATOR));
             Cycles.add<system>(CYCLES_AMOUNT_TO_OPERATOR);
             // Send via system API
-            D.print("Challenger: sendCyclesToOperatorAdmin - calling system API to send cycles");
+            D.print("ShareService: sendCyclesToOperatorAdmin - calling system API to send cycles");
             let deposit_cycles_args = { canister_id : Principal = Principal.fromText(OPERATOR_WALLET_ADDRESS); };
             let _ = ignore IC0.deposit_cycles(deposit_cycles_args);
-            D.print("Challenger: sendCyclesToOperatorAdmin - deposit_cycles successful");
+            D.print("ShareService: sendCyclesToOperatorAdmin - deposit_cycles successful");
             // Store the transaction
             let transactionEntry : Types.CyclesTransaction = {
                 amountAdded : Nat = CYCLES_AMOUNT_TO_OPERATOR;
@@ -352,7 +352,7 @@ actor class MainerAgentCtrlbCanister() = this {
             };
             return #Ok(addCyclesResponse);
         } catch (e) {
-            D.print("Challenger: sendCyclesToOperatorAdmin - Failed to send cycles: " # Error.message(e));      
+            D.print("ShareService: sendCyclesToOperatorAdmin - Failed to send cycles: " # Error.message(e));      
             // Store the failed attempt
             let transactionEntry : Types.CyclesTransaction = {
                 amountAdded : Nat = CYCLES_AMOUNT_TO_OPERATOR;
@@ -363,7 +363,7 @@ actor class MainerAgentCtrlbCanister() = this {
                 previousCyclesBalance : Nat = currentCyclesBalance;
             };
             cyclesTransactionsStorage := List.push<Types.CyclesTransaction>(transactionEntry, cyclesTransactionsStorage);
-            return #Err(#Other("Challenger: sendCyclesToOperatorAdmin - Failed to send cycles: " # Error.message(e)));
+            return #Err(#Other("ShareService: sendCyclesToOperatorAdmin - Failed to send cycles: " # Error.message(e)));
         };
     };
 
