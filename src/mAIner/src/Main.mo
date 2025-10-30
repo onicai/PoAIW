@@ -332,10 +332,10 @@ actor class MainerAgentCtrlbCanister() = this {
             D.print("ShareService: sendCyclesToOperatorAdmin - CYCLES_AMOUNT_TO_OPERATOR: " # debug_show(CYCLES_AMOUNT_TO_OPERATOR));
             Cycles.add<system>(CYCLES_AMOUNT_TO_OPERATOR);
             // Send via system API
-            D.print("ShareService: sendCyclesToOperatorAdmin - calling system API to send cycles");
+            D.print("ShareService: sendCyclesToOperatorAdmin - calling system API's deposit_cycles to send cycles");
             let deposit_cycles_args = { canister_id : Principal = Principal.fromText(OPERATOR_WALLET_ADDRESS); };
             let _ = ignore IC0.deposit_cycles(deposit_cycles_args);
-            D.print("ShareService: sendCyclesToOperatorAdmin - deposit_cycles successful");
+            D.print("ShareService: sendCyclesToOperatorAdmin - called deposit_cycles with ignore");
             // Store the transaction
             let transactionEntry : Types.CyclesTransaction = {
                 amountAdded : Nat = CYCLES_AMOUNT_TO_OPERATOR;
@@ -346,6 +346,7 @@ actor class MainerAgentCtrlbCanister() = this {
                 previousCyclesBalance : Nat = currentCyclesBalance;
             };
             cyclesTransactionsStorage := List.push<Types.CyclesTransaction>(transactionEntry, cyclesTransactionsStorage);
+            D.print("ShareService: sendCyclesToOperatorAdmin - stored transactionEntry: " # debug_show(transactionEntry));
             let addCyclesResponse : Types.AddCyclesRecord = {
                 added : Bool = true; 
                 amount : Nat = CYCLES_AMOUNT_TO_OPERATOR;
