@@ -270,142 +270,6 @@ actor class MainerAgentCtrlbCanister() = this {
         };
     };
 
-    // Share Service: flag to decide whether cycles should be sent to LLMs automatically as part of flow
-    stable var SEND_CYCLES_TO_LLM : Bool = true;
-
-    public shared (msg) func toggleSendCyclesToLlmFlagAdmin() : async Types.AuthRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        SEND_CYCLES_TO_LLM := not SEND_CYCLES_TO_LLM;
-        let authRecord = { auth = "You set the flag to " # debug_show(SEND_CYCLES_TO_LLM) };
-        return #Ok(authRecord);
-    };
-
-    public query (msg) func getSendCyclesToLlmFlagAdmin() : async Types.FlagResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-
-        return #Ok({ flag = SEND_CYCLES_TO_LLM });
-    };
-
-    // Share Service: Move cycles to operator's wallet (e.g. onicai)
-    stable let OPERATOR_WALLET_ADDRESS : Text = "jh35u-eqaaa-aaaag-abf3a-cai";
-    stable var cyclesTransactionsStorage : List.List<Types.CyclesTransaction> = List.nil<Types.CyclesTransaction>();
-
-    public query (msg) func getCyclesTransactionsAdmin() : async Types.CyclesTransactionsResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        return #Ok(List.toArray(cyclesTransactionsStorage));
-    };
-    
-    stable var MIN_CYCLES_BALANCE : Nat = 30 * Constants.CYCLES_TRILLION;
-    stable var CYCLES_AMOUNT_TO_OPERATOR : Nat = 10 * Constants.CYCLES_TRILLION;
-
-    public shared (msg) func sendCyclesToOperatorAdmin() : async Types.AddCyclesResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        let currentCyclesBalance : Nat = Cycles.balance();
-        try {
-            // Only move cycles if cycles balance is big enough
-            if (currentCyclesBalance - CYCLES_AMOUNT_TO_OPERATOR < MIN_CYCLES_BALANCE) {
-                D.print("ShareService: sendCyclesToOperatorAdmin - requested cycles transaction but balance is not big enough: " # debug_show(currentCyclesBalance) # debug_show(msg));
-                return #Err(#Unauthorized);
-            };
-
-            D.print("ShareService: sendCyclesToOperatorAdmin - OPERATOR_WALLET_ADDRESS: " # debug_show(OPERATOR_WALLET_ADDRESS));
-            D.print("ShareService: sendCyclesToOperatorAdmin - CYCLES_AMOUNT_TO_OPERATOR: " # debug_show(CYCLES_AMOUNT_TO_OPERATOR));
-            Cycles.add<system>(CYCLES_AMOUNT_TO_OPERATOR);
-            // Send via system API
-            D.print("ShareService: sendCyclesToOperatorAdmin - calling system API's deposit_cycles to send cycles");
-            let deposit_cycles_args = { canister_id : Principal = Principal.fromText(OPERATOR_WALLET_ADDRESS); };
-            let _ = ignore IC0.deposit_cycles(deposit_cycles_args);
-            D.print("ShareService: sendCyclesToOperatorAdmin - called deposit_cycles with ignore");
-            // Store the transaction
-            let transactionEntry : Types.CyclesTransaction = {
-                amountAdded : Nat = CYCLES_AMOUNT_TO_OPERATOR;
-                newOfficialCycleBalance : Nat = Cycles.balance();
-                creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                sentBy : Principal = msg.caller;
-                succeeded : Bool = true;
-                previousCyclesBalance : Nat = currentCyclesBalance;
-            };
-            cyclesTransactionsStorage := List.push<Types.CyclesTransaction>(transactionEntry, cyclesTransactionsStorage);
-            D.print("ShareService: sendCyclesToOperatorAdmin - stored transactionEntry: " # debug_show(transactionEntry));
-            let addCyclesResponse : Types.AddCyclesRecord = {
-                added : Bool = true; 
-                amount : Nat = CYCLES_AMOUNT_TO_OPERATOR;
-            };
-            return #Ok(addCyclesResponse);
-        } catch (e) {
-            D.print("ShareService: sendCyclesToOperatorAdmin - Failed to send cycles: " # Error.message(e));      
-            // Store the failed attempt
-            let transactionEntry : Types.CyclesTransaction = {
-                amountAdded : Nat = CYCLES_AMOUNT_TO_OPERATOR;
-                newOfficialCycleBalance : Nat = Cycles.balance();
-                creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                sentBy : Principal = msg.caller;
-                succeeded : Bool = false;
-                previousCyclesBalance : Nat = currentCyclesBalance;
-            };
-            cyclesTransactionsStorage := List.push<Types.CyclesTransaction>(transactionEntry, cyclesTransactionsStorage);
-            return #Err(#Other("ShareService: sendCyclesToOperatorAdmin - Failed to send cycles: " # Error.message(e)));
-        };
-    };
-
-    public shared (msg) func setMinCyclesBalanceAdmin(newCyclesBalance : Nat) : async Types.StatusCodeRecordResult {
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-        if (newCyclesBalance < 20 * Constants.CYCLES_TRILLION) {
-            return #Err(#StatusCode(401));
-        };
-        MIN_CYCLES_BALANCE := newCyclesBalance;
-        return #Ok({ status_code = 200 });
-    };
-
-    public query (msg) func getMinCyclesBalanceAdmin() : async Nat {
-        if (not Principal.isController(msg.caller)) {
-            return 0;
-        };
-
-        return MIN_CYCLES_BALANCE;
-    };
-
-    public shared (msg) func setCyclesToSendToOperatorAdmin(newValue : Nat) : async Types.StatusCodeRecordResult {
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
-        };
-        if (newValue > 100 * Constants.CYCLES_TRILLION) {
-            return #Err(#StatusCode(401));
-        };
-        CYCLES_AMOUNT_TO_OPERATOR := newValue;
-        return #Ok({ status_code = 200 });
-    };
-
-    public query (msg) func getCyclesToSendToOperatorAdmin() : async Nat {
-        if (not Principal.isController(msg.caller)) {
-            return 0;
-        };
-
-        return CYCLES_AMOUNT_TO_OPERATOR;
-    };
-
     // --------------------------------------------------------------------------
     // Orthogonal Persisted Data storage
 
@@ -1353,28 +1217,26 @@ actor class MainerAgentCtrlbCanister() = this {
             };
         };
 
-        // First send cycles to the LLM, if enabled
-        if (SEND_CYCLES_TO_LLM) {
-            var cyclesAdded : Nat = challengeQueueInput.cyclesGenerateResponseSsctrlSsllm;
-            if (MAINER_AGENT_CANISTER_TYPE == #Own) {
-                cyclesAdded := challengeQueueInput.cyclesGenerateResponseOwnctrlOwnllmHIGH; // TODO: adjust for mAIners with setting LOW or MEDIUM
-            };
-            try {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
-                Cycles.add<system>(cyclesAdded);
+        // First send cycles to the LLM
+        var cyclesAdded : Nat = challengeQueueInput.cyclesGenerateResponseSsctrlSsllm;
+        if (MAINER_AGENT_CANISTER_TYPE == #Own) {
+            cyclesAdded := challengeQueueInput.cyclesGenerateResponseOwnctrlOwnllmHIGH; // TODO: adjust for mAIners with setting LOW or MEDIUM
+        };
+        try {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
+            Cycles.add<system>(cyclesAdded);
 
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - calling IC0.deposit_cycles for LLM " # debug_show(llmCanisterPrincipal));
-                let deposit_cycles_args = { canister_id : Principal = llmCanisterPrincipal; };
-                let _ = await IC0.deposit_cycles(deposit_cycles_args);
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - calling IC0.deposit_cycles for LLM " # debug_show(llmCanisterPrincipal));
+            let deposit_cycles_args = { canister_id : Principal = llmCanisterPrincipal; };
+            let _ = await IC0.deposit_cycles(deposit_cycles_args);
 
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - Successfully deposited " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal) ); 
-            } catch (e) {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - Failed to deposit " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal));
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - Failed to deposit error is" # Error.message(e));
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - Successfully deposited " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal) ); 
+        } catch (e) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - Failed to deposit " # debug_show(cyclesAdded) # " cycles to LLM canister " # debug_show(llmCanisterPrincipal));
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - Failed to deposit error is" # Error.message(e));
 
-                return #Err(#FailedOperation);
-            };
-        }; 
+            return #Err(#FailedOperation);
+        };    
 
         let generationId : Text = await Utils.newRandomUniqueId();
 
