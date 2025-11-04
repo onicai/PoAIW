@@ -8298,83 +8298,85 @@ actor class GameStateCanister() = this {
 
     // Marketplace functionality to sell and buy mAIners
     // When a mAIner owner lists a mAIner on the marketplace for selling, the mAIner is approved for the sale and added to the listings data structures
-    stable var marketplaceListedMainerAgentsStorageStable : [(Text, Types.OfficialMainerAgentCanister)] = [];
-    var marketplaceListedMainerAgentsStorage : HashMap.HashMap<Text, Types.OfficialMainerAgentCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
-    stable var userToMarketplaceListedMainersStorageStable : [(Principal, List.List<Types.OfficialMainerAgentCanister>)] = [];
-    var userToMarketplaceListedMainersStorage : HashMap.HashMap<Principal, List.List<Types.OfficialMainerAgentCanister>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+    stable var marketplaceListedMainerAgentsStorageStable : [(Text, Types.MainerMarketplaceListing)] = [];
+    var marketplaceListedMainerAgentsStorage : HashMap.HashMap<Text, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Text.equal, Text.hash);
+    stable var userToMarketplaceListedMainersStorageStable : [(Principal, List.List<Types.MainerMarketplaceListing>)] = [];
+    var userToMarketplaceListedMainersStorage : HashMap.HashMap<Principal, List.List<Types.MainerMarketplaceListing>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
 
     // When a buyer starts the buying process of a listed mAIner, the mAIner is reserved (thus added to the data structures) and while reserved removed from the listings
-    stable var marketplaceReservedMainerAgentsStorageStable : [(Text, Types.OfficialMainerAgentCanister)] = [];
-    var marketplaceReservedMainerAgentsStorage : HashMap.HashMap<Text, Types.OfficialMainerAgentCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
-    stable var userToMarketplaceReservedMainerStorageStable : [(Principal, Types.OfficialMainerAgentCanister>)] = [];
-    var userToMarketplaceReservedMainerStorage : HashMap.HashMap<Principal, Types.OfficialMainerAgentCanister> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+    stable var marketplaceReservedMainerAgentsStorageStable : [(Text, Types.MainerMarketplaceListing)] = [];
+    var marketplaceReservedMainerAgentsStorage : HashMap.HashMap<Text, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Text.equal, Text.hash);
+    stable var userToMarketplaceReservedMainerStorageStable : [(Principal, Types.MainerMarketplaceListing>)] = [];
+    var userToMarketplaceReservedMainerStorage : HashMap.HashMap<Principal, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Principal.equal, Principal.hash);
 
-// TODO: crud functions for each
-    private func putMainerAgentCanister(canisterAddress : Text, canisterEntry : Types.OfficialMainerAgentCanister) : Types.MainerAgentCanisterResult {
-        // TODO - Security: for security reasons, include checks here for an entry that already exists i.e. that immutable fields aren't changed
-        mainerAgentCanistersStorage.put(canisterAddress, canisterEntry);
-        return #Ok(canisterEntry);
+    // CRUD helper functions for listings
+    private func putMarketplaceListedMainer(entry : Types.MainerMarketplaceListing) : Types.MainerMarketplaceListing {
+        marketplaceListedMainerAgentsStorage.put(entry.address, entry);
+        switch (userToMarketplaceListedMainersStorage(entry.listedBy)) {
+            case (null) {
+                // first entry
+                let userCanistersList : List.List<Types.MainerMarketplaceListing> = List.make<Types.MainerMarketplaceListing>(entry);
+                userToMarketplaceListedMainersStorage.put(entry.listedBy, userCanistersList);
+            };
+            case (?userCanistersList) { 
+                //existing list, add entry to it
+                // Deduplicate (based on address)
+                let filteredUserCanistersList : List.List<Types.MainerMarketplaceListing> = List.filter(userCanistersList, func(listEntry: Types.MainerMarketplaceListing) : Bool { listEntry.address != entry.address });
+                let updatedUserCanistersList : List.List<Types.MainerMarketplaceListing> = List.push<Types.MainerMarketplaceListing>(entry, filteredUserCanistersList);
+                userToMarketplaceListedMainersStorage.put(entry.listedBy, updatedUserCanistersList);
+            }; 
+        };
+        return entry;
     };
 
-    private func getMainerAgentCanister(canisterAddress : Text) : ?Types.OfficialMainerAgentCanister {
-        switch (mainerAgentCanistersStorage.get(canisterAddress)) {
+    private func getMarketplaceListedMainer(canisterAddress : Text) : ?Types.MainerMarketplaceListing {
+        switch (marketplaceListedMainerAgentsStorage.get(canisterAddress)) {
             case (null) { return null; };
             case (?canisterEntry) { return ?canisterEntry; };
         };
     };
 
-    private func removeMainerAgentCanister(canisterAddress : Text) : Bool {
-        switch (mainerAgentCanistersStorage.get(canisterAddress)) {
+    private func removeMarketplaceListedMainer(canisterAddress : Text) : Bool {
+        switch (marketplaceListedMainerAgentsStorage.get(canisterAddress)) {
             case (null) { return false; };
             case (?canisterEntry) {
-                let removeResult = mainerAgentCanistersStorage.remove(canisterAddress);
-                // TODO: remove from userToMainerAgentsStorage
+                let removeResult = marketplaceListedMainerAgentsStorage.remove(canisterAddress);
+                switch (userToMarketplaceListedMainersStorage(canisterEntry.listedBy)) {
+                    case (null) {
+                        // this should not happen
+                    };
+                    case (?userCanistersList) { 
+                        //existing list, remove entry
+                        let filteredUserCanistersList : List.List<Types.MainerMarketplaceListing> = List.filter(userCanistersList, func(listEntry: Types.MainerMarketplaceListing) : Bool { listEntry.address != canisterEntry.address });
+                        userToMarketplaceListedMainersStorage.put(entry.canisterEntry, filteredUserCanistersList);
+                    }; 
+                };
                 return true;
             };
         };
     };
 
-    private func putUserMainerAgent(canisterEntry : Types.OfficialMainerAgentCanister) : Bool {
-        switch (getUserMainerAgents(canisterEntry.ownedBy)) {
-            case (null) {
-                // first entry
-                let userCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.make<Types.OfficialMainerAgentCanister>(canisterEntry);
-                userToMainerAgentsStorage.put(canisterEntry.ownedBy, userCanistersList);
-                return true;
-            };
-            case (?userCanistersList) { 
-                //existing list, add entry to it
-                // Deduplicate (based on creationTimestamp)
-                let filteredUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.filter(userCanistersList, func(listEntry: Types.OfficialMainerAgentCanister) : Bool { listEntry.creationTimestamp != canisterEntry.creationTimestamp });
-                let updatedUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.push<Types.OfficialMainerAgentCanister>(canisterEntry, filteredUserCanistersList);
-                userToMainerAgentsStorage.put(canisterEntry.ownedBy, updatedUserCanistersList);
-                return true;
-            }; 
-        };
-    };
-
-    private func getUserMainerAgents(userId : Principal) : ?List.List<Types.OfficialMainerAgentCanister> {
-        switch (userToMainerAgentsStorage.get(userId)) {
+    private func getMarketplaceListedMainersForUser(userId : Principal) : ?List.List<Types.MainerMarketplaceListing> {
+        switch (userToMarketplaceListedMainersStorage.get(userId)) {
             case (null) { return null; };
             case (?userCanistersList) { return ?userCanistersList; };
         };
     };
 
-    // Caution: function that returns all mAIner agents (TODO: decide if needed)
-    private func getMainerAgents() : [Types.OfficialMainerAgentCanister] {
-        var mainerAgents : List.List<Types.OfficialMainerAgentCanister> = List.nil<Types.OfficialMainerAgentCanister>();
-        for (userMainerAgentsList in userToMainerAgentsStorage.vals()) {
-            mainerAgents := List.append<Types.OfficialMainerAgentCanister>(userMainerAgentsList, mainerAgents);    
+    private func getAllMarketplaceListedMainers() : [Types.MainerMarketplaceListing] {
+        var mainerAgents : List.List<Types.MainerMarketplaceListing> = List.nil<Types.MainerMarketplaceListing>();
+        for (userMainerAgentsList in userToMarketplaceListedMainersStorage.vals()) {
+            mainerAgents := List.append<Types.MainerMarketplaceListing>(userMainerAgentsList, mainerAgents);    
         };
         return List.toArray(mainerAgents);
     };
 
-    private func getNumberMainerAgents(mainerType : Types.MainerAgentCanisterType) : Nat {
+    private func getNumberMarketplaceListedMainers(mainerType : Types.MainerAgentCanisterType) : Nat {
         switch (mainerType) {
             case (#Own) {
-                let iter = mainerAgentCanistersStorage.vals();
-                let mappedIter = Iter.filter(iter, func (mainerEntry : Types.OfficialMainerAgentCanister) : Bool {
-                    switch (mainerEntry.mainerConfig.mainerAgentCanisterType) {
+                let iter = marketplaceListedMainerAgentsStorage.vals();
+                let mappedIter = Iter.filter(iter, func (mainerEntry : Types.MainerMarketplaceListing) : Bool {
+                    switch (mainerEntry.mainerType) {
                         case (#Own) { return true; };
                         case (#ShareAgent) { return false; };
                         case (_) { return false; }
@@ -8383,9 +8385,9 @@ actor class GameStateCanister() = this {
                 return Iter.size(mappedIter);
             };
             case (#ShareAgent) {
-                let iter = mainerAgentCanistersStorage.vals();
-                let mappedIter = Iter.filter(iter, func (mainerEntry : Types.OfficialMainerAgentCanister) : Bool {
-                    switch (mainerEntry.mainerConfig.mainerAgentCanisterType) {
+                let iter = marketplaceListedMainerAgentsStorage.vals();
+                let mappedIter = Iter.filter(iter, func (mainerEntry : Types.MainerMarketplaceListing) : Bool {
+                    switch (mainerEntry.mainerType) {
                         case (#Own) { return false; };
                         case (#ShareAgent) { return true; };
                         case (_) { return false; }
@@ -8397,17 +8399,7 @@ actor class GameStateCanister() = this {
         };
     };
 
-    private func removeUserMainerAgent(canisterEntry : Types.OfficialMainerAgentCanister) : Bool {
-        switch (getUserMainerAgents(canisterEntry.ownedBy)) {
-            case (null) { return false; };
-            case (?userCanistersList) { 
-                //existing list, remove entry from it
-                let updatedUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.filter(userCanistersList, func(listEntry: Types.OfficialProtocolCanister) : Bool { listEntry.address != canisterEntry.address });
-                userToMainerAgentsStorage.put(canisterEntry.ownedBy, updatedUserCanistersList);
-                return true;
-            }; 
-        };
-    };
+    // CRUD helper functions for reservations
 
 // Upgrade Hooks (TODO - Implementation: upgrade Motoko to use enhanced orthogonal persistence)
     system func preupgrade() {
@@ -8427,6 +8419,10 @@ actor class GameStateCanister() = this {
         sharedServiceCanistersStorageStable := Iter.toArray(sharedServiceCanistersStorage.entries());
         redeemedTransactionBlocksStorageStable := Iter.toArray(redeemedTransactionBlocksStorage.entries());
         redeemedFunnaiTransactionBlocksStorageStable := Iter.toArray(redeemedFunnaiTransactionBlocksStorage.entries());
+        marketplaceListedMainerAgentsStorageStable := Iter.toArray(marketplaceListedMainerAgentsStorage.entries());
+        userToMarketplaceListedMainersStorageStable := Iter.toArray(userToMarketplaceListedMainersStorage.entries());
+        marketplaceReservedMainerAgentsStorageStable := Iter.toArray(marketplaceReservedMainerAgentsStorage.entries());
+        userToMarketplaceReservedMainerStorageStable := Iter.toArray(userToMarketplaceReservedMainerStorage.entries());
     };
 
     system func postupgrade() {
@@ -8462,5 +8458,13 @@ actor class GameStateCanister() = this {
         redeemedTransactionBlocksStorageStable := [];
         redeemedFunnaiTransactionBlocksStorage := HashMap.fromIter(Iter.fromArray(redeemedFunnaiTransactionBlocksStorageStable), redeemedFunnaiTransactionBlocksStorageStable.size(), Nat.equal, Hash.hash);
         redeemedFunnaiTransactionBlocksStorageStable := [];
+        marketplaceListedMainerAgentsStorage := HashMap.fromIter(Iter.fromArray(marketplaceListedMainerAgentsStorageStable), marketplaceListedMainerAgentsStorageStable.size(), Text.equal, Text.hash);
+        marketplaceListedMainerAgentsStorageStable := [];
+        userToMarketplaceListedMainersStorage := HashMap.fromIter(Iter.fromArray(userToMarketplaceListedMainersStorageStable), userToMarketplaceListedMainersStorageStable.size(), Principal.equal, Principal.hash);
+        userToMarketplaceListedMainersStorageStable := [];
+        marketplaceReservedMainerAgentsStorage := HashMap.fromIter(Iter.fromArray(marketplaceReservedMainerAgentsStorageStable), marketplaceReservedMainerAgentsStorageStable.size(), Text.equal, Text.hash);
+        marketplaceReservedMainerAgentsStorageStable := [];
+        userToMarketplaceReservedMainerStorage := HashMap.fromIter(Iter.fromArray(userToMarketplaceReservedMainerStorageStable), userToMarketplaceReservedMainerStorageStable.size(), Principal.equal, Principal.hash);
+        userToMarketplaceReservedMainerStorageStable := [];
     };
 };

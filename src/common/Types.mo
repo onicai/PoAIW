@@ -343,6 +343,16 @@ module Types {
         mainerConfig : MainerConfigurationInput;
     };
 
+    public type MainerMarketplaceListing = {
+        address : CanisterAddress;
+        mainerType: MainerAgentCanisterType;
+        listedTimestamp : Nat64;
+        listedBy : Principal;
+        priceE8S : Nat;
+    };
+
+    public type MainerMarketplaceListingsResult = Result<[MainerMarketplaceListing], ApiError>;
+
     public type CanisterInput = {
         address : CanisterAddress;
         subnet : Text;
