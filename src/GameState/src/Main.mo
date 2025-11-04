@@ -8170,6 +8170,245 @@ actor class GameStateCanister() = this {
         };
     }; */
 
+// NFT compatibility for mAIners listed on marketplace (ICRC7 and ICRC37)
+    // Static endpoints, see example: https://github.com/PanIndustrial-Org/icrc_nft.mo/blob/main/example/main.mo
+    let icrc7Symbol : Text = "MAINERS";
+    let icrc7Name : Text = "funnAI mAIners";
+    let icrc7Description : Text = "mAIner AI agents listed on the funnAI marketplace.";
+    let icrc7Logo : Text = "https://funnai.onicai.com/funnai.webp";
+
+    public query func icrc7_symbol() : async Text {
+        return icrc7Symbol;
+    };
+
+    public query func icrc7_name() : async Text {
+        return icrc7Name;
+    };
+
+    public query func icrc7_description() : async ?Text {
+        return ?icrc7Description;
+    };
+
+    public query func icrc7_logo() : async ?Text {
+        return ?icrc7Logo;
+    };
+
+    public query func icrc7_max_memo_size() : async ?Nat {
+        return ?100; // TODO: placeholder
+    };
+
+    public query func icrc7_tx_window() : async ?Nat {
+        return ?100; // TODO: placeholder
+    };
+
+    public query func icrc7_permitted_drift() : async ?Nat {
+        return ?100; // TODO: placeholder
+    };
+
+    public query func icrc7_total_supply() : async Nat {
+        return icrc7().get_stats().nft_count; // TODO: number of listings
+    };
+
+    public query func icrc7_supply_cap() : async ?Nat {
+        let currentNumberOfMainers = getNumberMainerAgents({ mainerType : Types.MainerAgentCanisterType = #ShareAgent; });
+        return ?currentNumberOfMainers;
+    };
+
+    public query func icrc37_max_approvals_per_token_or_collection() : async ?Nat {
+        return ?1; // TODO: placeholder
+    };
+
+    public query func icrc7_max_query_batch_size() : async ?Nat {
+        return ?1; // TODO: placeholder
+    };
+
+    public query func icrc7_max_update_batch_size() : async ?Nat {
+        return ?1; // TODO: placeholder
+    };
+
+    public query func icrc7_default_take_value() : async ?Nat {
+        return ?100; // TODO: placeholder
+    };
+
+    public query func icrc7_max_take_value() : async ?Nat {
+        return ?100; // TODO: placeholder
+    };
+
+    public query func icrc7_atomic_batch_transfers() : async ?Bool {
+        return ?true; // TODO: placeholder
+    };
+
+    public query func icrc37_max_revoke_approvals() : async ?Nat {
+        return ?1; // TODO: placeholder
+    };
+
+    public query func icrc7_collection_metadata() : async [(Text, Value)] {
+        let metadata : [(Text, Value)] = [
+            ("ICRC-7:Symbol", #Text(icrc7Symbol)),
+            ("ICRC-7:Name", #Text(icrc7Name)),
+            ("ICRC-7:Description", #Text(icrc7Description)),
+            ("ICRC-7:Logo", #Text(icrc7Logo))
+        ];
+
+        return metadata;
+    };
+
+
+    public query func icrc7_token_metadata(token_ids: [Nat]) : async [?[(Text, Value)]]{
+        return null; // TODO: placeholder: only allow 1 token id and retrieve info for it
+    };
+
+    public query func icrc7_owner_of(token_ids: OwnerOfRequest) : async OwnerOfResponse {
+        return null; // TODO: placeholder: only allow 1 token id and retrieve info for it
+    };
+
+    public query func icrc7_balance_of(accounts: BalanceOfRequest) : async BalanceOfResponse {
+        return null; // TODO: placeholder: only allow 1 token id and retrieve info for it
+    };
+
+    public query func icrc7_tokens(prev: ?Nat, take: ?Nat) : async [Nat] {
+        return []; // TODO: Retrieve all listed mAIners
+    };
+
+    public query func icrc7_tokens_of(account: Account, prev: ?Nat, take: ?Nat) : async [Nat] {
+        return []; // TODO: Retrieve all listed mAIners for account
+    };
+
+    public query func icrc37_is_approved(args: [IsApprovedArg]) : async [Bool] {
+        return [false]; // TODO: only allow 1 token id and check if listed
+    };
+
+    /* public query func icrc37_get_token_approvals(token_ids: [Nat], prev: ?TokenApproval, take: ?Nat) : async [TokenApproval] {
+        
+        return icrc37().get_token_approvals(token_ids, prev, take);
+    }; */
+
+    /* public query func icrc37_get_collection_approvals(owner : Account, prev: ?CollectionApproval, take: ?Nat) : async [CollectionApproval] {
+        
+        return icrc37().get_collection_approvals(owner, prev, take);
+    }; */
+
+    public query func icrc10_supported_standards() : async ICRC7.SupportedStandards {
+        //TODO: ICRC-10?
+        return [
+        {name = "ICRC-7"; url = "https://github.com/dfinity/ICRC/ICRCs/ICRC-7"},
+        {name = "ICRC-10"; url = "https://github.com/dfinity/ICRC/ICRCs/ICRC-10"},
+        {name = "ICRC-37"; url = "https://github.com/dfinity/ICRC/ICRCs/ICRC-37"}];
+    };
+
+    // Marketplace functionality to sell and buy mAIners
+    // When a mAIner owner lists a mAIner on the marketplace for selling, the mAIner is approved for the sale and added to the listings data structures
+    stable var marketplaceListedMainerAgentsStorageStable : [(Text, Types.OfficialMainerAgentCanister)] = [];
+    var marketplaceListedMainerAgentsStorage : HashMap.HashMap<Text, Types.OfficialMainerAgentCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
+    stable var userToMarketplaceListedMainersStorageStable : [(Principal, List.List<Types.OfficialMainerAgentCanister>)] = [];
+    var userToMarketplaceListedMainersStorage : HashMap.HashMap<Principal, List.List<Types.OfficialMainerAgentCanister>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+
+    // When a buyer starts the buying process of a listed mAIner, the mAIner is reserved (thus added to the data structures) and while reserved removed from the listings
+    stable var marketplaceReservedMainerAgentsStorageStable : [(Text, Types.OfficialMainerAgentCanister)] = [];
+    var marketplaceReservedMainerAgentsStorage : HashMap.HashMap<Text, Types.OfficialMainerAgentCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
+    stable var userToMarketplaceReservedMainerStorageStable : [(Principal, Types.OfficialMainerAgentCanister>)] = [];
+    var userToMarketplaceReservedMainerStorage : HashMap.HashMap<Principal, Types.OfficialMainerAgentCanister> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+
+// TODO: crud functions for each
+    private func putMainerAgentCanister(canisterAddress : Text, canisterEntry : Types.OfficialMainerAgentCanister) : Types.MainerAgentCanisterResult {
+        // TODO - Security: for security reasons, include checks here for an entry that already exists i.e. that immutable fields aren't changed
+        mainerAgentCanistersStorage.put(canisterAddress, canisterEntry);
+        return #Ok(canisterEntry);
+    };
+
+    private func getMainerAgentCanister(canisterAddress : Text) : ?Types.OfficialMainerAgentCanister {
+        switch (mainerAgentCanistersStorage.get(canisterAddress)) {
+            case (null) { return null; };
+            case (?canisterEntry) { return ?canisterEntry; };
+        };
+    };
+
+    private func removeMainerAgentCanister(canisterAddress : Text) : Bool {
+        switch (mainerAgentCanistersStorage.get(canisterAddress)) {
+            case (null) { return false; };
+            case (?canisterEntry) {
+                let removeResult = mainerAgentCanistersStorage.remove(canisterAddress);
+                // TODO: remove from userToMainerAgentsStorage
+                return true;
+            };
+        };
+    };
+
+    private func putUserMainerAgent(canisterEntry : Types.OfficialMainerAgentCanister) : Bool {
+        switch (getUserMainerAgents(canisterEntry.ownedBy)) {
+            case (null) {
+                // first entry
+                let userCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.make<Types.OfficialMainerAgentCanister>(canisterEntry);
+                userToMainerAgentsStorage.put(canisterEntry.ownedBy, userCanistersList);
+                return true;
+            };
+            case (?userCanistersList) { 
+                //existing list, add entry to it
+                // Deduplicate (based on creationTimestamp)
+                let filteredUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.filter(userCanistersList, func(listEntry: Types.OfficialMainerAgentCanister) : Bool { listEntry.creationTimestamp != canisterEntry.creationTimestamp });
+                let updatedUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.push<Types.OfficialMainerAgentCanister>(canisterEntry, filteredUserCanistersList);
+                userToMainerAgentsStorage.put(canisterEntry.ownedBy, updatedUserCanistersList);
+                return true;
+            }; 
+        };
+    };
+
+    private func getUserMainerAgents(userId : Principal) : ?List.List<Types.OfficialMainerAgentCanister> {
+        switch (userToMainerAgentsStorage.get(userId)) {
+            case (null) { return null; };
+            case (?userCanistersList) { return ?userCanistersList; };
+        };
+    };
+
+    // Caution: function that returns all mAIner agents (TODO: decide if needed)
+    private func getMainerAgents() : [Types.OfficialMainerAgentCanister] {
+        var mainerAgents : List.List<Types.OfficialMainerAgentCanister> = List.nil<Types.OfficialMainerAgentCanister>();
+        for (userMainerAgentsList in userToMainerAgentsStorage.vals()) {
+            mainerAgents := List.append<Types.OfficialMainerAgentCanister>(userMainerAgentsList, mainerAgents);    
+        };
+        return List.toArray(mainerAgents);
+    };
+
+    private func getNumberMainerAgents(mainerType : Types.MainerAgentCanisterType) : Nat {
+        switch (mainerType) {
+            case (#Own) {
+                let iter = mainerAgentCanistersStorage.vals();
+                let mappedIter = Iter.filter(iter, func (mainerEntry : Types.OfficialMainerAgentCanister) : Bool {
+                    switch (mainerEntry.mainerConfig.mainerAgentCanisterType) {
+                        case (#Own) { return true; };
+                        case (#ShareAgent) { return false; };
+                        case (_) { return false; }
+                    };
+                });
+                return Iter.size(mappedIter);
+            };
+            case (#ShareAgent) {
+                let iter = mainerAgentCanistersStorage.vals();
+                let mappedIter = Iter.filter(iter, func (mainerEntry : Types.OfficialMainerAgentCanister) : Bool {
+                    switch (mainerEntry.mainerConfig.mainerAgentCanisterType) {
+                        case (#Own) { return false; };
+                        case (#ShareAgent) { return true; };
+                        case (_) { return false; }
+                    };
+                });
+                return Iter.size(mappedIter);                
+            };
+            case (_) { return 0; }
+        };
+    };
+
+    private func removeUserMainerAgent(canisterEntry : Types.OfficialMainerAgentCanister) : Bool {
+        switch (getUserMainerAgents(canisterEntry.ownedBy)) {
+            case (null) { return false; };
+            case (?userCanistersList) { 
+                //existing list, remove entry from it
+                let updatedUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.filter(userCanistersList, func(listEntry: Types.OfficialProtocolCanister) : Bool { listEntry.address != canisterEntry.address });
+                userToMainerAgentsStorage.put(canisterEntry.ownedBy, updatedUserCanistersList);
+                return true;
+            }; 
+        };
+    };
+
 // Upgrade Hooks (TODO - Implementation: upgrade Motoko to use enhanced orthogonal persistence)
     system func preupgrade() {
         challengerCanistersStorageStable := Iter.toArray(challengerCanistersStorage.entries());
