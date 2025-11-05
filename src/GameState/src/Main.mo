@@ -226,12 +226,12 @@ actor class GameStateCanister() = this {
         let buffer = BUFFER_MAINER_CREATION; // to guard against concurrent creations that would leave the user in a state where they paid for the mAIner creation but the protocol blocks it due to the limit
         switch (checkInput.mainerType) {
             case (#Own) {
-                if (getNumberMainerAgents(checkInput.mainerType) + buffer > LIMIT_OWN_MAINERS) {
+                if (getNumberMainerAgents(checkInput.mainerType) + buffer >= LIMIT_OWN_MAINERS) {
                     return #Ok({ flag = true });
                 };
             };
             case (#ShareAgent) {
-                if (getNumberMainerAgents(checkInput.mainerType) + buffer > LIMIT_SHARED_MAINERS) {
+                if (getNumberMainerAgents(checkInput.mainerType) + buffer >= LIMIT_SHARED_MAINERS) {
                     return #Ok({ flag = true });
                 };
             };
