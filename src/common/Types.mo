@@ -349,6 +349,7 @@ module Types {
         listedTimestamp : Nat64;
         listedBy : Principal;
         priceE8S : Nat;
+        reservedBy : ?Principal;
     };
 
     public type MainerMarketplaceListingsResult = Result<[MainerMarketplaceListing], ApiError>;

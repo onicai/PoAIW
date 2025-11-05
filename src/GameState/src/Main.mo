@@ -8400,6 +8400,89 @@ actor class GameStateCanister() = this {
     };
 
     // CRUD helper functions for reservations
+    private func putMarketplaceReservedMainer(entry : Types.MainerMarketplaceListing) : Bool {
+        // Check that entry is in listings and isn't reserved already
+        switch (getMarketplaceListedMainer(entry.address)) {
+            case (null) {
+                return false;
+            };
+            case (?listedEntry) {
+                switch (marketplaceReservedMainerAgentsStorage.get(entry.address)) {
+                    case (null) {
+                        // Continue
+                    };
+                    case (?reservedEntry) { 
+                        return false;                        
+                    }; 
+                };
+            }; 
+        };
+        // Sanity check on entry 
+        switch (entry.reservedBy) {
+            case (null) {
+                return false;
+            };
+            case (?reservingUserPrincipal) {
+                // Reserve the mAIner and remove it from listings
+                marketplaceReservedMainerAgentsStorage.put(entry.address, entry);
+                userToMarketplaceReservedMainerStorage.put(reservingUserPrincipal, entry);
+                switch (removeMarketplaceListedMainer(entry.address)) {
+                    case (true) {
+                        // TODO: set a timer to remove the reservation and add it back as a listing (in case the purchase wasn't completed in the meanwhile)
+                        return true;
+                    };
+                    case (false) { 
+                        // Revert reservation changes
+                        let removeResult = marketplaceReservedMainerAgentsStorage.remove(entry.address);
+                        let removeResult2 = userToMarketplaceReservedMainerStorage.remove(reservingUserPrincipal);
+                        return false;                
+                    }; 
+                };
+            }; 
+        };
+    };
+
+    private func getMarketplaceReservedMainer(canisterAddress : Text) : ?Types.MainerMarketplaceListing {
+        switch (marketplaceReservedMainerAgentsStorage.get(canisterAddress)) {
+            case (null) { return null; };
+            case (?canisterEntry) { return ?canisterEntry; };
+        };
+    };
+
+    private func removeMarketplaceReservedMainer(canisterAddress : Text) : Bool {
+        // If the reservation (still) exists, remove it and put the entry back up as a listing
+        switch (marketplaceReservedMainerAgentsStorage.get(canisterAddress)) {
+            case (null) { return false; };
+            case (?canisterEntry) {
+                let removeResult = marketplaceReservedMainerAgentsStorage.remove(canisterAddress);
+                switch (canisterEntry.reservedBy) {
+                    case (null) {
+                        // This should not happen
+                    };
+                    case (?reservingUserPrincipal) {
+                        let removeResult2 = userToMarketplaceReservedMainerStorage.remove(reservingUserPrincipal);
+                    }; 
+                };
+                let newListingEntry = {
+                    address : CanisterAddress = canisterEntry.address;
+                    mainerType: MainerAgentCanisterType = canisterEntry.mainerType;
+                    listedTimestamp : Nat64 = canisterEntry.listedTimestamp;
+                    listedBy : Principal = canisterEntry.listedBy;
+                    priceE8S : Nat = canisterEntry.priceE8S;
+                    reservedBy : ?Principal = null; // Only change
+                };
+                putMarketplaceListedMainer(newListingEntry); 
+                return true;
+            };
+        };
+    };
+
+    private func getMarketplaceReservedMainerForUser(userId : Principal) : ?Types.MainerMarketplaceListing {
+        switch (userToMarketplaceReservedMainerStorage.get(userId)) {
+            case (null) { return null; };
+            case (?userCanisterEntry) { return ?userCanisterEntry; };
+        };
+    };
 
 // Upgrade Hooks (TODO - Implementation: upgrade Motoko to use enhanced orthogonal persistence)
     system func preupgrade() {
