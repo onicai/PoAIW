@@ -8262,11 +8262,27 @@ actor class GameStateCanister() = this {
         return null; // TODO: placeholder: only allow 1 token id and retrieve info for it
     };
 
-    public query func icrc7_balance_of(accounts: BalanceOfRequest) : async BalanceOfResponse {
-        return null; // TODO: placeholder: only allow 1 token id and retrieve info for it
+    public query func icrc7_balance_of(accounts: [TokenLedger.Account]) : async [Nat] {
+        // Only allows 1 account and retrieves info for it
+        if (Principal.isAnonymous(msg.caller)) {
+            return [0];
+        };
+        if (accounts.size() !== 1) {
+            return [0];
+        };
+        switch (getMarketplaceListedMainersForUser(accounts[0].owner)) {
+            case (null) { return [0]; };
+            case (?userCanistersList) {
+                let numberOfListings : Nat = List.size<Types.MainerMarketplaceListing>(userCanistersList);
+                return [numberOfListings];
+            };
+        };
+        return null;
     };
 
     public query func icrc7_tokens(prev: ?Nat, take: ?Nat) : async [Nat] {
+        // TODO: create a list of Nat with index (from 0 to size minus 1) via a new helper function
+        getAllMarketplaceListedMainers() : [Types.MainerMarketplaceListing] // retrieve actual listings info via another endpoint
         return []; // TODO: Retrieve all listed mAIners
     };
 
@@ -8296,7 +8312,112 @@ actor class GameStateCanister() = this {
         {name = "ICRC-37"; url = "https://github.com/dfinity/ICRC/ICRCs/ICRC-37"}];
     };
 
+    public shared(msg) func icrc37_approve_tokens(args: [ICRC37.Service.ApproveTokenArg]) : async [?ICRC37.Service.ApproveTokenResult] {
+        /* type Account = record { owner : principal; subaccount : opt Subaccount };
+
+        type ApprovalInfo = record {
+            spender : Account;             // Game State (no Subaccount) but doesn't need to be checked
+            from_subaccount : opt blob;    // null
+            expires_at : opt nat64; // null
+            memo : opt blob; // mAIner address
+            created_at_time : nat64; // doesn't matter, canister will create a timestamp
+        };
+
+        type ApproveTokenArg = record {
+            token_id : nat; // price (for listing)
+            approval_info : ApprovalInfo;
+        }; */
+        /* type ApproveTokenResult = variant {
+            Ok : nat; // Transaction index for successful approval
+            Err : ApproveTokenError;
+        };
+
+        type ApproveTokenError = variant {
+            InvalidSpender;
+            Unauthorized;
+            NonExistingTokenId;
+            TooOld;
+            CreatedInFuture : record { ledger_time: nat64 };
+            GenericError : record { error_code : nat; message : text };
+            GenericBatchError : record { error_code : nat; message : text };
+        }; */
+        // mAIner Owner lists one of their mAIners (this call only works for one mAIner, thus first entry in array args)
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (args.size() !== 1) {
+            return #Err(#Unauthorized);
+        };
+        let approveTokenArg : ICRC37.Service.ApproveTokenArg = args[0];
+        if (approveTokenArg.token_id < 1000000) {
+            // Price has to be at least 0.01 ICP
+            return #Err(#Unauthorized);
+        };
+        // Get mAIner address from memo
+        switch (approveTokenArg.approval_info.memo) {
+            case (null) {
+                // No mAIner canister specified
+                return #Err(#Unauthorized);
+            };
+            case (?approvalMemo) {
+                let text = Text.decodeUtf8(approvalMemo);
+                switch (text) {
+                    case (null) {
+                        // No mAIner canister specified
+                        return #Err(#Unauthorized);
+                    };
+                    case (?mainerAddress) {
+                        // Confirm caller owns mAIner
+                        switch (getUserMainerAgents(msg.caller)) {
+                            case (null) {
+                                return #Err(#Unauthorized);
+                            };
+                            case (?userMainerEntries) {
+                                switch (List.find<Types.OfficialMainerAgentCanister>(userMainerEntries, func(mainerEntry: Types.OfficialMainerAgentCanister) : Bool { mainerEntry.address == mainerAddress } )) {
+                                    case (null) {
+                                        return #Err(#NonExistingTokenId);
+                                    };
+                                    case (?userMainerEntry) {
+                                        // Sanity checks on userMainerEntry (i.e. address provided is correct and matches entry info)
+                                        switch (userMainerEntry.canisterType) {
+                                            case (#MainerAgent(mainerAgentCanisterType)) {
+                                                // Check that mAIner is not reserved currently
+                                                switch (getMarketplaceReservedMainer(mainerAddress)) {
+                                                    case (?canisterEntry) { return #Err(#Unauthorized); }; // The mAIner is currently reserved and thus in the process of being bought
+                                                    case (null) {
+                                                        // Add mAIner to listings
+                                                        let entry : Types.MainerMarketplaceListing = {
+                                                            address : CanisterAddress = userMainerEntry.address;
+                                                            mainerType: MainerAgentCanisterType = mainerAgentCanisterType;
+                                                            listedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                                                            listedBy : Principal = msg.caller;
+                                                            priceE8S : Nat = approveTokenArg.token_id;
+                                                            reservedBy : ?Principal = null;
+                                                        };
+                                                        let result = putMarketplaceListedMainer(entry);
+                                                        return #Ok(getNextMainerMarketplaceTransactionId());                                                
+                                                    };
+                                                };
+                                            };
+                                            case (_) { return #Err(#Unauthorized); }
+                                        };
+                                    };
+                                };
+                            };
+                        };                        
+                    }; 
+                };
+            }; 
+        };
+    };
+
     // Marketplace functionality to sell and buy mAIners
+    stable var mainerMarketplaceTransactionsCounter : Nat = 0;
+    private func getNextMainerMarketplaceTransactionId() : Nat {
+        mainerMarketplaceTransactionsCounter = mainerMarketplaceTransactionsCounter + 1;
+        return mainerMarketplaceTransactionsCounter;
+    };
+
     // When a mAIner owner lists a mAIner on the marketplace for selling, the mAIner is approved for the sale and added to the listings data structures
     stable var marketplaceListedMainerAgentsStorageStable : [(Text, Types.MainerMarketplaceListing)] = [];
     var marketplaceListedMainerAgentsStorage : HashMap.HashMap<Text, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Text.equal, Text.hash);
