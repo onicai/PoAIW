@@ -72,8 +72,8 @@ Note: See Appendix A below for manual deploy steps.
 
 After that initial deployment, to update the code for the mAIner Creator canister:
 ```bash
-scripts/deploy.sh --mode upgrade [--network ic]
-scripts/register-game-state.sh [--network ic]
+scripts/deploy.sh --mode upgrade [--network prd]
+scripts/register-game-state.sh [--network prd]
 ```
 
 ### Create a mAIner
@@ -259,7 +259,7 @@ python -m scripts.upload_mainer_controller_canister --network development --cani
 
 ## production
 ### TODO: Upload the mainer controller canister wasm
-python -m scripts.upload_mainer_controller_canister --network ic --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+python -m scripts.upload_mainer_controller_canister --network prd --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 ```
 
 ### Manual files upload for mAIner LLM Canister
@@ -284,5 +284,5 @@ python -m scripts.upload_mainer_llm_canister_wasm --network development --canist
 
 ## production
 ### Upload the mainer LLM canister wasm
-python -m scripts.upload_mainer_llm_canister_wasm --network ic --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+python -m scripts.upload_mainer_llm_canister_wasm --network prd --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 ```
