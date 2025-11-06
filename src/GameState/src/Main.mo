@@ -8193,7 +8193,7 @@ actor class GameStateCanister() = this {
         return ?icrc7Logo;
     };
 
-    public query func icrc7_max_memo_size() : async ?Nat {
+    /* public query func icrc7_max_memo_size() : async ?Nat {
         return ?100; // TODO: placeholder
     };
 
@@ -8203,10 +8203,10 @@ actor class GameStateCanister() = this {
 
     public query func icrc7_permitted_drift() : async ?Nat {
         return ?100; // TODO: placeholder
-    };
+    }; */
 
     public query func icrc7_total_supply() : async Nat {
-        return icrc7().get_stats().nft_count; // TODO: number of listings
+        return marketplaceListedMainerAgentsStorage.size();
     };
 
     public query func icrc7_supply_cap() : async ?Nat {
@@ -8214,7 +8214,7 @@ actor class GameStateCanister() = this {
         return ?currentNumberOfMainers;
     };
 
-    public query func icrc37_max_approvals_per_token_or_collection() : async ?Nat {
+    /* public query func icrc37_max_approvals_per_token_or_collection() : async ?Nat {
         return ?1; // TODO: placeholder
     };
 
@@ -8240,7 +8240,7 @@ actor class GameStateCanister() = this {
 
     public query func icrc37_max_revoke_approvals() : async ?Nat {
         return ?1; // TODO: placeholder
-    };
+    }; */
 
     public query func icrc7_collection_metadata() : async [(Text, Value)] {
         let metadata : [(Text, Value)] = [
@@ -8253,14 +8253,9 @@ actor class GameStateCanister() = this {
         return metadata;
     };
 
-
-    public query func icrc7_token_metadata(token_ids: [Nat]) : async [?[(Text, Value)]]{
+    /* public query func icrc7_owner_of(token_ids: OwnerOfRequest) : async OwnerOfResponse {
         return null; // TODO: placeholder: only allow 1 token id and retrieve info for it
-    };
-
-    public query func icrc7_owner_of(token_ids: OwnerOfRequest) : async OwnerOfResponse {
-        return null; // TODO: placeholder: only allow 1 token id and retrieve info for it
-    };
+    }; */
 
     public query func icrc7_balance_of(accounts: [TokenLedger.Account]) : async [Nat] {
         // Only allows 1 account and retrieves info for it
@@ -8277,22 +8272,47 @@ actor class GameStateCanister() = this {
                 return [numberOfListings];
             };
         };
-        return null;
     };
 
     public query func icrc7_tokens(prev: ?Nat, take: ?Nat) : async [Nat] {
-        // TODO: create a list of Nat with index (from 0 to size minus 1) via a new helper function
-        getAllMarketplaceListedMainers() : [Types.MainerMarketplaceListing] // retrieve actual listings info via another endpoint
-        return []; // TODO: Retrieve all listed mAIners
+        // Create a list of Nat with entries from 0 to marketplaceListedMainerAgentsStorage's size minus 1
+        let total = marketplaceListedMainerAgentsStorage.size();
+        if (total == 0) {
+            return [];
+        };
+
+        var ids : List.List<Nat> = List.nil<Nat>();
+        for (i in Iter.range(0, total - 1)) {
+            ids := List.push(i, ids);
+            i += 1;            
+        };
+        let idsArray = Array.fromList<Nat>(ids);
+
+        return idsArray;
     };
 
-    public query func icrc7_tokens_of(account: Account, prev: ?Nat, take: ?Nat) : async [Nat] {
-        return []; // TODO: Retrieve all listed mAIners for account
+    public query func icrc7_token_metadata(token_ids: [Nat]) : async [?[(Text, Value)]]{
+        // Retrieve all mAIner marketplace listings
+        // TODO: getAllMarketplaceListedMainers() : [Types.MainerMarketplaceListing]
     };
 
-    public query func icrc37_is_approved(args: [IsApprovedArg]) : async [Bool] {
+    /* public query func icrc7_tokens_of(account: Account, prev: ?Nat, take: ?Nat) : async [Nat] {
+        // Retrieve all listed mAIners for account
+        if (Principal.isAnonymous(msg.caller)) {
+            return [0];
+        };
+        switch (getMarketplaceListedMainersForUser(account.owner)) {
+            case (null) { return [0]; };
+            case (?userCanistersList) {
+                let numberOfListings : Nat = List.size<Types.MainerMarketplaceListing>(userCanistersList);
+                return [numberOfListings];
+            };
+        };
+    }; */
+
+    /* public query func icrc37_is_approved(args: [IsApprovedArg]) : async [Bool] {
         return [false]; // TODO: only allow 1 token id and check if listed
-    };
+    }; */
 
     /* public query func icrc37_get_token_approvals(token_ids: [Nat], prev: ?TokenApproval, take: ?Nat) : async [TokenApproval] {
         
