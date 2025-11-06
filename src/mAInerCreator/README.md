@@ -2,10 +2,39 @@
 
 # The files folder
 
-It contains checked in files, created with:
+These files are uploaded into mAInerCreator canister. 
+Create them as follows.
 
-- Files from https://github.com/onicai/llama_cpp_canister/releases/tag/v0.0.1
-- did & wasm of the mAIner ctrlb canister
+## llama_cpp_canister wasm & did
+
+Build & copy it over.
+
+```bash
+# From folder: llama_cpp_canister
+# Checkout commit of LLM code
+# -> commit `4334e3383a8434d6db85920f5a7e027f3fcdf119` , commit message `v0.6.0rc2`
+#
+icpp build-wasm
+cp build/llama_cpp.did ../funnAI/PoAIW/src/mAInerCreator/files/
+cp build/llama_cpp.wasm ../funnAI/PoAIW/src/mAInerCreator/files/
+```
+
+## mAIner ctrlb canister wasm & did 
+
+Do a local deploy and copy it over:
+
+```bash
+# Start the local network
+dfx start --clean
+
+# From folder: PoAIW/src/mAIner
+dfx deploy mainer_ctrlb_canister_0
+dfx canister info mainer_ctrlb_canister_0 # Confirm hash matches target hash
+cp .dfx/local/canisters/mainer_ctrlb_canister_0/mainer_ctrlb_canister_0.did ../mAInerCreator/files/mainer_ctrlb_canister.did
+cp .dfx/local/canisters/mainer_ctrlb_canister_0/mainer_ctrlb_canister_0.wasm ../mAInerCreator/files/mainer_ctrlb_canister.wasm
+```
+
+## LLM model
 
 You must manually download:
 

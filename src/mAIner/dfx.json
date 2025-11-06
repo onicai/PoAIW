@@ -2106,6 +2106,24 @@
     },
     "mainer_ctrlb_canister_700": {
       "main": "src/Main.mo"
+    },
+    "mainer_ctrlb_canister_701": {
+      "main": "src/Main.mo"
+    },
+    "mainer_ctrlb_canister_702": {
+      "main": "src/Main.mo"
+    },
+    "mainer_ctrlb_canister_703": {
+      "main": "src/Main.mo"
+    },
+    "mainer_ctrlb_canister_704": {
+      "main": "src/Main.mo"
+    },
+    "mainer_ctrlb_canister_705": {
+      "main": "src/Main.mo"
+    },
+    "mainer_ctrlb_canister_706": {
+      "main": "src/Main.mo"
     }
   },
   "defaults": {
