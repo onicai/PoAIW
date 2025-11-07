@@ -19,6 +19,10 @@ import Array "mo:base/Array";
 import { setTimer; recurringTimer } = "mo:base/Timer";
 import Timer "mo:base/Timer";
 
+import ICRC7 "mo:icrc7-mo";
+import ICRC37 "mo:icrc37-mo";
+import ICRC3 "mo:icrc3-mo";
+
 import Types "../../common/Types";
 import ICManagementCanister "../../common/ICManagementCanister";
 import TokenLedger "../../common/icp-ledger-interface";
@@ -8262,7 +8266,7 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return [0];
         };
-        if (accounts.size() !== 1) {
+        if (accounts.size() != 1) {
             return [0];
         };
         switch (getMarketplaceListedMainersForUser(accounts[0].owner)) {
@@ -8293,7 +8297,23 @@ actor class GameStateCanister() = this {
 
     public query func icrc7_token_metadata(token_ids: [Nat]) : async [?[(Text, Value)]]{
         // Retrieve all mAIner marketplace listings
-        // TODO: getAllMarketplaceListedMainers() : [Types.MainerMarketplaceListing]
+        let listings : [Types.MainerMarketplaceListing] = getAllMarketplaceListedMainers();
+        // Convert each listing NFT metadata (array which contains the (Text, Value) pairs)
+        let out : [?[(Text, Value)]] = Array.map<Types.MainerMarketplaceListing, ?[(Text, Value)]>(
+            listings,
+            func (l : Types.MainerMarketplaceListing) : ?[(Text, Value)] {
+                let meta : [(Text, Value)] = [
+                    ("address",         #Text(l.address)),
+                    ("mainerType",      #Text(debug_show(l.mainerType))),
+                    ("listedTimestamp", #Nat64(l.listedTimestamp)),
+                    ("listedBy",        #Text(Principal.toText(l.listedBy))),
+                    ("priceE8S",        #Nat(l.priceE8S)),
+                ];
+                ?meta
+            }
+        );
+
+        return out;
     };
 
     /* public query func icrc7_tokens_of(account: Account, prev: ?Nat, take: ?Nat) : async [Nat] {
@@ -8363,39 +8383,39 @@ actor class GameStateCanister() = this {
         }; */
         // mAIner Owner lists one of their mAIners (this call only works for one mAIner, thus first entry in array args)
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
+            return [?#Err(#Unauthorized)];
         };
-        if (args.size() !== 1) {
-            return #Err(#Unauthorized);
+        if (args.size() != 1) {
+            return [?#Err(#Unauthorized)];
         };
         let approveTokenArg : ICRC37.Service.ApproveTokenArg = args[0];
         if (approveTokenArg.token_id < 1000000) {
             // Price has to be at least 0.01 ICP
-            return #Err(#Unauthorized);
+            return [?#Err(#Unauthorized)];
         };
         // Get mAIner address from memo
         switch (approveTokenArg.approval_info.memo) {
             case (null) {
                 // No mAIner canister specified
-                return #Err(#Unauthorized);
+                return [?#Err(#Unauthorized)];
             };
             case (?approvalMemo) {
                 let text = Text.decodeUtf8(approvalMemo);
                 switch (text) {
                     case (null) {
                         // No mAIner canister specified
-                        return #Err(#Unauthorized);
+                        return [?#Err(#Unauthorized)];
                     };
                     case (?mainerAddress) {
                         // Confirm caller owns mAIner
                         switch (getUserMainerAgents(msg.caller)) {
                             case (null) {
-                                return #Err(#Unauthorized);
+                                return [?#Err(#Unauthorized)];
                             };
                             case (?userMainerEntries) {
                                 switch (List.find<Types.OfficialMainerAgentCanister>(userMainerEntries, func(mainerEntry: Types.OfficialMainerAgentCanister) : Bool { mainerEntry.address == mainerAddress } )) {
                                     case (null) {
-                                        return #Err(#NonExistingTokenId);
+                                        return [?#Err(#NonExistingTokenId)];
                                     };
                                     case (?userMainerEntry) {
                                         // Sanity checks on userMainerEntry (i.e. address provided is correct and matches entry info)
@@ -8415,11 +8435,11 @@ actor class GameStateCanister() = this {
                                                             reservedBy : ?Principal = null;
                                                         };
                                                         let result = putMarketplaceListedMainer(entry);
-                                                        return #Ok(getNextMainerMarketplaceTransactionId());                                                
+                                                        return [?#Ok(getNextMainerMarketplaceTransactionId())];                                                
                                                     };
                                                 };
                                             };
-                                            case (_) { return #Err(#Unauthorized); }
+                                            case (_) { return [?#Err(#Unauthorized)]; }
                                         };
                                     };
                                 };
@@ -8431,10 +8451,219 @@ actor class GameStateCanister() = this {
         };
     };
 
+    public shared(msg) func icrc37_revoke_token_approvals<system>(args: [ICRC37.Service.RevokeTokenApprovalArg]) : async [?RevokeTokenApprovalResult] {
+        /* type RevokeTokenApprovalArg = record {
+            spender : opt Account;      // null revokes matching approvals for all spenders
+            from_subaccount : opt blob; // null refers to the default subaccount
+            token_id : nat;
+            memo : opt blob; // only field that matters: use for mAIner's id (canister address)
+            created_at_time : opt nat64;
+        };
+
+        type RevokeTokenApprovalResponse = variant {
+            Ok : nat; // Transaction index for successful approval revocation
+            Err : RevokeTokenApprovalError;
+        };
+
+        type RevokeTokenApprovalError = variant {
+            ApprovalDoesNotExist;
+            Unauthorized;
+            NonExistingTokenId;
+            TooOld;
+            CreatedInFuture : record { ledger_time: nat64 };
+            GenericError : record { error_code : nat; message : text };
+            GenericBatchError : record { error_code : nat; message : text };
+        }; */
+        if (Principal.isAnonymous(msg.caller)) {
+            return [?#Err(#Unauthorized)];
+        };
+        if (args.size() != 1) {
+            return [?#Err(#Unauthorized)];
+        };
+        let revokeTokenArg : ICRC37.Service.RevokeTokenApprovalArg = args[0];
+        // Get mAIner address from memo
+        switch (revokeTokenArg.memo) {
+            case (null) {
+                // No mAIner canister specified
+                return [?#Err(#Unauthorized)];
+            };
+            case (?revokeMemo) {
+                let text = Text.decodeUtf8(revokeMemo);
+                switch (text) {
+                    case (null) {
+                        // No mAIner canister specified
+                        return [?#Err(#Unauthorized)];
+                    };
+                    case (?mainerAddress) {
+                        // Confirm caller owns mAIner
+                        switch (getUserMainerAgents(msg.caller)) {
+                            case (null) {
+                                return [?#Err(#Unauthorized)];
+                            };
+                            case (?userMainerEntries) {
+                                switch (List.find<Types.OfficialMainerAgentCanister>(userMainerEntries, func(mainerEntry: Types.OfficialMainerAgentCanister) : Bool { mainerEntry.address == mainerAddress } )) {
+                                    case (null) {
+                                        return [?#Err(#Unauthorized)];
+                                    };
+                                    case (?userMainerEntry) {
+                                        switch (userMainerEntry.canisterType) {
+                                            case (#MainerAgent(mainerAgentCanisterType)) {
+                                                // Check that mAIner is listed currently
+                                                switch (getMarketplaceListedMainer(mainerAddress)) {
+                                                    case (null) { return [?#Err(#Unauthorized)]; };
+                                                    case (?canisterEntry) {
+                                                        // Remove mAIner from listings
+                                                        switch (removeMarketplaceListedMainer(mainerAddress)) {
+                                                            case (false) { return [?#Err(#Unauthorized)]; };
+                                                            case (true) {                                                                
+                                                                return [?#Ok(getNextMainerMarketplaceTransactionId())];                                                
+                                                            };
+                                                        };                                                
+                                                    };
+                                                };
+                                            };
+                                            case (_) { return [?#Err(#Unauthorized)]; }
+                                        };
+                                    };
+                                };
+                            };
+                        };                        
+                    }; 
+                };
+            }; 
+        };
+    };
+
+    public shared(msg) func icrc37_transfer_from<system>(args: [ICRC37.Service.TransferFromArg]) : async [?ICRC37.Service.TransferFromResult] {
+        /* type TransferFromArg = record {
+            spender_subaccount: opt blob; // The subaccount of the caller (used to identify the spender)
+            from : Account;
+            to : Account;
+            token_id : nat; // Used as ICP payment transaction id
+            memo : opt blob; // Used as mAIner's address
+            created_at_time : opt nat64;
+        };
+
+        type TransferFromResult = variant {
+            Ok : nat; // Transaction index for successful transfer
+            Err : TransferFromError;
+        };
+
+        type TransferFromError = variant {
+            InvalidRecipient;
+            Unauthorized;
+            NonExistingTokenId;
+            TooOld;
+            CreatedInFuture : record { ledger_time: nat64 };
+            Duplicate : record { duplicate_of : nat };
+            GenericError : record { error_code : nat; message : text };
+            GenericBatchError : record { error_code : nat; message : text };
+        }; */
+        if (Principal.isAnonymous(msg.caller)) {
+            return [?#Err(#Unauthorized)];
+        };
+        if (args.size() != 1) {
+            return [?#Err(#Unauthorized)];
+        };
+        let transferTokenArg : ICRC37.Service.TransferFromArg = args[0];
+        switch (transferTokenArg.memo) {
+            case (null) {
+                // No mAIner canister specified
+                return [?#Err(#Unauthorized)];
+            };
+            case (?transferMemo) {
+                let text = Text.decodeUtf8(transferMemo);
+                switch (text) {
+                    case (null) {
+                        // No mAIner canister specified
+                        return [?#Err(#Unauthorized)];
+                    };
+                    case (?mainerAddress) {
+                        let transactionToVerify = Nat64.fromNat(transferTokenArg.token_id);
+                        switch (checkExistingTransactionBlock(transactionToVerify)) {
+                            case (false) {
+                                // new transaction, continue
+                            };
+                            case (true) {
+                                // already redeem transaction
+                                return [?#Err(#Unauthorized)]; // no double spending
+                            };
+                        };
+                        // Verify that caller has reserved the mAIner
+                        switch (getMarketplaceReservedMainerForUser(msg.caller)) {
+                            case (null) { return [?#Err(#Unauthorized)]; };
+                            case (?userCanisterEntry) {
+                                if (userCanisterEntry.address != mainerAddress) {
+                                    return [?#Err(#Unauthorized)];
+                                };
+                                switch (getMainerAgentCanister(mainerAddress)) {
+                                    case (null) { return [?#Err(#InvalidRecipient)]; };
+                                    case (?mainerEntry) {
+                                        // TODO: Verify user's payment for this agent via the TransactionBlockId (incl. correct price)
+                                        /* var verifiedPayment : Bool = false;
+                                        var amountPaid : Nat = 0;
+                                        let redeemedFor : Types.RedeemedForOptions = #MainerTopUp(userMainerEntry.address);
+                                        let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                                        let transactionEntryToVerify : Types.RedeemedTransactionBlock = {
+                                            paymentTransactionBlockId : Nat64 = transactionToVerify;
+                                            creationTimestamp : Nat64 = creationTimestamp;
+                                            redeemedBy : Principal = msg.caller;
+                                            redeemedFor : Types.RedeemedForOptions = redeemedFor;
+                                            amount : Nat = amountPaid; // to be updated
+                                        };
+                                        D.print("GameState: icrc37_transfer_from - transactionEntryToVerify: "# debug_show(transactionEntryToVerify));
+                                        let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify);
+                                        D.print("GameState: icrc37_transfer_from - verificationResponse: "# debug_show(verificationResponse));
+                                        switch (verificationResponse) {
+                                            case (#Ok(verificationResult)) {
+                                                verifiedPayment := verificationResult.verified;
+                                                amountPaid := verificationResult.amountPaid;
+                                            };
+                                            case (_) {
+                                                return #Err(#Other("Payment verification failed"));                      
+                                            };
+                                        };
+                                        if (not verifiedPayment) {
+                                            return #Err(#Other("Payment couldn't be verified"));
+                                        }; */
+                                        
+                                        // TODO: take protocol cut (10%) and send rest to seller
+
+                                        // Transfer mAIner ownership
+                                        // Update mAIner entry
+                                        let newCanisterEntry : Types.OfficialMainerAgentCanister = {
+                                            address : Text = mainerEntry.address;
+                                            subnet : Text = mainerEntry.subnet;
+                                            canisterType: Types.ProtocolCanisterType = mainerEntry.canisterType;
+                                            creationTimestamp : Nat64 = mainerEntry.creationTimestamp;
+                                            createdBy : Principal = mainerEntry.createdBy;
+                                            ownedBy : Principal = msg.caller; // only field updated: to new owner
+                                            status : Types.CanisterStatus = mainerEntry.status; 
+                                            mainerConfig : Types.MainerConfigurationInput = mainerEntry.mainerConfig;
+                                        };
+                                        let updateResult : Types.MainerAgentCanisterResult = putMainerAgentCanister(mainerAddress, newCanisterEntry);                                
+
+                                        // Remove from seller
+                                        let removeResult : Bool = removeUserMainerAgent(mainerEntry);
+
+                                        // Add to buyer 
+                                        let addResult : Bool = putUserMainerAgent(newCanisterEntry);
+
+                                        return [?#Ok(getNextMainerMarketplaceTransactionId())];                                        
+                                    };
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+    };
+
     // Marketplace functionality to sell and buy mAIners
     stable var mainerMarketplaceTransactionsCounter : Nat = 0;
     private func getNextMainerMarketplaceTransactionId() : Nat {
-        mainerMarketplaceTransactionsCounter = mainerMarketplaceTransactionsCounter + 1;
+        mainerMarketplaceTransactionsCounter := mainerMarketplaceTransactionsCounter + 1;
         return mainerMarketplaceTransactionsCounter;
     };
 
@@ -8447,7 +8676,7 @@ actor class GameStateCanister() = this {
     // When a buyer starts the buying process of a listed mAIner, the mAIner is reserved (thus added to the data structures) and while reserved removed from the listings
     stable var marketplaceReservedMainerAgentsStorageStable : [(Text, Types.MainerMarketplaceListing)] = [];
     var marketplaceReservedMainerAgentsStorage : HashMap.HashMap<Text, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Text.equal, Text.hash);
-    stable var userToMarketplaceReservedMainerStorageStable : [(Principal, Types.MainerMarketplaceListing>)] = [];
+    stable var userToMarketplaceReservedMainerStorageStable : [(Principal, Types.MainerMarketplaceListing)] = [];
     var userToMarketplaceReservedMainerStorage : HashMap.HashMap<Principal, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Principal.equal, Principal.hash);
 
     // CRUD helper functions for listings
@@ -8622,6 +8851,80 @@ actor class GameStateCanister() = this {
         switch (userToMarketplaceReservedMainerStorage.get(userId)) {
             case (null) { return null; };
             case (?userCanisterEntry) { return ?userCanisterEntry; };
+        };
+    };
+
+    // Native mAIner marketplace endpoints (not NFT compatible)
+    public query (msg) func getUserMarketplaceMainerListings() : async Types.MainerMarketplaceListingsResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        switch (getMarketplaceListedMainersForUser(msg.caller)) {
+            case (null) { return #Ok([]); };
+            case (?userCanistersList) {
+                return #Ok(List.toArray(userCanistersList));
+            };
+        };
+    };
+
+    public query (msg) func getMarketplaceMainerListings() : async Types.MainerMarketplaceListingsResult {
+        // Retrieve all mAIner marketplace listings
+        return #Ok(getAllMarketplaceListedMainers());
+    };
+
+    public shared (msg) func reserveMarketplaceListedMainer(reservationInput : Types.MainerMarketplaceReservationInput) : async Types.MainerMarketplaceReservationResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Verify user doesn't have a reservation yet
+        switch (getMarketplaceReservedMainerForUser(msg.caller)) {
+            case (null) { 
+                // Continue
+            };
+            case (?userCanisterEntry) { return #Err(#Unauthorized); };
+        };
+
+        // Verify mAIner is not reserved
+        switch (getMarketplaceReservedMainer(reservationInput.address)) {
+            case (null) { 
+                // Continue
+            };
+            case (?canisterEntry) { return #Err(#Unauthorized); };
+        };
+
+        // Verify mAIner is listed
+        switch (getMarketplaceListedMainer(reservationInput.address)) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?canisterEntry) {
+                // Reserve mAIner for buying (incl. removing listing during purchase completion)
+                let newEntry : Types.MainerMarketplaceListing = {
+                    address : CanisterAddress = canisterEntry.address;
+                    mainerType: MainerAgentCanisterType = canisterEntry.mainerType;
+                    listedTimestamp : Nat64 = canisterEntry.listedTimestamp;
+                    listedBy : Principal = canisterEntry.listedBy;
+                    priceE8S : Nat = canisterEntry.priceE8S;
+                    reservedBy : ?Principal = ?msg.caller; // Only change
+                };
+                putMarketplaceReservedMainer(newEntry);
+                return #Ok(newEntry);
+            };
+        };
+    };
+
+    public query (msg) func confirmUserMarketplaceMainerReservation(reservationInput : Types.MainerMarketplaceReservationInput) : async Types.MainerMarketplaceReservationResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        switch (getMarketplaceReservedMainerForUser(msg.caller)) {
+            case (null) { 
+                return #Err(#Unauthorized);
+            };
+            case (?userCanisterEntry) {
+                if (userCanisterEntry.address == reservationInput.address) {
+                    return #Ok(userCanisterEntry);
+                };
+                return #Err(#Unauthorized);
+            };
         };
     };
 

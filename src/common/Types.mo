@@ -354,6 +354,12 @@ module Types {
 
     public type MainerMarketplaceListingsResult = Result<[MainerMarketplaceListing], ApiError>;
 
+    public type MainerMarketplaceReservationInput = {
+        address : CanisterAddress;
+    };
+    
+    public type MainerMarketplaceReservationResult = Result<MainerMarketplaceListing, ApiError>;
+
     public type CanisterInput = {
         address : CanisterAddress;
         subnet : Text;
