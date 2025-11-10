@@ -833,6 +833,23 @@ module Types {
 
     public type ChallengeResponseResult = Result<ChallengeResponse, ApiError>;
 
+    public type MainerStatus = {
+        #Active;
+        #Inactive;
+        #Collapsing;
+        #Blackholed;
+        #Maintenance;
+        #Other : Text;
+    };
+
+    public type MainerStatusEntry = {
+        status : MainerStatus;
+        timestamp : Nat64;
+        currentCyclesBalance : Nat;
+        note : Text;
+        previousStatus : MainerStatus;
+    };
+
 // Judge
     public type ScoredResponseInput = ChallengeResponseSubmission and {
         judgedBy: Principal;
