@@ -8214,7 +8214,7 @@ actor class GameStateCanister() = this {
     };
 
     public query func icrc7_supply_cap() : async ?Nat {
-        let currentNumberOfMainers = getNumberMainerAgents({ mainerType : Types.MainerAgentCanisterType = #ShareAgent; });
+        let currentNumberOfMainers = getNumberMainerAgents(#ShareAgent);
         return ?currentNumberOfMainers;
     };
 
@@ -8246,8 +8246,8 @@ actor class GameStateCanister() = this {
         return ?1; // TODO: placeholder
     }; */
 
-    public query func icrc7_collection_metadata() : async [(Text, Value)] {
-        let metadata : [(Text, Value)] = [
+    public query func icrc7_collection_metadata() : async [(Text, ICRC7.Value)] {
+        let metadata : [(Text, ICRC7.Value)] = [
             ("ICRC-7:Symbol", #Text(icrc7Symbol)),
             ("ICRC-7:Name", #Text(icrc7Name)),
             ("ICRC-7:Description", #Text(icrc7Description)),
@@ -8261,7 +8261,7 @@ actor class GameStateCanister() = this {
         return null; // TODO: placeholder: only allow 1 token id and retrieve info for it
     }; */
 
-    public query func icrc7_balance_of(accounts: [TokenLedger.Account]) : async [Nat] {
+    public query (msg) func icrc7_balance_of(accounts: [TokenLedger.Account]) : async [Nat] {
         // Only allows 1 account and retrieves info for it
         if (Principal.isAnonymous(msg.caller)) {
             return [0];
@@ -8287,25 +8287,24 @@ actor class GameStateCanister() = this {
 
         var ids : List.List<Nat> = List.nil<Nat>();
         for (i in Iter.range(0, total - 1)) {
-            ids := List.push(i, ids);
-            i += 1;            
+            ids := List.push(i, ids);          
         };
-        let idsArray = Array.fromList<Nat>(ids);
+        let idsArray = List.toArray(ids);
 
         return idsArray;
     };
 
-    public query func icrc7_token_metadata(token_ids: [Nat]) : async [?[(Text, Value)]]{
+    public query func icrc7_token_metadata(token_ids: [Nat]) : async [?[(Text, ICRC7.Value)]]{
         // Retrieve all mAIner marketplace listings
         let listings : [Types.MainerMarketplaceListing] = getAllMarketplaceListedMainers();
         // Convert each listing NFT metadata (array which contains the (Text, Value) pairs)
-        let out : [?[(Text, Value)]] = Array.map<Types.MainerMarketplaceListing, ?[(Text, Value)]>(
+        let out : [?[(Text, ICRC7.Value)]] = Array.map<Types.MainerMarketplaceListing, ?[(Text, ICRC7.Value)]>(
             listings,
-            func (l : Types.MainerMarketplaceListing) : ?[(Text, Value)] {
-                let meta : [(Text, Value)] = [
+            func (l : Types.MainerMarketplaceListing) : ?[(Text, ICRC7.Value)] {
+                let meta : [(Text, ICRC7.Value)] = [
                     ("address",         #Text(l.address)),
                     ("mainerType",      #Text(debug_show(l.mainerType))),
-                    ("listedTimestamp", #Nat64(l.listedTimestamp)),
+                    ("listedTimestamp", #Nat(Nat64.toNat(l.listedTimestamp))),
                     ("listedBy",        #Text(Principal.toText(l.listedBy))),
                     ("priceE8S",        #Nat(l.priceE8S)),
                 ];
@@ -8423,12 +8422,12 @@ actor class GameStateCanister() = this {
                                             case (#MainerAgent(mainerAgentCanisterType)) {
                                                 // Check that mAIner is not reserved currently
                                                 switch (getMarketplaceReservedMainer(mainerAddress)) {
-                                                    case (?canisterEntry) { return #Err(#Unauthorized); }; // The mAIner is currently reserved and thus in the process of being bought
+                                                    case (?canisterEntry) { return [?#Err(#Unauthorized)]; }; // The mAIner is currently reserved and thus in the process of being bought
                                                     case (null) {
                                                         // Add mAIner to listings
                                                         let entry : Types.MainerMarketplaceListing = {
-                                                            address : CanisterAddress = userMainerEntry.address;
-                                                            mainerType: MainerAgentCanisterType = mainerAgentCanisterType;
+                                                            address : Types.CanisterAddress = userMainerEntry.address;
+                                                            mainerType: Types.MainerAgentCanisterType = mainerAgentCanisterType;
                                                             listedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                                                             listedBy : Principal = msg.caller;
                                                             priceE8S : Nat = approveTokenArg.token_id;
@@ -8451,7 +8450,7 @@ actor class GameStateCanister() = this {
         };
     };
 
-    public shared(msg) func icrc37_revoke_token_approvals<system>(args: [ICRC37.Service.RevokeTokenApprovalArg]) : async [?RevokeTokenApprovalResult] {
+    public shared(msg) func icrc37_revoke_token_approvals<system>(args: [ICRC37.Service.RevokeTokenApprovalArg]) : async [?ICRC37.Service.RevokeTokenApprovalResult] {
         /* type RevokeTokenApprovalArg = record {
             spender : opt Account;      // null revokes matching approvals for all spenders
             from_subaccount : opt blob; // null refers to the default subaccount
@@ -8682,7 +8681,7 @@ actor class GameStateCanister() = this {
     // CRUD helper functions for listings
     private func putMarketplaceListedMainer(entry : Types.MainerMarketplaceListing) : Types.MainerMarketplaceListing {
         marketplaceListedMainerAgentsStorage.put(entry.address, entry);
-        switch (userToMarketplaceListedMainersStorage(entry.listedBy)) {
+        switch (getMarketplaceListedMainersForUser(entry.listedBy)) {
             case (null) {
                 // first entry
                 let userCanistersList : List.List<Types.MainerMarketplaceListing> = List.make<Types.MainerMarketplaceListing>(entry);
@@ -8711,14 +8710,14 @@ actor class GameStateCanister() = this {
             case (null) { return false; };
             case (?canisterEntry) {
                 let removeResult = marketplaceListedMainerAgentsStorage.remove(canisterAddress);
-                switch (userToMarketplaceListedMainersStorage(canisterEntry.listedBy)) {
+                switch (getMarketplaceListedMainersForUser(canisterEntry.listedBy)) {
                     case (null) {
                         // this should not happen
                     };
                     case (?userCanistersList) { 
                         //existing list, remove entry
                         let filteredUserCanistersList : List.List<Types.MainerMarketplaceListing> = List.filter(userCanistersList, func(listEntry: Types.MainerMarketplaceListing) : Bool { listEntry.address != canisterEntry.address });
-                        userToMarketplaceListedMainersStorage.put(entry.canisterEntry, filteredUserCanistersList);
+                        let result = userToMarketplaceListedMainersStorage.put(canisterEntry.listedBy, filteredUserCanistersList);
                     }; 
                 };
                 return true;
@@ -8834,14 +8833,14 @@ actor class GameStateCanister() = this {
                     }; 
                 };
                 let newListingEntry = {
-                    address : CanisterAddress = canisterEntry.address;
-                    mainerType: MainerAgentCanisterType = canisterEntry.mainerType;
+                    address : Types.CanisterAddress = canisterEntry.address;
+                    mainerType: Types.MainerAgentCanisterType = canisterEntry.mainerType;
                     listedTimestamp : Nat64 = canisterEntry.listedTimestamp;
                     listedBy : Principal = canisterEntry.listedBy;
                     priceE8S : Nat = canisterEntry.priceE8S;
                     reservedBy : ?Principal = null; // Only change
                 };
-                putMarketplaceListedMainer(newListingEntry); 
+                let result = putMarketplaceListedMainer(newListingEntry); 
                 return true;
             };
         };
@@ -8898,14 +8897,14 @@ actor class GameStateCanister() = this {
             case (?canisterEntry) {
                 // Reserve mAIner for buying (incl. removing listing during purchase completion)
                 let newEntry : Types.MainerMarketplaceListing = {
-                    address : CanisterAddress = canisterEntry.address;
-                    mainerType: MainerAgentCanisterType = canisterEntry.mainerType;
+                    address : Types.CanisterAddress = canisterEntry.address;
+                    mainerType: Types.MainerAgentCanisterType = canisterEntry.mainerType;
                     listedTimestamp : Nat64 = canisterEntry.listedTimestamp;
                     listedBy : Principal = canisterEntry.listedBy;
                     priceE8S : Nat = canisterEntry.priceE8S;
                     reservedBy : ?Principal = ?msg.caller; // Only change
                 };
-                putMarketplaceReservedMainer(newEntry);
+                let result = putMarketplaceReservedMainer(newEntry);
                 return #Ok(newEntry);
             };
         };
