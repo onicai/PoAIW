@@ -2,10 +2,39 @@
 
 # The files folder
 
-It contains checked in files, created with:
+These files are uploaded into mAInerCreator canister. 
+Create them as follows.
 
-- Files from https://github.com/onicai/llama_cpp_canister/releases/tag/v0.0.1
-- did & wasm of the mAIner ctrlb canister
+## llama_cpp_canister wasm & did
+
+Build & copy it over.
+
+```bash
+# From folder: llama_cpp_canister
+# Checkout commit of LLM code
+# -> commit `4334e3383a8434d6db85920f5a7e027f3fcdf119` , commit message `v0.6.0rc2`
+#
+icpp build-wasm
+cp build/llama_cpp.did ../funnAI/PoAIW/src/mAInerCreator/files/
+cp build/llama_cpp.wasm ../funnAI/PoAIW/src/mAInerCreator/files/
+```
+
+## mAIner ctrlb canister wasm & did 
+
+Do a local deploy and copy it over:
+
+```bash
+# Start the local network
+dfx start --clean
+
+# From folder: PoAIW/src/mAIner
+dfx deploy mainer_ctrlb_canister_0
+dfx canister info mainer_ctrlb_canister_0 # Confirm hash matches target hash
+cp .dfx/local/canisters/mainer_ctrlb_canister_0/mainer_ctrlb_canister_0.did ../mAInerCreator/files/mainer_ctrlb_canister.did
+cp .dfx/local/canisters/mainer_ctrlb_canister_0/mainer_ctrlb_canister_0.wasm ../mAInerCreator/files/mainer_ctrlb_canister.wasm
+```
+
+## LLM model
 
 You must manually download:
 
@@ -43,8 +72,8 @@ Note: See Appendix A below for manual deploy steps.
 
 After that initial deployment, to update the code for the mAIner Creator canister:
 ```bash
-scripts/deploy.sh --mode upgrade [--network ic]
-scripts/register-game-state.sh [--network ic]
+scripts/deploy.sh --mode upgrade [--network prd]
+scripts/register-game-state.sh [--network prd]
 ```
 
 ### Create a mAIner
@@ -230,7 +259,7 @@ python -m scripts.upload_mainer_controller_canister --network development --cani
 
 ## production
 ### TODO: Upload the mainer controller canister wasm
-python -m scripts.upload_mainer_controller_canister --network ic --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+python -m scripts.upload_mainer_controller_canister --network prd --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 ```
 
 ### Manual files upload for mAIner LLM Canister
@@ -255,5 +284,5 @@ python -m scripts.upload_mainer_llm_canister_wasm --network development --canist
 
 ## production
 ### Upload the mainer LLM canister wasm
-python -m scripts.upload_mainer_llm_canister_wasm --network ic --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+python -m scripts.upload_mainer_llm_canister_wasm --network prd --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 ```

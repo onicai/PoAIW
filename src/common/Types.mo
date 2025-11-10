@@ -454,6 +454,13 @@ module Types {
         sentBy : Principal;
     };
 
+    public type CyclesTransaction = OfficialMainerCycleTopUp and {
+        succeeded : Bool;
+        previousCyclesBalance : Nat;
+    };
+
+    public type CyclesTransactionsResult = Result<[CyclesTransaction], ApiError>;
+
     public type PaymentTransactionBlockId = {
         paymentTransactionBlockId : Nat64;
     };
@@ -516,6 +523,14 @@ module Types {
         paymentTransactionBlockId : Nat64;
         mainerAgent : OfficialMainerAgentCanister;
     };
+
+    public type MainerAuctionTimerInfoRecord = {        
+        lastUpdateNs : Nat;
+        intervalSeconds : Nat;
+        active : Bool;
+    };
+
+    public type MainerAuctionTimerInfoResult = Result<MainerAuctionTimerInfoRecord, ApiError>;
 
     //-------------------------------------------------------------------------
 // Challenger
@@ -1226,6 +1241,7 @@ module Types {
         getJudgePromptInfo : (Text) -> async Types.JudgePromptInfoResult;
         getMainerCyclesUsedPerResponse : () -> async NatResult;
         getCyclesBurnRate : (Types.CyclesBurnRateDefault) -> async Types.CyclesBurnRateResult;
+        addCycles: () -> async AddCyclesResult;
     };
 
     public type MainerCreator_Actor = actor {

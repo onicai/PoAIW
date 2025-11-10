@@ -16,6 +16,8 @@ import Order "mo:base/Order";
 import Error "mo:base/Error";
 import Hash "mo:base/Hash";
 import Array "mo:base/Array";
+import { setTimer; recurringTimer } = "mo:base/Timer";
+import Timer "mo:base/Timer";
 
 import Types "../../common/Types";
 import ICManagementCanister "../../common/ICManagementCanister";
@@ -55,6 +57,50 @@ actor class GameStateCanister() = this {
 
     public query func getPauseProtocolFlag() : async Types.FlagResult {
         return #Ok({ flag = PAUSE_PROTOCOL });
+    };
+
+    // Receive cycles from other protocol canisters
+    stable var cyclesTransactionsStorage : List.List<Types.CyclesTransaction> = List.nil<Types.CyclesTransaction>();
+    
+    public query (msg) func getCyclesTransactionsAdmin() : async Types.CyclesTransactionsResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok(List.toArray(cyclesTransactionsStorage));
+    };
+    
+    public shared (msg) func addCycles() : async Types.AddCyclesResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let currentCyclesBalance : Nat = Cycles.balance();
+        // Accept the cycles the call is charged with
+        let cyclesAdded = Cycles.accept<system>(Cycles.available());
+        D.print("Game State: addCycles - Accepted " # Nat.toText(cyclesAdded) # " Cycles from caller " # Principal.toText(msg.caller));
+
+        if (cyclesAdded < 100 * Constants.CYCLES_BILLION) {
+            D.print("Game State: addCycles - call with few Cycles from caller " # Principal.toText(msg.caller));
+            return #Err(#Unauthorized);
+        };
+
+        // Store the transaction
+        let transactionEntry : Types.CyclesTransaction = {
+            amountAdded : Nat = cyclesAdded;
+            newOfficialCycleBalance : Nat = Cycles.balance();
+            creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+            sentBy : Principal = msg.caller;
+            succeeded : Bool = true;
+            previousCyclesBalance : Nat = currentCyclesBalance;
+        };
+        cyclesTransactionsStorage := List.push<Types.CyclesTransaction>(transactionEntry, cyclesTransactionsStorage);
+        
+        return #Ok({
+            added : Bool = true;
+            amount : Nat = cyclesAdded;
+        });
     };
 
     // Flag to indicate if whitelist phase is going on
@@ -180,12 +226,12 @@ actor class GameStateCanister() = this {
         let buffer = BUFFER_MAINER_CREATION; // to guard against concurrent creations that would leave the user in a state where they paid for the mAIner creation but the protocol blocks it due to the limit
         switch (checkInput.mainerType) {
             case (#Own) {
-                if (getNumberMainerAgents(checkInput.mainerType) + buffer > LIMIT_OWN_MAINERS) {
+                if (getNumberMainerAgents(checkInput.mainerType) + buffer >= LIMIT_OWN_MAINERS) {
                     return #Ok({ flag = true });
                 };
             };
             case (#ShareAgent) {
-                if (getNumberMainerAgents(checkInput.mainerType) + buffer > LIMIT_SHARED_MAINERS) {
+                if (getNumberMainerAgents(checkInput.mainerType) + buffer >= LIMIT_SHARED_MAINERS) {
                     return #Ok({ flag = true });
                 };
             };
@@ -868,9 +914,9 @@ actor class GameStateCanister() = this {
         return true;
     };
 
-    // Price to create a mAIner TODO - Implementation: finalize prices (note that it's in 10000s)
-    // Cycles for ShareAgent mAIner Creation
-    stable var PRICE_FOR_SHARE_AGENT_ICP : Nat64 = 10; // TODO: Set to cost of a ShareAgent, in ICP
+    // Price to create a mAIner
+    stable var PRICE_FOR_SHARE_AGENT_ICP : Nat64 = 10; // Cost of a ShareAgent, in ICP
+
     public shared (msg) func setIcpForShareAgentAdmin(icpForShareAgent : Nat64) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -883,7 +929,8 @@ actor class GameStateCanister() = this {
         return #Ok({ price = PRICE_FOR_SHARE_AGENT_ICP });
     };
 
-    stable var WHITELIST_PRICE_FOR_SHARE_AGENT_ICP : Nat64 = PRICE_FOR_SHARE_AGENT_ICP / 2; // TODO: Set to cost of a ShareAgent, in ICP
+    stable var WHITELIST_PRICE_FOR_SHARE_AGENT_ICP : Nat64 = PRICE_FOR_SHARE_AGENT_ICP / 2; // Set to cost of a ShareAgent, in ICP
+
     public shared (msg) func setIcpForWhitelistShareAgentAdmin(icpForShareAgent : Nat64) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -937,6 +984,221 @@ actor class GameStateCanister() = this {
 
     public query func getWhitelistPriceForOwnMainer() : async Types.PriceResult {
         return #Ok({ price = WHITELIST_PRICE_FOR_OWN_MAINER_ICP });
+    };
+
+// Auction to sell mAIners
+    stable var MAINER_AUCTION_ACTIVE : Bool = false;
+
+    // Prices (in ICP) are consumed head-first; we store as a List so we can pop easily.
+    stable var pendingAuctionPrices : List.List<Nat64> = List.nil<Nat64>();
+
+    // Cadence between price updates (seconds)
+    stable var auctionIntervalSeconds : Nat = 60;
+
+    // Timestamp of last price change (in nanoseconds)
+    stable var lastAuctionPriceUpdateTimestampNs : Nat = 0;
+
+    // Timer handle
+    stable var auctionTimerId : ?Timer.TimerId = null;
+
+    private func setAuctionTimerRecurring() : async () {
+        // cancel previous if any
+        switch (auctionTimerId) {
+            case (?id) { Timer.cancelTimer(id); auctionTimerId := null };
+            case (null) {}
+        };
+        // Schedule recurring timer to tick the auction
+        let id = Timer.recurringTimer<system>(#seconds auctionIntervalSeconds, advanceAuctionOnce);
+        auctionTimerId := ?id;
+    };
+
+    private func nowNs() : Nat { Int.abs(Time.now()) };
+
+    private func nsPerSecond() : Nat { 1_000_000_000 };
+
+    private func auctionIntervalInNs() : Nat {
+        return auctionIntervalSeconds * nsPerSecond();
+    };
+
+    // Pops one price from pending list, sets it as current, updates timestamp.
+    // If no more prices left OR inventory zero, stop the auction.
+    private func advanceAuctionOnce() : async () {
+        D.print("Auction: advanceAuctionOnce()");
+        if (not MAINER_AUCTION_ACTIVE) {
+            D.print("Auction: inactive; skipping tick");
+            return;
+        };
+        if (getAvailableMainerCount({ mainerType : Types.MainerAgentCanisterType = #ShareAgent; }) == 0) {
+            D.print("Auction: no mAIners left; stopping");
+            ignore await stopAuctionInternal("No mAIners left");
+            return;
+        };
+
+        let (nextPrice, tail) = List.pop<Nat64>(pendingAuctionPrices);
+
+        switch (nextPrice) {
+            case (null) {
+                D.print("Auction: price list exhausted; stopping");
+                ignore await stopAuctionInternal("Price list exhausted");
+            };
+            case (?p) {
+                PRICE_FOR_SHARE_AGENT_ICP := p;
+                pendingAuctionPrices := tail;
+                lastAuctionPriceUpdateTimestampNs := nowNs();
+                D.print(
+                    "Auction: new price set to " # debug_show(p)
+                    # "; remaining prices: " # debug_show(List.size<Nat64>(pendingAuctionPrices))
+                );
+            };
+        };
+    };
+
+    private func stopAuctionInternal(reason : Text) : async Types.AuthRecordResult {
+        MAINER_AUCTION_ACTIVE := false;
+        switch (auctionTimerId) {
+            case (?id) {
+                Timer.cancelTimer(id);
+                auctionTimerId := null;
+            };
+            case (null) {};
+        };
+        D.print("Auction: stopped (" # reason # ")");
+        return #Ok({ auth = "Auction stopped: " # reason });
+    };
+
+    private func getAvailableMainerCount(checkInput : Types.CheckMainerLimit) : Nat {
+        let buffer = BUFFER_MAINER_CREATION; // to guard against concurrent creations that would leave the user in a state where they paid for the mAIner creation but the protocol blocks it due to the limit
+        switch (checkInput.mainerType) {
+            case (#Own) {
+                let currentNumberOfMainers = getNumberMainerAgents(checkInput.mainerType);
+                if (currentNumberOfMainers + buffer >= LIMIT_OWN_MAINERS) {
+                    return 0;
+                } else {
+                    return LIMIT_OWN_MAINERS - (currentNumberOfMainers + buffer);
+                };
+            };
+            case (#ShareAgent) {
+                let currentNumberOfMainers = getNumberMainerAgents(checkInput.mainerType);
+                if (currentNumberOfMainers + buffer >= LIMIT_SHARED_MAINERS) {
+                    return 0;
+                } else {
+                    return LIMIT_SHARED_MAINERS - (currentNumberOfMainers + buffer);
+                };
+            };
+            case (_) { return 0; }
+        };
+    };
+
+    // Admin endpoints for mAIner auction
+    public shared (msg) func setupAuctionAdmin(pricesInOrder : [Nat64], intervalSeconds : Nat) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller) or not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        if (pricesInOrder.size() < 1) {
+            return #Err(#Other("Provide at least 1 price"));
+        };
+        if (intervalSeconds < 1) {
+            return #Err(#Other("Interval has to be at least 1"));
+        };
+        // Prices are provided "in order" (early -> late). We want to pop head-first,
+        // so store as a List with head = first upcoming price. No need to reverse.
+        pendingAuctionPrices := List.fromArray<Nat64>(pricesInOrder);
+
+        auctionIntervalSeconds := intervalSeconds;
+
+        // Reset running state and price to prepare a clean start
+        MAINER_AUCTION_ACTIVE := false;
+        lastAuctionPriceUpdateTimestampNs := 0;
+
+        // Stop any previous timer if running
+        switch (auctionTimerId) {
+            case (?id) { Timer.cancelTimer(id); auctionTimerId := null };
+            case (null) {}
+        };
+
+        return #Ok({ auth = "Auction setup complete. Prices loaded: " #
+            debug_show(Array.size(pricesInOrder)) #
+            ", intervalSeconds=" # debug_show(intervalSeconds)
+        });
+    };
+
+    public shared (msg) func startAuctionAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller) or not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (List.isNil(pendingAuctionPrices)) {
+            return #Err(#Unauthorized); // no prices loaded
+        };
+        if (getAvailableMainerCount({ mainerType : Types.MainerAgentCanisterType = #ShareAgent; }) == 0) {
+            return #Err(#Unauthorized); // nothing to sell
+        };
+
+        MAINER_AUCTION_ACTIVE := true;
+
+        // Arm recurring timer and perform the first price update immediately
+        await setAuctionTimerRecurring();
+        await advanceAuctionOnce();
+
+        return #Ok({ auth = "Auction started." });
+    };
+
+    public shared (msg) func stopAuctionAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller) or not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        await stopAuctionInternal("Stopped by admin");
+    };
+
+    public shared (msg) func setAuctionIntervalSecondsAdmin(interval : Nat) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller) or not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (interval < 1) {
+            return #Err(#Other("Interval has to be at least 1"));
+        };
+        auctionIntervalSeconds := interval;
+        if (MAINER_AUCTION_ACTIVE) {
+            // restart timer with new cadence
+            await setAuctionTimerRecurring();
+        };
+        return #Ok({ auth = "Auction interval updated." });
+    };
+
+    public shared (msg) func setAuctionPricesAdmin(pricesInOrder : [Nat64]) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller) or not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (pricesInOrder.size() < 1) {
+            return #Err(#Other("Provide at least 1 price"));
+        };
+        pendingAuctionPrices := List.fromArray<Nat64>(pricesInOrder);
+        return #Ok({ auth = "Auction prices replaced. Count=" # debug_show(Array.size(pricesInOrder)) });
+    };
+
+    // Auction endpoints for frontend
+    public query func getIsMainerAuctionActive() : async Types.FlagResult {
+        return #Ok({ flag = MAINER_AUCTION_ACTIVE });
+    };
+
+    public query func getMainerAuctionTimerInfo() : async Types.MainerAuctionTimerInfoResult {
+        return #Ok({
+            lastUpdateNs : Nat = lastAuctionPriceUpdateTimestampNs;
+            intervalSeconds : Nat = auctionIntervalSeconds;
+            active : Bool = MAINER_AUCTION_ACTIVE;
+        });
+    };
+
+    public query func getNextMainerAuctionPriceDropAtNs() : async Types.NatResult {
+        if (MAINER_AUCTION_ACTIVE and lastAuctionPriceUpdateTimestampNs != 0) {
+            return #Ok(lastAuctionPriceUpdateTimestampNs + auctionIntervalInNs());
+        } else {
+            return #Ok(0);
+        }
+    };
+
+    public query func getAvailableMainers() : async Types.NatResult {
+        return #Ok( getAvailableMainerCount({ mainerType : Types.MainerAgentCanisterType = #ShareAgent; }) );
     };
 
     // Price at which users can buy cycles with FUNNAI from Game State
