@@ -9047,6 +9047,14 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Get user's current reservation (if any)
+    public query (msg) func getUserMarketplaceReservation() : async ?Types.MainerMarketplaceListing {
+        if (Principal.isAnonymous(msg.caller)) {
+            return null;
+        };
+        return getMarketplaceReservedMainerForUser(msg.caller);
+    };
+
     public query (msg) func getMarketplaceMainerListings() : async Types.MainerMarketplaceListingsResult {
         // Retrieve all mAIner marketplace listings
         return #Ok(getAllMarketplaceListedMainers());
