@@ -2156,6 +2156,85 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Admin function to check user-mAIner mapping consistency
+    // Returns info about any discrepancies between the two storage structures
+    public shared query (msg) func checkUserMainerMappingConsistencyAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Count total mAIners in main storage
+        var totalMainersInStorage : Nat = 0;
+        for ((address, mainerEntry) in mainerAgentCanistersStorage.entries()) {
+            totalMainersInStorage += 1;
+        };
+
+        // Count total mAIners in user mapping
+        var totalMainersInUserMapping : Nat = 0;
+        for ((user, mainersList) in userToMainerAgentsStorage.entries()) {
+            totalMainersInUserMapping += List.size(mainersList);
+        };
+
+        // Count unique users in user mapping
+        var uniqueUsers : Nat = 0;
+        for ((user, mainersList) in userToMainerAgentsStorage.entries()) {
+            uniqueUsers += 1;
+        };
+
+        let statusMsg = "Total mAIners in storage: " # Nat.toText(totalMainersInStorage) 
+                      # ", Total mAIners in user mapping: " # Nat.toText(totalMainersInUserMapping)
+                      # ", Unique users: " # Nat.toText(uniqueUsers);
+
+        if (totalMainersInStorage != totalMainersInUserMapping) {
+            let authRecord = { auth = "INCONSISTENCY: " # statusMsg # " - Run rebuildUserMainerMappingAdmin() to fix." };
+            return #Ok(authRecord);
+        } else {
+            let authRecord = { auth = "OK: Mapping is consistent. " # statusMsg };
+            return #Ok(authRecord);
+        };
+    };
+
+    // Admin function to rebuild userToMainerAgentsStorage from mainerAgentCanistersStorage
+    // This is useful if the user-to-mAIner mapping gets corrupted during an upgrade
+    public shared (msg) func rebuildUserMainerMappingAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Clear the existing mapping
+        userToMainerAgentsStorage := HashMap.HashMap(0, Principal.equal, Principal.hash);
+        
+        // Rebuild from mainerAgentCanistersStorage
+        var rebuiltCount : Nat = 0;
+        for ((address, mainerEntry) in mainerAgentCanistersStorage.entries()) {
+            // Add this mAIner to the user's list
+            switch (getUserMainerAgents(mainerEntry.ownedBy)) {
+                case (null) {
+                    // First mAIner for this user
+                    let userCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.make<Types.OfficialMainerAgentCanister>(mainerEntry);
+                    userToMainerAgentsStorage.put(mainerEntry.ownedBy, userCanistersList);
+                    rebuiltCount += 1;
+                };
+                case (?userCanistersList) {
+                    // Add to existing list, with deduplication based on address
+                    let filteredUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.filter(userCanistersList, func(listEntry: Types.OfficialMainerAgentCanister) : Bool { listEntry.address != mainerEntry.address });
+                    let updatedUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.push<Types.OfficialMainerAgentCanister>(mainerEntry, filteredUserCanistersList);
+                    userToMainerAgentsStorage.put(mainerEntry.ownedBy, updatedUserCanistersList);
+                    rebuiltCount += 1;
+                };
+            };
+        };
+
+        let authRecord = { auth = "Rebuilt user-mAIner mapping for " # Nat.toText(rebuiltCount) # " mAIners" };
+        return #Ok(authRecord);
+    };
+
     // Caution: function that returns all mAIner agents (TODO: decide if needed)
     private func getMainerAgents() : [Types.OfficialMainerAgentCanister] {
         var mainerAgents : List.List<Types.OfficialMainerAgentCanister> = List.nil<Types.OfficialMainerAgentCanister>();
