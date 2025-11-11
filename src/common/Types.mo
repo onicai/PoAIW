@@ -850,6 +850,8 @@ module Types {
         previousStatus : MainerStatus;
     };
 
+    public type MainerStatusEntryResult = Result<MainerStatusEntry, ApiError>;
+
 // Judge
     public type ScoredResponseInput = ChallengeResponseSubmission and {
         judgedBy: Principal;
@@ -1281,6 +1283,7 @@ module Types {
         addMainerShareAgentCanister: (OfficialMainerAgentCanister) -> async MainerAgentCanisterResult;
         startTimerExecutionAdmin: () -> async AuthRecordResult;
         addCycles: () -> async AddCyclesResult;
+        stopMainerFromCollapsing: () -> async MainerStatusEntryResult;
     };
 
     public type LLMCanister = actor {

@@ -104,12 +104,9 @@ actor class MainerAgentCtrlbCanister() = this {
         let cyclesAdded = Cycles.accept<system>(Cycles.available());
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): addCycles - Accepted " # Nat.toText(cyclesAdded) # " Cycles from caller " # Principal.toText(msg.caller));
 
-        // Unpause the mAIner if it was paused due to low cycle balance
-        let statusUpdateResult = handleMainerStatusAfterTopup();
-
-        // Add to official cycle balance and store all official top ups
+        // Game State can make official top ups (via its top up flow)
         if (Principal.equal(msg.caller, Principal.fromText(GAME_STATE_CANISTER_ID))) {
-            // Game State can make official top ups (via its top up flow)
+            // Add to official cycle balance and store all official top ups
             officialCyclesBalance := officialCyclesBalance + cyclesAdded;
             let topUpEntry : Types.OfficialMainerCycleTopUp = {
                 amountAdded : Nat = cyclesAdded;
@@ -118,6 +115,8 @@ actor class MainerAgentCtrlbCanister() = this {
                 sentBy : Principal = msg.caller;
             };
             officialCycleTopUpsStorage := List.push<Types.OfficialMainerCycleTopUp>(topUpEntry, officialCycleTopUpsStorage);
+            // Unpause the mAIner if it was inactive due to low cycles balance
+            let statusUpdateResult = handleMainerStatusAfterTopup();
         };
         
         return #Ok({
@@ -463,6 +462,43 @@ actor class MainerAgentCtrlbCanister() = this {
             lowCycleBalance = getPausedDueToLowCycleBalanceFlagValue();
         };
         return #Ok(response);
+    };
+
+    public shared (msg) func stopMainerFromCollapsing() : async Types.MainerStatusEntryResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };    
+        if (not Principal.equal(msg.caller, Principal.fromText(GAME_STATE_CANISTER_ID))) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopMainerFromCollapsing - Called by unauthorized caller " # Principal.toText(msg.caller));
+            return #Err(#Unauthorized);
+        };
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopMainerFromCollapsing - Called by game state " # GAME_STATE_CANISTER_ID);
+        switch (mainerStatus) {
+            case (#Collapsing) { 
+                // mAIner is currently collapsing and has to be switched back to inactive
+                // update status, archive and reset collapsing entries, and create first inactive entry
+                mainerStatus := #Inactive;
+                let newEntry : Types.MainerStatusEntry = {
+                    status : Types.MainerStatus = #Inactive;
+                    timestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                    currentCyclesBalance : Nat = Cycles.balance();
+                    note : Text = "Switched from collapsing to inactive";
+                    previousStatus : Types.MainerStatus = #Collapsing;
+                };
+                mainerCollapsingEntries := List.push<Types.MainerStatusEntry>(newEntry, mainerCollapsingEntries);
+                previousMainerCollapsingEntries := mainerCollapsingEntries;
+                mainerCollapsingEntries := List.nil<Types.MainerStatusEntry>();                
+                mainerInactiveEntries := List.nil<Types.MainerStatusEntry>(); // should not be needed but as a precaution
+                mainerInactiveEntries := List.push<Types.MainerStatusEntry>(newEntry, mainerInactiveEntries);
+                
+                return #Ok(newEntry);
+            };
+            case (_) {
+                // This should not happen (as game state would be making a wrong call)
+                D.print("mAIner: stopMainerFromCollapsing - Called by game state but not in state Collapsing but " # debug_show(mainerStatus));
+                return #Err(#Unauthorized);
+            };
+        };
     };
 
     // Statistics
