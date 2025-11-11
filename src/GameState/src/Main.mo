@@ -2197,6 +2197,53 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Admin function to clear all marketplace reservations
+    // This is useful if reservations get stuck due to timer issues or data corruption
+    public shared (msg) func clearMarketplaceReservationsAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        var clearedCount : Nat = 0;
+        
+        // Get all reserved mAIners
+        let reservedEntries = Iter.toArray(marketplaceReservedMainerAgentsStorage.entries());
+        
+        // Clear all reservations and return them to listings
+        for ((address, reservedEntry) in reservedEntries.vals()) {
+            // Cancel timers if they exist
+            switch (marketplaceReservationTimers.get(address)) {
+                case (?timerId) {
+                    Timer.cancelTimer(timerId);
+                    ignore marketplaceReservationTimers.remove(address);
+                };
+                case (null) {};
+            };
+            
+            // Return to listings
+            let listingEntry : Types.MainerMarketplaceListing = {
+                address = reservedEntry.address;
+                mainerType = reservedEntry.mainerType;
+                listedTimestamp = reservedEntry.listedTimestamp;
+                listedBy = reservedEntry.listedBy;
+                priceE8S = reservedEntry.priceE8S;
+                reservedBy = null;
+            };
+            ignore putMarketplaceListedMainer(listingEntry);
+            clearedCount += 1;
+        };
+        
+        // Clear the reservation storages
+        marketplaceReservedMainerAgentsStorage := HashMap.HashMap(0, Text.equal, Text.hash);
+        userToMarketplaceReservedMainerStorage := HashMap.HashMap(0, Principal.equal, Principal.hash);
+        
+        let authRecord = { auth = "Cleared " # Nat.toText(clearedCount) # " marketplace reservations" };
+        return #Ok(authRecord);
+    };
+
     // Admin function to rebuild userToMainerAgentsStorage from mainerAgentCanistersStorage
     // This is useful if the user-to-mAIner mapping gets corrupted during an upgrade
     public shared (msg) func rebuildUserMainerMappingAdmin() : async Types.AuthRecordResult {
@@ -8727,6 +8774,16 @@ actor class GameStateCanister() = this {
                                         // Add to buyer 
                                         let addResult : Bool = putUserMainerAgent(newCanisterEntry);
 
+                                        // Record the sale for statistics
+                                        let sale : MarketplaceSale = {
+                                            mainerAddress = mainerAddress;
+                                            seller = mainerEntry.ownedBy;
+                                            buyer = msg.caller;
+                                            priceE8S = userCanisterEntry.priceE8S;
+                                            saleTimestamp = Nat64.fromNat(Int.abs(Time.now()));
+                                        };
+                                        marketplaceSalesHistory.add(sale);
+
                                         // Clean up reservation and cancel the timer
                                         switch (marketplaceReservationTimers.get(mainerAddress)) {
                                             case (?timerId) {
@@ -8771,6 +8828,17 @@ actor class GameStateCanister() = this {
     // Non-stable: Timer IDs for marketplace reservations (2 minute expiry)
     var marketplaceReservationTimers : HashMap.HashMap<Text, Timer.TimerId> = HashMap.HashMap(0, Text.equal, Text.hash);
     let MARKETPLACE_RESERVATION_TIMEOUT_SECONDS : Nat = 120; // 2 minutes
+
+    // Marketplace sales history for statistics
+    public type MarketplaceSale = {
+        mainerAddress : Text;
+        seller : Principal;
+        buyer : Principal;
+        priceE8S : Nat;
+        saleTimestamp : Nat64;
+    };
+    stable var marketplaceSalesHistoryStable : [MarketplaceSale] = [];
+    var marketplaceSalesHistory : Buffer.Buffer<MarketplaceSale> = Buffer.Buffer<MarketplaceSale>(0);
 
     // CRUD helper functions for listings
     private func putMarketplaceListedMainer(entry : Types.MainerMarketplaceListing) : Types.MainerMarketplaceListing {
@@ -8984,6 +9052,33 @@ actor class GameStateCanister() = this {
         return #Ok(getAllMarketplaceListedMainers());
     };
 
+    public type MarketplaceStats = {
+        totalSales : Nat;
+        totalVolumeE8S : Nat;
+        uniqueBuyers : Nat;
+        uniqueSellers : Nat;
+    };
+
+    public query func getMarketplaceSalesStats() : async MarketplaceStats {
+        // Calculate stats from sales history
+        var totalVolumeE8S : Nat = 0;
+        var buyersSet = HashMap.HashMap<Principal, Bool>(0, Principal.equal, Principal.hash);
+        var sellersSet = HashMap.HashMap<Principal, Bool>(0, Principal.equal, Principal.hash);
+
+        for (sale in marketplaceSalesHistory.vals()) {
+            totalVolumeE8S += sale.priceE8S;
+            buyersSet.put(sale.buyer, true);
+            sellersSet.put(sale.seller, true);
+        };
+
+        return {
+            totalSales = marketplaceSalesHistory.size();
+            totalVolumeE8S = totalVolumeE8S;
+            uniqueBuyers = buyersSet.size();
+            uniqueSellers = sellersSet.size();
+        };
+    };
+
     public shared (msg) func reserveMarketplaceListedMainer<system>(reservationInput : Types.MainerMarketplaceReservationInput) : async Types.MainerMarketplaceReservationResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -9041,7 +9136,7 @@ actor class GameStateCanister() = this {
     };
 
     public shared (msg) func cancelMarketplaceReservation(reservationInput : Types.MainerMarketplaceReservationInput) : async Types.StatusCodeRecordResult {
-        // Allow the original seller to cancel a stuck reservation and relist their mAIner
+        // Allow the original seller OR the buyer who reserved it to cancel the reservation
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -9052,8 +9147,14 @@ actor class GameStateCanister() = this {
                 return #Err(#Unauthorized); // Not reserved
             };
             case (?reservedEntry) {
-                // Only the original seller can cancel the reservation
-                if (reservedEntry.listedBy != msg.caller) {
+                // Allow either the seller OR the buyer who reserved it to cancel
+                let isSeller = reservedEntry.listedBy == msg.caller;
+                let isBuyer = switch (reservedEntry.reservedBy) {
+                    case (null) { false };
+                    case (?buyer) { buyer == msg.caller };
+                };
+                
+                if (not isSeller and not isBuyer) {
                     return #Err(#Unauthorized);
                 };
                 
@@ -9092,6 +9193,7 @@ actor class GameStateCanister() = this {
         userToMarketplaceListedMainersStorageStable := Iter.toArray(userToMarketplaceListedMainersStorage.entries());
         marketplaceReservedMainerAgentsStorageStable := Iter.toArray(marketplaceReservedMainerAgentsStorage.entries());
         userToMarketplaceReservedMainerStorageStable := Iter.toArray(userToMarketplaceReservedMainerStorage.entries());
+        marketplaceSalesHistoryStable := Buffer.toArray(marketplaceSalesHistory);
     };
 
     system func postupgrade() {
@@ -9135,5 +9237,7 @@ actor class GameStateCanister() = this {
         marketplaceReservedMainerAgentsStorageStable := [];
         userToMarketplaceReservedMainerStorage := HashMap.fromIter(Iter.fromArray(userToMarketplaceReservedMainerStorageStable), userToMarketplaceReservedMainerStorageStable.size(), Principal.equal, Principal.hash);
         userToMarketplaceReservedMainerStorageStable := [];
+        marketplaceSalesHistory := Buffer.fromArray(marketplaceSalesHistoryStable);
+        marketplaceSalesHistoryStable := [];
     };
 };
