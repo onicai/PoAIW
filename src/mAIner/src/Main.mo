@@ -426,6 +426,7 @@ actor class MainerAgentCtrlbCanister() = this {
                             };
                             mainerCollapsingEntries := List.push<Types.MainerStatusEntry>(lastCollapsingEntry, mainerCollapsingEntries);
                             previousMainerCollapsingEntries := mainerCollapsingEntries;
+                            // TODO: call Game State with this update
                         };                        
                     };
                 };
