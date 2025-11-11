@@ -8648,6 +8648,17 @@ actor class GameStateCanister() = this {
                                         // Add to buyer 
                                         let addResult : Bool = putUserMainerAgent(newCanisterEntry);
 
+                                        // Clean up reservation and cancel the timer
+                                        switch (marketplaceReservationTimers.get(mainerAddress)) {
+                                            case (?timerId) {
+                                                Timer.cancelTimer(timerId);
+                                                ignore marketplaceReservationTimers.remove(mainerAddress);
+                                            };
+                                            case (null) {};
+                                        };
+                        ignore marketplaceReservedMainerAgentsStorage.remove(mainerAddress);
+                        ignore marketplaceReservedMainerStorage.remove(msg.caller);
+
                                         return [?#Ok(getNextMainerMarketplaceTransactionId())];                                        
                                     };
                                 };
@@ -8676,7 +8687,11 @@ actor class GameStateCanister() = this {
     stable var marketplaceReservedMainerAgentsStorageStable : [(Text, Types.MainerMarketplaceListing)] = [];
     var marketplaceReservedMainerAgentsStorage : HashMap.HashMap<Text, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Text.equal, Text.hash);
     stable var userToMarketplaceReservedMainerStorageStable : [(Principal, Types.MainerMarketplaceListing)] = [];
-    var userToMarketplaceReservedMainerStorage : HashMap.HashMap<Principal, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+    var marketplaceReservedMainerStorage : HashMap.HashMap<Principal, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+    
+    // Non-stable: Timer IDs for marketplace reservations (2 minute expiry)
+    var marketplaceReservationTimers : HashMap.HashMap<Text, Timer.TimerId> = HashMap.HashMap(0, Text.equal, Text.hash);
+    let MARKETPLACE_RESERVATION_TIMEOUT_SECONDS : Nat = 120; // 2 minutes
 
     // CRUD helper functions for listings
     private func putMarketplaceListedMainer(entry : Types.MainerMarketplaceListing) : Types.MainerMarketplaceListing {
@@ -8769,7 +8784,7 @@ actor class GameStateCanister() = this {
     };
 
     // CRUD helper functions for reservations
-    private func putMarketplaceReservedMainer(entry : Types.MainerMarketplaceListing) : Bool {
+    private func putMarketplaceReservedMainer<system>(entry : Types.MainerMarketplaceListing) : Bool {
         // Check that entry is in listings and isn't reserved already
         switch (getMarketplaceListedMainer(entry.address)) {
             case (null) {
@@ -8794,16 +8809,26 @@ actor class GameStateCanister() = this {
             case (?reservingUserPrincipal) {
                 // Reserve the mAIner and remove it from listings
                 marketplaceReservedMainerAgentsStorage.put(entry.address, entry);
-                userToMarketplaceReservedMainerStorage.put(reservingUserPrincipal, entry);
+                marketplaceReservedMainerStorage.put(reservingUserPrincipal, entry);
                 switch (removeMarketplaceListedMainer(entry.address)) {
                     case (true) {
-                        // TODO: set a timer to remove the reservation and add it back as a listing (in case the purchase wasn't completed in the meanwhile)
+                        // Set a timer to automatically unreserve if purchase isn't completed within timeout period
+                        let timerId = Timer.setTimer<system>(
+                            #seconds MARKETPLACE_RESERVATION_TIMEOUT_SECONDS,
+                            func () : async () {
+                                // Timer expired - unreserve the mAIner and put it back as a listing
+                                ignore removeMarketplaceReservedMainer(entry.address);
+                                // Clean up timer reference
+                                ignore marketplaceReservationTimers.remove(entry.address);
+                            }
+                        );
+                        marketplaceReservationTimers.put(entry.address, timerId);
                         return true;
                     };
                     case (false) { 
                         // Revert reservation changes
                         let removeResult = marketplaceReservedMainerAgentsStorage.remove(entry.address);
-                        let removeResult2 = userToMarketplaceReservedMainerStorage.remove(reservingUserPrincipal);
+                        let removeResult2 = marketplaceReservedMainerStorage.remove(reservingUserPrincipal);
                         return false;                
                     }; 
                 };
@@ -8823,13 +8848,22 @@ actor class GameStateCanister() = this {
         switch (marketplaceReservedMainerAgentsStorage.get(canisterAddress)) {
             case (null) { return false; };
             case (?canisterEntry) {
+                // Cancel the reservation timer if it exists
+                switch (marketplaceReservationTimers.get(canisterAddress)) {
+                    case (?timerId) {
+                        Timer.cancelTimer(timerId);
+                        ignore marketplaceReservationTimers.remove(canisterAddress);
+                    };
+                    case (null) {};
+                };
+                
                 let removeResult = marketplaceReservedMainerAgentsStorage.remove(canisterAddress);
                 switch (canisterEntry.reservedBy) {
                     case (null) {
                         // This should not happen
                     };
                     case (?reservingUserPrincipal) {
-                        let removeResult2 = userToMarketplaceReservedMainerStorage.remove(reservingUserPrincipal);
+                        let removeResult2 = marketplaceReservedMainerStorage.remove(reservingUserPrincipal);
                     }; 
                 };
                 let newListingEntry = {
@@ -8847,7 +8881,7 @@ actor class GameStateCanister() = this {
     };
 
     private func getMarketplaceReservedMainerForUser(userId : Principal) : ?Types.MainerMarketplaceListing {
-        switch (userToMarketplaceReservedMainerStorage.get(userId)) {
+        switch (marketplaceReservedMainerStorage.get(userId)) {
             case (null) { return null; };
             case (?userCanisterEntry) { return ?userCanisterEntry; };
         };
@@ -8871,7 +8905,7 @@ actor class GameStateCanister() = this {
         return #Ok(getAllMarketplaceListedMainers());
     };
 
-    public shared (msg) func reserveMarketplaceListedMainer(reservationInput : Types.MainerMarketplaceReservationInput) : async Types.MainerMarketplaceReservationResult {
+    public shared (msg) func reserveMarketplaceListedMainer<system>(reservationInput : Types.MainerMarketplaceReservationInput) : async Types.MainerMarketplaceReservationResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -8927,6 +8961,36 @@ actor class GameStateCanister() = this {
         };
     };
 
+    public shared (msg) func cancelMarketplaceReservation(reservationInput : Types.MainerMarketplaceReservationInput) : async Types.StatusCodeRecordResult {
+        // Allow the original seller to cancel a stuck reservation and relist their mAIner
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        
+        // Check if mAIner is reserved
+        switch (getMarketplaceReservedMainer(reservationInput.address)) {
+            case (null) { 
+                return #Err(#Unauthorized); // Not reserved
+            };
+            case (?reservedEntry) {
+                // Only the original seller can cancel the reservation
+                if (reservedEntry.listedBy != msg.caller) {
+                    return #Err(#Unauthorized);
+                };
+                
+                // Remove the reservation and put it back as a listing
+                switch (removeMarketplaceReservedMainer(reservationInput.address)) {
+                    case (true) {
+                        return #Ok({ status_code = 200; });
+                    };
+                    case (false) {
+                        return #Err(#Unauthorized);
+                    };
+                };
+            };
+        };
+    };
+
 // Upgrade Hooks (TODO - Implementation: upgrade Motoko to use enhanced orthogonal persistence)
     system func preupgrade() {
         challengerCanistersStorageStable := Iter.toArray(challengerCanistersStorage.entries());
@@ -8948,7 +9012,7 @@ actor class GameStateCanister() = this {
         marketplaceListedMainerAgentsStorageStable := Iter.toArray(marketplaceListedMainerAgentsStorage.entries());
         userToMarketplaceListedMainersStorageStable := Iter.toArray(userToMarketplaceListedMainersStorage.entries());
         marketplaceReservedMainerAgentsStorageStable := Iter.toArray(marketplaceReservedMainerAgentsStorage.entries());
-        userToMarketplaceReservedMainerStorageStable := Iter.toArray(userToMarketplaceReservedMainerStorage.entries());
+        userToMarketplaceReservedMainerStorageStable := Iter.toArray(marketplaceReservedMainerStorage.entries());
     };
 
     system func postupgrade() {
@@ -8990,7 +9054,7 @@ actor class GameStateCanister() = this {
         userToMarketplaceListedMainersStorageStable := [];
         marketplaceReservedMainerAgentsStorage := HashMap.fromIter(Iter.fromArray(marketplaceReservedMainerAgentsStorageStable), marketplaceReservedMainerAgentsStorageStable.size(), Text.equal, Text.hash);
         marketplaceReservedMainerAgentsStorageStable := [];
-        userToMarketplaceReservedMainerStorage := HashMap.fromIter(Iter.fromArray(userToMarketplaceReservedMainerStorageStable), userToMarketplaceReservedMainerStorageStable.size(), Principal.equal, Principal.hash);
+        marketplaceReservedMainerStorage := HashMap.fromIter(Iter.fromArray(userToMarketplaceReservedMainerStorageStable), userToMarketplaceReservedMainerStorageStable.size(), Principal.equal, Principal.hash);
         userToMarketplaceReservedMainerStorageStable := [];
     };
 };
