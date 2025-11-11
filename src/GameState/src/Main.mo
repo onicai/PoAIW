@@ -9055,6 +9055,14 @@ actor class GameStateCanister() = this {
         return getMarketplaceReservedMainerForUser(msg.caller);
     };
 
+    // Admin: Check if a specific mAIner is in reserved storage (for debugging)
+    public query func isMainerInReservedStorage(mainerAddress : Text) : async Bool {
+        switch (marketplaceReservedMainerAgentsStorage.get(mainerAddress)) {
+            case (null) { return false; };
+            case (?_) { return true; };
+        };
+    };
+
     public query (msg) func getMarketplaceMainerListings() : async Types.MainerMarketplaceListingsResult {
         // Retrieve all mAIner marketplace listings
         return #Ok(getAllMarketplaceListedMainers());
