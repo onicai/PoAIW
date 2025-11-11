@@ -11,6 +11,7 @@ import Nat64 "mo:base/Nat64";
 import Nat "mo:base/Nat";
 import Error "mo:base/Error";
 import Sha256 "mo:sha2/Sha256";
+import Hex "mo:hex/Hex";
 import List "mo:base/List";
 import Int "mo:base/Int";
 import Time "mo:base/Time";
@@ -32,6 +33,16 @@ actor class MainerCreatorCanister() = this {
         MASTER_CANISTER_ID := _master_canister_id;
         let authRecord = { auth = "You set the master canister for this canister." };
         return #Ok(authRecord);
+    };
+
+    public query (msg) func getMasterCanisterIdAdmin() : async Text {
+        if (Principal.isAnonymous(msg.caller)) {
+            return "Unauthorized";
+        };
+        if (not Principal.isController(msg.caller)) {
+            return "Unauthorized";
+        };
+        return MASTER_CANISTER_ID;
     };
 
     let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
@@ -182,14 +193,105 @@ actor class MainerCreatorCanister() = this {
         return CYCLES_AMOUNT_TO_GAME_STATE_CANISTER;
     };
 
+    // -------------------------------------------------------------------------------
+    // Wasm Hash Management
+
+    // Helper function to calculate SHA-256 hash of wasm blobs
+    private func calculateWasmSha256(wasmBlobs : [Blob]) : Text {
+        if (wasmBlobs.size() == 0) {
+            return "";
+        };
+
+        // Concatenate all blobs and calculate hash
+        var allBytes : [Nat8] = [];
+        for (blob in wasmBlobs.vals()) {
+            allBytes := Array.append(allBytes, Blob.toArray(blob));
+        };
+
+        let hashBlob = Sha256.fromArray(#sha256, allBytes);
+        let hexHash = Hex.encode(Blob.toArray(hashBlob));
+        return "0x" # Text.toLowercase(hexHash);
+    };
+
+    // Get mainer controller wasm hash, calculating and caching if needed
+    private func getMainerControllerWasmSha256() : Text {
+        if (mainerControllerCanisterWasmSha256 == "" and mainerControllerCanisterWasm.size() > 0) {
+            mainerControllerCanisterWasmSha256 := calculateWasmSha256(mainerControllerCanisterWasm);
+        };
+        return mainerControllerCanisterWasmSha256;
+    };
+
+    // Get LLM canister wasm hash for a model (returns cached value only)
+    private func getLlmCanisterWasmSha256(modelName : Text) : Text {
+        switch (llmCanisterWasmSha256ByModel.get(modelName)) {
+            case (?cachedHash) { return cachedHash; };
+            case null { return ""; };
+        };
+    };
+
+    // Admin function to get SHA-256 hashes of all uploaded wasm files
+    public query (msg) func getSha256HashesAdmin() : async {
+        mainerControllerWasmSha256 : Text;
+        llmWasmHashes : [(Text, { wasmSha256 : Text; modelFileSha256 : Text })];
+    } {
+        if (Principal.isAnonymous(msg.caller)) {
+            return {
+                mainerControllerWasmSha256 = "Unauthorized";
+                llmWasmHashes = [];
+            };
+        };
+        if (not Principal.isController(msg.caller)) {
+            return {
+                mainerControllerWasmSha256 = "Unauthorized";
+                llmWasmHashes = [];
+            };
+        };
+
+        // Get mainer controller wasm hash
+        let controllerHash = getMainerControllerWasmSha256();
+
+        // Log warning if controller wasm hash is empty but wasm data exists
+        if (controllerHash == "" and mainerControllerCanisterWasm.size() > 0) {
+            D.print("mAInerCreator: getSha256HashesAdmin - WARNING: mainerControllerWasmSha256 is empty but wasm data exists. Call finish_upload_mainer_controller_canister_wasm() to calculate the hash.");
+        };
+
+        // Get hashes for all LLM models
+        var llmHashes : [(Text, { wasmSha256 : Text; modelFileSha256 : Text })] = [];
+        for ((modelName, artefacts) in creationArtefactsByModel.entries()) {
+            // Get wasm hash (returns cached value only)
+            let wasmHash = getLlmCanisterWasmSha256(modelName);
+
+            // Log warning if LLM wasm hash is empty but wasm data exists
+            if (wasmHash == "" and artefacts.canisterWasm.size() > 0) {
+                D.print("mAInerCreator: getSha256HashesAdmin - WARNING: wasmSha256 for model '" # modelName # "' is empty but wasm data exists. Call finish_upload_mainer_llm_canister_wasm() to calculate the hash.");
+            };
+
+            let modelInfo = {
+                wasmSha256 = wasmHash;
+                modelFileSha256 = artefacts.modelFileSha256;
+            };
+            llmHashes := Array.append(llmHashes, [(modelName, modelInfo)]);
+        };
+
+        return {
+            mainerControllerWasmSha256 = controllerHash;
+            llmWasmHashes = llmHashes;
+        };
+    };
+
+    // -------------------------------------------------------------------------------
+    // Wasm Upload Functions
+
     // Admin function to upload mainer agent controller canister wasm
     private stable var mainerControllerCanisterWasm : [Blob] = [];
+    private stable var mainerControllerCanisterWasmSha256 : Text = "";
 
     public shared (msg) func start_upload_mainer_controller_canister_wasm() : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
         mainerControllerCanisterWasm := [];
+        mainerControllerCanisterWasmSha256 := ""; // Reset hash for new upload
         return #Ok({ status_code = 200 });
     };
 
@@ -212,10 +314,32 @@ actor class MainerCreatorCanister() = this {
         return #Ok({ creationResult = "Success" });
     };
 
-    // Admin function to upload artefacts for mainer agent LLM canister 
+    // Finish mainer controller wasm upload and calculate SHA-256 hash
+    public shared (msg) func finish_upload_mainer_controller_canister_wasm() : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        if (mainerControllerCanisterWasm.size() > 0) {
+            mainerControllerCanisterWasmSha256 := calculateWasmSha256(mainerControllerCanisterWasm);
+            D.print("mAInerCreator: finish_upload_mainer_controller_canister_wasm - hash = " # mainerControllerCanisterWasmSha256);
+            return #Ok({ status_code = 200 });
+        } else {
+            return #Err(#Other("No wasm data found"));
+        };
+    };
+
+    // Admin function to upload artefacts for mainer agent LLM canister
     // Map each AI model id to a record with the artefacts needed to create a new canister
     private var creationArtefactsByModel = HashMap.HashMap<Text, Types.ModelCreationArtefacts>(0, Text.equal, Text.hash);
-    stable var creationArtefactsByModelStable : [(Text, Types.ModelCreationArtefacts)] = [];
+    private stable var creationArtefactsByModelStable : [(Text, Types.ModelCreationArtefacts)] = [];
+
+    // Separate storage for LLM canister wasm SHA-256 hashes (to avoid modifying ModelCreationArtefacts type)
+    private var llmCanisterWasmSha256ByModel = HashMap.HashMap<Text, Text>(0, Text.equal, Text.hash);
+    private stable var llmCanisterWasmSha256ByModelStable : [(Text, Text)] = [];
 
     private func getModelCreationArtefacts(selectedModel : Types.SelectableMainerLLMs) : ?Types.ModelCreationArtefacts {
         switch (selectedModel) {
@@ -272,6 +396,14 @@ actor class MainerCreatorCanister() = this {
                     modelFileSha256 : Text = existingArtefacts.modelFileSha256;
                 };
 
+                // Reset hash for new wasm upload
+                switch (selectedModel) {
+                    case (#Qwen2_5_500M) {
+                        llmCanisterWasmSha256ByModel.put("Qwen2_5_500M", "");
+                    };
+                    case _ {};
+                };
+
                 let updateArtefactsResult = putModelCreationArtefacts(selectedModel, updatedArtefacts);
 
                 return #Ok({ status_code = 200 });
@@ -320,6 +452,38 @@ actor class MainerCreatorCanister() = this {
 
                 let updateArtefactsResult = putModelCreationArtefacts(selectedModel, newArtefacts);
                 return #Ok({ creationResult = "New entry created" });
+            };
+        };
+    };
+
+    // Finish LLM canister wasm upload and calculate SHA-256 hash
+    public shared (msg) func finish_upload_mainer_llm_canister_wasm(selectedModel : Types.SelectableMainerLLMs) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Calculate and cache the wasm hash
+        let modelName = switch (selectedModel) {
+            case (#Qwen2_5_500M) { "Qwen2_5_500M" };
+            case _ { return #Err(#Other("Unknown model type")); };
+        };
+
+        switch (creationArtefactsByModel.get(modelName)) {
+            case (?artefacts) {
+                if (artefacts.canisterWasm.size() > 0) {
+                    let calculatedHash = calculateWasmSha256(artefacts.canisterWasm);
+                    llmCanisterWasmSha256ByModel.put(modelName, calculatedHash);
+                    D.print("mAInerCreator: finish_upload_mainer_llm_canister_wasm - hash = " # calculatedHash);
+                    return #Ok({ status_code = 200 });
+                } else {
+                    return #Err(#Other("No wasm data found for this model"));
+                };
+            };
+            case null {
+                return #Err(#Other("Model artefacts not found"));
             };
         };
     };
@@ -1745,6 +1909,7 @@ actor class MainerCreatorCanister() = this {
     system func preupgrade() {
         // Copy the runtime state back into the stable variable before upgrade.
         creationArtefactsByModelStable := Iter.toArray(creationArtefactsByModel.entries());
+        llmCanisterWasmSha256ByModelStable := Iter.toArray(llmCanisterWasmSha256ByModel.entries());
     };
 
     // System-provided lifecycle method called after an upgrade or on initial deploy.
@@ -1752,6 +1917,9 @@ actor class MainerCreatorCanister() = this {
         // After upgrade, reload the runtime state from the stable variable.
         creationArtefactsByModel := HashMap.fromIter(Iter.fromArray(creationArtefactsByModelStable), creationArtefactsByModelStable.size(), Text.equal, Text.hash);
         creationArtefactsByModelStable := [];
+
+        llmCanisterWasmSha256ByModel := HashMap.fromIter(Iter.fromArray(llmCanisterWasmSha256ByModelStable), llmCanisterWasmSha256ByModelStable.size(), Text.equal, Text.hash);
+        llmCanisterWasmSha256ByModelStable := [];
     };
     // -------------------------------------------------------------------------------
 };

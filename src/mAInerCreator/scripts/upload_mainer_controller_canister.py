@@ -11,6 +11,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Generator
+from pprint import pprint
 from .ic_py_canister import get_canister, run_dfx_command
 from .parse_args_upload import parse_args
 
@@ -147,6 +148,23 @@ def main() -> int:
             print("Something went wrong:")
             print(response)
             sys.exit(1)
+
+    # ---------------------------------------------------------------------------
+    # Finalize the upload and calculate SHA-256 hash
+    print("--\nFinalizing upload and calculating SHA-256 hash")
+    finishResponse = canister_creator.finish_upload_mainer_controller_canister_wasm()  # pylint: disable=no-member
+    if "Ok" in finishResponse[0].keys():
+        print("OK! SHA-256 hash calculated and cached.")
+    else:
+        print("Something went wrong:")
+        print(finishResponse)
+        sys.exit(1)
+
+    # ---------------------------------------------------------------------------
+    # Get and display the SHA-256 hashes
+    print("--\nRetrieving SHA-256 hashes")
+    hashesResponse = canister_creator.getSha256HashesAdmin()  # pylint: disable=no-member
+    pprint(hashesResponse)
 
     # ---------------------------------------------------------------------------
     return 0
