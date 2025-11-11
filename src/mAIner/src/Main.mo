@@ -313,6 +313,34 @@ actor class MainerAgentCtrlbCanister() = this {
         return true;
     };
 
+    private func getMainerInactivityStateGracePeriod() : Nat64 {
+        switch (MAINER_AGENT_CANISTER_TYPE) {
+            case (#ShareAgent) {
+                return 7 * 24 * 60 * 60 * 1_000_000_000; // 7 days in nanoseconds
+            };
+            case (#Own) {
+                return 3 * 24 * 60 * 60 * 1_000_000_000; // 3 days in nanoseconds                
+            };
+            case (_) {
+                return 0;                
+            };
+        };
+    };
+
+    private func getMainerCollapsingStateGracePeriod() : Nat64 {
+        switch (MAINER_AGENT_CANISTER_TYPE) {
+            case (#ShareAgent) {
+                return 14 * 24 * 60 * 60 * 1_000_000_000; // 14 days in nanoseconds
+            };
+            case (#Own) {
+                return 4 * 24 * 60 * 60 * 1_000_000_000; // 4 days in nanoseconds                
+            };
+            case (_) {
+                return 0;                
+            };
+        };
+    };
+
     // Internal functions to check if the canister has enough cycles
     private func sufficientCyclesToProcessChallenge(challenge : Types.Challenge) : Bool {
         // The ShareService canister does not Queue or Submit
@@ -376,7 +404,7 @@ actor class MainerAgentCtrlbCanister() = this {
                 switch (List.last<Types.MainerStatusEntry>(mainerInactiveEntries)) {
                     case (null) {}; // Continue
                     case (?earliestInactiveEntry) {
-                        let mainerInactivityStateGracePeriod : Nat64 = 7 * 24 * 60 * 60 * 1_000_000_000; // 7 days in nanoseconds
+                        let mainerInactivityStateGracePeriod : Nat64 = getMainerInactivityStateGracePeriod();
                         if (timestampNow > earliestInactiveEntry.timestamp + mainerInactivityStateGracePeriod) {
                             // Grace period is over
                             mainerStatus := #Collapsing;
@@ -413,7 +441,7 @@ actor class MainerAgentCtrlbCanister() = this {
                 switch (List.last<Types.MainerStatusEntry>(mainerCollapsingEntries)) {
                     case (null) {}; // Continue
                     case (?earliestCollapsingEntry) {
-                        let mainerCollapsingStateGracePeriod : Nat64 = 14 * 24 * 60 * 60 * 1_000_000_000; // 14 days in nanoseconds
+                        let mainerCollapsingStateGracePeriod : Nat64 = getMainerCollapsingStateGracePeriod();
                         if (timestampNow > earliestCollapsingEntry.timestamp + mainerCollapsingStateGracePeriod) {
                             // Grace period is over
                             mainerStatus := #Blackholed;
