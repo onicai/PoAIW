@@ -8657,7 +8657,7 @@ actor class GameStateCanister() = this {
                                             case (null) {};
                                         };
                         ignore marketplaceReservedMainerAgentsStorage.remove(mainerAddress);
-                        ignore marketplaceReservedMainerStorage.remove(msg.caller);
+                        ignore userToMarketplaceReservedMainerStorage.remove(msg.caller);
 
                                         return [?#Ok(getNextMainerMarketplaceTransactionId())];                                        
                                     };
@@ -8687,7 +8687,7 @@ actor class GameStateCanister() = this {
     stable var marketplaceReservedMainerAgentsStorageStable : [(Text, Types.MainerMarketplaceListing)] = [];
     var marketplaceReservedMainerAgentsStorage : HashMap.HashMap<Text, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Text.equal, Text.hash);
     stable var userToMarketplaceReservedMainerStorageStable : [(Principal, Types.MainerMarketplaceListing)] = [];
-    var marketplaceReservedMainerStorage : HashMap.HashMap<Principal, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+    var userToMarketplaceReservedMainerStorage : HashMap.HashMap<Principal, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Principal.equal, Principal.hash);
     
     // Non-stable: Timer IDs for marketplace reservations (2 minute expiry)
     var marketplaceReservationTimers : HashMap.HashMap<Text, Timer.TimerId> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -8809,7 +8809,7 @@ actor class GameStateCanister() = this {
             case (?reservingUserPrincipal) {
                 // Reserve the mAIner and remove it from listings
                 marketplaceReservedMainerAgentsStorage.put(entry.address, entry);
-                marketplaceReservedMainerStorage.put(reservingUserPrincipal, entry);
+                userToMarketplaceReservedMainerStorage.put(reservingUserPrincipal, entry);
                 switch (removeMarketplaceListedMainer(entry.address)) {
                     case (true) {
                         // Set a timer to automatically unreserve if purchase isn't completed within timeout period
@@ -8828,7 +8828,7 @@ actor class GameStateCanister() = this {
                     case (false) { 
                         // Revert reservation changes
                         let removeResult = marketplaceReservedMainerAgentsStorage.remove(entry.address);
-                        let removeResult2 = marketplaceReservedMainerStorage.remove(reservingUserPrincipal);
+                        let removeResult2 = userToMarketplaceReservedMainerStorage.remove(reservingUserPrincipal);
                         return false;                
                     }; 
                 };
@@ -8863,7 +8863,7 @@ actor class GameStateCanister() = this {
                         // This should not happen
                     };
                     case (?reservingUserPrincipal) {
-                        let removeResult2 = marketplaceReservedMainerStorage.remove(reservingUserPrincipal);
+                        let removeResult2 = userToMarketplaceReservedMainerStorage.remove(reservingUserPrincipal);
                     }; 
                 };
                 let newListingEntry = {
@@ -8881,7 +8881,7 @@ actor class GameStateCanister() = this {
     };
 
     private func getMarketplaceReservedMainerForUser(userId : Principal) : ?Types.MainerMarketplaceListing {
-        switch (marketplaceReservedMainerStorage.get(userId)) {
+        switch (userToMarketplaceReservedMainerStorage.get(userId)) {
             case (null) { return null; };
             case (?userCanisterEntry) { return ?userCanisterEntry; };
         };
@@ -9012,7 +9012,7 @@ actor class GameStateCanister() = this {
         marketplaceListedMainerAgentsStorageStable := Iter.toArray(marketplaceListedMainerAgentsStorage.entries());
         userToMarketplaceListedMainersStorageStable := Iter.toArray(userToMarketplaceListedMainersStorage.entries());
         marketplaceReservedMainerAgentsStorageStable := Iter.toArray(marketplaceReservedMainerAgentsStorage.entries());
-        userToMarketplaceReservedMainerStorageStable := Iter.toArray(marketplaceReservedMainerStorage.entries());
+        userToMarketplaceReservedMainerStorageStable := Iter.toArray(userToMarketplaceReservedMainerStorage.entries());
     };
 
     system func postupgrade() {
@@ -9054,7 +9054,7 @@ actor class GameStateCanister() = this {
         userToMarketplaceListedMainersStorageStable := [];
         marketplaceReservedMainerAgentsStorage := HashMap.fromIter(Iter.fromArray(marketplaceReservedMainerAgentsStorageStable), marketplaceReservedMainerAgentsStorageStable.size(), Text.equal, Text.hash);
         marketplaceReservedMainerAgentsStorageStable := [];
-        marketplaceReservedMainerStorage := HashMap.fromIter(Iter.fromArray(userToMarketplaceReservedMainerStorageStable), userToMarketplaceReservedMainerStorageStable.size(), Principal.equal, Principal.hash);
+        userToMarketplaceReservedMainerStorage := HashMap.fromIter(Iter.fromArray(userToMarketplaceReservedMainerStorageStable), userToMarketplaceReservedMainerStorageStable.size(), Principal.equal, Principal.hash);
         userToMarketplaceReservedMainerStorageStable := [];
     };
 };
