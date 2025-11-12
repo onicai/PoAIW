@@ -2197,8 +2197,11 @@ actor class GameStateCanister() = this {
         };
     };
 
-    // Admin function to rebuild userToMainerAgentsStorage from mainerAgentCanistersStorage
+    // COMMENTED OUT: Admin function to rebuild userToMainerAgentsStorage from mainerAgentCanistersStorage
     // This is useful if the user-to-mAIner mapping gets corrupted during an upgrade
+    // WARNING: This function is too risky to leave enabled as it clears and rebuilds the entire mapping
+    // Uncomment only if absolutely necessary for emergency recovery
+    /*
     public shared (msg) func rebuildUserMainerMappingAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -2234,6 +2237,7 @@ actor class GameStateCanister() = this {
         let authRecord = { auth = "Rebuilt user-mAIner mapping for " # Nat.toText(rebuiltCount) # " mAIners" };
         return #Ok(authRecord);
     };
+    */
 
     // Caution: function that returns all mAIner agents (TODO: decide if needed)
     private func getMainerAgents() : [Types.OfficialMainerAgentCanister] {
