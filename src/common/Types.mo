@@ -406,6 +406,8 @@ module Types {
     public type RedeemedForOptions = {
         #MainerCreation : MainerAgentCanisterType;
         #MainerTopUp : CanisterAddress;
+        #MainerStoppedFromCollapsing : CanisterAddress;
+        #Other : Text;
     };
 
     public type HandleIncomingFundsRecord = {

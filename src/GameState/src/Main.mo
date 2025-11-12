@@ -4542,6 +4542,19 @@ actor class GameStateCanister() = this {
         return #Ok(CYCLES_BALANCE_THRESHOLD_FUNNAI_TOPUPS);
     };
 
+    stable var PRICE_FUNNAI_FOR_STOPPING_MAINER_FROM_COLLAPSING : Nat64 = 100; // In FUNNAI
+    public shared (msg) func setFunnaiForStoppingMainerFromCollapsingAdmin(funnaiAmount : Nat64) : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        PRICE_FUNNAI_FOR_STOPPING_MAINER_FROM_COLLAPSING := funnaiAmount;
+        return #Ok({ status_code = 200 });
+    };
+
+    public query func getPriceFunnaiStoppingMainerFromCollapsingAdmin() : async Types.PriceResult {
+        return #Ok({ price = PRICE_FUNNAI_FOR_STOPPING_MAINER_FROM_COLLAPSING });
+    };
+
     // Decide on usage of incoming funds (e.g. for mAIner creation or top ups)
     private func handleIncomingFunds(transactionEntry : Types.RedeemedTransactionBlock) : async Types.HandleIncomingFundsResult {
         D.print("GameState: handleIncomingFunds - transactionEntry: "# debug_show(transactionEntry));
@@ -5084,6 +5097,15 @@ actor class GameStateCanister() = this {
                     case (#MainerTopUp(_)) {
                         D.print("GameState: verifyIncomingFunnaiPayment - #MainerTopUp ");
                         // continue as there is no fixed price                             
+                    };
+                    case (#MainerStoppedFromCollapsing(_)) {
+                        D.print("GameState: verifyIncomingFunnaiPayment - #MainerStoppedFromCollapsing ");
+                        // Check correct price was paid
+                        D.print("GameState: verifyIncomingFunnaiPayment - #MainerStoppedFromCollapsing PRICE_OWN_MAINER: "# debug_show(PRICE_FOR_OWN_MAINER_ICP));
+                        let E8S_PER_FUNNAI_WITH_BUFFER : Nat64 = 90_000_000; // 10^8 e8s per FUNNAI
+                        if (Nat64.fromNat(burnOperation.amount) < PRICE_FUNNAI_FOR_STOPPING_MAINER_FROM_COLLAPSING * E8S_PER_FUNNAI_WITH_BUFFER) {
+                            return #Err(#Other("Transaction didn't pay full price"));
+                        };
                     };
                     case (_) { return #Err(#Other("Unsupported")); }
                 };
@@ -7141,6 +7163,131 @@ actor class GameStateCanister() = this {
                                 };
                             };
                         };                       
+                    };
+                };
+            };
+        };
+    };
+
+    // Function for user to stop an existing mAIner from collapsing (and thus becoming blackholed) by burning FUNNAI
+    public shared (msg) func stopUserMainerAgentFromCollapsingWithFunnai(mainerInput : Types.MainerAgentTopUpInput) : async Types.MainerAgentCanisterResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (PAUSE_PROTOCOL and not Principal.isController(msg.caller)) {
+            return #Err(#Other("Protocol is currently paused"));
+        };
+
+        // Ensure this transaction block hasn't been redeemed yet (no double spending)     
+        let transactionToVerify = mainerInput.paymentTransactionBlockId;
+        switch (checkExistingFunnaiTransactionBlock(transactionToVerify)) {
+            case (false) {
+                // new transaction, continue
+            };
+            case (true) {
+                // already redeem transaction
+                return #Err(#Other("Already redeemed this transaction block")); // no double spending
+            };
+        };
+
+        // Sanity checks on provided mAIner info
+        let mainerInfo : Types.OfficialMainerAgentCanister = mainerInput.mainerAgent;
+        if (not Principal.equal(mainerInfo.ownedBy, msg.caller)) {
+            // Only the mAIner owner may call this
+            return #Err(#Unauthorized);
+        };
+        if (mainerInfo.address == "") {
+            // The mAIner Controller canister address is needed
+            return #Err(#InvalidId);
+        };
+        switch (mainerInfo.canisterType) {
+            case (#MainerAgent(_)) {
+                // continue
+            };
+            case (_) { return #Err(#Other("Unsupported")); }
+        };
+
+        // Verify existing mAIner entry
+        switch (getUserMainerAgents(msg.caller)) {
+            case (null) {
+                return #Err(#Unauthorized);
+            };
+            case (?userMainerEntries) {
+                switch (List.find<Types.OfficialMainerAgentCanister>(userMainerEntries, func(mainerEntry: Types.OfficialMainerAgentCanister) : Bool { mainerEntry.address == mainerInfo.address } )) {
+                    case (null) {
+                        return #Err(#InvalidId);
+                    };
+                    case (?userMainerEntry) {
+                        // Sanity checks on userMainerEntry (i.e. address provided is correct and matches entry info)
+                        switch (userMainerEntry.canisterType) {
+                            case (#MainerAgent(_)) {
+                                // continue
+                            };
+                            case (_) { return #Err(#Other("Unsupported")); }
+                        };
+
+                        // Verify user's FUNNAI payment for this via the TransactionBlockId
+                        var verifiedPayment : Bool = false;
+                        var amountPaid : Nat = 0;
+                        let redeemedFor : Types.RedeemedForOptions = #MainerStoppedFromCollapsing(userMainerEntry.address);
+                        let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                        let transactionEntryToVerify : Types.RedeemedTransactionBlock = {
+                            paymentTransactionBlockId : Nat64 = mainerInput.paymentTransactionBlockId;
+                            creationTimestamp : Nat64 = creationTimestamp;
+                            redeemedBy : Principal = msg.caller;
+                            redeemedFor : Types.RedeemedForOptions = redeemedFor;
+                            amount : Nat = amountPaid; // to be updated
+                        };
+                        let verificationResponse = await verifyIncomingFunnaiPayment(transactionEntryToVerify);
+                        D.print("GameState: stopUserMainerAgentFromCollapsingWithFunnai - verificationResponse: "# debug_show(verificationResponse));
+                        switch (verificationResponse) {
+                            case (#Ok(verificationResult)) {
+                                verifiedPayment := verificationResult.verified;
+                                amountPaid := verificationResult.amountPaid;
+                            };
+                            case (_) {
+                                return #Err(#Other("Payment verification failed"));                      
+                            };
+                        };
+                        if (not verifiedPayment) {
+                            return #Err(#Other("Payment couldn't be verified"));
+                        };
+
+                        let newTransactionEntry : Types.RedeemedTransactionBlock = {
+                            paymentTransactionBlockId : Nat64 = mainerInput.paymentTransactionBlockId;
+                            creationTimestamp : Nat64 = creationTimestamp;
+                            redeemedBy : Principal = msg.caller;
+                            redeemedFor : Types.RedeemedForOptions = redeemedFor;
+                            amount : Nat = amountPaid;
+                        };
+                        try {
+                            let Mainer_Actor : Types.MainerAgentCtrlbCanister = actor (userMainerEntry.address);
+                            D.print("GameState: stopUserMainerAgentFromCollapsingWithFunnai - calling stopMainerFromCollapsing for mAIner: " # debug_show(userMainerEntry.address));
+                            let stopMainerFromCollapsingResponse = await Mainer_Actor.stopMainerFromCollapsing();
+                            D.print("GameState: stopUserMainerAgentFromCollapsingWithFunnai - stopMainerFromCollapsingResponse: " # debug_show(stopMainerFromCollapsingResponse));
+                            switch (stopMainerFromCollapsingResponse) {
+                                case (#Err(error)) {
+                                    D.print("GameState: stopUserMainerAgentFromCollapsingWithFunnai - stopMainerFromCollapsingResponse FailedOperation: " # debug_show(error));
+                                    return #Err(#FailedOperation);
+                                };
+                                case (#Ok(mainerStatusEntry)) {
+                                    D.print("GameState: stopUserMainerAgentFromCollapsingWithFunnai - mainerStatusEntry: " # debug_show(mainerStatusEntry));
+                                    // Track redeemed FUNNAI transaction blocks to ensure no double spending
+                                    switch (putRedeemedFunnaiTransactionBlock(newTransactionEntry)) {
+                                        case (false) {
+                                            // TODO - Error Handling: likely retry
+                                        };
+                                        case (true) {
+                                            // continue
+                                        };
+                                    };
+                                    return #Ok(userMainerEntry);
+                                };
+                            };
+                        } catch (e) {
+                            D.print("GameState: stopUserMainerAgentFromCollapsingWithFunnai - Failed to stop mAIner from collapsing: " # debug_show(mainerInput) # Error.message(e));      
+                            return #Err(#Other("GameState: stopUserMainerAgentFromCollapsingWithFunnai - Failed to stop mAIner from collapsing: " # debug_show(mainerInput) # Error.message(e)));
+                        };                      
                     };
                 };
             };
