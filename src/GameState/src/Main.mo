@@ -2096,6 +2096,90 @@ actor class GameStateCanister() = this {
         return sharedServiceCanistersStorage.vals().next();
     };
 
+    // Blackholed mAIner Registry: mAIner agent canisters (owned by users) which collapsed and cannot be reanimated anymore (thus forever inactive)
+    stable var blackholedMainerAgentCanistersStorageStable : [(Text, Types.OfficialMainerAgentCanister)] = [];
+    var blackholedMainerAgentCanistersStorage : HashMap.HashMap<Text, Types.OfficialMainerAgentCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
+    stable var blackholedUserToMainerAgentsStorageStable : [(Principal, List.List<Types.OfficialMainerAgentCanister>)] = [];
+    var blackholedUserToMainerAgentsStorage : HashMap.HashMap<Principal, List.List<Types.OfficialMainerAgentCanister>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+
+    private func addBlackholedMainerAgentCanister(canisterEntryToAdd : Types.OfficialMainerAgentCanister) : Types.MainerAgentCanisterResult {
+        switch (canisterEntryToAdd.canisterType) {
+            case (#MainerAgent(_)) {
+                // continue
+            };
+            case (_) { 
+                D.print("GameState: addBlackholedMainerAgentCanister - Unsupported canisterEntryToAdd.canisterType: " # debug_show(canisterEntryToAdd.canisterType) );
+                return #Err(#Other("Unsupported")); 
+            }
+        };
+        let _ = putBlackholedUserMainerAgent(canisterEntryToAdd);
+        blackholedMainerAgentCanistersStorage.put(canisterEntryToAdd.address, canisterEntryToAdd);
+        D.print("GameState: addBlackholedMainerAgentCanister added canisterEntry: " # debug_show(canisterEntryToAdd) );
+        return #Ok(canisterEntryToAdd);
+    };
+
+    private func putBlackholedUserMainerAgent(canisterEntry : Types.OfficialMainerAgentCanister) : Bool {
+        switch (getBlackholedUserMainerAgents(canisterEntry.ownedBy)) {
+            case (null) {
+                // first entry
+                let userCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.make<Types.OfficialMainerAgentCanister>(canisterEntry);
+                blackholedUserToMainerAgentsStorage.put(canisterEntry.ownedBy, userCanistersList);
+                return true;
+            };
+            case (?userCanistersList) { 
+                //existing list, add entry to it
+                // Deduplicate (based on creationTimestamp)
+                let filteredUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.filter(userCanistersList, func(listEntry: Types.OfficialMainerAgentCanister) : Bool { listEntry.creationTimestamp != canisterEntry.creationTimestamp });
+                let updatedUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.push<Types.OfficialMainerAgentCanister>(canisterEntry, filteredUserCanistersList);
+                blackholedUserToMainerAgentsStorage.put(canisterEntry.ownedBy, updatedUserCanistersList);
+                return true;
+            }; 
+        };
+    };
+
+    private func getBlackholedUserMainerAgents(userId : Principal) : ?List.List<Types.OfficialMainerAgentCanister> {
+        switch (blackholedUserToMainerAgentsStorage.get(userId)) {
+            case (null) { return null; };
+            case (?userCanistersList) { return ?userCanistersList; };
+        };
+    };
+
+    private func getBlackholedMainerAgents() : [Types.OfficialMainerAgentCanister] {
+        var mainerAgents : List.List<Types.OfficialMainerAgentCanister> = List.nil<Types.OfficialMainerAgentCanister>();
+        for (userMainerAgentsList in blackholedUserToMainerAgentsStorage.vals()) {
+            mainerAgents := List.append<Types.OfficialMainerAgentCanister>(userMainerAgentsList, mainerAgents);    
+        };
+        return List.toArray(mainerAgents);
+    };
+
+    private func getNumberBlackholedMainerAgents(mainerType : Types.MainerAgentCanisterType) : Nat {
+        switch (mainerType) {
+            case (#Own) {
+                let iter = blackholedMainerAgentCanistersStorage.vals();
+                let mappedIter = Iter.filter(iter, func (mainerEntry : Types.OfficialMainerAgentCanister) : Bool {
+                    switch (mainerEntry.mainerConfig.mainerAgentCanisterType) {
+                        case (#Own) { return true; };
+                        case (#ShareAgent) { return false; };
+                        case (_) { return false; }
+                    };
+                });
+                return Iter.size(mappedIter);
+            };
+            case (#ShareAgent) {
+                let iter = blackholedMainerAgentCanistersStorage.vals();
+                let mappedIter = Iter.filter(iter, func (mainerEntry : Types.OfficialMainerAgentCanister) : Bool {
+                    switch (mainerEntry.mainerConfig.mainerAgentCanisterType) {
+                        case (#Own) { return false; };
+                        case (#ShareAgent) { return true; };
+                        case (_) { return false; }
+                    };
+                });
+                return Iter.size(mappedIter);                
+            };
+            case (_) { return 0; }
+        };
+    };
+    
     // mAIner Registry: Official mAIner agent canisters (owned by users)
     stable var mainerAgentCanistersStorageStable : [(Text, Types.OfficialMainerAgentCanister)] = [];
     var mainerAgentCanistersStorage : HashMap.HashMap<Text, Types.OfficialMainerAgentCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -7384,6 +7468,76 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Blackholed mAIners
+    // Function for user to get their mAIner agent canisters
+    public shared query (msg) func getBlackholedMainerAgentCanistersForUser() : async Types.MainerAgentCanistersResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        switch (getBlackholedUserMainerAgents(msg.caller)) {
+            case (null) { return #Err(#Other("No canisters for this caller")); };
+            case (?userCanistersList) {
+                return #Ok(List.toArray<Types.OfficialMainerAgentCanister>(userCanistersList));                              
+            };
+        };
+    };
+
+    public shared query (msg) func getBlackholedMainerAgentCanistersAdmin() : async Types.MainerAgentCanistersResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        return #Ok(getBlackholedMainerAgents());
+    };
+
+    public shared query (msg) func getBlackholedMainerAgentCanistersForUserAdmin(user : Text) : async Types.MainerAgentCanistersResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        switch (getBlackholedUserMainerAgents(Principal.fromText(user))) {
+            case (null) { return #Err(#Other("No canisters for this user")); };
+            case (?userCanistersList) {
+                return #Ok(List.toArray<Types.OfficialMainerAgentCanister>(userCanistersList));                              
+            };
+        };
+    };
+
+    public shared query (msg) func getNumBlackholedMainerAgentCanistersForUserAdmin(user : Text) : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        switch (getBlackholedUserMainerAgents(Principal.fromText(user))) {
+            case (null) { return #Err(#Other("No canisters for this user")); };
+            case (?userCanistersList) {
+                return #Ok(List.size<Types.OfficialMainerAgentCanister>(userCanistersList));                              
+            };
+        };
+    };
+
+    public shared query (msg) func getNumberBlackholedMainerAgentsAdmin(checkInput : Types.CheckMainerLimit) : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let result = getNumberBlackholedMainerAgents(checkInput.mainerType);
+        return #Ok(result);
+    };
+
     // Function for mAIner agent canister to retrieve a random open challenge
     public shared (msg) func getRandomOpenChallenge() : async Types.ChallengeResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -8335,6 +8489,8 @@ actor class GameStateCanister() = this {
         sharedServiceCanistersStorageStable := Iter.toArray(sharedServiceCanistersStorage.entries());
         redeemedTransactionBlocksStorageStable := Iter.toArray(redeemedTransactionBlocksStorage.entries());
         redeemedFunnaiTransactionBlocksStorageStable := Iter.toArray(redeemedFunnaiTransactionBlocksStorage.entries());
+        blackholedMainerAgentCanistersStorageStable := Iter.toArray(blackholedMainerAgentCanistersStorage.entries());
+        blackholedUserToMainerAgentsStorageStable := Iter.toArray(blackholedUserToMainerAgentsStorage.entries());
     };
 
     system func postupgrade() {
@@ -8370,5 +8526,9 @@ actor class GameStateCanister() = this {
         redeemedTransactionBlocksStorageStable := [];
         redeemedFunnaiTransactionBlocksStorage := HashMap.fromIter(Iter.fromArray(redeemedFunnaiTransactionBlocksStorageStable), redeemedFunnaiTransactionBlocksStorageStable.size(), Nat.equal, Hash.hash);
         redeemedFunnaiTransactionBlocksStorageStable := [];
+        blackholedMainerAgentCanistersStorage := HashMap.fromIter(Iter.fromArray(blackholedMainerAgentCanistersStorageStable), blackholedMainerAgentCanistersStorageStable.size(), Text.equal, Text.hash);
+        blackholedMainerAgentCanistersStorageStable := [];
+        blackholedUserToMainerAgentsStorage := HashMap.fromIter(Iter.fromArray(blackholedUserToMainerAgentsStorageStable), blackholedUserToMainerAgentsStorageStable.size(), Principal.equal, Principal.hash);
+        blackholedUserToMainerAgentsStorageStable := [];
     };
 };
