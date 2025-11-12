@@ -9006,7 +9006,7 @@ actor class GameStateCanister() = this {
     };
 
     // Admin: Check if a specific mAIner is in reserved storage (for debugging)
-    public query func isMainerInReservedStorage(mainerAddress : Text) : async Bool {
+    public query func isMainerReservedOnMarketplaceAdmin(mainerAddress : Text) : async Bool {
         switch (marketplaceReservedMainerAgentsStorage.get(mainerAddress)) {
             case (null) { return false; };
             case (?_) { return true; };
