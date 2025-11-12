@@ -2197,53 +2197,6 @@ actor class GameStateCanister() = this {
         };
     };
 
-    // Admin function to clear all marketplace reservations
-    // This is useful if reservations get stuck due to timer issues or data corruption
-    public shared (msg) func clearMarketplaceReservationsAdmin() : async Types.AuthRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-
-        var clearedCount : Nat = 0;
-        
-        // Get all reserved mAIners
-        let reservedEntries = Iter.toArray(marketplaceReservedMainerAgentsStorage.entries());
-        
-        // Clear all reservations and return them to listings
-        for ((address, reservedEntry) in reservedEntries.vals()) {
-            // Cancel timers if they exist
-            switch (marketplaceReservationTimers.get(address)) {
-                case (?timerId) {
-                    Timer.cancelTimer(timerId);
-                    ignore marketplaceReservationTimers.remove(address);
-                };
-                case (null) {};
-            };
-            
-            // Return to listings
-            let listingEntry : Types.MainerMarketplaceListing = {
-                address = reservedEntry.address;
-                mainerType = reservedEntry.mainerType;
-                listedTimestamp = reservedEntry.listedTimestamp;
-                listedBy = reservedEntry.listedBy;
-                priceE8S = reservedEntry.priceE8S;
-                reservedBy = null;
-            };
-            ignore putMarketplaceListedMainer(listingEntry);
-            clearedCount += 1;
-        };
-        
-        // Clear the reservation storages
-        marketplaceReservedMainerAgentsStorage := HashMap.HashMap(0, Text.equal, Text.hash);
-        userToMarketplaceReservedMainerStorage := HashMap.HashMap(0, Principal.equal, Principal.hash);
-        
-        let authRecord = { auth = "Cleared " # Nat.toText(clearedCount) # " marketplace reservations" };
-        return #Ok(authRecord);
-    };
-
     // Admin function to rebuild userToMainerAgentsStorage from mainerAgentCanistersStorage
     // This is useful if the user-to-mAIner mapping gets corrupted during an upgrade
     public shared (msg) func rebuildUserMainerMappingAdmin() : async Types.AuthRecordResult {
@@ -9061,6 +9014,53 @@ actor class GameStateCanister() = this {
             case (null) { return false; };
             case (?_) { return true; };
         };
+    };
+
+    // Admin function to clear all marketplace reservations
+    // This is useful if reservations get stuck due to timer issues or data corruption
+    public shared (msg) func clearMarketplaceReservationsAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        var clearedCount : Nat = 0;
+        
+        // Get all reserved mAIners
+        let reservedEntries = Iter.toArray(marketplaceReservedMainerAgentsStorage.entries());
+        
+        // Clear all reservations and return them to listings
+        for ((address, reservedEntry) in reservedEntries.vals()) {
+            // Cancel timers if they exist
+            switch (marketplaceReservationTimers.get(address)) {
+                case (?timerId) {
+                    Timer.cancelTimer(timerId);
+                    ignore marketplaceReservationTimers.remove(address);
+                };
+                case (null) {};
+            };
+            
+            // Return to listings
+            let listingEntry : Types.MainerMarketplaceListing = {
+                address = reservedEntry.address;
+                mainerType = reservedEntry.mainerType;
+                listedTimestamp = reservedEntry.listedTimestamp;
+                listedBy = reservedEntry.listedBy;
+                priceE8S = reservedEntry.priceE8S;
+                reservedBy = null;
+            };
+            ignore putMarketplaceListedMainer(listingEntry);
+            clearedCount += 1;
+        };
+        
+        // Clear the reservation storages
+        marketplaceReservedMainerAgentsStorage := HashMap.HashMap(0, Text.equal, Text.hash);
+        userToMarketplaceReservedMainerStorage := HashMap.HashMap(0, Principal.equal, Principal.hash);
+        
+        let authRecord = { auth = "Cleared " # Nat.toText(clearedCount) # " marketplace reservations" };
+        return #Ok(authRecord);
     };
 
     public query (msg) func getMarketplaceMainerListings() : async Types.MainerMarketplaceListingsResult {
