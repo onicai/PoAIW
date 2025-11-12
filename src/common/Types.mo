@@ -1262,7 +1262,8 @@ module Types {
         getJudgePromptInfo : (Text) -> async Types.JudgePromptInfoResult;
         getMainerCyclesUsedPerResponse : () -> async NatResult;
         getCyclesBurnRate : (Types.CyclesBurnRateDefault) -> async Types.CyclesBurnRateResult;
-        addCycles: () -> async AddCyclesResult;
+        addCycles : () -> async AddCyclesResult;
+        notifyMainerAgentCanisterIsBlackholed : () -> async AuthRecordResult;
     };
 
     public type MainerCreator_Actor = actor {

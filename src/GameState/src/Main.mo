@@ -7378,6 +7378,31 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Function for mAIner agent canister to notify game state that it collapsed and is now blackholed
+    public shared (msg) func notifyMainerAgentCanisterIsBlackholed() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Only official mAIner agent canisters may call this (and thus blackhole itself)
+        switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?mainerAgentEntry) {
+                // Add mAIner as blackholed
+                let blackholedResult : Types.MainerAgentCanisterResult = addBlackholedMainerAgentCanister(mainerAgentEntry);
+                switch (blackholedResult) {
+                    case (#Ok(blackholedMainerEntry)) {
+                        // Remove mAIner entry from active agents
+                        let result1 = removeMainerAgentCanister(Principal.toText(msg.caller));
+                        let result2 = removeUserMainerAgent(mainerAgentEntry);
+                        let authRecord = { auth = "The mAIner notified that it's blackholed" };
+                        return #Ok(authRecord);               
+                    };
+                    case (_) { return #Err(#FailedOperation); };
+                };             
+            };
+        };
+    };
+
     // Function for user to get their mAIner agent canisters
     public shared query (msg) func getMainerAgentCanistersForUser() : async Types.MainerAgentCanistersResult {
         if (Principal.isAnonymous(msg.caller)) {
