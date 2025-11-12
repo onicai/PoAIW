@@ -360,6 +360,21 @@ module Types {
     
     public type MainerMarketplaceReservationResult = Result<MainerMarketplaceListing, ApiError>;
 
+    public type MarketplaceSale = {
+        mainerAddress : Text;
+        seller : Principal;
+        buyer : Principal;
+        priceE8S : Nat;
+        saleTimestamp : Nat64;
+    };
+
+    public type MarketplaceStats = {
+        totalSales : Nat;
+        totalVolumeE8S : Nat;
+        uniqueBuyers : Nat;
+        uniqueSellers : Nat;
+    };
+
     public type CanisterInput = {
         address : CanisterAddress;
         subnet : Text;

@@ -8732,7 +8732,7 @@ actor class GameStateCanister() = this {
                                         let addResult : Bool = putUserMainerAgent(newCanisterEntry);
 
                                         // Record the sale for statistics
-                                        let sale : MarketplaceSale = {
+                                        let sale : Types.MarketplaceSale = {
                                             mainerAddress = mainerAddress;
                                             seller = mainerEntry.ownedBy;
                                             buyer = msg.caller;
@@ -8787,15 +8787,8 @@ actor class GameStateCanister() = this {
     let MARKETPLACE_RESERVATION_TIMEOUT_SECONDS : Nat = 120; // 2 minutes
 
     // Marketplace sales history for statistics
-    public type MarketplaceSale = {
-        mainerAddress : Text;
-        seller : Principal;
-        buyer : Principal;
-        priceE8S : Nat;
-        saleTimestamp : Nat64;
-    };
-    stable var marketplaceSalesHistoryStable : [MarketplaceSale] = [];
-    var marketplaceSalesHistory : Buffer.Buffer<MarketplaceSale> = Buffer.Buffer<MarketplaceSale>(0);
+    stable var marketplaceSalesHistoryStable : [Types.MarketplaceSale] = [];
+    var marketplaceSalesHistory : Buffer.Buffer<Types.MarketplaceSale> = Buffer.Buffer<Types.MarketplaceSale>(0);
 
     // CRUD helper functions for listings
     private func putMarketplaceListedMainer(entry : Types.MainerMarketplaceListing) : Types.MainerMarketplaceListing {
@@ -9072,14 +9065,7 @@ actor class GameStateCanister() = this {
         return #Ok(getAllMarketplaceListedMainers());
     };
 
-    public type MarketplaceStats = {
-        totalSales : Nat;
-        totalVolumeE8S : Nat;
-        uniqueBuyers : Nat;
-        uniqueSellers : Nat;
-    };
-
-    public query func getMarketplaceSalesStats() : async MarketplaceStats {
+    public query func getMarketplaceSalesStats() : async Types.MarketplaceStats {
         // Calculate stats from sales history
         var totalVolumeE8S : Nat = 0;
         var buyersSet = HashMap.HashMap<Principal, Bool>(0, Principal.equal, Principal.hash);
