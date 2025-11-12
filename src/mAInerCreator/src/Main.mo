@@ -210,7 +210,7 @@ actor class MainerCreatorCanister() = this {
 
         let hashBlob = Sha256.fromArray(#sha256, allBytes);
         let hexHash = Hex.encode(Blob.toArray(hashBlob));
-        return "0x" # Text.toLowercase(hexHash);
+        return Text.toLowercase(hexHash);
     };
 
     // Get mainer controller wasm hash, calculating and caching if needed
@@ -230,21 +230,12 @@ actor class MainerCreatorCanister() = this {
     };
 
     // Admin function to get SHA-256 hashes of all uploaded wasm files
-    public query (msg) func getSha256HashesAdmin() : async {
-        mainerControllerWasmSha256 : Text;
-        llmWasmHashes : [(Text, { wasmSha256 : Text; modelFileSha256 : Text })];
-    } {
+    public query (msg) func getSha256HashesAdmin() : async Types.Sha256HashesResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return {
-                mainerControllerWasmSha256 = "Unauthorized";
-                llmWasmHashes = [];
-            };
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return {
-                mainerControllerWasmSha256 = "Unauthorized";
-                llmWasmHashes = [];
-            };
+            return #Err(#Unauthorized);
         };
 
         // Get mainer controller wasm hash
@@ -273,10 +264,10 @@ actor class MainerCreatorCanister() = this {
             llmHashes := Array.append(llmHashes, [(modelName, modelInfo)]);
         };
 
-        return {
+        return #Ok({
             mainerControllerWasmSha256 = controllerHash;
             llmWasmHashes = llmHashes;
-        };
+        });
     };
 
     // -------------------------------------------------------------------------------

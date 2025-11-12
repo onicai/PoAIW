@@ -1491,4 +1491,14 @@ module Types {
 
     // Simple result type for token rewards API
     public type TokenRewardsDataResult = Result<TokenRewardsData, ApiError>;
+
+    //-------------------------------------------------------------------------
+    // SHA-256 Hashes for uploaded WASM & LLM Model files
+
+    public type Sha256HashesRecord = {
+        mainerControllerWasmSha256 : Text;
+        llmWasmHashes : [(Text, { wasmSha256 : Text; modelFileSha256 : Text })];
+    };
+
+    public type Sha256HashesResult = Result<Sha256HashesRecord, ApiError>;
 };

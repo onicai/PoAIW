@@ -167,7 +167,12 @@ def main() -> int:
     # Get and display the SHA-256 hashes
     print("--\nRetrieving SHA-256 hashes")
     hashesResponse = canister_creator.getSha256HashesAdmin()  # pylint: disable=no-member
-    pprint(hashesResponse)
+    if "Ok" in hashesResponse[0].keys():
+        print("SHA-256 Hashes:")
+        pprint(hashesResponse[0]["Ok"])
+    else:
+        print("Failed to retrieve SHA-256 hashes:")
+        pprint(hashesResponse)
 
     # ---------------------------------------------------------------------------
     return 0
