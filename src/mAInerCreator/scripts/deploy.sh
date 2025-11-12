@@ -41,13 +41,13 @@ while [ $# -gt 0 ]; do
 done
 
 if [ "$NETWORK_TYPE" = "ic" ]; then
-    SUBNET="w4asl-4nmyj-qnr7c-6cqq4-tkwmt-o26di-iupkq-vx4kt-asbrx-jzuxh-4ae"
+    SUBNET="yinp6-35cfo-wgcd2-oc4ty-2kqpf-t4dul-rfk33-fsq3r-mfmua-m2ngh-jqe"
 elif [ "$NETWORK_TYPE" = "testing" ]; then
-    SUBNET="w4asl-4nmyj-qnr7c-6cqq4-tkwmt-o26di-iupkq-vx4kt-asbrx-jzuxh-4ae"
+    SUBNET="yinp6-35cfo-wgcd2-oc4ty-2kqpf-t4dul-rfk33-fsq3r-mfmua-m2ngh-jqe"
 elif [ "$NETWORK_TYPE" = "prd" ]; then
     SUBNET="snjp4-xlbw4-mnbog-ddwy6-6ckfd-2w5a2-eipqo-7l436-pxqkh-l6fuv-vae"
 elif [ "$NETWORK_TYPE" = "development" ]; then
-    SUBNET="none"  # TODO
+    SUBNET="qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe"
 else
     SUBNET="none"  # No specific subnet for local
 fi
