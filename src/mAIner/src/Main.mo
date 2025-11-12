@@ -342,7 +342,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Internal functions to check if the canister has enough cycles
-    private func sufficientCyclesToProcessChallenge(challenge : Types.Challenge) : Bool {
+    private func sufficientCyclesToProcessChallenge(challenge : Types.Challenge) : async Bool {
         // The ShareService canister does not Queue or Submit
         if (MAINER_AGENT_CANISTER_TYPE == #ShareService) {
             return true;
@@ -454,7 +454,10 @@ actor class MainerAgentCtrlbCanister() = this {
                             };
                             mainerCollapsingEntries := List.push<Types.MainerStatusEntry>(lastCollapsingEntry, mainerCollapsingEntries);
                             previousMainerCollapsingEntries := mainerCollapsingEntries;
-                            // TODO: call Game State with this update
+                            // Call Game State with this update to notify that this mAIner is now blackholed
+                            let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
+                            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): calling notifyMainerAgentCanisterIsBlackholed of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
+                            ignore gameStateCanisterActor.notifyMainerAgentCanisterIsBlackholed();
                         };                        
                     };
                 };
@@ -1896,7 +1899,8 @@ actor class MainerAgentCtrlbCanister() = this {
             case (#Ok(challenge : Types.Challenge)) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - challenge = " # debug_show (challenge));
 
-                if (not sufficientCyclesToProcessChallenge(challenge)) {
+                let sufficientCyclesResult : Bool = await sufficientCyclesToProcessChallenge(challenge);
+                if (not sufficientCyclesResult) {
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - PAUSING RESPONSE GENERATION DUE TO LOW CYCLE BALANCE");
                     return;
                 };
@@ -2019,7 +2023,8 @@ actor class MainerAgentCtrlbCanister() = this {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge - challengeQueueInput" # debug_show (challengeQueueInput));
 
                 // Check if the canister has enough cycles for this particular Challenge
-                if (not sufficientCyclesToProcessChallenge(challengeQueueInput)) {
+                let sufficientCyclesResult : Bool = await sufficientCyclesToProcessChallenge(challengeQueueInput);
+                if (not sufficientCyclesResult) {
                     // Note: do not set pause flag
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge - Not enough cycles to process challenge. Pushing it back on the queue to try later.");
                     // Push the challenge back to the queue to try again later
