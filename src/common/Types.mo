@@ -27,6 +27,25 @@ module Types {
     };
 
     //-------------------------------------------------------------------------
+    // Admin RBAC Types
+    public type AdminRole = {
+        #AdminUpdate;    // Access to Admin endpoints requiring #AdminUpdate or #AdminQuery roles only; No access to endpoints requiring controller level
+        #AdminQuery;     // Access to Admin endpoints requiring #AdminQuery role only.
+    };
+
+    public type AdminRoleAssignment = {
+        principal : Text;  // Principal in text format
+        role : AdminRole;
+        assignedBy : Text;  // Principal in text format
+        assignedAt : Nat64;
+        note : Text;
+    };
+
+    // Result types for admin endpoints
+    public type AdminRoleAssignmentResult = Result<AdminRoleAssignment, ApiError>;
+    public type AdminRoleAssignmentsResult = Result<[AdminRoleAssignment], ApiError>;
+
+    //-------------------------------------------------------------------------
     public type AuthRecord = {
         auth : Text;
     };
