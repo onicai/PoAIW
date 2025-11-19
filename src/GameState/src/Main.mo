@@ -2156,6 +2156,89 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Admin function to check user-mAIner mapping consistency
+    // Returns info about any discrepancies between the two storage structures
+    public shared query (msg) func checkUserMainerMappingConsistencyAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Count total mAIners in main storage
+        var totalMainersInStorage : Nat = 0;
+        for ((address, mainerEntry) in mainerAgentCanistersStorage.entries()) {
+            totalMainersInStorage += 1;
+        };
+
+        // Count total mAIners in user mapping
+        var totalMainersInUserMapping : Nat = 0;
+        for ((user, mainersList) in userToMainerAgentsStorage.entries()) {
+            totalMainersInUserMapping += List.size(mainersList);
+        };
+
+        // Count unique users in user mapping
+        var uniqueUsers : Nat = 0;
+        for ((user, mainersList) in userToMainerAgentsStorage.entries()) {
+            uniqueUsers += 1;
+        };
+
+        let statusMsg = "Total mAIners in storage: " # Nat.toText(totalMainersInStorage) 
+                      # ", Total mAIners in user mapping: " # Nat.toText(totalMainersInUserMapping)
+                      # ", Unique users: " # Nat.toText(uniqueUsers);
+
+        if (totalMainersInStorage != totalMainersInUserMapping) {
+            let authRecord = { auth = "INCONSISTENCY: " # statusMsg # " - Run rebuildUserMainerMappingAdmin() to fix." };
+            return #Ok(authRecord);
+        } else {
+            let authRecord = { auth = "OK: Mapping is consistent. " # statusMsg };
+            return #Ok(authRecord);
+        };
+    };
+
+    // COMMENTED OUT: Admin function to rebuild userToMainerAgentsStorage from mainerAgentCanistersStorage
+    // This is useful if the user-to-mAIner mapping gets corrupted during an upgrade
+    // WARNING: This function is too risky to leave enabled as it clears and rebuilds the entire mapping
+    // Uncomment only if absolutely necessary for emergency recovery
+    /*
+    public shared (msg) func rebuildUserMainerMappingAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Clear the existing mapping
+        userToMainerAgentsStorage := HashMap.HashMap(0, Principal.equal, Principal.hash);
+        
+        // Rebuild from mainerAgentCanistersStorage
+        var rebuiltCount : Nat = 0;
+        for ((address, mainerEntry) in mainerAgentCanistersStorage.entries()) {
+            // Add this mAIner to the user's list
+            switch (getUserMainerAgents(mainerEntry.ownedBy)) {
+                case (null) {
+                    // First mAIner for this user
+                    let userCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.make<Types.OfficialMainerAgentCanister>(mainerEntry);
+                    userToMainerAgentsStorage.put(mainerEntry.ownedBy, userCanistersList);
+                    rebuiltCount += 1;
+                };
+                case (?userCanistersList) {
+                    // Add to existing list, with deduplication based on address
+                    let filteredUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.filter(userCanistersList, func(listEntry: Types.OfficialMainerAgentCanister) : Bool { listEntry.address != mainerEntry.address });
+                    let updatedUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.push<Types.OfficialMainerAgentCanister>(mainerEntry, filteredUserCanistersList);
+                    userToMainerAgentsStorage.put(mainerEntry.ownedBy, updatedUserCanistersList);
+                    rebuiltCount += 1;
+                };
+            };
+        };
+
+        let authRecord = { auth = "Rebuilt user-mAIner mapping for " # Nat.toText(rebuiltCount) # " mAIners" };
+        return #Ok(authRecord);
+    };
+    */
+
     // Caution: function that returns all mAIner agents (TODO: decide if needed)
     private func getMainerAgents() : [Types.OfficialMainerAgentCanister] {
         var mainerAgents : List.List<Types.OfficialMainerAgentCanister> = List.nil<Types.OfficialMainerAgentCanister>();
@@ -8648,6 +8731,27 @@ actor class GameStateCanister() = this {
                                         // Add to buyer 
                                         let addResult : Bool = putUserMainerAgent(newCanisterEntry);
 
+                                        // Record the sale for statistics
+                                        let sale : Types.MarketplaceSale = {
+                                            mainerAddress = mainerAddress;
+                                            seller = mainerEntry.ownedBy;
+                                            buyer = msg.caller;
+                                            priceE8S = userCanisterEntry.priceE8S;
+                                            saleTimestamp = Nat64.fromNat(Int.abs(Time.now()));
+                                        };
+                                        marketplaceSalesHistory.add(sale);
+
+                                        // Clean up reservation and cancel the timer
+                                        switch (marketplaceReservationTimers.get(mainerAddress)) {
+                                            case (?timerId) {
+                                                Timer.cancelTimer(timerId);
+                                                ignore marketplaceReservationTimers.remove(mainerAddress);
+                                            };
+                                            case (null) {};
+                                        };
+                        ignore marketplaceReservedMainerAgentsStorage.remove(mainerAddress);
+                        ignore userToMarketplaceReservedMainerStorage.remove(msg.caller);
+
                                         return [?#Ok(getNextMainerMarketplaceTransactionId())];                                        
                                     };
                                 };
@@ -8677,6 +8781,14 @@ actor class GameStateCanister() = this {
     var marketplaceReservedMainerAgentsStorage : HashMap.HashMap<Text, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Text.equal, Text.hash);
     stable var userToMarketplaceReservedMainerStorageStable : [(Principal, Types.MainerMarketplaceListing)] = [];
     var userToMarketplaceReservedMainerStorage : HashMap.HashMap<Principal, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+    
+    // Non-stable: Timer IDs for marketplace reservations (2 minute expiry)
+    var marketplaceReservationTimers : HashMap.HashMap<Text, Timer.TimerId> = HashMap.HashMap(0, Text.equal, Text.hash);
+    let MARKETPLACE_RESERVATION_TIMEOUT_SECONDS : Nat = 120; // 2 minutes
+
+    // Marketplace sales history for statistics
+    stable var marketplaceSalesHistoryStable : [Types.MarketplaceSale] = [];
+    var marketplaceSalesHistory : Buffer.Buffer<Types.MarketplaceSale> = Buffer.Buffer<Types.MarketplaceSale>(0);
 
     // CRUD helper functions for listings
     private func putMarketplaceListedMainer(entry : Types.MainerMarketplaceListing) : Types.MainerMarketplaceListing {
@@ -8769,7 +8881,7 @@ actor class GameStateCanister() = this {
     };
 
     // CRUD helper functions for reservations
-    private func putMarketplaceReservedMainer(entry : Types.MainerMarketplaceListing) : Bool {
+    private func putMarketplaceReservedMainer<system>(entry : Types.MainerMarketplaceListing) : Bool {
         // Check that entry is in listings and isn't reserved already
         switch (getMarketplaceListedMainer(entry.address)) {
             case (null) {
@@ -8797,7 +8909,17 @@ actor class GameStateCanister() = this {
                 userToMarketplaceReservedMainerStorage.put(reservingUserPrincipal, entry);
                 switch (removeMarketplaceListedMainer(entry.address)) {
                     case (true) {
-                        // TODO: set a timer to remove the reservation and add it back as a listing (in case the purchase wasn't completed in the meanwhile)
+                        // Set a timer to automatically unreserve if purchase isn't completed within timeout period
+                        let timerId = Timer.setTimer<system>(
+                            #seconds MARKETPLACE_RESERVATION_TIMEOUT_SECONDS,
+                            func () : async () {
+                                // Timer expired - unreserve the mAIner and put it back as a listing
+                                ignore removeMarketplaceReservedMainer(entry.address);
+                                // Clean up timer reference
+                                ignore marketplaceReservationTimers.remove(entry.address);
+                            }
+                        );
+                        marketplaceReservationTimers.put(entry.address, timerId);
                         return true;
                     };
                     case (false) { 
@@ -8823,6 +8945,15 @@ actor class GameStateCanister() = this {
         switch (marketplaceReservedMainerAgentsStorage.get(canisterAddress)) {
             case (null) { return false; };
             case (?canisterEntry) {
+                // Cancel the reservation timer if it exists
+                switch (marketplaceReservationTimers.get(canisterAddress)) {
+                    case (?timerId) {
+                        Timer.cancelTimer(timerId);
+                        ignore marketplaceReservationTimers.remove(canisterAddress);
+                    };
+                    case (null) {};
+                };
+                
                 let removeResult = marketplaceReservedMainerAgentsStorage.remove(canisterAddress);
                 switch (canisterEntry.reservedBy) {
                     case (null) {
@@ -8866,12 +8997,102 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Get user's current reservation (if any)
+    public query (msg) func getUserMarketplaceReservation() : async ?Types.MainerMarketplaceListing {
+        if (Principal.isAnonymous(msg.caller)) {
+            return null;
+        };
+        return getMarketplaceReservedMainerForUser(msg.caller);
+    };
+
+    // Admin: Check if a specific mAIner is in reserved storage (for debugging)
+    public query (msg) func isMainerReservedOnMarketplaceAdmin(mainerAddress : Text) : async Bool {
+        if (Principal.isAnonymous(msg.caller)) {
+            return false;
+        };
+        if (not Principal.isController(msg.caller)) {
+            return false;
+        };
+        
+        switch (marketplaceReservedMainerAgentsStorage.get(mainerAddress)) {
+            case (null) { return false; };
+            case (?_) { return true; };
+        };
+    };
+
+    // Admin function to clear all marketplace reservations
+    // This is useful if reservations get stuck due to timer issues or data corruption
+    public shared (msg) func clearMarketplaceReservationsAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        var clearedCount : Nat = 0;
+        
+        // Get all reserved mAIners
+        let reservedEntries = Iter.toArray(marketplaceReservedMainerAgentsStorage.entries());
+        
+        // Clear all reservations and return them to listings
+        for ((address, reservedEntry) in reservedEntries.vals()) {
+            // Cancel timers if they exist
+            switch (marketplaceReservationTimers.get(address)) {
+                case (?timerId) {
+                    Timer.cancelTimer(timerId);
+                    ignore marketplaceReservationTimers.remove(address);
+                };
+                case (null) {};
+            };
+            
+            // Return to listings
+            let listingEntry : Types.MainerMarketplaceListing = {
+                address = reservedEntry.address;
+                mainerType = reservedEntry.mainerType;
+                listedTimestamp = reservedEntry.listedTimestamp;
+                listedBy = reservedEntry.listedBy;
+                priceE8S = reservedEntry.priceE8S;
+                reservedBy = null;
+            };
+            ignore putMarketplaceListedMainer(listingEntry);
+            clearedCount += 1;
+        };
+        
+        // Clear the reservation storages
+        marketplaceReservedMainerAgentsStorage := HashMap.HashMap(0, Text.equal, Text.hash);
+        userToMarketplaceReservedMainerStorage := HashMap.HashMap(0, Principal.equal, Principal.hash);
+        
+        let authRecord = { auth = "Cleared " # Nat.toText(clearedCount) # " marketplace reservations" };
+        return #Ok(authRecord);
+    };
+
     public query (msg) func getMarketplaceMainerListings() : async Types.MainerMarketplaceListingsResult {
         // Retrieve all mAIner marketplace listings
         return #Ok(getAllMarketplaceListedMainers());
     };
 
-    public shared (msg) func reserveMarketplaceListedMainer(reservationInput : Types.MainerMarketplaceReservationInput) : async Types.MainerMarketplaceReservationResult {
+    public query func getMarketplaceSalesStats() : async Types.MarketplaceStats {
+        // Calculate stats from sales history
+        var totalVolumeE8S : Nat = 0;
+        var buyersSet = HashMap.HashMap<Principal, Bool>(0, Principal.equal, Principal.hash);
+        var sellersSet = HashMap.HashMap<Principal, Bool>(0, Principal.equal, Principal.hash);
+
+        for (sale in marketplaceSalesHistory.vals()) {
+            totalVolumeE8S += sale.priceE8S;
+            buyersSet.put(sale.buyer, true);
+            sellersSet.put(sale.seller, true);
+        };
+
+        return {
+            totalSales = marketplaceSalesHistory.size();
+            totalVolumeE8S = totalVolumeE8S;
+            uniqueBuyers = buyersSet.size();
+            uniqueSellers = sellersSet.size();
+        };
+    };
+
+    public shared (msg) func reserveMarketplaceListedMainer<system>(reservationInput : Types.MainerMarketplaceReservationInput) : async Types.MainerMarketplaceReservationResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -8927,6 +9148,42 @@ actor class GameStateCanister() = this {
         };
     };
 
+    public shared (msg) func cancelMarketplaceReservation(reservationInput : Types.MainerMarketplaceReservationInput) : async Types.StatusCodeRecordResult {
+        // Allow the original seller OR the buyer who reserved it to cancel the reservation
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        
+        // Check if mAIner is reserved
+        switch (getMarketplaceReservedMainer(reservationInput.address)) {
+            case (null) { 
+                return #Err(#Unauthorized); // Not reserved
+            };
+            case (?reservedEntry) {
+                // Allow either the seller OR the buyer who reserved it to cancel
+                let isSeller = reservedEntry.listedBy == msg.caller;
+                let isBuyer = switch (reservedEntry.reservedBy) {
+                    case (null) { false };
+                    case (?buyer) { buyer == msg.caller };
+                };
+                
+                if (not isSeller and not isBuyer) {
+                    return #Err(#Unauthorized);
+                };
+                
+                // Remove the reservation and put it back as a listing
+                switch (removeMarketplaceReservedMainer(reservationInput.address)) {
+                    case (true) {
+                        return #Ok({ status_code = 200; });
+                    };
+                    case (false) {
+                        return #Err(#Unauthorized);
+                    };
+                };
+            };
+        };
+    };
+
 // Upgrade Hooks (TODO - Implementation: upgrade Motoko to use enhanced orthogonal persistence)
     system func preupgrade() {
         challengerCanistersStorageStable := Iter.toArray(challengerCanistersStorage.entries());
@@ -8949,6 +9206,7 @@ actor class GameStateCanister() = this {
         userToMarketplaceListedMainersStorageStable := Iter.toArray(userToMarketplaceListedMainersStorage.entries());
         marketplaceReservedMainerAgentsStorageStable := Iter.toArray(marketplaceReservedMainerAgentsStorage.entries());
         userToMarketplaceReservedMainerStorageStable := Iter.toArray(userToMarketplaceReservedMainerStorage.entries());
+        marketplaceSalesHistoryStable := Buffer.toArray(marketplaceSalesHistory);
     };
 
     system func postupgrade() {
@@ -8992,5 +9250,7 @@ actor class GameStateCanister() = this {
         marketplaceReservedMainerAgentsStorageStable := [];
         userToMarketplaceReservedMainerStorage := HashMap.fromIter(Iter.fromArray(userToMarketplaceReservedMainerStorageStable), userToMarketplaceReservedMainerStorageStable.size(), Principal.equal, Principal.hash);
         userToMarketplaceReservedMainerStorageStable := [];
+        marketplaceSalesHistory := Buffer.fromArray(marketplaceSalesHistoryStable);
+        marketplaceSalesHistoryStable := [];
     };
 };
