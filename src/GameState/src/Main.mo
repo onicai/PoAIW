@@ -1968,7 +1968,7 @@ actor class GameStateCanister() = this {
     // Admin RBAC Storage
     //-------------------------------------------------------------------------
     stable var adminRoleAssignmentsStable : [(Text, Types.AdminRoleAssignment)] = [];
-    var adminRoleAssignmentsStorage : HashMap.HashMap<Text, Types.AdminRoleAssignment> = HashMap.HashMap(0, Text.equal, Text.hash);
+    transient var adminRoleAssignmentsStorage : HashMap.HashMap<Text, Types.AdminRoleAssignment> = HashMap.HashMap(0, Text.equal, Text.hash);
 
     private func putAdminRole(principal : Text, assignment : Types.AdminRoleAssignment) : Bool {
         adminRoleAssignmentsStorage.put(principal, assignment);

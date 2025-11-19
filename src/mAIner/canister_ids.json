@@ -8,7 +8,7 @@
     "prd": "rilmv-caaaa-aaaaa-qandq-cai"
   },
   "mainer_ctrlb_canister_0": {
-    "testing": "v2hks-haaaa-aaaam-qdxha-cai",
+    "testing": "6iqjc-haaaa-aaaam-qeoua-cai",
     "prd": "w57bc-naaaa-aaaaa-qbdea-cai",
     "demo": "mlfba-yqaaa-aaaaj-a2c2q-cai",
     "development": "mqa5f-ciaaa-aaaaj-a2cya-cai"
@@ -16,24 +16,27 @@
   "mainer_ctrlb_canister_1": {
     "prd": "hnnie-5qaaa-aaaaa-qbl5q-cai",
     "demo": "kvlg2-diaaa-aaaaj-a2coa-cai",
-    "testing": "5suig-4yaaa-aaaam-qd5ba-cai",
+    "testing": "2calm-zyaaa-aaaam-qeooq-cai",
     "development": "s7xkv-iqaaa-aaaaj-a2hja-cai"
   },
   "mainer_ctrlb_canister_2": {
     "ic": "33rok-raaaa-aaaaa-qbj6q-cai",
     "prd": "6als3-xqaaa-aaaaa-qbjbq-cai",
     "demo": "kamxx-caaaa-aaaaj-a2cnq-cai",
-    "development": "sywmb-fiaaa-aaaaj-a2hjq-cai"
+    "development": "sywmb-fiaaa-aaaaj-a2hjq-cai",
+    "testing": "26er5-oyaaa-aaaam-qeomq-cai"
   },
   "mainer_ctrlb_canister_3": {
     "prd": "ihph7-gqaaa-aaaaa-qbgwq-cai",
     "demo": "kskao-oqaaa-aaaaj-a2coq-cai",
-    "development": "swubj-6yaaa-aaaaj-a2hiq-cai"
+    "development": "swubj-6yaaa-aaaaj-a2hiq-cai",
+    "testing": "5suig-4yaaa-aaaam-qd5ba-cai"
   },
   "mainer_ctrlb_canister_4": {
     "prd": "3pxx5-haaaa-aaaaa-qb5jq-cai",
     "demo": "ff3j4-tyaaa-aaaaj-a2ewq-cai",
-    "development": "73zah-5aaaa-aaaaj-a2b7q-cai"
+    "development": "73zah-5aaaa-aaaaj-a2b7q-cai",
+    "testing": "v2hks-haaaa-aaaam-qdxha-cai"
   },
   "mainer_ctrlb_canister_5": {
     "prd": "hrjsv-kqaaa-aaaaa-qbl7q-cai",
