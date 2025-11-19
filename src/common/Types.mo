@@ -41,6 +41,13 @@ module Types {
         note : Text;
     };
 
+    // Input record for admin role assignment
+    public type AssignAdminRoleInputRecord = {
+        principal : Text;
+        role : AdminRole;
+        note : Text;
+    };
+
     // Result types for admin endpoints
     public type AdminRoleAssignmentResult = Result<AdminRoleAssignment, ApiError>;
     public type AdminRoleAssignmentsResult = Result<[AdminRoleAssignment], ApiError>;

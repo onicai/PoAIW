@@ -2023,25 +2023,21 @@ actor class GameStateCanister() = this {
     };
 
     // Add an admin role assignment (controller-only)
-    public shared(msg) func assignAdminRole(
-        principal: Text,
-        role: Types.AdminRole,
-        note: Text
-    ) : async Types.AdminRoleAssignmentResult {
+    public shared(msg) func assignAdminRole(input : Types.AssignAdminRoleInputRecord) : async Types.AdminRoleAssignmentResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
 
         let assignment : Types.AdminRoleAssignment = {
-            principal = principal;
-            role = role;
+            principal = input.principal;
+            role = input.role;
             assignedBy = Principal.toText(msg.caller);
             assignedAt = Nat64.fromNat(Int.abs(Time.now()));
-            note = note;
+            note = input.note;
         };
 
         // Store the assignment (replaces any existing assignment for this principal)
-        let _ = putAdminRole(principal, assignment);
+        let _ = putAdminRole(input.principal, assignment);
 
         #Ok(assignment)
     };
