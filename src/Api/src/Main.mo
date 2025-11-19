@@ -7,6 +7,7 @@ import Time "mo:base/Time";
 import Float "mo:base/Float";
 import Iter "mo:base/Iter";
 import Option "mo:base/Option";
+import Nat64 "mo:base/Nat64";
 
 import Types "../../common/Types";
 
@@ -66,6 +67,66 @@ persistent actor class ApiCanister() = this {
     // Using HashMap for O(1) lookups by date
     stable var dailyMetricsEntries : [(Text, Types.DailyMetric)] = [];
     transient var dailyMetrics = HashMap.HashMap<Text, Types.DailyMetric>(10, Text.equal, Text.hash);
+
+    //-------------------------------------------------------------------------
+    // Admin RBAC Storage
+    //-------------------------------------------------------------------------
+    stable var adminRoleAssignmentsStable : [(Text, Types.AdminRoleAssignment)] = [];
+    transient var adminRoleAssignmentsStorage : HashMap.HashMap<Text, Types.AdminRoleAssignment> = HashMap.HashMap(0, Text.equal, Text.hash);
+
+    private func putAdminRole(principal : Text, assignment : Types.AdminRoleAssignment) : Bool {
+        adminRoleAssignmentsStorage.put(principal, assignment);
+        return true;
+    };
+
+    private func getAdminRole(principal : Text) : ?Types.AdminRoleAssignment {
+        switch (adminRoleAssignmentsStorage.get(principal)) {
+            case (null) { return null; };
+            case (?assignment) { return ?assignment; };
+        };
+    };
+
+    private func removeAdminRole(principal : Text) : Bool {
+        switch (adminRoleAssignmentsStorage.get(principal)) {
+            case (null) { return false; };
+            case (?assignment) {
+                let removeResult = adminRoleAssignmentsStorage.remove(principal);
+                return true;
+            };
+        };
+    };
+
+    private func getAllAdminRoles() : [Types.AdminRoleAssignment] {
+        let assignments : Iter.Iter<Types.AdminRoleAssignment> = adminRoleAssignmentsStorage.vals();
+        return Iter.toArray(assignments);
+    };
+
+    // Helper function to check admin permissions
+    private func hasAdminRole(principal : Principal, requiredRole : Types.AdminRole) : Bool {
+        // Controllers automatically have all permissions
+        if (Principal.isController(principal)) {
+            return true;
+        };
+
+        // Check for assigned role
+        let principalText = Principal.toText(principal);
+        switch (getAdminRole(principalText)) {
+            case (null) { return false; };
+            case (?assignment) {
+                switch (assignment.role, requiredRole) {
+                    // AdminUpdate includes AdminQuery
+                    case (#AdminUpdate, #AdminQuery) { true };
+                    case (#AdminUpdate, #AdminUpdate) { true };
+                    // AdminQuery only has query permissions
+                    case (#AdminQuery, #AdminQuery) { true };
+                    // All other combinations fail
+                    case _ { false };
+                };
+            };
+        };
+    };
+
+    //-------------------------------------------------------------------------
 
     // -------------------------------------------------------------------------------
     // Token Rewards Data (Static)
@@ -471,13 +532,61 @@ persistent actor class ApiCanister() = this {
     };
 
     // -------------------------------------------------------------------------------
+    // Admin RBAC Management Endpoints
+    // -------------------------------------------------------------------------------
+
+    // Add an admin role assignment (controller-only)
+    public shared(msg) func assignAdminRole(input : Types.AssignAdminRoleInputRecord) : async Types.AdminRoleAssignmentResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let assignment : Types.AdminRoleAssignment = {
+            principal = input.principal;
+            role = input.role;
+            assignedBy = Principal.toText(msg.caller);
+            assignedAt = Nat64.fromNat(Int.abs(Time.now()));
+            note = input.note;
+        };
+
+        // Store the assignment (replaces any existing assignment for this principal)
+        let _ = putAdminRole(input.principal, assignment);
+
+        #Ok(assignment)
+    };
+
+    // Remove an admin role assignment (controller-only)
+    public shared(msg) func revokeAdminRole(principal: Text) : async Types.TextResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let removed = removeAdminRole(principal);
+        if (removed) {
+            #Ok("Admin role revoked for principal: " # principal)
+        } else {
+            #Err(#Other("No admin role found for principal: " # principal))
+        }
+    };
+
+    // Get all admin role assignments (controller-only)
+    public shared query(msg) func getAdminRoles() : async Types.AdminRoleAssignmentsResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        #Ok(getAllAdminRoles())
+    };
+
+    // -------------------------------------------------------------------------------
     // Admin CRUD Endpoints
 
     public shared (msg) func createDailyMetricAdmin(input: Types.DailyMetricInput) : async Types.DailyMetricResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        if (not (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID)))) {
+        // Check if caller has AdminUpdate permission or is the master canister
+        if (not (hasAdminRole(msg.caller, #AdminUpdate) or Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID)))) {
             return #Err(#Unauthorized);
         };
         
@@ -808,10 +917,14 @@ persistent actor class ApiCanister() = this {
     // System upgrade hooks
     system func preupgrade() {
         dailyMetricsEntries := Iter.toArray(dailyMetrics.entries());
+        adminRoleAssignmentsStable := Iter.toArray(adminRoleAssignmentsStorage.entries());
     };
 
     system func postupgrade() {
         dailyMetrics := HashMap.fromIter<Text, Types.DailyMetric>(dailyMetricsEntries.vals(), dailyMetricsEntries.size(), Text.equal, Text.hash);
         dailyMetricsEntries := [];
+
+        adminRoleAssignmentsStorage := HashMap.fromIter(Iter.fromArray(adminRoleAssignmentsStable), adminRoleAssignmentsStable.size(), Text.equal, Text.hash);
+        adminRoleAssignmentsStable := [];
     };
 };
