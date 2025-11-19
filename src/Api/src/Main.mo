@@ -589,23 +589,16 @@ persistent actor class ApiCanister() = this {
         if (not (hasAdminRole(msg.caller, #AdminUpdate) or Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID)))) {
             return #Err(#Unauthorized);
         };
-        
+
         // Validate date format
         if (not isValidDateFormat(input.date)) {
             return #Err(#Other("Invalid date format. Use YYYY-MM-DD"));
         };
-        
-        // Check if metric already exists
-        switch (dailyMetrics.get(input.date)) {
-            case (?_existing) {
-                return #Err(#Other("Metric for date " # input.date # " already exists"));
-            };
-            case null {
-                let metric = inputToDailyMetric(input, false);
-                dailyMetrics.put(input.date, metric);
-                return #Ok(metric);
-            };
-        };
+
+        // Create or replace metric (replaces existing if it exists)
+        let metric = inputToDailyMetric(input, false);
+        dailyMetrics.put(input.date, metric);
+        return #Ok(metric);
     };
 
     public shared (msg) func updateDailyMetricAdmin(params: Types.UpdateDailyMetricAdminInput) : async Types.DailyMetricResult {
