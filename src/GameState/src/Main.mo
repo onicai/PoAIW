@@ -1964,7 +1964,109 @@ actor class GameStateCanister() = this {
         return dailyIdleBurnRate;
     };
 
-    
+    //-------------------------------------------------------------------------
+    // Admin RBAC Storage
+    //-------------------------------------------------------------------------
+    stable var adminRoleAssignmentsStable : [(Text, Types.AdminRoleAssignment)] = [];
+    transient var adminRoleAssignmentsStorage : HashMap.HashMap<Text, Types.AdminRoleAssignment> = HashMap.HashMap(0, Text.equal, Text.hash);
+
+    private func putAdminRole(principal : Text, assignment : Types.AdminRoleAssignment) : Bool {
+        adminRoleAssignmentsStorage.put(principal, assignment);
+        return true;
+    };
+
+    private func getAdminRole(principal : Text) : ?Types.AdminRoleAssignment {
+        switch (adminRoleAssignmentsStorage.get(principal)) {
+            case (null) { return null; };
+            case (?assignment) { return ?assignment; };
+        };
+    };
+
+    private func removeAdminRole(principal : Text) : Bool {
+        switch (adminRoleAssignmentsStorage.get(principal)) {
+            case (null) { return false; };
+            case (?assignment) {
+                let removeResult = adminRoleAssignmentsStorage.remove(principal);
+                return true;
+            };
+        };
+    };
+
+    private func getAllAdminRoles() : [Types.AdminRoleAssignment] {
+        let assignments : Iter.Iter<Types.AdminRoleAssignment> = adminRoleAssignmentsStorage.vals();
+        return Iter.toArray(assignments);
+    };
+
+    // Helper function to check admin permissions
+    private func hasAdminRole(principal : Principal, requiredRole : Types.AdminRole) : Bool {
+        // Controllers automatically have all permissions
+        if (Principal.isController(principal)) {
+            return true;
+        };
+
+        // Check for assigned role
+        let principalText = Principal.toText(principal);
+        switch (getAdminRole(principalText)) {
+            case (null) { return false; };
+            case (?assignment) {
+                switch (assignment.role, requiredRole) {
+                    // AdminUpdate includes AdminQuery
+                    case (#AdminUpdate, #AdminQuery) { true };
+                    case (#AdminUpdate, #AdminUpdate) { true };
+                    // AdminQuery only has query permissions
+                    case (#AdminQuery, #AdminQuery) { true };
+                    // All other combinations fail
+                    case _ { false };
+                };
+            };
+        };
+    };
+
+    // Add an admin role assignment (controller-only)
+    public shared(msg) func assignAdminRole(input : Types.AssignAdminRoleInputRecord) : async Types.AdminRoleAssignmentResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let assignment : Types.AdminRoleAssignment = {
+            principal = input.principal;
+            role = input.role;
+            assignedBy = Principal.toText(msg.caller);
+            assignedAt = Nat64.fromNat(Int.abs(Time.now()));
+            note = input.note;
+        };
+
+        // Store the assignment (replaces any existing assignment for this principal)
+        let _ = putAdminRole(input.principal, assignment);
+
+        #Ok(assignment)
+    };
+
+    // Remove an admin role assignment (controller-only)
+    public shared(msg) func revokeAdminRole(principal: Text) : async Types.TextResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let removed = removeAdminRole(principal);
+        if (removed) {
+            #Ok("Admin role revoked for principal: " # principal)
+        } else {
+            #Err(#Other("No admin role found for principal: " # principal))
+        }
+    };
+
+    // Get all admin role assignments (controller-only)
+    public shared query(msg) func getAdminRoles() : async Types.AdminRoleAssignmentsResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        #Ok(getAllAdminRoles())
+    };
+
+    //-------------------------------------------------------------------------
+
     // Official Challenger canisters
     stable var challengerCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
     var challengerCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -7166,7 +7268,8 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        if (not Principal.isController(msg.caller)) {
+        // Check if caller has AdminQuery permission
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
 
@@ -8188,6 +8291,7 @@ actor class GameStateCanister() = this {
         sharedServiceCanistersStorageStable := Iter.toArray(sharedServiceCanistersStorage.entries());
         redeemedTransactionBlocksStorageStable := Iter.toArray(redeemedTransactionBlocksStorage.entries());
         redeemedFunnaiTransactionBlocksStorageStable := Iter.toArray(redeemedFunnaiTransactionBlocksStorage.entries());
+        adminRoleAssignmentsStable := Iter.toArray(adminRoleAssignmentsStorage.entries());
     };
 
     system func postupgrade() {
@@ -8223,5 +8327,7 @@ actor class GameStateCanister() = this {
         redeemedTransactionBlocksStorageStable := [];
         redeemedFunnaiTransactionBlocksStorage := HashMap.fromIter(Iter.fromArray(redeemedFunnaiTransactionBlocksStorageStable), redeemedFunnaiTransactionBlocksStorageStable.size(), Nat.equal, Hash.hash);
         redeemedFunnaiTransactionBlocksStorageStable := [];
+        adminRoleAssignmentsStorage := HashMap.fromIter(Iter.fromArray(adminRoleAssignmentsStable), adminRoleAssignmentsStable.size(), Text.equal, Text.hash);
+        adminRoleAssignmentsStable := [];
     };
 };
