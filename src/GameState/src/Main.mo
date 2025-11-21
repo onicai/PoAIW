@@ -7061,15 +7061,48 @@ actor class GameStateCanister() = this {
                             };
                             case (#Ok(handleResult)) {
                                 D.print("GameState: topUpCyclesForMainerAgent - handleResult: " # debug_show(handleResult));
-                                // TODO - Implementation: credit mAIner agent with cycles (the user paid for)
+                                // Credit mAIner agent with cycles (the user paid for)
                                 try {
                                     let Mainer_Actor : Types.MainerAgentCtrlbCanister = actor (userMainerEntry.address);
                                     D.print("GameState: topUpCyclesForMainerAgent - calling Cycles.add for = " # debug_show(handleResult.cyclesForMainer) # " Cycles");
-                                    Cycles.add<system>(handleResult.cyclesForMainer);
-                                    
-                                    D.print("GameState: topUpCyclesForMainerAgent - calling Mainer_Actor.addCycles");
-                                    let addCyclesResponse = await Mainer_Actor.addCycles();
+                                    var addCyclesResponse : Types.AddCyclesResult = #Err(#Other("addCycles call didn't work"));
+                                    try {
+                                        Cycles.add<system>(handleResult.cyclesForMainer);
+                                        D.print("GameState: topUpCyclesForMainerAgent - calling Mainer_Actor.addCycles");
+                                        addCyclesResponse := await Mainer_Actor.addCycles();
+                                    } catch (e) {
+                                        D.print("GameState: topUpCyclesForMainerAgent - Failed to call addCycles on mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e));      
+                                        // try again below
+                                    };
                                     D.print("GameState: topUpCyclesForMainerAgent - addCyclesResponse: " # debug_show(addCyclesResponse));
+                                    switch (addCyclesResponse) {
+                                        case (#Err(error)) {
+                                            D.print("GameState: topUpCyclesForMainerAgent - addCyclesResponse error: " # debug_show(error));
+                                            // mAIner canister might be frozen due to too low cycles, so unfreeze canister by sending some cycles via the system API first
+                                            let cyclesToUnfreezeMainer = 100 * Constants.CYCLES_BILLION; 
+                                            Cycles.add<system>(cyclesToUnfreezeMainer);
+                                            let deposit_cycles_args = { canister_id : Principal = Principal.fromText(userMainerEntry.address); };
+                                            let _ = await IC0.deposit_cycles(deposit_cycles_args);
+                                            D.print("GameState: topUpCyclesForMainerAgent - Sent cycles to mAIner via IC0.deposit_cycles: " # debug_show(deposit_cycles_args)); 
+                                            // then send any remaining cycles via the dedicated endpoint
+                                            if (handleResult.cyclesForMainer > cyclesToUnfreezeMainer) {
+                                                let remainingCycles = handleResult.cyclesForMainer - cyclesToUnfreezeMainer;
+                                                D.print("GameState: topUpCyclesForMainerAgent - calling addCycles on mAIner with remainingCycles: " # debug_show(remainingCycles));
+                                                Cycles.add<system>(remainingCycles);
+                                                addCyclesResponse := await Mainer_Actor.addCycles();
+                                            } else {
+                                                // Record successful cycles deposit
+                                                let sentCyclesResult : Types.AddCyclesRecord = {
+                                                    added : Bool = true;
+                                                    amount : Nat = cyclesToUnfreezeMainer;
+                                                };
+                                                addCyclesResponse := #Ok(sentCyclesResult);
+                                            };
+                                        };
+                                        case (_) {
+                                            // continue as addCycles was successful
+                                        };
+                                    };
                                     switch (addCyclesResponse) {
                                         case (#Err(error)) {
                                             D.print("GameState: topUpCyclesForMainerAgent - addCyclesResponse FailedOperation: " # debug_show(error));
@@ -7078,7 +7111,7 @@ actor class GameStateCanister() = this {
                                         case (#Ok(addCyclesResult)) {
                                             D.print("GameState: topUpCyclesForMainerAgent - addCyclesResult: " # debug_show(addCyclesResult));
                                             //TODO - Design: decide whether a top up history should be kept
-                                            // TODO - Implementation: track redeemed transaction blocks to ensure no double spending
+                                            // Track redeemed transaction blocks to ensure no double spending
                                             switch (putRedeemedTransactionBlock(newTransactionEntry)) {
                                                 case (false) {
                                                     // TODO - Error Handling: likely retry
