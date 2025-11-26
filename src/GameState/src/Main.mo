@@ -30,6 +30,7 @@ import Constants "../../common/Constants";
 import CMC "../../common/cycles-minting-canister-interface";
 
 import Utils "Utils";
+import NFT "NFT";
 
 actor class GameStateCanister() = this {
 
@@ -8257,124 +8258,40 @@ actor class GameStateCanister() = this {
         };
     }; */
 
-// NFT compatibility for mAIners listed on marketplace (ICRC7 and ICRC37)
-    // Static endpoints, see example: https://github.com/PanIndustrial-Org/icrc_nft.mo/blob/main/example/main.mo
-    let icrc7Symbol : Text = "MAINERS";
-    let icrc7Name : Text = "funnAI mAIners";
-    let icrc7Description : Text = "mAIner AI agents listed on the funnAI marketplace.";
-    let icrc7Logo : Text = "https://funnai.onicai.com/funnai.webp";
-
+// ============================================================================
+    // NFT COMPATIBILITY FUNCTIONS (ICRC-7 and ICRC-37)
+    // See NFT.mo for additional NFT functions not actively used by marketplace
+    // ============================================================================
+    
+    // --- Static metadata functions (delegated to NFT module) ---
     public query func icrc7_symbol() : async Text {
-        return icrc7Symbol;
+        return NFT.symbol();
     };
 
     public query func icrc7_name() : async Text {
-        return icrc7Name;
+        return NFT.name();
     };
 
     public query func icrc7_description() : async ?Text {
-        return ?icrc7Description;
+        return NFT.description();
     };
 
     public query func icrc7_logo() : async ?Text {
-        return ?icrc7Logo;
+        return NFT.logo();
     };
-
-    /* public query func icrc7_max_memo_size() : async ?Nat {
-        return ?100; // TODO: placeholder
-    };
-
-    public query func icrc7_tx_window() : async ?Nat {
-        return ?100; // TODO: placeholder
-    };
-
-    public query func icrc7_permitted_drift() : async ?Nat {
-        return ?100; // TODO: placeholder
-    }; */
-
-    public query func icrc7_total_supply() : async Nat {
-        return marketplaceListedMainerAgentsStorage.size();
-    };
-
-    public query func icrc7_supply_cap() : async ?Nat {
-        let currentNumberOfMainers = getNumberMainerAgents(#ShareAgent);
-        return ?currentNumberOfMainers;
-    };
-
-    /* public query func icrc37_max_approvals_per_token_or_collection() : async ?Nat {
-        return ?1; // TODO: placeholder
-    };
-
-    public query func icrc7_max_query_batch_size() : async ?Nat {
-        return ?1; // TODO: placeholder
-    };
-
-    public query func icrc7_max_update_batch_size() : async ?Nat {
-        return ?1; // TODO: placeholder
-    };
-
-    public query func icrc7_default_take_value() : async ?Nat {
-        return ?100; // TODO: placeholder
-    };
-
-    public query func icrc7_max_take_value() : async ?Nat {
-        return ?100; // TODO: placeholder
-    };
-
-    public query func icrc7_atomic_batch_transfers() : async ?Bool {
-        return ?true; // TODO: placeholder
-    };
-
-    public query func icrc37_max_revoke_approvals() : async ?Nat {
-        return ?1; // TODO: placeholder
-    }; */
 
     public query func icrc7_collection_metadata() : async [(Text, ICRC7.Value)] {
-        let metadata : [(Text, ICRC7.Value)] = [
-            ("ICRC-7:Symbol", #Text(icrc7Symbol)),
-            ("ICRC-7:Name", #Text(icrc7Name)),
-            ("ICRC-7:Description", #Text(icrc7Description)),
-            ("ICRC-7:Logo", #Text(icrc7Logo))
-        ];
-
-        return metadata;
+        return NFT.collectionMetadata();
     };
 
-    /* public query func icrc7_owner_of(token_ids: OwnerOfRequest) : async OwnerOfResponse {
-        return null; // TODO: placeholder: only allow 1 token id and retrieve info for it
-    }; */
-
-    public query (msg) func icrc7_balance_of(accounts: [TokenLedger.Account]) : async [Nat] {
-        // Only allows 1 account and retrieves info for it
-        if (Principal.isAnonymous(msg.caller)) {
-            return [0];
-        };
-        if (accounts.size() != 1) {
-            return [0];
-        };
-        switch (getMarketplaceListedMainersForUser(accounts[0].owner)) {
-            case (null) { return [0]; };
-            case (?userCanistersList) {
-                let numberOfListings : Nat = List.size<Types.MainerMarketplaceListing>(userCanistersList);
-                return [numberOfListings];
-            };
-        };
+    public query func icrc10_supported_standards() : async ICRC7.SupportedStandards {
+        return NFT.supportedStandards();
     };
 
-    public query func icrc7_tokens(prev: ?Nat, take: ?Nat) : async [Nat] {
-        // Create a list of Nat with entries from 0 to marketplaceListedMainerAgentsStorage's size minus 1
-        let total = marketplaceListedMainerAgentsStorage.size();
-        if (total == 0) {
-            return [];
-        };
-
-        var ids : List.List<Nat> = List.nil<Nat>();
-        for (i in Iter.range(0, total - 1)) {
-            ids := List.push(i, ids);          
-        };
-        let idsArray = List.toArray(ids);
-
-        return idsArray;
+    // --- Marketplace-essential ICRC-7 functions ---
+    
+    public query func icrc7_total_supply() : async Nat {
+        return marketplaceListedMainerAgentsStorage.size();
     };
 
     public query func icrc7_token_metadata(token_ids: [Nat]) : async [?[(Text, ICRC7.Value)]]{
@@ -8398,40 +8315,33 @@ actor class GameStateCanister() = this {
         return out;
     };
 
-    /* public query func icrc7_tokens_of(account: Account, prev: ?Nat, take: ?Nat) : async [Nat] {
-        // Retrieve all listed mAIners for account
+    // --- NFT functions moved to NFT.mo (kept here for interface compatibility, may be removed later) ---
+    
+    public query func icrc7_supply_cap() : async ?Nat {
+        let currentNumberOfMainers = getNumberMainerAgents(#ShareAgent);
+        return ?currentNumberOfMainers;
+    };
+
+    public query (msg) func icrc7_balance_of(accounts: [TokenLedger.Account]) : async [Nat] {
+        // Only allows 1 account and retrieves info for it
         if (Principal.isAnonymous(msg.caller)) {
             return [0];
         };
-        switch (getMarketplaceListedMainersForUser(account.owner)) {
+        if (accounts.size() != 1) {
+            return [0];
+        };
+        switch (getMarketplaceListedMainersForUser(accounts[0].owner)) {
             case (null) { return [0]; };
             case (?userCanistersList) {
                 let numberOfListings : Nat = List.size<Types.MainerMarketplaceListing>(userCanistersList);
                 return [numberOfListings];
             };
         };
-    }; */
+    };
 
-    /* public query func icrc37_is_approved(args: [IsApprovedArg]) : async [Bool] {
-        return [false]; // TODO: only allow 1 token id and check if listed
-    }; */
-
-    /* public query func icrc37_get_token_approvals(token_ids: [Nat], prev: ?TokenApproval, take: ?Nat) : async [TokenApproval] {
-        
-        return icrc37().get_token_approvals(token_ids, prev, take);
-    }; */
-
-    /* public query func icrc37_get_collection_approvals(owner : Account, prev: ?CollectionApproval, take: ?Nat) : async [CollectionApproval] {
-        
-        return icrc37().get_collection_approvals(owner, prev, take);
-    }; */
-
-    public query func icrc10_supported_standards() : async ICRC7.SupportedStandards {
-        //TODO: ICRC-10?
-        return [
-        {name = "ICRC-7"; url = "https://github.com/dfinity/ICRC/ICRCs/ICRC-7"},
-        {name = "ICRC-10"; url = "https://github.com/dfinity/ICRC/ICRCs/ICRC-10"},
-        {name = "ICRC-37"; url = "https://github.com/dfinity/ICRC/ICRCs/ICRC-37"}];
+    public query func icrc7_tokens(prev: ?Nat, take: ?Nat) : async [Nat] {
+        let total = marketplaceListedMainerAgentsStorage.size();
+        return NFT.generateTokenIds(total);
     };
 
     public shared(msg) func icrc37_approve_tokens(args: [ICRC37.Service.ApproveTokenArg]) : async [?ICRC37.Service.ApproveTokenResult] {
