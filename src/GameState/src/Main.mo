@@ -8381,14 +8381,17 @@ actor class GameStateCanister() = this {
             return [?#Err(#Unauthorized)];
         };
         let approveTokenArg : ICRC37.Service.ApproveTokenArg = args[0];
+        D.print("GameState: icrc37_approve_tokens - approveTokenArg: "# debug_show(approveTokenArg));
         if (approveTokenArg.token_id < 1000000) {
             // Price has to be at least 0.01 ICP
+            D.print("GameState: icrc37_approve_tokens - specified price to small: "# debug_show(approveTokenArg.token_id));
             return [?#Err(#Unauthorized)];
         };
         // Get mAIner address from memo
         switch (approveTokenArg.approval_info.memo) {
             case (null) {
                 // No mAIner canister specified
+                D.print("GameState: icrc37_approve_tokens - no mAIner canister specified (as memo): "# debug_show(approveTokenArg.approval_info.memo));
                 return [?#Err(#Unauthorized)];
             };
             case (?approvalMemo) {
@@ -8396,20 +8399,25 @@ actor class GameStateCanister() = this {
                 switch (text) {
                     case (null) {
                         // No mAIner canister specified
+                        D.print("GameState: icrc37_approve_tokens - no mAIner canister received from decoded memo: "# debug_show(approvalMemo));
                         return [?#Err(#Unauthorized)];
                     };
                     case (?mainerAddress) {
+                        D.print("GameState: icrc37_approve_tokens - specified mainerAddress (in memo): "# debug_show(mainerAddress));
                         // Confirm caller owns mAIner
                         switch (getUserMainerAgents(msg.caller)) {
                             case (null) {
+                                D.print("GameState: icrc37_approve_tokens - caller does not own any mAIners: "# debug_show(msg.caller));
                                 return [?#Err(#Unauthorized)];
                             };
                             case (?userMainerEntries) {
                                 switch (List.find<Types.OfficialMainerAgentCanister>(userMainerEntries, func(mainerEntry: Types.OfficialMainerAgentCanister) : Bool { mainerEntry.address == mainerAddress } )) {
                                     case (null) {
+                                        D.print("GameState: icrc37_approve_tokens - caller does not own the mAIner: "# debug_show(msg.caller));
                                         return [?#Err(#NonExistingTokenId)];
                                     };
                                     case (?userMainerEntry) {
+                                        D.print("GameState: icrc37_approve_tokens - specified mAIner exists: "# debug_show(userMainerEntry));
                                         // Sanity checks on userMainerEntry (i.e. address provided is correct and matches entry info)
                                         switch (userMainerEntry.canisterType) {
                                             case (#MainerAgent(mainerAgentCanisterType)) {
@@ -8427,6 +8435,7 @@ actor class GameStateCanister() = this {
                                                             reservedBy : ?Principal = null;
                                                         };
                                                         let result = putMarketplaceListedMainer(entry);
+                                                        D.print("GameState: icrc37_approve_tokens - added mAIner to listings: "# debug_show(entry));
                                                         return [?#Ok(getNextMainerMarketplaceTransactionId())];                                                
                                                     };
                                                 };
@@ -8473,10 +8482,12 @@ actor class GameStateCanister() = this {
             return [?#Err(#Unauthorized)];
         };
         let revokeTokenArg : ICRC37.Service.RevokeTokenApprovalArg = args[0];
+        D.print("GameState: icrc37_revoke_token_approvals - revokeTokenArg: "# debug_show(revokeTokenArg));
         // Get mAIner address from memo
         switch (revokeTokenArg.memo) {
             case (null) {
                 // No mAIner canister specified
+                D.print("GameState: icrc37_revoke_token_approvals - No mAIner canister specified by caller: "# debug_show(msg.caller));
                 return [?#Err(#Unauthorized)];
             };
             case (?revokeMemo) {
@@ -8484,20 +8495,24 @@ actor class GameStateCanister() = this {
                 switch (text) {
                     case (null) {
                         // No mAIner canister specified
+                        D.print("GameState: icrc37_revoke_token_approvals - No mAIner canister specified by caller: "# debug_show(msg.caller));
                         return [?#Err(#Unauthorized)];
                     };
                     case (?mainerAddress) {
                         // Confirm caller owns mAIner
                         switch (getUserMainerAgents(msg.caller)) {
                             case (null) {
+                                D.print("GameState: icrc37_revoke_token_approvals - caller doesn't own any mAIner: "# debug_show(msg.caller));
                                 return [?#Err(#Unauthorized)];
                             };
                             case (?userMainerEntries) {
                                 switch (List.find<Types.OfficialMainerAgentCanister>(userMainerEntries, func(mainerEntry: Types.OfficialMainerAgentCanister) : Bool { mainerEntry.address == mainerAddress } )) {
                                     case (null) {
+                                        D.print("GameState: icrc37_revoke_token_approvals - caller doesn't own mAIner: "# debug_show(msg.caller));
                                         return [?#Err(#Unauthorized)];
                                     };
                                     case (?userMainerEntry) {
+                                        D.print("GameState: icrc37_revoke_token_approvals - mAIner exists: "# debug_show(userMainerEntry));
                                         switch (userMainerEntry.canisterType) {
                                             case (#MainerAgent(mainerAgentCanisterType)) {
                                                 // Check that mAIner is listed currently
@@ -8507,7 +8522,8 @@ actor class GameStateCanister() = this {
                                                         // Remove mAIner from listings
                                                         switch (removeMarketplaceListedMainer(mainerAddress)) {
                                                             case (false) { return [?#Err(#Unauthorized)]; };
-                                                            case (true) {                                                                
+                                                            case (true) {
+                                                                D.print("GameState: icrc37_revoke_token_approvals - removed mAIner from listings: "# debug_show(canisterEntry));
                                                                 return [?#Ok(getNextMainerMarketplaceTransactionId())];                                                
                                                             };
                                                         };                                                
@@ -8558,9 +8574,11 @@ actor class GameStateCanister() = this {
             return [?#Err(#Unauthorized)];
         };
         let transferTokenArg : ICRC37.Service.TransferFromArg = args[0];
+        D.print("GameState: icrc37_transfer_from - transferTokenArg: "# debug_show(transferTokenArg));
         switch (transferTokenArg.memo) {
             case (null) {
                 // No mAIner canister specified
+                D.print("GameState: icrc37_transfer_from - no mAIner specified by caller: "# debug_show(msg.caller));
                 return [?#Err(#Unauthorized)];
             };
             case (?transferMemo) {
@@ -8568,29 +8586,38 @@ actor class GameStateCanister() = this {
                 switch (text) {
                     case (null) {
                         // No mAIner canister specified
+                        D.print("GameState: icrc37_transfer_from - no mAIner address received from caller: "# debug_show(msg.caller));
                         return [?#Err(#Unauthorized)];
                     };
                     case (?mainerAddress) {
+                        D.print("GameState: icrc37_transfer_from - mainerAddress: "# debug_show(mainerAddress));
                         let transactionToVerify = Nat64.fromNat(transferTokenArg.token_id);
                         switch (checkExistingTransactionBlock(transactionToVerify)) {
                             case (false) {
                                 // new transaction, continue
+                                D.print("GameState: icrc37_transfer_from - new transaction: "# debug_show(transactionToVerify));
                             };
                             case (true) {
                                 // already redeem transaction
+                                D.print("GameState: icrc37_transfer_from - double spending: "# debug_show(transactionToVerify));
                                 return [?#Err(#Unauthorized)]; // no double spending
                             };
                         };
                         // Verify that caller has reserved the mAIner
                         switch (getMarketplaceReservedMainerForUser(msg.caller)) {
-                            case (null) { return [?#Err(#Unauthorized)]; };
+                            case (null) {
+                                D.print("GameState: icrc37_transfer_from - caller doesn't have a reservation: "# debug_show(msg.caller));
+                                return [?#Err(#Unauthorized)];
+                            };
                             case (?userCanisterEntry) {
                                 if (userCanisterEntry.address != mainerAddress) {
+                                    D.print("GameState: icrc37_transfer_from - caller has a different reservation: "# debug_show(msg.caller) # debug_show(userCanisterEntry));
                                     return [?#Err(#Unauthorized)];
                                 };
                                 switch (getMainerAgentCanister(mainerAddress)) {
                                     case (null) { return [?#Err(#InvalidRecipient)]; };
                                     case (?mainerEntry) {
+                                        D.print("GameState: icrc37_transfer_from - mainerEntry: "# debug_show(mainerEntry));
                                         // TODO: Verify user's payment for this agent via the TransactionBlockId (incl. correct price)
                                         /* var verifiedPayment : Bool = false;
                                         var amountPaid : Nat = 0;
@@ -8633,13 +8660,16 @@ actor class GameStateCanister() = this {
                                             status : Types.CanisterStatus = mainerEntry.status; 
                                             mainerConfig : Types.MainerConfigurationInput = mainerEntry.mainerConfig;
                                         };
-                                        let updateResult : Types.MainerAgentCanisterResult = putMainerAgentCanister(mainerAddress, newCanisterEntry);                                
+                                        let updateResult : Types.MainerAgentCanisterResult = putMainerAgentCanister(mainerAddress, newCanisterEntry);
+                                        D.print("GameState: icrc37_transfer_from - updated mainerEntry: "# debug_show(newCanisterEntry));                              
 
                                         // Remove from seller
                                         let removeResult : Bool = removeUserMainerAgent(mainerEntry);
+                                        D.print("GameState: icrc37_transfer_from - removed from seller: "# debug_show(removeResult));  
 
                                         // Add to buyer 
                                         let addResult : Bool = putUserMainerAgent(newCanisterEntry);
+                                        D.print("GameState: icrc37_transfer_from - added to buyer: "# debug_show(addResult));  
 
                                         // Record the sale for statistics
                                         let sale : Types.MarketplaceSale = {
@@ -8650,6 +8680,7 @@ actor class GameStateCanister() = this {
                                             saleTimestamp = Nat64.fromNat(Int.abs(Time.now()));
                                         };
                                         marketplaceSalesHistory.add(sale);
+                                        D.print("GameState: icrc37_transfer_from - sale record: "# debug_show(sale)); 
 
                                         // Clean up reservation and cancel the timer
                                         switch (marketplaceReservationTimers.get(mainerAddress)) {
@@ -8659,8 +8690,9 @@ actor class GameStateCanister() = this {
                                             };
                                             case (null) {};
                                         };
-                        ignore marketplaceReservedMainerAgentsStorage.remove(mainerAddress);
-                        ignore userToMarketplaceReservedMainerStorage.remove(msg.caller);
+                                        ignore marketplaceReservedMainerAgentsStorage.remove(mainerAddress);
+                                        ignore userToMarketplaceReservedMainerStorage.remove(msg.caller);
+                                        D.print("GameState: icrc37_transfer_from - cleared reservation for mainerAddress: "# debug_show(mainerAddress)); 
 
                                         return [?#Ok(getNextMainerMarketplaceTransactionId())];                                        
                                     };
@@ -9030,12 +9062,17 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        D.print("GameState: reserveMarketplaceListedMainer - called by: "# debug_show(msg.caller));
+        D.print("GameState: reserveMarketplaceListedMainer - reservationInput: "# debug_show(reservationInput));
         // Verify user doesn't have a reservation yet
         switch (getMarketplaceReservedMainerForUser(msg.caller)) {
             case (null) { 
                 // Continue
             };
-            case (?userCanisterEntry) { return #Err(#Unauthorized); };
+            case (?userCanisterEntry) {
+                D.print("GameState: reserveMarketplaceListedMainer - caller already has a reservation: "# debug_show(userCanisterEntry));
+                return #Err(#Unauthorized);
+            };
         };
 
         // Verify mAIner is not reserved
@@ -9043,12 +9080,18 @@ actor class GameStateCanister() = this {
             case (null) { 
                 // Continue
             };
-            case (?canisterEntry) { return #Err(#Unauthorized); };
+            case (?canisterEntry) {
+                D.print("GameState: reserveMarketplaceListedMainer - mAIner is already reserved: "# debug_show(canisterEntry));
+                return #Err(#Unauthorized);
+            };
         };
 
         // Verify mAIner is listed
         switch (getMarketplaceListedMainer(reservationInput.address)) {
-            case (null) { return #Err(#Unauthorized); };
+            case (null) {
+                D.print("GameState: reserveMarketplaceListedMainer - mAIner is not listed: "# debug_show(reservationInput.address));
+                return #Err(#Unauthorized);
+            };
             case (?canisterEntry) {
                 // Reserve mAIner for buying (incl. removing listing during purchase completion)
                 let newEntry : Types.MainerMarketplaceListing = {
@@ -9060,6 +9103,7 @@ actor class GameStateCanister() = this {
                     reservedBy : ?Principal = ?msg.caller; // Only change
                 };
                 let result = putMarketplaceReservedMainer(newEntry);
+                D.print("GameState: reserveMarketplaceListedMainer - reserved mAIner: "# debug_show(newEntry));
                 return #Ok(newEntry);
             };
         };

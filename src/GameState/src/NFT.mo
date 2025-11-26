@@ -22,7 +22,7 @@ module {
     public let icrc7Symbol : Text = "MAINERS";
     public let icrc7Name : Text = "funnAI mAIners";
     public let icrc7Description : Text = "mAIner AI agents listed on the funnAI marketplace.";
-    public let icrc7Logo : Text = "https://funnai.onicai.com/funnai.webp";
+    public let icrc7Logo : Text = "https://funnai.onicai.com/funnai_192.webp";
 
     // ICRC-7 Static metadata functions
     public func symbol() : Text {
