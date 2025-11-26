@@ -9002,6 +9002,30 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Get user's marketplace transaction history (buys and sells)
+    public query (msg) func getUserMarketplaceTransactionHistory() : async Types.MarketplaceTransactionHistoryResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        var purchases : List.List<Types.MarketplaceSale> = List.nil<Types.MarketplaceSale>();
+        var sales : List.List<Types.MarketplaceSale> = List.nil<Types.MarketplaceSale>();
+
+        for (sale in marketplaceSalesHistory.vals()) {
+            if (Principal.equal(sale.buyer, msg.caller)) {
+                purchases := List.push(sale, purchases);
+            };
+            if (Principal.equal(sale.seller, msg.caller)) {
+                sales := List.push(sale, sales);
+            };
+        };
+
+        return #Ok({
+            purchases = List.toArray(purchases);
+            sales = List.toArray(sales);
+        });
+    };
+
     public shared (msg) func reserveMarketplaceListedMainer<system>(reservationInput : Types.MainerMarketplaceReservationInput) : async Types.MainerMarketplaceReservationResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);

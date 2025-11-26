@@ -375,6 +375,13 @@ module Types {
         uniqueSellers : Nat;
     };
 
+    public type MarketplaceTransactionHistory = {
+        purchases : [MarketplaceSale];  // mAIners user bought
+        sales : [MarketplaceSale];      // mAIners user sold
+    };
+
+    public type MarketplaceTransactionHistoryResult = Result<MarketplaceTransactionHistory, ApiError>;
+
     public type CanisterInput = {
         address : CanisterAddress;
         subnet : Text;
