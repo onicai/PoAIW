@@ -8645,11 +8645,14 @@ actor class GameStateCanister() = this {
                                         if (not verifiedPayment) {
                                             return #Err(#Other("Payment couldn't be verified"));
                                         }; */
-                                        
-                                        // TODO: take protocol cut (10%) and send rest to seller
+
+                                        // TODO: retrieve approved ICP (mAIner price)
 
                                         // Transfer mAIner ownership
-                                        // Update mAIner entry
+                                        // TODO: Add the buyer as a controller of the mAIner canister via mAIner Creator (if this fails, try again, otherwise cancel the sale)
+                                        
+                                        // Update mAIner entry 
+                                        // TODO: (if this fails, try again, otherwise revert the controller update and cancel the sale)
                                         let newCanisterEntry : Types.OfficialMainerAgentCanister = {
                                             address : Text = mainerEntry.address;
                                             subnet : Text = mainerEntry.subnet;
@@ -8671,6 +8674,11 @@ actor class GameStateCanister() = this {
                                         let addResult : Bool = putUserMainerAgent(newCanisterEntry);
                                         D.print("GameState: icrc37_transfer_from - added to buyer: "# debug_show(addResult));  
 
+                                        // TODO: Remove the seller as controller from the mAIner canister via mAIner Creator (if this fails, try again, otherwise store the failure for an admin to check)
+
+                                        
+                                        // TODO: if any step during the ownership transfer failed, revert any ownership changes, send back the ICP to the buyer and cancel the sale (mAIner back to listed)
+                                        
                                         // Record the sale for statistics
                                         let sale : Types.MarketplaceSale = {
                                             mainerAddress = mainerAddress;
@@ -8693,6 +8701,8 @@ actor class GameStateCanister() = this {
                                         ignore marketplaceReservedMainerAgentsStorage.remove(mainerAddress);
                                         ignore userToMarketplaceReservedMainerStorage.remove(msg.caller);
                                         D.print("GameState: icrc37_transfer_from - cleared reservation for mainerAddress: "# debug_show(mainerAddress)); 
+
+                                        // TODO: Take protocol cut (10%) from the sales amount and send the rest to the seller
 
                                         return [?#Ok(getNextMainerMarketplaceTransactionId())];                                        
                                     };
