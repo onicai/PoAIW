@@ -2,6 +2,9 @@ import type { Principal } from '@dfinity/principal';
 import type { ActorMethod } from '@dfinity/agent';
 import type { IDL } from '@dfinity/candid';
 
+export interface AddCyclesRecord { 'added' : boolean, 'amount' : bigint }
+export type AddCyclesResult = { 'Ok' : AddCyclesRecord } |
+  { 'Err' : ApiError };
 export interface AddModelCreationArtefactsEntry {
   'selectedModel' : SelectableMainerLLMs,
   'creationArtefacts' : ModelCreationArtefacts,
@@ -46,6 +49,16 @@ export type CanisterStatus = { 'Paused' : null } |
   { 'Running' : null } |
   { 'Other' : string } |
   { 'ControllerCreationInProgress' : null };
+export interface CyclesTransaction {
+  'newOfficialCycleBalance' : bigint,
+  'creationTimestamp' : bigint,
+  'amountAdded' : bigint,
+  'sentBy' : Principal,
+  'previousCyclesBalance' : bigint,
+  'succeeded' : boolean,
+}
+export type CyclesTransactionsResult = { 'Ok' : Array<CyclesTransaction> } |
+  { 'Err' : ApiError };
 export type FileUploadResult = { 'Ok' : UploadResult } |
   { 'Err' : ApiError };
 export interface FinishUploadMainerLlmInput {
@@ -80,15 +93,28 @@ export interface MainerCreatorCanister {
     [CanisterCreationConfiguration],
     CanisterCreationResult
   >,
+  'finish_upload_mainer_controller_canister_wasm' : ActorMethod<
+    [],
+    StatusCodeRecordResult
+  >,
   'finish_upload_mainer_llm' : ActorMethod<
     [FinishUploadMainerLlmInput],
     FileUploadResult
   >,
+  'finish_upload_mainer_llm_canister_wasm' : ActorMethod<
+    [SelectableMainerLLMs],
+    StatusCodeRecordResult
+  >,
+  'getCyclesToSendToGameStateAdmin' : ActorMethod<[], bigint>,
+  'getCyclesTransactionsAdmin' : ActorMethod<[], CyclesTransactionsResult>,
   'getDefaultSubnetsAdmin' : ActorMethod<
     [],
     { 'Ok' : Array<Principal> } |
       { 'Err' : { 'Unauthorized' : null } }
   >,
+  'getMasterCanisterIdAdmin' : ActorMethod<[], string>,
+  'getMinCyclesBalanceAdmin' : ActorMethod<[], bigint>,
+  'getSha256HashesAdmin' : ActorMethod<[], Sha256HashesResult>,
   'health' : ActorMethod<[], StatusCodeRecordResult>,
   'isSubnetAvailableAdmin' : ActorMethod<
     [string],
@@ -99,7 +125,13 @@ export interface MainerCreatorCanister {
     [ReinstallMainerctrlInput],
     StatusCodeRecordResult
   >,
+  'sendCyclesToGameStateCanister' : ActorMethod<[], AddCyclesResult>,
+  'setCyclesToSendToGameStateAdmin' : ActorMethod<
+    [bigint],
+    StatusCodeRecordResult
+  >,
   'setMasterCanisterId' : ActorMethod<[string], AuthRecordResult>,
+  'setMinCyclesBalanceAdmin' : ActorMethod<[bigint], StatusCodeRecordResult>,
   'setupCanister' : ActorMethod<[SetupCanisterInput], CanisterCreationResult>,
   'start_upload_mainer_controller_canister_wasm' : ActorMethod<
     [],
@@ -162,6 +194,14 @@ export interface SetupCanisterInput {
   'subnet' : string,
   'newCanisterId' : string,
 }
+export interface Sha256HashesRecord {
+  'llmWasmHashes' : Array<
+    [string, { 'wasmSha256' : string, 'modelFileSha256' : string }]
+  >,
+  'mainerControllerWasmSha256' : string,
+}
+export type Sha256HashesResult = { 'Ok' : Sha256HashesRecord } |
+  { 'Err' : ApiError };
 export type StatusCode = number;
 export interface StatusCodeRecord { 'status_code' : StatusCode }
 export type StatusCodeRecordResult = { 'Ok' : StatusCodeRecord } |

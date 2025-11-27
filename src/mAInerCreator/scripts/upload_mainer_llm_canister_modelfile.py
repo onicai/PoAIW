@@ -11,6 +11,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Generator
+from pprint import pprint
 from .calculate_sha256 import calculate_sha256
 from .ic_py_canister import get_canister, run_dfx_command
 from .parse_args_upload import parse_args
@@ -184,6 +185,18 @@ def main() -> int:
     }
     )  # pylint: disable=no-member
     print(finishResponse)
+
+    # ---------------------------------------------------------------------------
+    # Get and display the SHA-256 hashes
+    print("--\nRetrieving SHA-256 hashes")
+    hashesResponse = canister_creator.getSha256HashesAdmin()  # pylint: disable=no-member
+    if "Ok" in hashesResponse[0].keys():
+        print("SHA-256 Hashes:")
+        pprint(hashesResponse[0]["Ok"])
+    else:
+        print("Failed to retrieve SHA-256 hashes:")
+        pprint(hashesResponse)
+
     return 0
 
 

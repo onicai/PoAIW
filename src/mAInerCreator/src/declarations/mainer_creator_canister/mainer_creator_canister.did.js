@@ -69,6 +69,11 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : CanisterCreationRecord,
     'Err' : ApiError,
   });
+  const StatusCodeRecord = IDL.Record({ 'status_code' : StatusCode });
+  const StatusCodeRecordResult = IDL.Variant({
+    'Ok' : StatusCodeRecord,
+    'Err' : ApiError,
+  });
   const FinishUploadMainerLlmInput = IDL.Record({
     'selectedModel' : SelectableMainerLLMs,
     'modelFileSha256' : IDL.Text,
@@ -78,9 +83,29 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : UploadResult,
     'Err' : ApiError,
   });
-  const StatusCodeRecord = IDL.Record({ 'status_code' : StatusCode });
-  const StatusCodeRecordResult = IDL.Variant({
-    'Ok' : StatusCodeRecord,
+  const CyclesTransaction = IDL.Record({
+    'newOfficialCycleBalance' : IDL.Nat,
+    'creationTimestamp' : IDL.Nat64,
+    'amountAdded' : IDL.Nat,
+    'sentBy' : IDL.Principal,
+    'previousCyclesBalance' : IDL.Nat,
+    'succeeded' : IDL.Bool,
+  });
+  const CyclesTransactionsResult = IDL.Variant({
+    'Ok' : IDL.Vec(CyclesTransaction),
+    'Err' : ApiError,
+  });
+  const Sha256HashesRecord = IDL.Record({
+    'llmWasmHashes' : IDL.Vec(
+      IDL.Tuple(
+        IDL.Text,
+        IDL.Record({ 'wasmSha256' : IDL.Text, 'modelFileSha256' : IDL.Text }),
+      )
+    ),
+    'mainerControllerWasmSha256' : IDL.Text,
+  });
+  const Sha256HashesResult = IDL.Variant({
+    'Ok' : Sha256HashesRecord,
     'Err' : ApiError,
   });
   const LlmSetupStatus = IDL.Variant({
@@ -118,6 +143,14 @@ export const idlFactory = ({ IDL }) => {
     'cyclesReinstallMainerctrlGsMc' : IDL.Nat,
     'mainerAgentEntry' : OfficialMainerAgentCanister,
   });
+  const AddCyclesRecord = IDL.Record({
+    'added' : IDL.Bool,
+    'amount' : IDL.Nat,
+  });
+  const AddCyclesResult = IDL.Variant({
+    'Ok' : AddCyclesRecord,
+    'Err' : ApiError,
+  });
   const SetupCanisterInput = IDL.Record({
     'configurationInput' : CanisterCreationConfiguration,
     'subnet' : IDL.Text,
@@ -150,10 +183,26 @@ export const idlFactory = ({ IDL }) => {
         [CanisterCreationResult],
         [],
       ),
+    'finish_upload_mainer_controller_canister_wasm' : IDL.Func(
+        [],
+        [StatusCodeRecordResult],
+        [],
+      ),
     'finish_upload_mainer_llm' : IDL.Func(
         [FinishUploadMainerLlmInput],
         [FileUploadResult],
         [],
+      ),
+    'finish_upload_mainer_llm_canister_wasm' : IDL.Func(
+        [SelectableMainerLLMs],
+        [StatusCodeRecordResult],
+        [],
+      ),
+    'getCyclesToSendToGameStateAdmin' : IDL.Func([], [IDL.Nat], ['query']),
+    'getCyclesTransactionsAdmin' : IDL.Func(
+        [],
+        [CyclesTransactionsResult],
+        ['query'],
       ),
     'getDefaultSubnetsAdmin' : IDL.Func(
         [],
@@ -165,6 +214,9 @@ export const idlFactory = ({ IDL }) => {
         ],
         [],
       ),
+    'getMasterCanisterIdAdmin' : IDL.Func([], [IDL.Text], ['query']),
+    'getMinCyclesBalanceAdmin' : IDL.Func([], [IDL.Nat], ['query']),
+    'getSha256HashesAdmin' : IDL.Func([], [Sha256HashesResult], ['query']),
     'health' : IDL.Func([], [StatusCodeRecordResult], ['query']),
     'isSubnetAvailableAdmin' : IDL.Func(
         [IDL.Text],
@@ -181,7 +233,18 @@ export const idlFactory = ({ IDL }) => {
         [StatusCodeRecordResult],
         [],
       ),
+    'sendCyclesToGameStateCanister' : IDL.Func([], [AddCyclesResult], []),
+    'setCyclesToSendToGameStateAdmin' : IDL.Func(
+        [IDL.Nat],
+        [StatusCodeRecordResult],
+        [],
+      ),
     'setMasterCanisterId' : IDL.Func([IDL.Text], [AuthRecordResult], []),
+    'setMinCyclesBalanceAdmin' : IDL.Func(
+        [IDL.Nat],
+        [StatusCodeRecordResult],
+        [],
+      ),
     'setupCanister' : IDL.Func(
         [SetupCanisterInput],
         [CanisterCreationResult],

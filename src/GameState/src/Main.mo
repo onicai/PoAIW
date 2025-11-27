@@ -231,12 +231,12 @@ actor class GameStateCanister() = this {
         let buffer = BUFFER_MAINER_CREATION; // to guard against concurrent creations that would leave the user in a state where they paid for the mAIner creation but the protocol blocks it due to the limit
         switch (checkInput.mainerType) {
             case (#Own) {
-                if (getNumberMainerAgents(checkInput.mainerType) + buffer > LIMIT_OWN_MAINERS) {
+                if (getNumberMainerAgents(checkInput.mainerType) + buffer >= LIMIT_OWN_MAINERS) {
                     return #Ok({ flag = true });
                 };
             };
             case (#ShareAgent) {
-                if (getNumberMainerAgents(checkInput.mainerType) + buffer > LIMIT_SHARED_MAINERS) {
+                if (getNumberMainerAgents(checkInput.mainerType) + buffer >= LIMIT_SHARED_MAINERS) {
                     return #Ok({ flag = true });
                 };
             };
@@ -1969,7 +1969,109 @@ actor class GameStateCanister() = this {
         return dailyIdleBurnRate;
     };
 
-    
+    //-------------------------------------------------------------------------
+    // Admin RBAC Storage
+    //-------------------------------------------------------------------------
+    stable var adminRoleAssignmentsStable : [(Text, Types.AdminRoleAssignment)] = [];
+    transient var adminRoleAssignmentsStorage : HashMap.HashMap<Text, Types.AdminRoleAssignment> = HashMap.HashMap(0, Text.equal, Text.hash);
+
+    private func putAdminRole(principal : Text, assignment : Types.AdminRoleAssignment) : Bool {
+        adminRoleAssignmentsStorage.put(principal, assignment);
+        return true;
+    };
+
+    private func getAdminRole(principal : Text) : ?Types.AdminRoleAssignment {
+        switch (adminRoleAssignmentsStorage.get(principal)) {
+            case (null) { return null; };
+            case (?assignment) { return ?assignment; };
+        };
+    };
+
+    private func removeAdminRole(principal : Text) : Bool {
+        switch (adminRoleAssignmentsStorage.get(principal)) {
+            case (null) { return false; };
+            case (?assignment) {
+                let removeResult = adminRoleAssignmentsStorage.remove(principal);
+                return true;
+            };
+        };
+    };
+
+    private func getAllAdminRoles() : [Types.AdminRoleAssignment] {
+        let assignments : Iter.Iter<Types.AdminRoleAssignment> = adminRoleAssignmentsStorage.vals();
+        return Iter.toArray(assignments);
+    };
+
+    // Helper function to check admin permissions
+    private func hasAdminRole(principal : Principal, requiredRole : Types.AdminRole) : Bool {
+        // Controllers automatically have all permissions
+        if (Principal.isController(principal)) {
+            return true;
+        };
+
+        // Check for assigned role
+        let principalText = Principal.toText(principal);
+        switch (getAdminRole(principalText)) {
+            case (null) { return false; };
+            case (?assignment) {
+                switch (assignment.role, requiredRole) {
+                    // AdminUpdate includes AdminQuery
+                    case (#AdminUpdate, #AdminQuery) { true };
+                    case (#AdminUpdate, #AdminUpdate) { true };
+                    // AdminQuery only has query permissions
+                    case (#AdminQuery, #AdminQuery) { true };
+                    // All other combinations fail
+                    case _ { false };
+                };
+            };
+        };
+    };
+
+    // Add an admin role assignment (controller-only)
+    public shared(msg) func assignAdminRole(input : Types.AssignAdminRoleInputRecord) : async Types.AdminRoleAssignmentResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let assignment : Types.AdminRoleAssignment = {
+            principal = input.principal;
+            role = input.role;
+            assignedBy = Principal.toText(msg.caller);
+            assignedAt = Nat64.fromNat(Int.abs(Time.now()));
+            note = input.note;
+        };
+
+        // Store the assignment (replaces any existing assignment for this principal)
+        let _ = putAdminRole(input.principal, assignment);
+
+        #Ok(assignment)
+    };
+
+    // Remove an admin role assignment (controller-only)
+    public shared(msg) func revokeAdminRole(principal: Text) : async Types.TextResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let removed = removeAdminRole(principal);
+        if (removed) {
+            #Ok("Admin role revoked for principal: " # principal)
+        } else {
+            #Err(#Other("No admin role found for principal: " # principal))
+        }
+    };
+
+    // Get all admin role assignments (controller-only)
+    public shared query(msg) func getAdminRoles() : async Types.AdminRoleAssignmentsResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        #Ok(getAllAdminRoles())
+    };
+
+    //-------------------------------------------------------------------------
+
     // Official Challenger canisters
     stable var challengerCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
     var challengerCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -7047,15 +7149,48 @@ actor class GameStateCanister() = this {
                             };
                             case (#Ok(handleResult)) {
                                 D.print("GameState: topUpCyclesForMainerAgent - handleResult: " # debug_show(handleResult));
-                                // TODO - Implementation: credit mAIner agent with cycles (the user paid for)
+                                // Credit mAIner agent with cycles (the user paid for)
                                 try {
                                     let Mainer_Actor : Types.MainerAgentCtrlbCanister = actor (userMainerEntry.address);
                                     D.print("GameState: topUpCyclesForMainerAgent - calling Cycles.add for = " # debug_show(handleResult.cyclesForMainer) # " Cycles");
-                                    Cycles.add<system>(handleResult.cyclesForMainer);
-                                    
-                                    D.print("GameState: topUpCyclesForMainerAgent - calling Mainer_Actor.addCycles");
-                                    let addCyclesResponse = await Mainer_Actor.addCycles();
+                                    var addCyclesResponse : Types.AddCyclesResult = #Err(#Other("addCycles call didn't work"));
+                                    try {
+                                        Cycles.add<system>(handleResult.cyclesForMainer);
+                                        D.print("GameState: topUpCyclesForMainerAgent - calling Mainer_Actor.addCycles");
+                                        addCyclesResponse := await Mainer_Actor.addCycles();
+                                    } catch (e) {
+                                        D.print("GameState: topUpCyclesForMainerAgent - Failed to call addCycles on mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e));      
+                                        // try again below
+                                    };
                                     D.print("GameState: topUpCyclesForMainerAgent - addCyclesResponse: " # debug_show(addCyclesResponse));
+                                    switch (addCyclesResponse) {
+                                        case (#Err(error)) {
+                                            D.print("GameState: topUpCyclesForMainerAgent - addCyclesResponse error: " # debug_show(error));
+                                            // mAIner canister might be frozen due to too low cycles, so unfreeze canister by sending some cycles via the system API first
+                                            let cyclesToUnfreezeMainer = 100 * Constants.CYCLES_BILLION; 
+                                            Cycles.add<system>(cyclesToUnfreezeMainer);
+                                            let deposit_cycles_args = { canister_id : Principal = Principal.fromText(userMainerEntry.address); };
+                                            let _ = await IC0.deposit_cycles(deposit_cycles_args);
+                                            D.print("GameState: topUpCyclesForMainerAgent - Sent cycles to mAIner via IC0.deposit_cycles: " # debug_show(deposit_cycles_args)); 
+                                            // then send any remaining cycles via the dedicated endpoint
+                                            if (handleResult.cyclesForMainer > cyclesToUnfreezeMainer) {
+                                                let remainingCycles = handleResult.cyclesForMainer - cyclesToUnfreezeMainer;
+                                                D.print("GameState: topUpCyclesForMainerAgent - calling addCycles on mAIner with remainingCycles: " # debug_show(remainingCycles));
+                                                Cycles.add<system>(remainingCycles);
+                                                addCyclesResponse := await Mainer_Actor.addCycles();
+                                            } else {
+                                                // Record successful cycles deposit
+                                                let sentCyclesResult : Types.AddCyclesRecord = {
+                                                    added : Bool = true;
+                                                    amount : Nat = cyclesToUnfreezeMainer;
+                                                };
+                                                addCyclesResponse := #Ok(sentCyclesResult);
+                                            };
+                                        };
+                                        case (_) {
+                                            // continue as addCycles was successful
+                                        };
+                                    };
                                     switch (addCyclesResponse) {
                                         case (#Err(error)) {
                                             D.print("GameState: topUpCyclesForMainerAgent - addCyclesResponse FailedOperation: " # debug_show(error));
@@ -7064,7 +7199,7 @@ actor class GameStateCanister() = this {
                                         case (#Ok(addCyclesResult)) {
                                             D.print("GameState: topUpCyclesForMainerAgent - addCyclesResult: " # debug_show(addCyclesResult));
                                             //TODO - Design: decide whether a top up history should be kept
-                                            // TODO - Implementation: track redeemed transaction blocks to ensure no double spending
+                                            // Track redeemed transaction blocks to ensure no double spending
                                             switch (putRedeemedTransactionBlock(newTransactionEntry)) {
                                                 case (false) {
                                                     // TODO - Error Handling: likely retry
@@ -7079,6 +7214,186 @@ actor class GameStateCanister() = this {
                                 } catch (e) {
                                     D.print("GameState: topUpCyclesForMainerAgent - Failed to credit cycles to mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e));      
                                     return #Err(#Other("GameState: topUpCyclesForMainerAgent - Failed to credit cycles to mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e)));
+                                };
+                            };
+                        };                       
+                    };
+                };
+            };
+        };
+    };
+
+    // Function for admin to complete a user's topup (cycles for an existing mAIner agent)
+    public shared (msg) func completeTopUpCyclesForMainerAgentAdmin(mainerTopUpInfo : Types.MainerAgentTopUpInput) : async Types.MainerAgentCanisterResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - mainerTopUpInfo: "# debug_show(mainerTopUpInfo));
+
+        // TODO: put this check back in place
+        // Ensure this transaction block hasn't been redeemed yet (no double spending)     
+        let transactionToVerify = mainerTopUpInfo.paymentTransactionBlockId;
+        /* switch (checkExistingTransactionBlock(transactionToVerify)) {
+            case (false) {
+                // new transaction, continue
+            };
+            case (true) {
+                // already redeem transaction
+                return #Err(#Other("Already redeemd this transaction block")); // no double spending
+            };
+        }; */
+
+        // Sanity checks on provided mAIner info
+        let mainerInfo : Types.OfficialMainerAgentCanister = mainerTopUpInfo.mainerAgent;
+        if (Principal.equal(mainerInfo.ownedBy, msg.caller)) {
+            D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - 01 ");
+            return #Err(#Unauthorized);
+        };
+        if (mainerInfo.address == "") {
+            // The mAIner Controller canister address is needed
+            D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - 02 ");
+            return #Err(#InvalidId);
+        };
+        switch (mainerInfo.canisterType) {
+            case (#MainerAgent(_)) {
+                // continue
+            };
+            case (_) { return #Err(#Other("Unsupported")); }
+        };
+
+        // Verify existing mAIner entry
+        switch (getUserMainerAgents(mainerInfo.ownedBy)) {
+            case (null) {
+                D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - 03 ");
+                return #Err(#Unauthorized);
+            };
+            case (?userMainerEntries) {
+                switch (List.find<Types.OfficialMainerAgentCanister>(userMainerEntries, func(mainerEntry: Types.OfficialMainerAgentCanister) : Bool { mainerEntry.address == mainerInfo.address } )) {
+                    case (null) {
+                        D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - 04 ");
+                        return #Err(#InvalidId);
+                    };
+                    case (?userMainerEntry) {
+                        // Sanity checks on userMainerEntry (i.e. address provided is correct and matches entry info)
+                        switch (userMainerEntry.canisterType) {
+                            case (#MainerAgent(_)) {
+                                // continue
+                            };
+                            case (_) { return #Err(#Other("Unsupported")); }
+                        };
+
+                        // Verify user had paid for this topup via the TransactionBlockId
+                        var verifiedPayment : Bool = false;
+                        var amountPaid : Nat = 0;
+                        let redeemedFor : Types.RedeemedForOptions = #MainerTopUp(userMainerEntry.address);
+                        let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                        let transactionEntryToVerify : Types.RedeemedTransactionBlock = {
+                            paymentTransactionBlockId : Nat64 = mainerTopUpInfo.paymentTransactionBlockId;
+                            creationTimestamp : Nat64 = creationTimestamp;
+                            redeemedBy : Principal = msg.caller;
+                            redeemedFor : Types.RedeemedForOptions = redeemedFor;
+                            amount : Nat = amountPaid; // to be updated
+                        };
+                        D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - transactionEntryToVerify: "# debug_show(transactionEntryToVerify));
+                        let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify);
+                        D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - verificationResponse: "# debug_show(verificationResponse));
+                        switch (verificationResponse) {
+                            case (#Ok(verificationResult)) {
+                                verifiedPayment := verificationResult.verified;
+                                amountPaid := verificationResult.amountPaid;
+                            };
+                            case (_) {
+                                return #Err(#Other("Payment verification failed"));                      
+                            };
+                        };
+                        if (not verifiedPayment) {
+                            return #Err(#Other("Payment couldn't be verified"));
+                        };
+
+                        let newTransactionEntry : Types.RedeemedTransactionBlock = {
+                            paymentTransactionBlockId : Nat64 = mainerTopUpInfo.paymentTransactionBlockId;
+                            creationTimestamp : Nat64 = creationTimestamp;
+                            redeemedBy : Principal = msg.caller;
+                            redeemedFor : Types.RedeemedForOptions = redeemedFor;
+                            amount : Nat = amountPaid;
+                        };
+                        let handleResponse : Types.HandleIncomingFundsResult = await handleIncomingFunds(newTransactionEntry);
+                        D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - handleResponse: " # debug_show(handleResponse));
+                        switch (handleResponse) {
+                            case (#Err(error)) {
+                                D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - handleResponse FailedOperation: " # debug_show(error));
+                                return #Err(#FailedOperation);
+                            };
+                            case (#Ok(handleResult)) {
+                                D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - handleResult: " # debug_show(handleResult));
+                                // Credit mAIner agent with cycles (the user paid for)
+                                try {
+                                    let Mainer_Actor : Types.MainerAgentCtrlbCanister = actor (userMainerEntry.address);
+                                    D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - calling Cycles.add for = " # debug_show(handleResult.cyclesForMainer) # " Cycles");
+                                    var addCyclesResponse : Types.AddCyclesResult = #Err(#Other("addCycles call didn't work"));
+                                    try {
+                                        Cycles.add<system>(handleResult.cyclesForMainer);
+                                        D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - calling Mainer_Actor.addCycles");
+                                        addCyclesResponse := await Mainer_Actor.addCycles();
+                                    } catch (e) {
+                                        D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - Failed to call addCycles on mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e));      
+                                        // try again below
+                                    };
+                                    D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - addCyclesResponse: " # debug_show(addCyclesResponse));
+                                    switch (addCyclesResponse) {
+                                        case (#Err(error)) {
+                                            D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - addCyclesResponse error: " # debug_show(error));
+                                            // mAIner canister might be frozen due to too low cycles, so unfreeze canister by sending some cycles via the system API first
+                                            let cyclesToUnfreezeMainer = 100 * Constants.CYCLES_BILLION; 
+                                            Cycles.add<system>(cyclesToUnfreezeMainer);
+                                            let deposit_cycles_args = { canister_id : Principal = Principal.fromText(userMainerEntry.address); };
+                                            let _ = await IC0.deposit_cycles(deposit_cycles_args);
+                                            D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - Sent cycles to mAIner via IC0.deposit_cycles: " # debug_show(deposit_cycles_args)); 
+                                            // then send any remaining cycles via the dedicated endpoint
+                                            if (handleResult.cyclesForMainer > cyclesToUnfreezeMainer) {
+                                                let remainingCycles = handleResult.cyclesForMainer - cyclesToUnfreezeMainer;
+                                                D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - calling addCycles on mAIner with remainingCycles: " # debug_show(remainingCycles));
+                                                Cycles.add<system>(remainingCycles);
+                                                addCyclesResponse := await Mainer_Actor.addCycles();
+                                            } else {
+                                                // Record successful cycles deposit
+                                                let sentCyclesResult : Types.AddCyclesRecord = {
+                                                    added : Bool = true;
+                                                    amount : Nat = cyclesToUnfreezeMainer;
+                                                };
+                                                addCyclesResponse := #Ok(sentCyclesResult);
+                                            };
+                                        };
+                                        case (_) {
+                                            // continue as addCycles was successful
+                                        };
+                                    };
+                                    switch (addCyclesResponse) {
+                                        case (#Err(error)) {
+                                            D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - addCyclesResponse FailedOperation: " # debug_show(error));
+                                            return #Err(#FailedOperation);
+                                        };
+                                        case (#Ok(addCyclesResult)) {
+                                            D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - addCyclesResult: " # debug_show(addCyclesResult));
+                                            //TODO - Design: decide whether a top up history should be kept
+                                            // Track redeemed transaction blocks to ensure no double spending
+                                            switch (putRedeemedTransactionBlock(newTransactionEntry)) {
+                                                case (false) {
+                                                    // TODO - Error Handling: likely retry
+                                                };
+                                                case (true) {
+                                                    // continue
+                                                };
+                                            };
+                                            return #Ok(userMainerEntry);
+                                        };
+                                    };
+                                } catch (e) {
+                                    D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - Failed to credit cycles to mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e));      
+                                    return #Err(#Other("GameState: completeTopUpCyclesForMainerAgentAdmin - Failed to credit cycles to mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e)));
                                 };
                             };
                         };                       
@@ -7254,7 +7569,8 @@ actor class GameStateCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        if (not Principal.isController(msg.caller)) {
+        // Check if caller has AdminQuery permission
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
 
@@ -9190,6 +9506,7 @@ actor class GameStateCanister() = this {
         sharedServiceCanistersStorageStable := Iter.toArray(sharedServiceCanistersStorage.entries());
         redeemedTransactionBlocksStorageStable := Iter.toArray(redeemedTransactionBlocksStorage.entries());
         redeemedFunnaiTransactionBlocksStorageStable := Iter.toArray(redeemedFunnaiTransactionBlocksStorage.entries());
+        adminRoleAssignmentsStable := Iter.toArray(adminRoleAssignmentsStorage.entries());
         marketplaceListedMainerAgentsStorageStable := Iter.toArray(marketplaceListedMainerAgentsStorage.entries());
         userToMarketplaceListedMainersStorageStable := Iter.toArray(userToMarketplaceListedMainersStorage.entries());
         marketplaceReservedMainerAgentsStorageStable := Iter.toArray(marketplaceReservedMainerAgentsStorage.entries());
@@ -9230,6 +9547,8 @@ actor class GameStateCanister() = this {
         redeemedTransactionBlocksStorageStable := [];
         redeemedFunnaiTransactionBlocksStorage := HashMap.fromIter(Iter.fromArray(redeemedFunnaiTransactionBlocksStorageStable), redeemedFunnaiTransactionBlocksStorageStable.size(), Nat.equal, Hash.hash);
         redeemedFunnaiTransactionBlocksStorageStable := [];
+        adminRoleAssignmentsStorage := HashMap.fromIter(Iter.fromArray(adminRoleAssignmentsStable), adminRoleAssignmentsStable.size(), Text.equal, Text.hash);
+        adminRoleAssignmentsStable := [];
         marketplaceListedMainerAgentsStorage := HashMap.fromIter(Iter.fromArray(marketplaceListedMainerAgentsStorageStable), marketplaceListedMainerAgentsStorageStable.size(), Text.equal, Text.hash);
         marketplaceListedMainerAgentsStorageStable := [];
         userToMarketplaceListedMainersStorage := HashMap.fromIter(Iter.fromArray(userToMarketplaceListedMainersStorageStable), userToMarketplaceListedMainersStorageStable.size(), Principal.equal, Principal.hash);
