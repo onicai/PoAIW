@@ -8646,65 +8646,104 @@ actor class GameStateCanister() = this {
                                             return #Err(#Other("Payment couldn't be verified"));
                                         }; */
 
-                                        // TODO: retrieve approved ICP (mAIner price)
-
-                                        // Transfer mAIner ownership
-                                        // TODO: Add the buyer as a controller of the mAIner canister via mAIner Creator (if this fails, try again, otherwise cancel the sale)
-                                        
-                                        // Update mAIner entry 
-                                        // TODO: (if this fails, try again, otherwise revert the controller update and cancel the sale)
-                                        let newCanisterEntry : Types.OfficialMainerAgentCanister = {
-                                            address : Text = mainerEntry.address;
-                                            subnet : Text = mainerEntry.subnet;
-                                            canisterType: Types.ProtocolCanisterType = mainerEntry.canisterType;
-                                            creationTimestamp : Nat64 = mainerEntry.creationTimestamp;
-                                            createdBy : Principal = mainerEntry.createdBy;
-                                            ownedBy : Principal = msg.caller; // only field updated: to new owner
-                                            status : Types.CanisterStatus = mainerEntry.status; 
-                                            mainerConfig : Types.MainerConfigurationInput = mainerEntry.mainerConfig;
-                                        };
-                                        let updateResult : Types.MainerAgentCanisterResult = putMainerAgentCanister(mainerAddress, newCanisterEntry);
-                                        D.print("GameState: icrc37_transfer_from - updated mainerEntry: "# debug_show(newCanisterEntry));                              
-
-                                        // Remove from seller
-                                        let removeResult : Bool = removeUserMainerAgent(mainerEntry);
-                                        D.print("GameState: icrc37_transfer_from - removed from seller: "# debug_show(removeResult));  
-
-                                        // Add to buyer 
-                                        let addResult : Bool = putUserMainerAgent(newCanisterEntry);
-                                        D.print("GameState: icrc37_transfer_from - added to buyer: "# debug_show(addResult));  
-
-                                        // TODO: Remove the seller as controller from the mAIner canister via mAIner Creator (if this fails, try again, otherwise store the failure for an admin to check)
-
-                                        
-                                        // TODO: if any step during the ownership transfer failed, revert any ownership changes, send back the ICP to the buyer and cancel the sale (mAIner back to listed)
-                                        
-                                        // Record the sale for statistics
-                                        let sale : Types.MarketplaceSale = {
-                                            mainerAddress = mainerAddress;
-                                            seller = mainerEntry.ownedBy;
-                                            buyer = msg.caller;
-                                            priceE8S = userCanisterEntry.priceE8S;
-                                            saleTimestamp = Nat64.fromNat(Int.abs(Time.now()));
-                                        };
-                                        marketplaceSalesHistory.add(sale);
-                                        D.print("GameState: icrc37_transfer_from - sale record: "# debug_show(sale)); 
-
-                                        // Clean up reservation and cancel the timer
-                                        switch (marketplaceReservationTimers.get(mainerAddress)) {
-                                            case (?timerId) {
-                                                Timer.cancelTimer(timerId);
-                                                ignore marketplaceReservationTimers.remove(mainerAddress);
+                                        switch (getNextMainerCreatorCanisterEntry()) {
+                                            case (null) {
+                                                // This should never happen as it indicates there isn't any mAIner Creator canister registered here
+                                                D.print("GameState: icrc37_transfer_from - no mAIner Creator canister registered");
+                                                return [?#Err(#Unauthorized)];
                                             };
-                                            case (null) {};
-                                        };
-                                        ignore marketplaceReservedMainerAgentsStorage.remove(mainerAddress);
-                                        ignore userToMarketplaceReservedMainerStorage.remove(msg.caller);
-                                        D.print("GameState: icrc37_transfer_from - cleared reservation for mainerAddress: "# debug_show(mainerAddress)); 
+                                            case (?mainerCreatorEntry) {
+                                                // TODO: retrieve approved ICP (mAIner price)
 
-                                        // TODO: Take protocol cut (10%) from the sales amount and send the rest to the seller
+                                                // Transfer mAIner ownership
+                                                let buyerPrincipal : Principal = msg.caller;
+                                                let sellerPrincipal : Principal = mainerEntry.ownedBy;
+                                                // Add the buyer as a controller of the mAIner canister via mAIner Creator 
+                                                // TODO: (if this fails, try again, otherwise cancel the sale)
+                                                let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
+                                                let addControllerInput : Types.AddControllerToMainerCanisterInput = {
+                                                    mainerEntry : Types.OfficialMainerAgentCanister  = mainerEntry;
+                                                    newControllerPrincipal : Principal = buyerPrincipal;
+                                                };
+                                                let addControllerResult : Types.AddControllerToMainerCanisterResult = await creatorCanisterActor.addControllerToMainerCanister(addControllerInput);
+                                                D.print("GameState: icrc37_transfer_from - addControllerResult: "# debug_show(addControllerResult));
 
-                                        return [?#Ok(getNextMainerMarketplaceTransactionId())];                                        
+                                                switch (addControllerResult) {
+                                                    case (#Ok(addControllerToMainerCanisterRecord)) {
+                                                        D.print("GameState: icrc37_transfer_from - addControllerToMainerCanisterRecord: " # debug_show(addControllerToMainerCanisterRecord) );
+                                                        // Update mAIner entry 
+                                                        let newCanisterEntry : Types.OfficialMainerAgentCanister = {
+                                                            address : Text = mainerEntry.address;
+                                                            subnet : Text = mainerEntry.subnet;
+                                                            canisterType: Types.ProtocolCanisterType = mainerEntry.canisterType;
+                                                            creationTimestamp : Nat64 = mainerEntry.creationTimestamp;
+                                                            createdBy : Principal = mainerEntry.createdBy;
+                                                            ownedBy : Principal = buyerPrincipal; // only field updated: to new owner
+                                                            status : Types.CanisterStatus = mainerEntry.status; 
+                                                            mainerConfig : Types.MainerConfigurationInput = mainerEntry.mainerConfig;
+                                                        };
+                                                        let updateResult : Types.MainerAgentCanisterResult = putMainerAgentCanister(mainerAddress, newCanisterEntry);
+                                                        D.print("GameState: icrc37_transfer_from - updated mainerEntry: "# debug_show(newCanisterEntry));                              
+
+                                                        // Remove from seller
+                                                        let removeResult : Bool = removeUserMainerAgent(mainerEntry);
+                                                        D.print("GameState: icrc37_transfer_from - removed from seller: "# debug_show(removeResult));  
+
+                                                        // Add to buyer 
+                                                        let addResult : Bool = putUserMainerAgent(newCanisterEntry);
+                                                        D.print("GameState: icrc37_transfer_from - added to buyer: "# debug_show(addResult));  
+
+                                                        // Remove the seller as controller from the mAIner canister via mAIner Creator (if this fails, try again, otherwise store the failure for an admin to check)
+                                                        let removeControllerInput : Types.RemoveControllerFromMainerCanisterInput = {
+                                                            mainerEntry : Types.OfficialMainerAgentCanister  = mainerEntry;
+                                                            toRemoveControllerPrincipal : Principal = sellerPrincipal;
+                                                        };
+                                                        let removeControllerResult : Types.RemoveControllerFromMainerCanisterResult = await creatorCanisterActor.removeControllerFromMainerCanister(removeControllerInput);
+                                                        D.print("GameState: icrc37_transfer_from - removeControllerResult: "# debug_show(removeControllerResult));
+                                                        switch (removeControllerResult) {
+                                                            case (#Ok(removeControllerFromMainerCanisterRecord)) {
+                                                                // Record the sale for statistics
+                                                                let sale : Types.MarketplaceSale = {
+                                                                    mainerAddress = mainerAddress;
+                                                                    seller = mainerEntry.ownedBy;
+                                                                    buyer = msg.caller;
+                                                                    priceE8S = userCanisterEntry.priceE8S;
+                                                                    saleTimestamp = Nat64.fromNat(Int.abs(Time.now()));
+                                                                };
+                                                                marketplaceSalesHistory.add(sale);
+                                                                D.print("GameState: icrc37_transfer_from - sale record: "# debug_show(sale)); 
+
+                                                                // Clean up reservation and cancel the timer
+                                                                switch (marketplaceReservationTimers.get(mainerAddress)) {
+                                                                    case (?timerId) {
+                                                                        Timer.cancelTimer(timerId);
+                                                                        ignore marketplaceReservationTimers.remove(mainerAddress);
+                                                                    };
+                                                                    case (null) {};
+                                                                };
+                                                                ignore marketplaceReservedMainerAgentsStorage.remove(mainerAddress);
+                                                                ignore userToMarketplaceReservedMainerStorage.remove(msg.caller);
+                                                                D.print("GameState: icrc37_transfer_from - cleared reservation for mainerAddress: "# debug_show(mainerAddress)); 
+
+                                                                // TODO: Take protocol cut (10%) from the sales amount and send the rest to the seller
+
+                                                                return [?#Ok(getNextMainerMarketplaceTransactionId())];
+                                                            };
+                                                            case (_) {
+                                                                // TODO: if any step during the ownership transfer failed, revert any ownership changes, send back the ICP to the buyer and cancel the sale (mAIner back to listed)
+
+                                                                return [?#Err(#Unauthorized)];
+                                                            };
+                                                        };                                                        
+                                                    };
+                                                    case (_) {
+                                                        // TODO: error handling: return ICP to buyer and cancel sale
+
+                                                        return [?#Err(#Unauthorized)];
+                                                    };
+                                                };
+                                            };
+                                        };                                        
                                     };
                                 };
                             };

@@ -2,6 +2,21 @@ import type { Principal } from '@dfinity/principal';
 import type { ActorMethod } from '@dfinity/agent';
 import type { IDL } from '@dfinity/candid';
 
+export interface AddControllerToMainerCanisterInput {
+  'newControllerPrincipal' : Principal,
+  'mainerEntry' : OfficialMainerAgentCanister,
+}
+export interface AddControllerToMainerCanisterRecord {
+  'added' : boolean,
+  'addedControllerPrincipal' : Principal,
+}
+export type AddControllerToMainerCanisterResult = {
+    'Ok' : AddControllerToMainerCanisterRecord
+  } |
+  { 'Err' : ApiError };
+export interface AddCyclesRecord { 'added' : boolean, 'amount' : bigint }
+export type AddCyclesResult = { 'Ok' : AddCyclesRecord } |
+  { 'Err' : ApiError };
 export interface AddModelCreationArtefactsEntry {
   'selectedModel' : SelectableMainerLLMs,
   'creationArtefacts' : ModelCreationArtefacts,
@@ -46,6 +61,16 @@ export type CanisterStatus = { 'Paused' : null } |
   { 'Running' : null } |
   { 'Other' : string } |
   { 'ControllerCreationInProgress' : null };
+export interface CyclesTransaction {
+  'newOfficialCycleBalance' : bigint,
+  'creationTimestamp' : bigint,
+  'amountAdded' : bigint,
+  'sentBy' : Principal,
+  'previousCyclesBalance' : bigint,
+  'succeeded' : boolean,
+}
+export type CyclesTransactionsResult = { 'Ok' : Array<CyclesTransaction> } |
+  { 'Err' : ApiError };
 export type FileUploadResult = { 'Ok' : UploadResult } |
   { 'Err' : ApiError };
 export interface FinishUploadMainerLlmInput {
@@ -71,6 +96,10 @@ export interface MainerConfigurationInput {
   'subnetCtrl' : string,
 }
 export interface MainerCreatorCanister {
+  'addControllerToMainerCanister' : ActorMethod<
+    [AddControllerToMainerCanisterInput],
+    AddControllerToMainerCanisterResult
+  >,
   'addModelCreationArtefactsEntry' : ActorMethod<
     [AddModelCreationArtefactsEntry],
     InsertArtefactsResult
@@ -84,11 +113,14 @@ export interface MainerCreatorCanister {
     [FinishUploadMainerLlmInput],
     FileUploadResult
   >,
+  'getCyclesToSendToGameStateAdmin' : ActorMethod<[], bigint>,
+  'getCyclesTransactionsAdmin' : ActorMethod<[], CyclesTransactionsResult>,
   'getDefaultSubnetsAdmin' : ActorMethod<
     [],
     { 'Ok' : Array<Principal> } |
       { 'Err' : { 'Unauthorized' : null } }
   >,
+  'getMinCyclesBalanceAdmin' : ActorMethod<[], bigint>,
   'health' : ActorMethod<[], StatusCodeRecordResult>,
   'isSubnetAvailableAdmin' : ActorMethod<
     [string],
@@ -99,7 +131,17 @@ export interface MainerCreatorCanister {
     [ReinstallMainerctrlInput],
     StatusCodeRecordResult
   >,
+  'removeControllerFromMainerCanister' : ActorMethod<
+    [RemoveControllerFromMainerCanisterInput],
+    RemoveControllerFromMainerCanisterResult
+  >,
+  'sendCyclesToGameStateCanister' : ActorMethod<[], AddCyclesResult>,
+  'setCyclesToSendToGameStateAdmin' : ActorMethod<
+    [bigint],
+    StatusCodeRecordResult
+  >,
   'setMasterCanisterId' : ActorMethod<[string], AuthRecordResult>,
+  'setMinCyclesBalanceAdmin' : ActorMethod<[bigint], StatusCodeRecordResult>,
   'setupCanister' : ActorMethod<[SetupCanisterInput], CanisterCreationResult>,
   'start_upload_mainer_controller_canister_wasm' : ActorMethod<
     [],
@@ -156,6 +198,18 @@ export interface ReinstallMainerctrlInput {
   'cyclesReinstallMainerctrlGsMc' : bigint,
   'mainerAgentEntry' : OfficialMainerAgentCanister,
 }
+export interface RemoveControllerFromMainerCanisterInput {
+  'toRemoveControllerPrincipal' : Principal,
+  'mainerEntry' : OfficialMainerAgentCanister,
+}
+export interface RemoveControllerFromMainerCanisterRecord {
+  'removedControllerPrincipal' : Principal,
+  'removed' : boolean,
+}
+export type RemoveControllerFromMainerCanisterResult = {
+    'Ok' : RemoveControllerFromMainerCanisterRecord
+  } |
+  { 'Err' : ApiError };
 export type SelectableMainerLLMs = { 'Qwen2_5_500M' : null };
 export interface SetupCanisterInput {
   'configurationInput' : CanisterCreationConfiguration,

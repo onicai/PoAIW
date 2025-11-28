@@ -956,6 +956,30 @@ module Types {
         max_tokens_query : Nat64;
     };
 
+    public type RemoveControllerFromMainerCanisterInput = {
+        mainerEntry : OfficialMainerAgentCanister;
+        toRemoveControllerPrincipal : Principal;
+    };
+    
+    public type RemoveControllerFromMainerCanisterRecord = {
+        removed : Bool;
+        removedControllerPrincipal : Principal;
+    };
+    
+    public type RemoveControllerFromMainerCanisterResult = Result<RemoveControllerFromMainerCanisterRecord, ApiError>;
+
+    public type AddControllerToMainerCanisterInput = {
+        mainerEntry : OfficialMainerAgentCanister;
+        newControllerPrincipal : Principal;
+    };
+    
+    public type AddControllerToMainerCanisterRecord = {
+        added : Bool;
+        addedControllerPrincipal : Principal;
+    };
+    
+    public type AddControllerToMainerCanisterResult = Result<AddControllerToMainerCanisterRecord, ApiError>;
+
     //-------------------------------------------------------------------------
     public type ChallengeWinnerDeclaration = {
         challengeId : Text;
@@ -1288,6 +1312,8 @@ module Types {
         setupCanister: shared SetupCanisterInput -> async CanisterCreationResult;
         upgradeMainerctrl: shared UpgradeMainerctrlInput -> async Types.StatusCodeRecordResult;
         reinstallMainerctrl: shared ReinstallMainerctrlInput -> async Types.StatusCodeRecordResult;
+        addControllerToMainerCanister: shared AddControllerToMainerCanisterInput -> async Types.AddControllerToMainerCanisterResult;
+        removeControllerFromMainerCanister: shared RemoveControllerFromMainerCanisterInput -> async Types.RemoveControllerFromMainerCanisterResult;
     };
 
     // mAIner

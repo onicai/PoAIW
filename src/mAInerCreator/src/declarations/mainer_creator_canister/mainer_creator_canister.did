@@ -31,6 +31,21 @@ type SetupCanisterInput =
    subnet: text;
  };
 type SelectableMainerLLMs = variant {Qwen2_5_500M;};
+type RemoveControllerFromMainerCanisterResult = 
+ variant {
+   Err: ApiError;
+   Ok: RemoveControllerFromMainerCanisterRecord;
+ };
+type RemoveControllerFromMainerCanisterRecord = 
+ record {
+   removed: bool;
+   removedControllerPrincipal: principal;
+ };
+type RemoveControllerFromMainerCanisterInput = 
+ record {
+   mainerEntry: OfficialMainerAgentCanister;
+   toRemoveControllerPrincipal: principal;
+ };
 type ReinstallMainerctrlInput = 
  record {
    associatedCanisterAddress: opt CanisterAddress;
@@ -67,6 +82,8 @@ type ModelCreationArtefacts =
  };
 type MainerCreatorCanister = 
  service {
+   addControllerToMainerCanister: (AddControllerToMainerCanisterInput) ->
+    (AddControllerToMainerCanisterResult);
    addModelCreationArtefactsEntry: (AddModelCreationArtefactsEntry) ->
     (InsertArtefactsResult);
    amiController: () -> (AuthRecordResult) query;
@@ -74,11 +91,14 @@ type MainerCreatorCanister =
     (CanisterCreationResult);
    finish_upload_mainer_llm: (FinishUploadMainerLlmInput) ->
     (FileUploadResult);
+   getCyclesToSendToGameStateAdmin: () -> (nat) query;
+   getCyclesTransactionsAdmin: () -> (CyclesTransactionsResult) query;
    getDefaultSubnetsAdmin: () ->
     (variant {
        Err: variant {Unauthorized;};
        Ok: vec principal;
      });
+   getMinCyclesBalanceAdmin: () -> (nat) query;
    health: () -> (StatusCodeRecordResult) query;
    isSubnetAvailableAdmin: (text) ->
     (variant {
@@ -87,7 +107,13 @@ type MainerCreatorCanister =
      });
    reinstallMainerctrl: (ReinstallMainerctrlInput) ->
     (StatusCodeRecordResult);
+   removeControllerFromMainerCanister:
+    (RemoveControllerFromMainerCanisterInput) ->
+    (RemoveControllerFromMainerCanisterResult);
+   sendCyclesToGameStateCanister: () -> (AddCyclesResult);
+   setCyclesToSendToGameStateAdmin: (nat) -> (StatusCodeRecordResult);
    setMasterCanisterId: (text) -> (AuthRecordResult);
+   setMinCyclesBalanceAdmin: (nat) -> (StatusCodeRecordResult);
    setupCanister: (SetupCanisterInput) -> (CanisterCreationResult);
    start_upload_mainer_controller_canister_wasm: () ->
     (StatusCodeRecordResult);
@@ -140,6 +166,20 @@ type FileUploadResult =
  variant {
    Err: ApiError;
    Ok: UploadResult;
+ };
+type CyclesTransactionsResult = 
+ variant {
+   Err: ApiError;
+   Ok: vec CyclesTransaction;
+ };
+type CyclesTransaction = 
+ record {
+   amountAdded: nat;
+   creationTimestamp: nat64;
+   newOfficialCycleBalance: nat;
+   previousCyclesBalance: nat;
+   sentBy: principal;
+   succeeded: bool;
  };
 type CanisterStatus = 
  variant {
@@ -199,5 +239,30 @@ type AddModelCreationArtefactsEntry =
  record {
    creationArtefacts: ModelCreationArtefacts;
    selectedModel: SelectableMainerLLMs;
+ };
+type AddCyclesResult = 
+ variant {
+   Err: ApiError;
+   Ok: AddCyclesRecord;
+ };
+type AddCyclesRecord = 
+ record {
+   added: bool;
+   amount: nat;
+ };
+type AddControllerToMainerCanisterResult = 
+ variant {
+   Err: ApiError;
+   Ok: AddControllerToMainerCanisterRecord;
+ };
+type AddControllerToMainerCanisterRecord = 
+ record {
+   added: bool;
+   addedControllerPrincipal: principal;
+ };
+type AddControllerToMainerCanisterInput = 
+ record {
+   mainerEntry: OfficialMainerAgentCanister;
+   newControllerPrincipal: principal;
  };
 service : () -> MainerCreatorCanister

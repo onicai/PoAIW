@@ -1618,6 +1618,117 @@ actor class MainerCreatorCanister() = this {
         };
     };
 
+    // Functions for Game State to manage controllers of mAIner canisters (e.g. ownership transfer from marketplace sale)
+    public shared (msg) func addControllerToMainerCanister(addControllerInput : Types.AddControllerToMainerCanisterInput) : async Types.AddControllerToMainerCanisterResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Only the GameState canister may call this
+        if (not Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID))) {
+            return #Err(#Unauthorized);
+        };
+        try {
+            // Use system API to get current list of controllers for the canister
+            let mainerCanisterStatus = await IC0.canister_status({ canister_id = Principal.fromText(addControllerInput.mainerEntry.address) });
+            let currentControllers = mainerCanisterStatus.settings.controllers;
+
+            // If already present, nothing to do.
+            if (Array.find<Principal>(currentControllers, func (p) { p == addControllerInput.newControllerPrincipal }) != null) {
+                return #Ok({
+                    added : Bool = false;
+                    addedControllerPrincipal : Principal = addControllerInput.newControllerPrincipal;
+                });
+            };
+
+            // Add the new controller to the canister
+            let newControllers = Array.append<Principal>(currentControllers, [addControllerInput.newControllerPrincipal]);
+            let updatedSettings = {
+                controllers : ?[Principal] = ?newControllers;
+                compute_allocation : ?Nat = ?mainerCanisterStatus.settings.compute_allocation;
+                freezing_threshold : ?Nat = ?mainerCanisterStatus.settings.freezing_threshold;
+                log_visibility = ?mainerCanisterStatus.settings.log_visibility;
+                memory_allocation : ?Nat = ?mainerCanisterStatus.settings.memory_allocation;
+                reserved_cycles_limit : ?Nat = ?mainerCanisterStatus.settings.reserved_cycles_limit;
+                wasm_memory_limit : ?Nat = ?mainerCanisterStatus.settings.wasm_memory_limit;
+            };
+
+            await IC0.update_settings({
+                canister_id = Principal.fromText(addControllerInput.mainerEntry.address);
+                settings = updatedSettings;
+                sender_canister_version : ?Nat64 = null;
+            });
+
+            return #Ok({
+                added : Bool = true;
+                addedControllerPrincipal : Principal = addControllerInput.newControllerPrincipal;
+            });
+        }
+        catch (e) {
+            D.print("mAInerCreator: addControllerToMainerCanister - failed to add controller. Error: " # Error.message(e) # debug_show(msg));
+            return #Err(#Other("mAInerCreator: addControllerToMainerCanister - failed to add controller. Error: " # Error.message(e)));
+        };
+    };
+
+    public shared (msg) func removeControllerFromMainerCanister(removeControllerInput : Types.RemoveControllerFromMainerCanisterInput) : async Types.RemoveControllerFromMainerCanisterResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Only the GameState canister may call this
+        if (not Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID))) {
+            return #Err(#Unauthorized);
+        };
+        try {
+            // Use system API to get current list of controllers for the canister
+            let mainerCanisterStatus = await IC0.canister_status({
+                canister_id = Principal.fromText(removeControllerInput.mainerEntry.address)
+            });
+            let currentControllers = mainerCanisterStatus.settings.controllers;
+
+            // Check if controller is present
+            let toRemove = removeControllerInput.toRemoveControllerPrincipal;
+
+            if (Array.find<Principal>(currentControllers, func (p) { p == toRemove }) == null) {
+                // Nothing to remove
+                return #Ok({
+                    removed : Bool = false;
+                    removedControllerPrincipal : Principal = toRemove;
+                });
+            };
+
+            // Remove the controller from the canister
+            // Build new controller list (filter out the principal to remove)
+            let newControllers =
+                Array.filter<Principal>(currentControllers, func (p : Principal) : Bool {
+                    p != toRemove
+                });
+
+            // Apply settings (overwrite full controller list)
+            let updatedSettings = {
+                controllers : ?[Principal] = ?newControllers;
+                compute_allocation : ?Nat = ?mainerCanisterStatus.settings.compute_allocation;
+                freezing_threshold : ?Nat = ?mainerCanisterStatus.settings.freezing_threshold;
+                log_visibility = ?mainerCanisterStatus.settings.log_visibility;
+                memory_allocation : ?Nat = ?mainerCanisterStatus.settings.memory_allocation;
+                reserved_cycles_limit : ?Nat = ?mainerCanisterStatus.settings.reserved_cycles_limit;
+                wasm_memory_limit : ?Nat = ?mainerCanisterStatus.settings.wasm_memory_limit;
+            };
+            await IC0.update_settings({
+                canister_id = Principal.fromText(removeControllerInput.mainerEntry.address);
+                settings = updatedSettings;
+                sender_canister_version : ?Nat64 = null;
+            });
+
+            return #Ok({
+                removed : Bool = true;
+                removedControllerPrincipal : Principal = toRemove;
+            });
+        }
+        catch (e) {
+            D.print("mAInerCreator: removeControllerFromMainerCanister - failed to remove controller. Error: " # Error.message(e) # debug_show(msg));
+            return #Err(#Other("mAInerCreator: removeControllerFromMainerCanister - failed to remove controller. Error: " # Error.message(e)));
+        };
+    };
+
 // Admin 
     // TODO: remove these helper Admin functions
     public shared (msg) func getDefaultSubnetsAdmin() : async {
