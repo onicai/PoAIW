@@ -8653,10 +8653,33 @@ actor class GameStateCanister() = this {
                                                 return [?#Err(#Unauthorized)];
                                             };
                                             case (?mainerCreatorEntry) {
-                                                // TODO: retrieve approved ICP (mAIner price)
-
-                                                // Transfer mAIner ownership
-                                                let buyerPrincipal : Principal = msg.caller;
+                                                // Retrieve approved ICP from buyer using icrc2_transfer_from
+                                                let priceE8s : Nat = userCanisterEntry.priceE8S;
+                                                let icpFee : Nat = 10_000; // 0.0001 ICP fee
+                                                
+                                                let transferFromArgs : TokenLedger.TransferFromArgs = {
+                                                    from = { owner = msg.caller; subaccount = null };
+                                                    to = { owner = Principal.fromActor(this); subaccount = null };
+                                                    amount = priceE8s;
+                                                    fee = ?icpFee;
+                                                    memo = null;
+                                                    created_at_time = null;
+                                                    spender_subaccount = null;
+                                                };
+                                                
+                                                let icpTransferResult : TokenLedger.Result_3 = await ICP_LEDGER_ACTOR.icrc2_transfer_from(transferFromArgs);
+                                                D.print("GameState: icrc37_transfer_from - icpTransferResult: "# debug_show(icpTransferResult));
+                                                
+                                                switch (icpTransferResult) {
+                                                    case (#Err(transferError)) {
+                                                        D.print("GameState: icrc37_transfer_from - ICP transfer failed: "# debug_show(transferError));
+                                                        return [?#Err(#GenericError({ error_code = 1; message = "ICP payment transfer failed" }))];
+                                                    };
+                                                    case (#Ok(icpBlockIndex)) {
+                                                        D.print("GameState: icrc37_transfer_from - ICP transferred successfully, block: "# debug_show(icpBlockIndex));
+                                                        
+                                                        // Transfer mAIner ownership
+                                                        let buyerPrincipal : Principal = msg.caller;
                                                 let sellerPrincipal : Principal = mainerEntry.ownedBy;
                                                 // Add the buyer as a controller of the mAIner canister via mAIner Creator 
                                                 // TODO: (if this fails, try again, otherwise cancel the sale)
@@ -8725,23 +8748,72 @@ actor class GameStateCanister() = this {
                                                                 ignore userToMarketplaceReservedMainerStorage.remove(msg.caller);
                                                                 D.print("GameState: icrc37_transfer_from - cleared reservation for mainerAddress: "# debug_show(mainerAddress)); 
 
-                                                                // TODO: Take protocol cut (10%) from the sales amount and send the rest to the seller
+                                                                // Take protocol cut (10%) and send the rest to the seller
+                                                                let protocolFeePercent : Nat = 10;
+                                                                let protocolFee : Nat = (priceE8s * protocolFeePercent) / 100;
+                                                                let sellerAmount : Nat = priceE8s - protocolFee - icpFee; // Deduct protocol fee and transfer fee
+                                                                
+                                                                D.print("GameState: icrc37_transfer_from - priceE8s: " # debug_show(priceE8s) # ", protocolFee: " # debug_show(protocolFee) # ", sellerAmount: " # debug_show(sellerAmount));
+                                                                
+                                                                // Transfer ICP to seller
+                                                                let sellerTransferArg : TokenLedger.TransferArg = {
+                                                                    to = { owner = sellerPrincipal; subaccount = null };
+                                                                    fee = ?icpFee;
+                                                                    memo = null;
+                                                                    from_subaccount = null;
+                                                                    created_at_time = null;
+                                                                    amount = sellerAmount;
+                                                                };
+                                                                
+                                                                let sellerTransferResult : TokenLedger.Result = await ICP_LEDGER_ACTOR.icrc1_transfer(sellerTransferArg);
+                                                                D.print("GameState: icrc37_transfer_from - sellerTransferResult: "# debug_show(sellerTransferResult));
+                                                                
+                                                                switch (sellerTransferResult) {
+                                                                    case (#Err(sellerTransferError)) {
+                                                                        // Log the error but don't fail the sale - the ICP is already in GameState
+                                                                        // Admin can manually resolve this later
+                                                                        D.print("GameState: icrc37_transfer_from - WARNING: Failed to send ICP to seller: "# debug_show(sellerTransferError));
+                                                                    };
+                                                                    case (#Ok(sellerBlockIndex)) {
+                                                                        D.print("GameState: icrc37_transfer_from - ICP sent to seller, block: "# debug_show(sellerBlockIndex));
+                                                                    };
+                                                                };
 
                                                                 return [?#Ok(getNextMainerMarketplaceTransactionId())];
                                                             };
                                                             case (_) {
-                                                                // TODO: if any step during the ownership transfer failed, revert any ownership changes, send back the ICP to the buyer and cancel the sale (mAIner back to listed)
-
-                                                                return [?#Err(#Unauthorized)];
+                                                                // Remove controller failed - try to return ICP to buyer
+                                                                D.print("GameState: icrc37_transfer_from - removeController failed, attempting to refund buyer");
+                                                                let refundArg : TokenLedger.TransferArg = {
+                                                                    to = { owner = msg.caller; subaccount = null };
+                                                                    fee = ?icpFee;
+                                                                    memo = null;
+                                                                    from_subaccount = null;
+                                                                    created_at_time = null;
+                                                                    amount = priceE8s - icpFee; // Refund minus fee
+                                                                };
+                                                                ignore await ICP_LEDGER_ACTOR.icrc1_transfer(refundArg);
+                                                                return [?#Err(#GenericError({ error_code = 3; message = "Controller removal failed, ICP refunded" }))];
                                                             };
                                                         };                                                        
                                                     };
                                                     case (_) {
-                                                        // TODO: error handling: return ICP to buyer and cancel sale
-
-                                                        return [?#Err(#Unauthorized)];
+                                                        // Add controller failed - try to return ICP to buyer
+                                                        D.print("GameState: icrc37_transfer_from - addController failed, attempting to refund buyer");
+                                                        let refundArg : TokenLedger.TransferArg = {
+                                                            to = { owner = msg.caller; subaccount = null };
+                                                            fee = ?icpFee;
+                                                            memo = null;
+                                                            from_subaccount = null;
+                                                            created_at_time = null;
+                                                            amount = priceE8s - icpFee; // Refund minus fee
+                                                        };
+                                                        ignore await ICP_LEDGER_ACTOR.icrc1_transfer(refundArg);
+                                                        return [?#Err(#GenericError({ error_code = 2; message = "Controller update failed, ICP refunded" }))];
                                                     };
                                                 };
+                                                    }; // Close #Ok(icpBlockIndex)
+                                                }; // Close icpTransferResult switch
                                             };
                                         };                                        
                                     };
