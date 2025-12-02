@@ -8547,7 +8547,7 @@ actor class GameStateCanister() = this {
             spender_subaccount: opt blob; // The subaccount of the caller (used to identify the spender)
             from : Account;
             to : Account;
-            token_id : nat; // Used as ICP payment transaction id
+            token_id : nat;
             memo : opt blob; // Used as mAIner's address
             created_at_time : opt nat64;
         };
@@ -8591,18 +8591,6 @@ actor class GameStateCanister() = this {
                     };
                     case (?mainerAddress) {
                         D.print("GameState: icrc37_transfer_from - mainerAddress: "# debug_show(mainerAddress));
-                        let transactionToVerify = Nat64.fromNat(transferTokenArg.token_id);
-                        switch (checkExistingTransactionBlock(transactionToVerify)) {
-                            case (false) {
-                                // new transaction, continue
-                                D.print("GameState: icrc37_transfer_from - new transaction: "# debug_show(transactionToVerify));
-                            };
-                            case (true) {
-                                // already redeem transaction
-                                D.print("GameState: icrc37_transfer_from - double spending: "# debug_show(transactionToVerify));
-                                return [?#Err(#Unauthorized)]; // no double spending
-                            };
-                        };
                         // Verify that caller has reserved the mAIner
                         switch (getMarketplaceReservedMainerForUser(msg.caller)) {
                             case (null) {
@@ -8615,37 +8603,12 @@ actor class GameStateCanister() = this {
                                     return [?#Err(#Unauthorized)];
                                 };
                                 switch (getMainerAgentCanister(mainerAddress)) {
-                                    case (null) { return [?#Err(#InvalidRecipient)]; };
+                                    case (null) {
+                                        D.print("GameState: icrc37_transfer_from - mAIner doesn't exist: "# debug_show(msg.caller) # debug_show(userCanisterEntry));
+                                        return [?#Err(#InvalidRecipient)];
+                                    };
                                     case (?mainerEntry) {
                                         D.print("GameState: icrc37_transfer_from - mainerEntry: "# debug_show(mainerEntry));
-                                        // TODO: Verify user's payment for this agent via the TransactionBlockId (incl. correct price)
-                                        /* var verifiedPayment : Bool = false;
-                                        var amountPaid : Nat = 0;
-                                        let redeemedFor : Types.RedeemedForOptions = #MainerTopUp(userMainerEntry.address);
-                                        let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                                        let transactionEntryToVerify : Types.RedeemedTransactionBlock = {
-                                            paymentTransactionBlockId : Nat64 = transactionToVerify;
-                                            creationTimestamp : Nat64 = creationTimestamp;
-                                            redeemedBy : Principal = msg.caller;
-                                            redeemedFor : Types.RedeemedForOptions = redeemedFor;
-                                            amount : Nat = amountPaid; // to be updated
-                                        };
-                                        D.print("GameState: icrc37_transfer_from - transactionEntryToVerify: "# debug_show(transactionEntryToVerify));
-                                        let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify);
-                                        D.print("GameState: icrc37_transfer_from - verificationResponse: "# debug_show(verificationResponse));
-                                        switch (verificationResponse) {
-                                            case (#Ok(verificationResult)) {
-                                                verifiedPayment := verificationResult.verified;
-                                                amountPaid := verificationResult.amountPaid;
-                                            };
-                                            case (_) {
-                                                return #Err(#Other("Payment verification failed"));                      
-                                            };
-                                        };
-                                        if (not verifiedPayment) {
-                                            return #Err(#Other("Payment couldn't be verified"));
-                                        }; */
-
                                         switch (getNextMainerCreatorCanisterEntry()) {
                                             case (null) {
                                                 // This should never happen as it indicates there isn't any mAIner Creator canister registered here
@@ -8655,8 +8618,7 @@ actor class GameStateCanister() = this {
                                             case (?mainerCreatorEntry) {
                                                 // Retrieve approved ICP from buyer using icrc2_transfer_from
                                                 let priceE8s : Nat = userCanisterEntry.priceE8S;
-                                                let icpFee : Nat = 10_000; // 0.0001 ICP fee
-                                                
+                                                let icpFee : Nat = 10_000; // 0.0001 ICP fee                                                
                                                 let transferFromArgs : TokenLedger.TransferFromArgs = {
                                                     from = { owner = msg.caller; subaccount = null };
                                                     to = { owner = Principal.fromActor(this); subaccount = null };
@@ -8677,141 +8639,152 @@ actor class GameStateCanister() = this {
                                                     };
                                                     case (#Ok(icpBlockIndex)) {
                                                         D.print("GameState: icrc37_transfer_from - ICP transferred successfully, block: "# debug_show(icpBlockIndex));
-                                                        
                                                         // Transfer mAIner ownership
                                                         let buyerPrincipal : Principal = msg.caller;
-                                                let sellerPrincipal : Principal = mainerEntry.ownedBy;
-                                                // Add the buyer as a controller of the mAIner canister via mAIner Creator 
-                                                // TODO: (if this fails, try again, otherwise cancel the sale)
-                                                let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
-                                                let addControllerInput : Types.AddControllerToMainerCanisterInput = {
-                                                    mainerEntry : Types.OfficialMainerAgentCanister  = mainerEntry;
-                                                    newControllerPrincipal : Principal = buyerPrincipal;
-                                                };
-                                                let addControllerResult : Types.AddControllerToMainerCanisterResult = await creatorCanisterActor.addControllerToMainerCanister(addControllerInput);
-                                                D.print("GameState: icrc37_transfer_from - addControllerResult: "# debug_show(addControllerResult));
-
-                                                switch (addControllerResult) {
-                                                    case (#Ok(addControllerToMainerCanisterRecord)) {
-                                                        D.print("GameState: icrc37_transfer_from - addControllerToMainerCanisterRecord: " # debug_show(addControllerToMainerCanisterRecord) );
-                                                        // Update mAIner entry 
-                                                        let newCanisterEntry : Types.OfficialMainerAgentCanister = {
-                                                            address : Text = mainerEntry.address;
-                                                            subnet : Text = mainerEntry.subnet;
-                                                            canisterType: Types.ProtocolCanisterType = mainerEntry.canisterType;
-                                                            creationTimestamp : Nat64 = mainerEntry.creationTimestamp;
-                                                            createdBy : Principal = mainerEntry.createdBy;
-                                                            ownedBy : Principal = buyerPrincipal; // only field updated: to new owner
-                                                            status : Types.CanisterStatus = mainerEntry.status; 
-                                                            mainerConfig : Types.MainerConfigurationInput = mainerEntry.mainerConfig;
-                                                        };
-                                                        let updateResult : Types.MainerAgentCanisterResult = putMainerAgentCanister(mainerAddress, newCanisterEntry);
-                                                        D.print("GameState: icrc37_transfer_from - updated mainerEntry: "# debug_show(newCanisterEntry));                              
-
-                                                        // Remove from seller
-                                                        let removeResult : Bool = removeUserMainerAgent(mainerEntry);
-                                                        D.print("GameState: icrc37_transfer_from - removed from seller: "# debug_show(removeResult));  
-
-                                                        // Add to buyer 
-                                                        let addResult : Bool = putUserMainerAgent(newCanisterEntry);
-                                                        D.print("GameState: icrc37_transfer_from - added to buyer: "# debug_show(addResult));  
-
-                                                        // Remove the seller as controller from the mAIner canister via mAIner Creator (if this fails, try again, otherwise store the failure for an admin to check)
-                                                        let removeControllerInput : Types.RemoveControllerFromMainerCanisterInput = {
+                                                        let sellerPrincipal : Principal = mainerEntry.ownedBy;
+                                                        // Add the buyer as a controller of the mAIner canister via mAIner Creator 
+                                                        let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
+                                                        let addControllerInput : Types.AddControllerToMainerCanisterInput = {
                                                             mainerEntry : Types.OfficialMainerAgentCanister  = mainerEntry;
-                                                            toRemoveControllerPrincipal : Principal = sellerPrincipal;
+                                                            newControllerPrincipal : Principal = buyerPrincipal;
                                                         };
-                                                        let removeControllerResult : Types.RemoveControllerFromMainerCanisterResult = await creatorCanisterActor.removeControllerFromMainerCanister(removeControllerInput);
-                                                        D.print("GameState: icrc37_transfer_from - removeControllerResult: "# debug_show(removeControllerResult));
-                                                        switch (removeControllerResult) {
-                                                            case (#Ok(removeControllerFromMainerCanisterRecord)) {
-                                                                // Record the sale for statistics
-                                                                let sale : Types.MarketplaceSale = {
-                                                                    mainerAddress = mainerAddress;
-                                                                    seller = mainerEntry.ownedBy;
-                                                                    buyer = msg.caller;
-                                                                    priceE8S = userCanisterEntry.priceE8S;
-                                                                    saleTimestamp = Nat64.fromNat(Int.abs(Time.now()));
-                                                                };
-                                                                marketplaceSalesHistory.add(sale);
-                                                                D.print("GameState: icrc37_transfer_from - sale record: "# debug_show(sale)); 
+                                                        let addControllerResult : Types.AddControllerToMainerCanisterResult = await creatorCanisterActor.addControllerToMainerCanister(addControllerInput);
+                                                        D.print("GameState: icrc37_transfer_from - addControllerResult: "# debug_show(addControllerResult));
 
-                                                                // Clean up reservation and cancel the timer
-                                                                switch (marketplaceReservationTimers.get(mainerAddress)) {
-                                                                    case (?timerId) {
-                                                                        Timer.cancelTimer(timerId);
-                                                                        ignore marketplaceReservationTimers.remove(mainerAddress);
-                                                                    };
-                                                                    case (null) {};
+                                                        switch (addControllerResult) {
+                                                            case (#Ok(addControllerToMainerCanisterRecord)) {
+                                                                D.print("GameState: icrc37_transfer_from - addControllerToMainerCanisterRecord: " # debug_show(addControllerToMainerCanisterRecord) );
+                                                                // Update mAIner entry 
+                                                                let newCanisterEntry : Types.OfficialMainerAgentCanister = {
+                                                                    address : Text = mainerEntry.address;
+                                                                    subnet : Text = mainerEntry.subnet;
+                                                                    canisterType: Types.ProtocolCanisterType = mainerEntry.canisterType;
+                                                                    creationTimestamp : Nat64 = mainerEntry.creationTimestamp;
+                                                                    createdBy : Principal = mainerEntry.createdBy;
+                                                                    ownedBy : Principal = buyerPrincipal; // only field updated: to new owner
+                                                                    status : Types.CanisterStatus = mainerEntry.status; 
+                                                                    mainerConfig : Types.MainerConfigurationInput = mainerEntry.mainerConfig;
                                                                 };
-                                                                ignore marketplaceReservedMainerAgentsStorage.remove(mainerAddress);
-                                                                ignore userToMarketplaceReservedMainerStorage.remove(msg.caller);
-                                                                D.print("GameState: icrc37_transfer_from - cleared reservation for mainerAddress: "# debug_show(mainerAddress)); 
+                                                                let updateResult : Types.MainerAgentCanisterResult = putMainerAgentCanister(mainerAddress, newCanisterEntry);
+                                                                D.print("GameState: icrc37_transfer_from - updated mainerEntry: "# debug_show(newCanisterEntry));                              
 
-                                                                // Take protocol cut (10%) and send the rest to the seller
-                                                                let protocolFeePercent : Nat = 10;
-                                                                let protocolFee : Nat = (priceE8s * protocolFeePercent) / 100;
-                                                                let sellerAmount : Nat = priceE8s - protocolFee - icpFee; // Deduct protocol fee and transfer fee
-                                                                
-                                                                D.print("GameState: icrc37_transfer_from - priceE8s: " # debug_show(priceE8s) # ", protocolFee: " # debug_show(protocolFee) # ", sellerAmount: " # debug_show(sellerAmount));
-                                                                
-                                                                // Transfer ICP to seller
-                                                                let sellerTransferArg : TokenLedger.TransferArg = {
-                                                                    to = { owner = sellerPrincipal; subaccount = null };
-                                                                    fee = ?icpFee;
-                                                                    memo = null;
-                                                                    from_subaccount = null;
-                                                                    created_at_time = null;
-                                                                    amount = sellerAmount;
-                                                                };
-                                                                
-                                                                let sellerTransferResult : TokenLedger.Result = await ICP_LEDGER_ACTOR.icrc1_transfer(sellerTransferArg);
-                                                                D.print("GameState: icrc37_transfer_from - sellerTransferResult: "# debug_show(sellerTransferResult));
-                                                                
-                                                                switch (sellerTransferResult) {
-                                                                    case (#Err(sellerTransferError)) {
-                                                                        // Log the error but don't fail the sale - the ICP is already in GameState
-                                                                        // Admin can manually resolve this later
-                                                                        D.print("GameState: icrc37_transfer_from - WARNING: Failed to send ICP to seller: "# debug_show(sellerTransferError));
-                                                                    };
-                                                                    case (#Ok(sellerBlockIndex)) {
-                                                                        D.print("GameState: icrc37_transfer_from - ICP sent to seller, block: "# debug_show(sellerBlockIndex));
-                                                                    };
-                                                                };
+                                                                // Remove from seller
+                                                                let removeResult : Bool = removeUserMainerAgent(mainerEntry);
+                                                                D.print("GameState: icrc37_transfer_from - removed from seller: "# debug_show(removeResult));  
 
-                                                                return [?#Ok(getNextMainerMarketplaceTransactionId())];
+                                                                // Add to buyer 
+                                                                let addResult : Bool = putUserMainerAgent(newCanisterEntry);
+                                                                D.print("GameState: icrc37_transfer_from - added to buyer: "# debug_show(addResult));  
+
+                                                                // Remove the seller as controller from the mAIner canister via mAIner Creator
+                                                                let removeControllerInput : Types.RemoveControllerFromMainerCanisterInput = {
+                                                                    mainerEntry : Types.OfficialMainerAgentCanister  = mainerEntry;
+                                                                    toRemoveControllerPrincipal : Principal = sellerPrincipal;
+                                                                };
+                                                                let removeControllerResult : Types.RemoveControllerFromMainerCanisterResult = await creatorCanisterActor.removeControllerFromMainerCanister(removeControllerInput);
+                                                                D.print("GameState: icrc37_transfer_from - removeControllerResult: "# debug_show(removeControllerResult));
+                                                                switch (removeControllerResult) {
+                                                                    case (#Ok(removeControllerFromMainerCanisterRecord)) {
+                                                                        // Record the sale for statistics
+                                                                        let sale : Types.MarketplaceSale = {
+                                                                            mainerAddress = mainerAddress;
+                                                                            seller = mainerEntry.ownedBy;
+                                                                            buyer = msg.caller;
+                                                                            priceE8S = userCanisterEntry.priceE8S;
+                                                                            saleTimestamp = Nat64.fromNat(Int.abs(Time.now()));
+                                                                        };
+                                                                        marketplaceSalesHistory.add(sale);
+                                                                        D.print("GameState: icrc37_transfer_from - sale record: "# debug_show(sale)); 
+
+                                                                        // Clean up reservation and cancel the timer
+                                                                        switch (marketplaceReservationTimers.get(mainerAddress)) {
+                                                                            case (?timerId) {
+                                                                                Timer.cancelTimer(timerId);
+                                                                                ignore marketplaceReservationTimers.remove(mainerAddress);
+                                                                            };
+                                                                            case (null) {};
+                                                                        };
+                                                                        ignore marketplaceReservedMainerAgentsStorage.remove(mainerAddress);
+                                                                        ignore userToMarketplaceReservedMainerStorage.remove(msg.caller);
+                                                                        D.print("GameState: icrc37_transfer_from - cleared reservation for mainerAddress: "# debug_show(mainerAddress)); 
+
+                                                                        // Take protocol cut and send the rest to the seller
+                                                                        D.print("GameState: icrc37_transfer_from - protocolOperationFeesCut: "# debug_show(protocolOperationFeesCut));
+                                                                        let protocolFee : Nat = (priceE8s * protocolOperationFeesCut) / 100;
+                                                                        // Sanity check
+                                                                        if (protocolFee > priceE8s or icpFee > priceE8s or (protocolFee + icpFee) > priceE8s) {
+                                                                            // This should never happend
+                                                                            D.print("GameState: icrc37_transfer_from - numbers don't add up... priceE8s: " # debug_show(priceE8s) # ", protocolFee: " # debug_show(protocolFee) # ", icpFee: " # debug_show(icpFee));
+                                                                            // TODO: store the failure for an admin to check
+                                                                            return [?#Err(#GenericError({ error_code = 2; message = "Error calculating seller's amount based on price" }))];
+                                                                        };
+                                                                        let sellerAmount : Nat = priceE8s - protocolFee - icpFee; // Deduct protocol fee and transfer fee
+                                                                        D.print("GameState: icrc37_transfer_from - priceE8s: " # debug_show(priceE8s) # ", protocolFee: " # debug_show(protocolFee) # ", sellerAmount: " # debug_show(sellerAmount));
+                                                                        // Transfer ICP to seller
+                                                                        let sellerTransferArg : TokenLedger.TransferArg = {
+                                                                            to = { owner = sellerPrincipal; subaccount = null };
+                                                                            fee = ?icpFee;
+                                                                            memo = null;
+                                                                            from_subaccount = null;
+                                                                            created_at_time = null;
+                                                                            amount = sellerAmount;
+                                                                        };
+                                                                        
+                                                                        let sellerTransferResult : TokenLedger.Result = await ICP_LEDGER_ACTOR.icrc1_transfer(sellerTransferArg);
+                                                                        D.print("GameState: icrc37_transfer_from - sellerTransferResult: "# debug_show(sellerTransferResult));
+                                                                        
+                                                                        switch (sellerTransferResult) {
+                                                                            case (#Err(sellerTransferError)) {
+                                                                                // Log the error but don't fail the sale - the ICP is already in GameState
+                                                                                // Admin can manually resolve this later
+                                                                                // TODO: store the failure for an admin to check
+                                                                                D.print("GameState: icrc37_transfer_from - WARNING: Failed to send ICP to seller: "# debug_show(sellerTransferError));
+                                                                                return [?#Err(#GenericError({ error_code = 2; message = "Error sending ICP to seller" }))];
+                                                                            };
+                                                                            case (#Ok(sellerBlockIndex)) {
+                                                                                D.print("GameState: icrc37_transfer_from - ICP sent to seller, block: "# debug_show(sellerBlockIndex));
+                                                                            };
+                                                                        };
+
+                                                                        return [?#Ok(getNextMainerMarketplaceTransactionId())];
+                                                                    };
+                                                                    case (_) {
+                                                                        // TODO: Removing seller as controller failed - store the failure for an admin to check
+                                                                        D.print("GameState: icrc37_transfer_from - removeController failed, storing the failure for admin to check");
+                                                                        return [?#Ok(getNextMainerMarketplaceTransactionId())];
+                                                                    };
+                                                                };                                                        
                                                             };
                                                             case (_) {
-                                                                // Remove controller failed - try to return ICP to buyer
-                                                                D.print("GameState: icrc37_transfer_from - removeController failed, attempting to refund buyer");
-                                                                let refundArg : TokenLedger.TransferArg = {
-                                                                    to = { owner = msg.caller; subaccount = null };
-                                                                    fee = ?icpFee;
-                                                                    memo = null;
-                                                                    from_subaccount = null;
-                                                                    created_at_time = null;
-                                                                    amount = priceE8s - icpFee; // Refund minus fee
-                                                                };
-                                                                ignore await ICP_LEDGER_ACTOR.icrc1_transfer(refundArg);
-                                                                return [?#Err(#GenericError({ error_code = 3; message = "Controller removal failed, ICP refunded" }))];
+                                                                // Adding buyer as controller failed - try to return ICP to buyer
+                                                                D.print("GameState: icrc37_transfer_from - addController failed, attempting to refund buyer");
+                                                                try {
+                                                                    let refundArg : TokenLedger.TransferArg = {
+                                                                        to = { owner = msg.caller; subaccount = null };
+                                                                        fee = ?icpFee;
+                                                                        memo = null;
+                                                                        from_subaccount = null;
+                                                                        created_at_time = null;
+                                                                        amount = priceE8s - icpFee; // Refund minus fee
+                                                                    };
+                                                                    let refundResult = await ICP_LEDGER_ACTOR.icrc1_transfer(refundArg);
+                                                                    switch (refundResult) {
+                                                                        case (#Ok(blockIndex)) {
+                                                                            return [?#Err(#GenericError({ error_code = 2; message = "Controller update failed, ICP refunded" }))];
+                                                                        };
+                                                                        case (#Err(err)) {
+                                                                            D.print("GameState: icrc37_transfer_from - refund to buyer failed, manual intervention required. Error from icrc1_transfer: "# debug_show(err));
+                                                                            // TODO: store the failure for an admin to check
+                                                                            return [?#Err(#GenericError({ error_code = 2; message = "Controller update failed, error refunding ICP" }))];
+                                                                        };
+                                                                    };
+                                                                } catch (e) {
+                                                                    D.print("GameState: icrc37_transfer_from - refund to buyer failed, manual intervention required. Caught error: " # Error.message(e));
+                                                                    // TODO: store the failure for an admin to check
+                                                                    return [?#Err(#GenericError({ error_code = 2; message = "Controller update failed, error refunding ICP" }))];
+                                                                };                                                                
                                                             };
-                                                        };                                                        
-                                                    };
-                                                    case (_) {
-                                                        // Add controller failed - try to return ICP to buyer
-                                                        D.print("GameState: icrc37_transfer_from - addController failed, attempting to refund buyer");
-                                                        let refundArg : TokenLedger.TransferArg = {
-                                                            to = { owner = msg.caller; subaccount = null };
-                                                            fee = ?icpFee;
-                                                            memo = null;
-                                                            from_subaccount = null;
-                                                            created_at_time = null;
-                                                            amount = priceE8s - icpFee; // Refund minus fee
                                                         };
-                                                        ignore await ICP_LEDGER_ACTOR.icrc1_transfer(refundArg);
-                                                        return [?#Err(#GenericError({ error_code = 2; message = "Controller update failed, ICP refunded" }))];
-                                                    };
-                                                };
                                                     }; // Close #Ok(icpBlockIndex)
                                                 }; // Close icpTransferResult switch
                                             };
