@@ -382,6 +382,28 @@ module Types {
 
     public type MarketplaceTransactionHistoryResult = Result<MarketplaceTransactionHistory, ApiError>;
 
+    public type MainerTransferFailure = {
+        transactionId : Nat;
+        seller : Principal;
+        buyer : Principal;
+        mainerListing : MainerMarketplaceListing;
+        failureTimestamp : Nat64;
+        failureReason : Text;
+        resolvedTimestamp : ?Nat64;
+        resolvedBy : ?Principal;
+        resolvedNote : ?Text;
+    };
+
+    public type MainerTransferFailureResult = Result<MainerTransferFailure, ApiError>;
+
+    public type MainerTransferFailuresResult = Result<[MainerTransferFailure], ApiError>;
+
+    public type ResolveMainerTransferFailureInput = {
+        transactionId : Nat;
+        resolvedNote : Text;
+        resolvedBy : Principal;
+    };
+
     public type CanisterInput = {
         address : CanisterAddress;
         subnet : Text;

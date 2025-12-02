@@ -8542,6 +8542,81 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Record mAIner transfer failures an admin must check on
+    stable var marketplaceMainerTransferFailuresStorageStable : [(Nat, Types.MainerTransferFailure)] = [];
+    var marketplaceMainerTransferFailuresStorage : HashMap.HashMap<Nat, Types.MainerTransferFailure> = HashMap.HashMap(0, Nat.equal, Hash.hash); 
+
+    stable var resolvedMarketplaceMainerTransferFailures : List.List<Types.MainerTransferFailure> = List.nil<Types.MainerTransferFailure>();
+
+    private func putMainerTransferFailure(entry : Types.MainerTransferFailure) : Types.MainerTransferFailure {
+        marketplaceMainerTransferFailuresStorage.put(entry.transactionId, entry);
+        return entry;
+    };
+
+    private func getAllMainerTransferFailures() : [Types.MainerTransferFailure] {
+        return Iter.toArray(marketplaceMainerTransferFailuresStorage.vals());
+    };
+
+    private func resolveMainerTransferFailure(resolveInput : Types.ResolveMainerTransferFailureInput) : Bool {
+        switch (marketplaceMainerTransferFailuresStorage.get(resolveInput.transactionId)) {
+            case (null) { return false; };
+            case (?failureEntry) {
+                let resolvedEntry : Types.MainerTransferFailure = {
+                    transactionId : Nat = failureEntry.transactionId;
+                    seller : Principal = failureEntry.seller;
+                    buyer : Principal = failureEntry.buyer;
+                    mainerListing : Types.MainerMarketplaceListing = failureEntry.mainerListing;
+                    failureTimestamp : Nat64 = failureEntry.failureTimestamp;
+                    failureReason : Text = failureEntry.failureReason;
+                    resolvedTimestamp : ?Nat64 = ?Nat64.fromNat(Int.abs(Time.now()));
+                    resolvedBy : ?Principal = ?resolveInput.resolvedBy;
+                    resolvedNote : ?Text = ?resolveInput.resolvedNote;
+                };
+                resolvedMarketplaceMainerTransferFailures := List.push<Types.MainerTransferFailure>(resolvedEntry, resolvedMarketplaceMainerTransferFailures);
+
+                let removeResult = marketplaceMainerTransferFailuresStorage.remove(resolveInput.transactionId);
+                return true;
+            };
+        };
+    };
+
+    public query (msg) func getMainerTransferFailuresAdmin() : async Types.MainerTransferFailuresResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        return #Ok(getAllMainerTransferFailures());
+    };
+
+    public query (msg) func resolveMainerTransferFailureAdmin(resolveInput : Types.ResolveMainerTransferFailureInput) : async Bool {
+        if (Principal.isAnonymous(msg.caller)) {
+            return false;
+        };
+        if (not Principal.isController(msg.caller)) {
+            return false;
+        };
+        let resolveInputWithCaller : Types.ResolveMainerTransferFailureInput = {
+            transactionId : Nat = resolveInput.transactionId;
+            resolvedBy : Principal = msg.caller;
+            resolvedNote : Text = resolveInput.resolvedNote;
+        };
+        return resolveMainerTransferFailure(resolveInputWithCaller);
+    };
+
+    public query (msg) func getResolvedMainerTransferFailuresAdmin() : async Types.MainerTransferFailuresResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        return #Ok(List.toArray<Types.MainerTransferFailure>(resolvedMarketplaceMainerTransferFailures));
+    };
+
     public shared(msg) func icrc37_transfer_from<system>(args: [ICRC37.Service.TransferFromArg]) : async [?ICRC37.Service.TransferFromResult] {
         /* type TransferFromArg = record {
             spender_subaccount: opt blob; // The subaccount of the caller (used to identify the spender)
@@ -8715,7 +8790,19 @@ actor class GameStateCanister() = this {
                                                                         if (protocolFee > priceE8s or icpFee > priceE8s or (protocolFee + icpFee) > priceE8s) {
                                                                             // This should never happend
                                                                             D.print("GameState: icrc37_transfer_from - numbers don't add up... priceE8s: " # debug_show(priceE8s) # ", protocolFee: " # debug_show(protocolFee) # ", icpFee: " # debug_show(icpFee));
-                                                                            // TODO: store the failure for an admin to check
+                                                                            // Store the failure for an admin to check
+                                                                            let failureEntry : Types.MainerTransferFailure = {
+                                                                                transactionId : Nat = getNextMainerMarketplaceTransactionId();
+                                                                                seller : Principal = sellerPrincipal;
+                                                                                buyer : Principal = buyerPrincipal;
+                                                                                mainerListing : Types.MainerMarketplaceListing = userCanisterEntry;
+                                                                                failureTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                                                                                failureReason : Text = "Error calculating seller's amount based on price";
+                                                                                resolvedTimestamp : ?Nat64 = null;
+                                                                                resolvedBy : ?Principal = null;
+                                                                                resolvedNote : ?Text = null;
+                                                                            };
+                                                                            let storedFailure = putMainerTransferFailure(failureEntry);
                                                                             return [?#Err(#GenericError({ error_code = 2; message = "Error calculating seller's amount based on price" }))];
                                                                         };
                                                                         let sellerAmount : Nat = priceE8s - protocolFee - icpFee; // Deduct protocol fee and transfer fee
@@ -8736,9 +8823,21 @@ actor class GameStateCanister() = this {
                                                                         switch (sellerTransferResult) {
                                                                             case (#Err(sellerTransferError)) {
                                                                                 // Log the error but don't fail the sale - the ICP is already in GameState
-                                                                                // Admin can manually resolve this later
-                                                                                // TODO: store the failure for an admin to check
                                                                                 D.print("GameState: icrc37_transfer_from - WARNING: Failed to send ICP to seller: "# debug_show(sellerTransferError));
+                                                                                // Admin can manually resolve this later
+                                                                                // Store the failure for an admin to check
+                                                                                let failureEntry : Types.MainerTransferFailure = {
+                                                                                    transactionId : Nat = getNextMainerMarketplaceTransactionId();
+                                                                                    seller : Principal = sellerPrincipal;
+                                                                                    buyer : Principal = buyerPrincipal;
+                                                                                    mainerListing : Types.MainerMarketplaceListing = userCanisterEntry;
+                                                                                    failureTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                                                                                    failureReason : Text = "Failed to send ICP to seller: "# debug_show(sellerTransferError);
+                                                                                    resolvedTimestamp : ?Nat64 = null;
+                                                                                    resolvedBy : ?Principal = null;
+                                                                                    resolvedNote : ?Text = null;
+                                                                                };
+                                                                                let storedFailure = putMainerTransferFailure(failureEntry);
                                                                                 return [?#Err(#GenericError({ error_code = 2; message = "Error sending ICP to seller" }))];
                                                                             };
                                                                             case (#Ok(sellerBlockIndex)) {
@@ -8749,8 +8848,20 @@ actor class GameStateCanister() = this {
                                                                         return [?#Ok(getNextMainerMarketplaceTransactionId())];
                                                                     };
                                                                     case (_) {
-                                                                        // TODO: Removing seller as controller failed - store the failure for an admin to check
+                                                                        // Removing seller as controller failed - store the failure for an admin to check
                                                                         D.print("GameState: icrc37_transfer_from - removeController failed, storing the failure for admin to check");
+                                                                        let failureEntry : Types.MainerTransferFailure = {
+                                                                            transactionId : Nat = getNextMainerMarketplaceTransactionId();
+                                                                            seller : Principal = sellerPrincipal;
+                                                                            buyer : Principal = buyerPrincipal;
+                                                                            mainerListing : Types.MainerMarketplaceListing = userCanisterEntry;
+                                                                            failureTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                                                                            failureReason : Text = "removeController failed";
+                                                                            resolvedTimestamp : ?Nat64 = null;
+                                                                            resolvedBy : ?Principal = null;
+                                                                            resolvedNote : ?Text = null;
+                                                                        };
+                                                                        let storedFailure = putMainerTransferFailure(failureEntry);
                                                                         return [?#Ok(getNextMainerMarketplaceTransactionId())];
                                                                     };
                                                                 };                                                        
@@ -8774,13 +8885,37 @@ actor class GameStateCanister() = this {
                                                                         };
                                                                         case (#Err(err)) {
                                                                             D.print("GameState: icrc37_transfer_from - refund to buyer failed, manual intervention required. Error from icrc1_transfer: "# debug_show(err));
-                                                                            // TODO: store the failure for an admin to check
+                                                                            // Store the failure for an admin to check
+                                                                            let failureEntry : Types.MainerTransferFailure = {
+                                                                                transactionId : Nat = getNextMainerMarketplaceTransactionId();
+                                                                                seller : Principal = sellerPrincipal;
+                                                                                buyer : Principal = buyerPrincipal;
+                                                                                mainerListing : Types.MainerMarketplaceListing = userCanisterEntry;
+                                                                                failureTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                                                                                failureReason : Text = "refund to buyer failed. Error from icrc1_transfer: "# debug_show(err);
+                                                                                resolvedTimestamp : ?Nat64 = null;
+                                                                                resolvedBy : ?Principal = null;
+                                                                                resolvedNote : ?Text = null;
+                                                                            };
+                                                                            let storedFailure = putMainerTransferFailure(failureEntry);
                                                                             return [?#Err(#GenericError({ error_code = 2; message = "Controller update failed, error refunding ICP" }))];
                                                                         };
                                                                     };
                                                                 } catch (e) {
                                                                     D.print("GameState: icrc37_transfer_from - refund to buyer failed, manual intervention required. Caught error: " # Error.message(e));
-                                                                    // TODO: store the failure for an admin to check
+                                                                    // Store the failure for an admin to check
+                                                                    let failureEntry : Types.MainerTransferFailure = {
+                                                                        transactionId : Nat = getNextMainerMarketplaceTransactionId();
+                                                                        seller : Principal = sellerPrincipal;
+                                                                        buyer : Principal = buyerPrincipal;
+                                                                        mainerListing : Types.MainerMarketplaceListing = userCanisterEntry;
+                                                                        failureTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                                                                        failureReason : Text = "refund to buyer failed. Caught error: " # Error.message(e);
+                                                                        resolvedTimestamp : ?Nat64 = null;
+                                                                        resolvedBy : ?Principal = null;
+                                                                        resolvedNote : ?Text = null;
+                                                                    };
+                                                                    let storedFailure = putMainerTransferFailure(failureEntry);
                                                                     return [?#Err(#GenericError({ error_code = 2; message = "Controller update failed, error refunding ICP" }))];
                                                                 };                                                                
                                                             };
@@ -9279,6 +9414,7 @@ actor class GameStateCanister() = this {
         marketplaceReservedMainerAgentsStorageStable := Iter.toArray(marketplaceReservedMainerAgentsStorage.entries());
         userToMarketplaceReservedMainerStorageStable := Iter.toArray(userToMarketplaceReservedMainerStorage.entries());
         marketplaceSalesHistoryStable := Buffer.toArray(marketplaceSalesHistory);
+        marketplaceMainerTransferFailuresStorageStable := Iter.toArray(marketplaceMainerTransferFailuresStorage.entries());
     };
 
     system func postupgrade() {
@@ -9324,5 +9460,7 @@ actor class GameStateCanister() = this {
         userToMarketplaceReservedMainerStorageStable := [];
         marketplaceSalesHistory := Buffer.fromArray(marketplaceSalesHistoryStable);
         marketplaceSalesHistoryStable := [];
+        marketplaceMainerTransferFailuresStorage := HashMap.fromIter(Iter.fromArray(marketplaceMainerTransferFailuresStorageStable), marketplaceMainerTransferFailuresStorageStable.size(), Nat.equal, Hash.hash);
+        marketplaceMainerTransferFailuresStorageStable := [];
     };
 };
