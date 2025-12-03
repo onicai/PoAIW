@@ -2,10 +2,39 @@
 
 # The files folder
 
-It contains checked in files, created with:
+These files are uploaded into mAInerCreator canister. 
+Create them as follows.
 
-- Files from https://github.com/onicai/llama_cpp_canister/releases/tag/v0.0.1
-- did & wasm of the mAIner ctrlb canister
+## llama_cpp_canister wasm & did
+
+Build & copy it over.
+
+```bash
+# From folder: llama_cpp_canister
+# Checkout commit of LLM code
+# -> commit `4334e3383a8434d6db85920f5a7e027f3fcdf119` , commit message `v0.6.0rc2`
+#
+icpp build-wasm
+cp build/llama_cpp.did ../funnAI/PoAIW/src/mAInerCreator/files/
+cp build/llama_cpp.wasm ../funnAI/PoAIW/src/mAInerCreator/files/
+```
+
+## mAIner ctrlb canister wasm & did 
+
+Do a local deploy and copy it over:
+
+```bash
+# Start the local network
+dfx start --clean
+
+# From folder: PoAIW/src/mAIner
+dfx deploy mainer_ctrlb_canister_0
+dfx canister info mainer_ctrlb_canister_0 # Confirm hash matches target hash
+cp .dfx/local/canisters/mainer_ctrlb_canister_0/mainer_ctrlb_canister_0.did ../mAInerCreator/files/mainer_ctrlb_canister.did
+cp .dfx/local/canisters/mainer_ctrlb_canister_0/mainer_ctrlb_canister_0.wasm ../mAInerCreator/files/mainer_ctrlb_canister.wasm
+```
+
+## LLM model
 
 You must manually download:
 
@@ -43,8 +72,8 @@ Note: See Appendix A below for manual deploy steps.
 
 After that initial deployment, to update the code for the mAIner Creator canister:
 ```bash
-scripts/deploy.sh --mode upgrade [--network ic]
-scripts/register-game-state.sh [--network ic]
+scripts/deploy.sh --mode upgrade [--network prd]
+scripts/register-game-state.sh [--network prd]
 ```
 
 ### Create a mAIner
@@ -152,41 +181,31 @@ dfx canister call game_state_canister getNumSubmissionsAdmin --output json [--ic
 
 # Appendix A: Manual deploy steps
 
-The deploy scripts for mAIner Creator automate the following steps:
-
-## Manual Deploy
 ```bash
+# Set a network
+NETWORK=prd
+NETWORK=testing
+NETWORK=demo
+NETWORK=develop
+NETWORK=local
+
+# set the gamestate id
+# easiest is to go to the funnAI folder to set it, and then come back
+cd ../../../
+CANISTER_ID_GAME_STATE_CANISTER=$(dfx canister --network $NETWORK id game_state_canister)
+cd PoAIW/src/mAInerCreator/
+echo "CANISTER_ID_GAME_STATE_CANISTER = $CANISTER_ID_GAME_STATE_CANISTER"
+
 # Generate the bindings for the upload scripts and the frontend
 dfx generate mainer_creator_canister
 
-# local
-dfx deploy mainer_creator_canister
+# Deploy & configure
+dfx deploy   --network $NETWORK mainer_creator_canister --mode [install/reinstall/upgrade]
+dfx canister --network $NETWORK call mainer_creator_canister setMasterCanisterId '("'$CANISTER_ID_GAME_STATE_CANISTER'")'
+dfx canister --network $NETWORK call mainer_creator_canister getMasterCanisterIdAdmin
 
-# IC mainnet (caution!)
-## development
-dfx deploy --network development mainer_creator_canister
-
-## production
-dfx deploy --ic mainer_creator_canister
-
-# Set Game State as master canister (you have to deploy that canister first and then return with its id)
-# local
-dfx canister call mainer_creator_canister setMasterCanisterId '("c5kvi-uuaaa-aaaaa-qaaia-cai")'
-
-# IC mainnet (caution!)
-## development
-dfx canister call --network development mainer_creator_canister setMasterCanisterId '("")'
-
-## production
-dfx canister call --ic mainer_creator_canister setMasterCanisterId '("")'
-
-```
-
-## Manual files upload for mAIner Controller Canister
-
-Run upload script - local:
-
-```bash
+# Upload wasm & llm model files
+#
 # --------------------------------------------------------------------------
 # IMPORTANT: ic-py might throw a timeout => patch it here:
 # Ubuntu:
@@ -215,45 +234,17 @@ class SyncStream(NetworkStream):
             return self._sock.recv(max_bytes)
 # ------------------------------------------------------------------------
 
-# ========================================================================
 # Upload the mainer controller canister wasm
-python -m scripts.upload_mainer_controller_canister --network local --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
-```
+python -m scripts.upload_mainer_controller_canister --network $NETWORK --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 
-Run upload script - IC:
-
-```bash
-# To IC
-## development
-### TODO: Upload the mainer controller canister wasm
-python -m scripts.upload_mainer_controller_canister --network development --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
-
-## production
-### TODO: Upload the mainer controller canister wasm
-python -m scripts.upload_mainer_controller_canister --network ic --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
-```
-
-### Manual files upload for mAIner LLM Canister
-
-Run upload script - local:
-
-```bash
 # Upload the mainer LLM canister wasm
 python -m scripts.upload_mainer_llm_canister_wasm --network local --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 
 # Upload the mainer LLM model file (gguf)
-python -m scripts.upload_mainer_llm_canister_modelfile --network local --canister mainer_creator_canister --wasm files/qwen2.5-0.5b-instruct-q8_0.gguf --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
-```
+python -m scripts.upload_mainer_llm_canister_modelfile --network local --canister mainer_creator_canister --chunksize 2000000 --wasm files/qwen2.5-0.5b-instruct-q8_0.gguf --hf-sha256 "ca59ca7f13d0e15a8cfa77bd17e65d24f6844b554a7b6c12e07a5f89ff76844e" --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 
-Run upload script - IC:
-
-```bash
-# To IC
-## development
-### Upload the mainer LLM canister wasm
-python -m scripts.upload_mainer_llm_canister_wasm --network development --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
-
-## production
-### Upload the mainer LLM canister wasm
-python -m scripts.upload_mainer_llm_canister_wasm --network ic --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+# Verify the sha256 hashes of all uploaded files
+# Warning: do not run this while upload is in process. Wait till it is fully completed.
+#          It uses a lazy evaluation logic.
+dfx canister --network $NETWORK call mainer_creator_canister getSha256HashesAdmin
 ```

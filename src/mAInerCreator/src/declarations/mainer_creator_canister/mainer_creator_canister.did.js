@@ -109,6 +109,11 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : CanisterCreationRecord,
     'Err' : ApiError,
   });
+  const StatusCodeRecord = IDL.Record({ 'status_code' : StatusCode });
+  const StatusCodeRecordResult = IDL.Variant({
+    'Ok' : StatusCodeRecord,
+    'Err' : ApiError,
+  });
   const FinishUploadMainerLlmInput = IDL.Record({
     'selectedModel' : SelectableMainerLLMs,
     'modelFileSha256' : IDL.Text,
@@ -130,6 +135,17 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : IDL.Vec(CyclesTransaction),
     'Err' : ApiError,
   });
+  const Sha256HashesRecord = IDL.Record({
+    'llmWasmHashes' : IDL.Vec(
+      IDL.Tuple(
+        IDL.Text,
+        IDL.Record({ 'wasmSha256' : IDL.Text, 'modelFileSha256' : IDL.Text }),
+      )
+    ),
+    'mainerControllerWasmSha256' : IDL.Text,
+  });
+  const Sha256HashesResult = IDL.Variant({
+    'Ok' : Sha256HashesRecord,
   const StatusCodeRecord = IDL.Record({ 'status_code' : StatusCode });
   const StatusCodeRecordResult = IDL.Variant({
     'Ok' : StatusCodeRecord,
@@ -199,9 +215,19 @@ export const idlFactory = ({ IDL }) => {
         [CanisterCreationResult],
         [],
       ),
+    'finish_upload_mainer_controller_canister_wasm' : IDL.Func(
+        [],
+        [StatusCodeRecordResult],
+        [],
+      ),
     'finish_upload_mainer_llm' : IDL.Func(
         [FinishUploadMainerLlmInput],
         [FileUploadResult],
+        [],
+      ),
+    'finish_upload_mainer_llm_canister_wasm' : IDL.Func(
+        [SelectableMainerLLMs],
+        [StatusCodeRecordResult],
         [],
       ),
     'getCyclesToSendToGameStateAdmin' : IDL.Func([], [IDL.Nat], ['query']),
@@ -220,6 +246,9 @@ export const idlFactory = ({ IDL }) => {
         ],
         [],
       ),
+    'getMasterCanisterIdAdmin' : IDL.Func([], [IDL.Text], ['query']),
+    'getMinCyclesBalanceAdmin' : IDL.Func([], [IDL.Nat], ['query']),
+    'getSha256HashesAdmin' : IDL.Func([], [Sha256HashesResult], ['query']),
     'getMinCyclesBalanceAdmin' : IDL.Func([], [IDL.Nat], ['query']),
     'health' : IDL.Func([], [StatusCodeRecordResult], ['query']),
     'isSubnetAvailableAdmin' : IDL.Func(

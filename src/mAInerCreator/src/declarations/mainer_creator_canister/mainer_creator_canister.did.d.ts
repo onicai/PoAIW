@@ -109,9 +109,17 @@ export interface MainerCreatorCanister {
     [CanisterCreationConfiguration],
     CanisterCreationResult
   >,
+  'finish_upload_mainer_controller_canister_wasm' : ActorMethod<
+    [],
+    StatusCodeRecordResult
+  >,
   'finish_upload_mainer_llm' : ActorMethod<
     [FinishUploadMainerLlmInput],
     FileUploadResult
+  >,
+  'finish_upload_mainer_llm_canister_wasm' : ActorMethod<
+    [SelectableMainerLLMs],
+    StatusCodeRecordResult
   >,
   'getCyclesToSendToGameStateAdmin' : ActorMethod<[], bigint>,
   'getCyclesTransactionsAdmin' : ActorMethod<[], CyclesTransactionsResult>,
@@ -120,6 +128,9 @@ export interface MainerCreatorCanister {
     { 'Ok' : Array<Principal> } |
       { 'Err' : { 'Unauthorized' : null } }
   >,
+  'getMasterCanisterIdAdmin' : ActorMethod<[], string>,
+  'getMinCyclesBalanceAdmin' : ActorMethod<[], bigint>,
+  'getSha256HashesAdmin' : ActorMethod<[], Sha256HashesResult>,
   'getMinCyclesBalanceAdmin' : ActorMethod<[], bigint>,
   'health' : ActorMethod<[], StatusCodeRecordResult>,
   'isSubnetAvailableAdmin' : ActorMethod<
@@ -216,6 +227,14 @@ export interface SetupCanisterInput {
   'subnet' : string,
   'newCanisterId' : string,
 }
+export interface Sha256HashesRecord {
+  'llmWasmHashes' : Array<
+    [string, { 'wasmSha256' : string, 'modelFileSha256' : string }]
+  >,
+  'mainerControllerWasmSha256' : string,
+}
+export type Sha256HashesResult = { 'Ok' : Sha256HashesRecord } |
+  { 'Err' : ApiError };
 export type StatusCode = number;
 export interface StatusCodeRecord { 'status_code' : StatusCode }
 export type StatusCodeRecordResult = { 'Ok' : StatusCodeRecord } |

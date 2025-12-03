@@ -1,4 +1,9 @@
 type TimeInterval = variant {Daily;};
+type TextResult = 
+ variant {
+   Err: ApiError;
+   Ok: text;
+ };
 type StatusCodeRecordResult = 
  variant {
    Err: ApiError;
@@ -53,6 +58,16 @@ type MainerTimers =
    action1RegularityInSeconds: nat;
    action2RegularityInSeconds: nat;
  };
+type MainerTimerBuffersResult = 
+ variant {
+   Err: ApiError;
+   Ok: MainerTimerBuffers;
+ };
+type MainerTimerBuffers = 
+ record {
+   bufferTimerId1: vec nat;
+   bufferTimerId2: vec nat;
+ };
 type MainerConfigurationInput = 
  record {
    cyclesForMainer: nat;
@@ -61,29 +76,76 @@ type MainerConfigurationInput =
    subnetCtrl: text;
    subnetLlm: text;
  };
+type MainerAgentTimersResult = 
+ variant {
+   Err: ApiError;
+   Ok: MainerAgentTimers;
+ };
+type MainerAgentTimersListResult = 
+ variant {
+   Err: ApiError;
+   Ok: vec MainerAgentTimers;
+ };
+type MainerAgentTimers = 
+ record {
+   action1RegularityInSeconds: nat;
+   action2RegularityInSeconds: nat;
+   calledFromEndpoint: text;
+   createdBy: principal;
+   creationTimestamp: nat64;
+   initialTimerId1: opt nat;
+   randomInitialTimer1InSeconds: opt nat;
+   recurringTimerId1: opt nat;
+   recurringTimerId2: opt nat;
+ };
+type MainerAgentSettingsResult = 
+ variant {
+   Err: ApiError;
+   Ok: MainerAgentSettings;
+ };
+type MainerAgentSettingsListResult = 
+ variant {
+   Err: ApiError;
+   Ok: vec MainerAgentSettings;
+ };
 type MainerAgentSettingsInput = record {
                                   cyclesBurnRate: CyclesBurnRateDefault;};
+type MainerAgentSettings = 
+ record {
+   createdBy: principal;
+   creationTimestamp: nat64;
+   cyclesBurnRate: CyclesBurnRateDefault;
+ };
 type MainerAgentCtrlbCanister = 
  service {
-   addChallengeResponseToShareAgent: (ChallengeResponseSubmissionInput) ->
-    (StatusCodeRecordResult);
-   addChallengeToShareServiceQueue: (ChallengeQueueInput) ->
-    (ChallengeQueueInputResult);
+   addChallengeResponseToShareAgent: (challengeResponseSubmissionInput:
+    ChallengeResponseSubmissionInput) -> (StatusCodeRecordResult);
+   addChallengeToShareServiceQueue: (challengeQueueInput:
+    ChallengeQueueInput) -> (ChallengeQueueInputResult);
    addCycles: () -> (AddCyclesResult);
-   addMainerShareAgentCanister: (OfficialMainerAgentCanister) ->
-    (MainerAgentCanisterResult);
-   addMainerShareAgentCanisterAdmin: (OfficialMainerAgentCanister) ->
-    (MainerAgentCanisterResult);
-   add_llm_canister: (CanisterIDRecord) -> (StatusCodeRecordResult);
+   addMainerShareAgentCanister: (canisterEntryToAdd:
+    OfficialMainerAgentCanister) -> (MainerAgentCanisterResult);
+   addMainerShareAgentCanisterAdmin: (canisterEntryToAdd:
+    OfficialMainerAgentCanister) -> (MainerAgentCanisterResult);
+   add_llm_canister: (llmCanisterIdRecord: CanisterIDRecord) ->
+    (StatusCodeRecordResult);
    amiController: () -> (StatusCodeRecordResult) query;
+   assignAdminRole: (input: AssignAdminRoleInputRecord) ->
+    (AdminRoleAssignmentResult);
    canAgentSettingsBeUpdated: () -> (StatusCodeRecordResult);
    checkAccessToLLMs: () -> (StatusCodeRecordResult);
+   getAdminRoles: () -> (AdminRoleAssignmentsResult) query;
+   getAgentSettingsAdmin: () -> (MainerAgentSettingsListResult) query;
+   getAgentTimersAdmin: () -> (MainerAgentTimersListResult) query;
    getChallengeQueueAdmin: () -> (ChallengeQueueInputsResult) query;
+   getCurrentAgentSettingsAdmin: () -> (MainerAgentSettingsResult) query;
+   getCurrentAgentTimersAdmin: () -> (MainerAgentTimersResult) query;
    getGameStateCanisterId: () -> (text) query;
    getIssueFlagsAdmin: () -> (IssueFlagsRetrievalResult) query;
    getLLMCanisterIds: () -> (CanisterAddressesResult) query;
    getMainerCanisterType: () -> (MainerAgentCanisterTypeResult) query;
    getMainerStatisticsAdmin: () -> (StatisticsRetrievalResult) query;
+   getMaintenanceFlag: () -> (FlagResult) query;
    getRecentSubmittedResponsesAdmin: () ->
     (ChallengeResponseSubmissionsResult) query;
    getRoundRobinCanister: () -> (CanisterIDRecordResult) query;
@@ -91,21 +153,33 @@ type MainerAgentCtrlbCanister =
    getSubmittedResponsesAdmin: () ->
     (ChallengeResponseSubmissionsResult) query;
    getTimerActionRegularityInSecondsAdmin: () -> (MainerTimersResult) query;
+   getTimerBufferMaxSizeAdmin: () -> (NatResult) query;
+   getTimerBuffersAdmin: () -> (MainerTimerBuffersResult) query;
+   get_llm_canisters: () -> (LlmCanistersRecordResult) query;
    health: () -> (StatusCodeRecordResult) query;
    ready: () -> (StatusCodeRecordResult);
-   resetChallengeQueueAdmin: () -> (StatusCodeRecordResult);
-   reset_llm_canisters: () -> (StatusCodeRecordResult);
-   setGameStateCanisterId: (text) -> (StatusCodeRecordResult);
-   setMainerCanisterType: (MainerAgentCanisterType) ->
+   remove_llm_canister: (llmCanisterIdRecord: CanisterIDRecord) ->
     (StatusCodeRecordResult);
-   setRoundRobinLLMs: (nat) -> (StatusCodeRecordResult);
-   setShareServiceCanisterId: (text) -> (StatusCodeRecordResult);
-   setTimerAction2RegularityInSecondsAdmin: (nat) -> (StatusCodeRecordResult);
+   resetChallengeQueueAdmin: () -> (StatusCodeRecordResult);
+   resetRoundRobinLLMs: () -> (StatusCodeRecordResult);
+   reset_llm_canisters: () -> (StatusCodeRecordResult);
+   revokeAdminRole: ("principal": text) -> (TextResult);
+   setGameStateCanisterId: (_game_state_canister_id: text) ->
+    (StatusCodeRecordResult);
+   setMainerCanisterType: (_mainer_agent_canister_type:
+    MainerAgentCanisterType) -> (StatusCodeRecordResult);
+   setRoundRobinLLMs: (_roundRobinLLMs: nat) -> (StatusCodeRecordResult);
+   setShareServiceCanisterId: (_share_service_canister_id: text) ->
+    (StatusCodeRecordResult);
+   setTimerAction2RegularityInSecondsAdmin: (_action2RegularityInSeconds:
+    nat) -> (StatusCodeRecordResult);
+   setTimerBufferMaxSizeAdmin: (maxSize: nat) -> (StatusCodeRecordResult);
    startTimerExecutionAdmin: () -> (AuthRecordResult);
    stopTimerExecutionAdmin: () -> (AuthRecordResult);
    timeToNextAgentSettingsUpdate: () -> (NatResult);
+   toggleMaintenanceFlagAdmin: () -> (AuthRecordResult);
    triggerChallengeResponseAdmin: () -> (AuthRecordResult);
-   updateAgentSettings: (MainerAgentSettingsInput) ->
+   updateAgentSettings: (settingsInput: MainerAgentSettingsInput) ->
     (StatusCodeRecordResult);
    whoami: () -> (principal) query;
  };
@@ -134,12 +208,29 @@ type LlmSetupStatus =
    ConfigurationInProgress;
    ModelUploadProgress: nat8;
  };
+type LlmCanistersRecordResult = 
+ variant {
+   Err: ApiError;
+   Ok: LlmCanistersRecord;
+ };
+type LlmCanistersRecord = 
+ record {
+   llmCanisterIds: vec CanisterAddress;
+   roundRobinLLMs: nat;
+   roundRobinUseAll: bool;
+ };
 type IssueFlagsRetrievalResult = 
  variant {
    Err: ApiError;
    Ok: IssueFlagsRecord;
  };
 type IssueFlagsRecord = record {lowCycleBalance: bool;};
+type FlagResult = 
+ variant {
+   Err: ApiError;
+   Ok: FlagRecord;
+ };
+type FlagRecord = record {flag: bool;};
 type CyclesBurnRateDefault = 
  variant {
    Custom: CyclesBurnRate;
@@ -335,6 +426,12 @@ type AuthRecordResult =
    Ok: AuthRecord;
  };
 type AuthRecord = record {auth: text;};
+type AssignAdminRoleInputRecord = 
+ record {
+   note: text;
+   "principal": text;
+   role: AdminRole;
+ };
 type ApiError = 
  variant {
    FailedOperation;
@@ -344,6 +441,29 @@ type ApiError =
    StatusCode: StatusCode;
    Unauthorized;
    ZeroAddress;
+ };
+type AdminRoleAssignmentsResult = 
+ variant {
+   Err: ApiError;
+   Ok: vec AdminRoleAssignment;
+ };
+type AdminRoleAssignmentResult = 
+ variant {
+   Err: ApiError;
+   Ok: AdminRoleAssignment;
+ };
+type AdminRoleAssignment = 
+ record {
+   assignedAt: nat64;
+   assignedBy: text;
+   note: text;
+   "principal": text;
+   role: AdminRole;
+ };
+type AdminRole = 
+ variant {
+   AdminQuery;
+   AdminUpdate;
  };
 type AddCyclesResult = 
  variant {

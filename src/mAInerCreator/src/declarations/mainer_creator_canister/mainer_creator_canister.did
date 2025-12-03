@@ -24,6 +24,23 @@ type StatusCodeRecordResult =
  };
 type StatusCodeRecord = record {status_code: StatusCode;};
 type StatusCode = nat16;
+type Sha256HashesResult = 
+ variant {
+   Err: ApiError;
+   Ok: Sha256HashesRecord;
+ };
+type Sha256HashesRecord = 
+ record {
+   llmWasmHashes:
+    vec record {
+          text;
+          record {
+            modelFileSha256: text;
+            wasmSha256: text;
+          };
+        };
+   mainerControllerWasmSha256: text;
+ };
 type SetupCanisterInput = 
  record {
    configurationInput: CanisterCreationConfiguration;
@@ -82,13 +99,21 @@ type ModelCreationArtefacts =
  };
 type MainerCreatorCanister = 
  service {
+   addModelCreationArtefactsEntry: (addModelCreationArtefactsEntryInput:
+    AddModelCreationArtefactsEntry) -> (InsertArtefactsResult);
    addControllerToMainerCanister: (AddControllerToMainerCanisterInput) ->
     (AddControllerToMainerCanisterResult);
    addModelCreationArtefactsEntry: (AddModelCreationArtefactsEntry) ->
     (InsertArtefactsResult);
    amiController: () -> (AuthRecordResult) query;
-   createCanister: (CanisterCreationConfiguration) ->
+   createCanister: (configurationInput: CanisterCreationConfiguration) ->
     (CanisterCreationResult);
+   finish_upload_mainer_controller_canister_wasm: () ->
+    (StatusCodeRecordResult);
+   finish_upload_mainer_llm: (finishUploadMainerLlmInput:
+    FinishUploadMainerLlmInput) -> (FileUploadResult);
+   finish_upload_mainer_llm_canister_wasm: (selectedModel:
+    SelectableMainerLLMs) -> (StatusCodeRecordResult);
    finish_upload_mainer_llm: (FinishUploadMainerLlmInput) ->
     (FileUploadResult);
    getCyclesToSendToGameStateAdmin: () -> (nat) query;
@@ -98,15 +123,26 @@ type MainerCreatorCanister =
        Err: variant {Unauthorized;};
        Ok: vec principal;
      });
+   getMasterCanisterIdAdmin: () -> (text) query;
+   getMinCyclesBalanceAdmin: () -> (nat) query;
+   getSha256HashesAdmin: () -> (Sha256HashesResult) query;
    getMinCyclesBalanceAdmin: () -> (nat) query;
    health: () -> (StatusCodeRecordResult) query;
-   isSubnetAvailableAdmin: (text) ->
+   isSubnetAvailableAdmin: (subnet: text) ->
     (variant {
        Err: variant {Unauthorized;};
        Ok: bool;
      });
-   reinstallMainerctrl: (ReinstallMainerctrlInput) ->
+   reinstallMainerctrl: (reinstallMainerctrlInput:
+    ReinstallMainerctrlInput) -> (StatusCodeRecordResult);
+   sendCyclesToGameStateCanister: () -> (AddCyclesResult);
+   setCyclesToSendToGameStateAdmin: (newValue: nat) ->
     (StatusCodeRecordResult);
+   setMasterCanisterId: (_master_canister_id: text) -> (AuthRecordResult);
+   setMinCyclesBalanceAdmin: (newCyclesBalance: nat) ->
+    (StatusCodeRecordResult);
+   setupCanister: (setupCanisterInput: SetupCanisterInput) ->
+    (CanisterCreationResult);
    removeControllerFromMainerCanister:
     (RemoveControllerFromMainerCanisterInput) ->
     (RemoveControllerFromMainerCanisterResult);
@@ -118,15 +154,17 @@ type MainerCreatorCanister =
    start_upload_mainer_controller_canister_wasm: () ->
     (StatusCodeRecordResult);
    start_upload_mainer_llm: () -> (StatusCodeRecordResult);
-   start_upload_mainer_llm_canister_wasm: (SelectableMainerLLMs) ->
+   start_upload_mainer_llm_canister_wasm: (selectedModel:
+    SelectableMainerLLMs) -> (StatusCodeRecordResult);
+   upgradeMainerctrl: (upgradeMainerctrlInput: UpgradeMainerctrlInput) ->
     (StatusCodeRecordResult);
-   upgradeMainerctrl: (UpgradeMainerctrlInput) -> (StatusCodeRecordResult);
-   upload_mainer_controller_canister_wasm_bytes_chunk: (vec nat8) ->
-    (FileUploadResult);
-   upload_mainer_llm_bytes_chunk: (UploadMainerLlmBytesChunkInput) ->
-    (FileUploadResult);
+   upload_mainer_controller_canister_wasm_bytes_chunk: (bytesChunk:
+    vec nat8) -> (FileUploadResult);
+   upload_mainer_llm_bytes_chunk: (uploadMainerLlmBytesChunkInput:
+    UploadMainerLlmBytesChunkInput) -> (FileUploadResult);
    upload_mainer_llm_canister_wasm_bytes_chunk:
-    (UploadMainerLlmCanisterWasmBytesChunkInput) -> (FileUploadResult);
+    (uploadMainerLlmCanisterWasmBytesChunkInput:
+    UploadMainerLlmCanisterWasmBytesChunkInput) -> (FileUploadResult);
    whoami: () -> (principal) query;
  };
 type MainerConfigurationInput = 

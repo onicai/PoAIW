@@ -74,7 +74,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Flag to pause mAIner for maintenance
-    stable var MAINTENANCE : Bool = true;
+    stable var MAINTENANCE : Bool = false;
 
     public shared (msg) func toggleMaintenanceFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -270,10 +270,113 @@ actor class MainerAgentCtrlbCanister() = this {
         };
     };
 
+    //-------------------------------------------------------------------------
+    // Admin RBAC Storage
+    //-------------------------------------------------------------------------
+    stable var adminRoleAssignmentsStable : [(Text, Types.AdminRoleAssignment)] = [];
+    transient var adminRoleAssignmentsStorage : HashMap.HashMap<Text, Types.AdminRoleAssignment> = HashMap.HashMap(0, Text.equal, Text.hash);
+
+    private func putAdminRole(principal : Text, assignment : Types.AdminRoleAssignment) : Bool {
+        adminRoleAssignmentsStorage.put(principal, assignment);
+        return true;
+    };
+
+    private func getAdminRole(principal : Text) : ?Types.AdminRoleAssignment {
+        switch (adminRoleAssignmentsStorage.get(principal)) {
+            case (null) { return null; };
+            case (?assignment) { return ?assignment; };
+        };
+    };
+
+    private func removeAdminRole(principal : Text) : Bool {
+        switch (adminRoleAssignmentsStorage.get(principal)) {
+            case (null) { return false; };
+            case (?assignment) {
+                let removeResult = adminRoleAssignmentsStorage.remove(principal);
+                return true;
+            };
+        };
+    };
+
+    private func getAllAdminRoles() : [Types.AdminRoleAssignment] {
+        let assignments : Iter.Iter<Types.AdminRoleAssignment> = adminRoleAssignmentsStorage.vals();
+        return Iter.toArray(assignments);
+    };
+
+    // Helper function to check admin permissions
+    private func hasAdminRole(principal : Principal, requiredRole : Types.AdminRole) : Bool {
+        // Controllers automatically have all permissions
+        if (Principal.isController(principal)) {
+            return true;
+        };
+
+        // Check for assigned role
+        let principalText = Principal.toText(principal);
+        switch (getAdminRole(principalText)) {
+            case (null) { return false; };
+            case (?assignment) {
+                switch (assignment.role, requiredRole) {
+                    // AdminUpdate includes AdminQuery
+                    case (#AdminUpdate, #AdminQuery) { true };
+                    case (#AdminUpdate, #AdminUpdate) { true };
+                    // AdminQuery only has query permissions
+                    case (#AdminQuery, #AdminQuery) { true };
+                    // All other combinations fail
+                    case _ { false };
+                };
+            };
+        };
+    };
+
+    // Add an admin role assignment (controller-only)
+    public shared(msg) func assignAdminRole(input : Types.AssignAdminRoleInputRecord) : async Types.AdminRoleAssignmentResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let assignment : Types.AdminRoleAssignment = {
+            principal = input.principal;
+            role = input.role;
+            assignedBy = Principal.toText(msg.caller);
+            assignedAt = Nat64.fromNat(Int.abs(Time.now()));
+            note = input.note;
+        };
+
+        // Store the assignment (replaces any existing assignment for this principal)
+        let _ = putAdminRole(input.principal, assignment);
+
+        #Ok(assignment)
+    };
+
+    // Remove an admin role assignment (controller-only)
+    public shared(msg) func revokeAdminRole(principal: Text) : async Types.TextResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let removed = removeAdminRole(principal);
+        if (removed) {
+            #Ok("Admin role revoked for principal: " # principal)
+        } else {
+            #Err(#Other("No admin role found for principal: " # principal))
+        }
+    };
+
+    // Get all admin role assignments (controller-only)
+    public shared query(msg) func getAdminRoles() : async Types.AdminRoleAssignmentsResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        #Ok(getAllAdminRoles())
+    };
+
+    //-------------------------------------------------------------------------
+
     // --------------------------------------------------------------------------
     // Orthogonal Persisted Data storage
 
-    
+
     // The minimum cycle balance we want to maintain
     stable let CYCLE_BALANCE_MINIMUM = 250 * Constants.CYCLES_BILLION;
 
@@ -323,7 +426,11 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getIssueFlagsAdmin() : async Types.IssueFlagsRetrievalResult {
-        if (not Principal.isController(msg.caller)) {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Check if caller has AdminQuery permission
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
         let response : Types.IssueFlagsRecord = {
@@ -352,7 +459,11 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getMainerStatisticsAdmin() : async Types.StatisticsRetrievalResult {
-        if (not Principal.isController(msg.caller)) {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Check if caller has AdminQuery permission
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
         var cyclesBurnRateToReturn : Types.CyclesBurnRate = CYCLES_BURN_RATE_DEFAULT;
@@ -1069,7 +1180,7 @@ actor class MainerAgentCtrlbCanister() = this {
                     // Use protocolOperationFeesCut that was sent by the GameState canister with the Challenge
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - Unofficial top ups were made");
                     try {
-                        let DIRECT_CYCLES_TOPUP_MULTIPLIER : Nat = 3;
+                        let DIRECT_CYCLES_TOPUP_MULTIPLIER : Nat = 9;
                         let cyclesForOperationalExpenses = (currentCyclesBalance - officialCyclesBalance) * (challengeResponseSubmissionInput.protocolOperationFeesCut * DIRECT_CYCLES_TOPUP_MULTIPLIER) / 100;
                         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - Increasing cycles for operational expenses = " # debug_show(cyclesForOperationalExpenses));
                         cyclesToSend := cyclesToSend + cyclesForOperationalExpenses;
@@ -2310,13 +2421,15 @@ actor class MainerAgentCtrlbCanister() = this {
         mainerCreatorCanistersStorageStable := Iter.toArray(mainerCreatorCanistersStorage.entries());
         shareAgentCanistersStorageStable := Iter.toArray(shareAgentCanistersStorage.entries());
         userToShareAgentsStorageStable := Iter.toArray(userToShareAgentsStorage.entries());
-        
+
         // Convert Buffer<LLMCanister> to [Text] for stable storage
         let llmCanisterIds = Buffer.Buffer<Text>(llmCanisters.size());
         for (llmCanister in llmCanisters.vals()) {
             llmCanisterIds.add(Principal.toText(Principal.fromActor(llmCanister)));
         };
         llmCanistersStable := Buffer.toArray(llmCanisterIds);
+
+        adminRoleAssignmentsStable := Iter.toArray(adminRoleAssignmentsStorage.entries());
     };
 
     system func postupgrade() {
@@ -2326,7 +2439,7 @@ actor class MainerAgentCtrlbCanister() = this {
         shareAgentCanistersStorageStable := [];
         userToShareAgentsStorage := HashMap.fromIter(Iter.fromArray(userToShareAgentsStorageStable), userToShareAgentsStorageStable.size(), Principal.equal, Principal.hash);
         userToShareAgentsStorageStable := [];
-        
+
         // Reconstruct Buffer<LLMCanister> from [Text]
         llmCanisters := Buffer.Buffer<Types.LLMCanister>(llmCanistersStable.size());
         for (canisterId in llmCanistersStable.vals()) {
@@ -2334,6 +2447,9 @@ actor class MainerAgentCtrlbCanister() = this {
             llmCanisters.add(llmCanister);
         };
         llmCanistersStable := [];
+
+        adminRoleAssignmentsStorage := HashMap.fromIter(Iter.fromArray(adminRoleAssignmentsStable), adminRoleAssignmentsStable.size(), Text.equal, Text.hash);
+        adminRoleAssignmentsStable := [];
 
         // Reset reporting variable for timer
         action1RegularityInSeconds := 0; // Timer is not yet set (They don't persist across upgrades)

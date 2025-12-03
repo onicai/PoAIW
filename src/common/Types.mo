@@ -27,6 +27,32 @@ module Types {
     };
 
     //-------------------------------------------------------------------------
+    // Admin RBAC Types
+    public type AdminRole = {
+        #AdminUpdate;    // Access to Admin endpoints requiring #AdminUpdate or #AdminQuery roles only; No access to endpoints requiring controller level
+        #AdminQuery;     // Access to Admin endpoints requiring #AdminQuery role only.
+    };
+
+    public type AdminRoleAssignment = {
+        principal : Text;  // Principal in text format
+        role : AdminRole;
+        assignedBy : Text;  // Principal in text format
+        assignedAt : Nat64;
+        note : Text;
+    };
+
+    // Input record for admin role assignment
+    public type AssignAdminRoleInputRecord = {
+        principal : Text;
+        role : AdminRole;
+        note : Text;
+    };
+
+    // Result types for admin endpoints
+    public type AdminRoleAssignmentResult = Result<AdminRoleAssignment, ApiError>;
+    public type AdminRoleAssignmentsResult = Result<[AdminRoleAssignment], ApiError>;
+
+    //-------------------------------------------------------------------------
     public type AuthRecord = {
         auth : Text;
     };
@@ -1578,4 +1604,14 @@ module Types {
 
     // Simple result type for token rewards API
     public type TokenRewardsDataResult = Result<TokenRewardsData, ApiError>;
+
+    //-------------------------------------------------------------------------
+    // SHA-256 Hashes for uploaded WASM & LLM Model files
+
+    public type Sha256HashesRecord = {
+        mainerControllerWasmSha256 : Text;
+        llmWasmHashes : [(Text, { wasmSha256 : Text; modelFileSha256 : Text })];
+    };
+
+    public type Sha256HashesResult = Result<Sha256HashesRecord, ApiError>;
 };
