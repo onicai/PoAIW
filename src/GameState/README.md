@@ -73,6 +73,12 @@ dfx canister call game_state_canister spinUpMainerControllerCanisterForUserAdmin
 ### Finish the setup of a user's mAIner that had an issue (get the mAIner entry to fix as parameter for the call, especially the creationTimestamp which is used as identifier for the mAIner entry)
 ### This is always on prd -> Make sure to replace the ownedBy & createdBy before running it
 dfx canister call game_state_canister completeMainerSetupForUserAdmin '(record {        status = variant { Paid };        canisterType = variant { MainerAgent = variant { ShareAgent } };        ownedBy = principal "kpxiy-zhtf2-dbvq6-pwk7l-rm6nz-24mmb-qojc6-fgxs6-653ef-w5lqf-dae";        creationTimestamp = 1_756_472_106_967_051_969 : nat64;        createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe";        mainerConfig = record {          selectedLLM = null;          subnetLlm = "";          mainerAgentCanisterType = variant { ShareAgent };          cyclesForMainer = 39_985_500_000_000 : nat;          subnetCtrl = "snjp4-xlbw4-mnbog-ddwy6-6ckfd-2w5a2-eipqo-7l436-pxqkh-l6fuv-vae";        };        subnet = "";        address = "";      } )' --network $NETWORK
+
+## Topup issue
+TRANSACTIONINDEX=31456220
+MAINERADDRESS=2calm-zyaaa-aaaam-qeooq-cai
+OWNER=xzgcn-xbt3r-nhvsl-52jlc-nl5dc-zxkbo-2ghyc-z72s5-htxbe-se35n-jqe
+dfx canister call game_state_canister completeTopUpCyclesForMainerAgentAdmin '(record { paymentTransactionBlockId = '$TRANSACTIONINDEX'; mainerAgent = record {        status = variant { Running };        canisterType = variant { MainerAgent = variant { ShareAgent } };        ownedBy = principal "'$OWNER'";        creationTimestamp = 1_756_472_106_967_051_969 : nat64;        createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe";        mainerConfig = record {          selectedLLM = null;          subnetLlm = "";          mainerAgentCanisterType = variant { ShareAgent };          cyclesForMainer = 39_985_500_000_000 : nat;          subnetCtrl = "snjp4-xlbw4-mnbog-ddwy6-6ckfd-2w5a2-eipqo-7l436-pxqkh-l6fuv-vae";        };        subnet = "";        address = "'$MAINERADDRESS'";      }; } )' --network $NETWORK
 # ----------------------------------------
 
 ## Derive new mAIner wasm hash
