@@ -399,6 +399,7 @@ module Types {
         totalVolumeE8S : Nat;
         uniqueBuyers : Nat;
         uniqueSellers : Nat;
+        uniqueTraders : Nat; // Unique principals who are buyers OR sellers (deduplicated)
     };
 
     public type MarketplaceTransactionHistory = {

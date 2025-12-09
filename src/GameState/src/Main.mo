@@ -9592,11 +9592,15 @@ actor class GameStateCanister() = this {
         var totalVolumeE8S : Nat = 0;
         var buyersSet = HashMap.HashMap<Principal, Bool>(0, Principal.equal, Principal.hash);
         var sellersSet = HashMap.HashMap<Principal, Bool>(0, Principal.equal, Principal.hash);
+        var tradersSet = HashMap.HashMap<Principal, Bool>(0, Principal.equal, Principal.hash); // Combined unique traders
 
         for (sale in marketplaceSalesHistory.vals()) {
             totalVolumeE8S += sale.priceE8S;
             buyersSet.put(sale.buyer, true);
             sellersSet.put(sale.seller, true);
+            // Add both to traders set (automatically deduplicated by HashMap)
+            tradersSet.put(sale.buyer, true);
+            tradersSet.put(sale.seller, true);
         };
 
         return {
@@ -9604,6 +9608,7 @@ actor class GameStateCanister() = this {
             totalVolumeE8S = totalVolumeE8S;
             uniqueBuyers = buyersSet.size();
             uniqueSellers = sellersSet.size();
+            uniqueTraders = tradersSet.size(); // True unique count (buyers OR sellers)
         };
     };
 
