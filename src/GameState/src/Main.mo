@@ -9098,6 +9098,9 @@ actor class GameStateCanister() = this {
                                                                         ignore marketplaceReservedMainerAgentsStorage.remove(mainerAddress);
                                                                         ignore userToMarketplaceReservedMainerStorage.remove(msg.caller);
                                                                         D.print("GameState: icrc37_transfer_from - cleared reservation for mainerAddress: "# debug_show(mainerAddress)); 
+                                                                        // Should not be needed but remove from listings just in case
+                                                                        let removeListingResult = removeMarketplaceListedMainer(mainerAddress);
+                                                                        D.print("GameState: icrc37_transfer_from - called removeMarketplaceListedMainer to ensure the listing is already removed: "# debug_show(removeListingResult)); 
 
                                                                         // Take protocol cut and send the rest to the seller
                                                                         D.print("GameState: icrc37_transfer_from - protocolOperationFeesCut: "# debug_show(protocolOperationFeesCut));
