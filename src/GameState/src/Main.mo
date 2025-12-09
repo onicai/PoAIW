@@ -9432,8 +9432,12 @@ actor class GameStateCanister() = this {
 
     private func removeMarketplaceReservedMainer(canisterAddress : Text) : Bool {
         // If the reservation (still) exists, remove it and put the entry back up as a listing
+        // IMPORTANT: This is called by the timer callback, which may race with sale completion
         switch (marketplaceReservedMainerAgentsStorage.get(canisterAddress)) {
-            case (null) { return false; };
+            case (null) { 
+                D.print("GameState: removeMarketplaceReservedMainer - no reservation found for: "# debug_show(canisterAddress));
+                return false; 
+            };
             case (?canisterEntry) {
                 // Cancel the reservation timer if it exists
                 switch (marketplaceReservationTimers.get(canisterAddress)) {
@@ -9453,16 +9457,37 @@ actor class GameStateCanister() = this {
                         let removeResult2 = userToMarketplaceReservedMainerStorage.remove(reservingUserPrincipal);
                     }; 
                 };
-                let newListingEntry = {
-                    address : Types.CanisterAddress = canisterEntry.address;
-                    mainerType: Types.MainerAgentCanisterType = canisterEntry.mainerType;
-                    listedTimestamp : Nat64 = canisterEntry.listedTimestamp;
-                    listedBy : Principal = canisterEntry.listedBy;
-                    priceE8S : Nat = canisterEntry.priceE8S;
-                    reservedBy : ?Principal = null; // Only change
+                
+                // CRITICAL FIX: Before re-listing, verify the original seller still owns the mAIner
+                // This prevents re-listing a mAIner that was already sold (race condition with timer)
+                switch (getMainerAgentCanister(canisterAddress)) {
+                    case (null) {
+                        // mAIner no longer exists in our records - don't re-list
+                        D.print("GameState: removeMarketplaceReservedMainer - mAIner not found in canister storage, not re-listing: "# debug_show(canisterAddress));
+                        return true;
+                    };
+                    case (?mainerInfo) {
+                        // Check if the original seller (listedBy) still owns the mAIner
+                        if (mainerInfo.ownedBy != canisterEntry.listedBy) {
+                            // Ownership has changed - the sale already completed, don't re-list!
+                            D.print("GameState: removeMarketplaceReservedMainer - ownership changed from "# debug_show(canisterEntry.listedBy) #" to "# debug_show(mainerInfo.ownedBy) #", not re-listing");
+                            return true;
+                        };
+                        
+                        // Seller still owns it - safe to re-list
+                        D.print("GameState: removeMarketplaceReservedMainer - re-listing mAIner: "# debug_show(canisterAddress));
+                        let newListingEntry = {
+                            address : Types.CanisterAddress = canisterEntry.address;
+                            mainerType: Types.MainerAgentCanisterType = canisterEntry.mainerType;
+                            listedTimestamp : Nat64 = canisterEntry.listedTimestamp;
+                            listedBy : Principal = canisterEntry.listedBy;
+                            priceE8S : Nat = canisterEntry.priceE8S;
+                            reservedBy : ?Principal = null; // Only change
+                        };
+                        let result = putMarketplaceListedMainer(newListingEntry); 
+                        return true;
+                    };
                 };
-                let result = putMarketplaceListedMainer(newListingEntry); 
-                return true;
             };
         };
     };
