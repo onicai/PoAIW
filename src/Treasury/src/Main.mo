@@ -1294,30 +1294,30 @@ actor class TreasuryCanister() = this {
     };
     
     // Flag to toggle whether FUNNAI can be sent out
-    stable var SENT_OUT_FUNNAI : Bool = false;
+    stable var SEND_OUT_FUNNAI : Bool = false;
 
-    public shared (msg) func toggleSentOutFunnaiFlagAdmin() : async Types.AuthRecordResult {
+    public shared (msg) func toggleSendOutFunnaiFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        SENT_OUT_FUNNAI := not SENT_OUT_FUNNAI;
+        SEND_OUT_FUNNAI := not SEND_OUT_FUNNAI;
         let authRecord = {
-            auth = "You set the flag to " # debug_show (SENT_OUT_FUNNAI);
+            auth = "You set the flag to " # debug_show (SEND_OUT_FUNNAI);
         };
         return #Ok(authRecord);
     };
 
-    public query (msg) func getSentOutFunnaiFlag() : async Types.FlagResult {
+    public query (msg) func getSendOutFunnaiFlag() : async Types.FlagResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        return #Ok({ flag = SENT_OUT_FUNNAI });
+        return #Ok({ flag = SEND_OUT_FUNNAI });
     };
 
     public shared (msg) func sendFunnaiForPoolSetupAdmin() : async Types.NatResult {
@@ -1329,8 +1329,8 @@ actor class TreasuryCanister() = this {
         };
         D.print("Treasury: sendFunnaiForPoolSetupAdmin caller by: " # debug_show (msg.caller));
         D.print("Treasury: sendFunnaiForPoolSetupAdmin AMOUNT_FUNNAI_TO_SEND: " # debug_show (AMOUNT_FUNNAI_TO_SEND));
-        D.print("Treasury: sendFunnaiForPoolSetupAdmin SENT_OUT_FUNNAI: " # debug_show (SENT_OUT_FUNNAI));
-        if (not SENT_OUT_FUNNAI) {
+        D.print("Treasury: sendFunnaiForPoolSetupAdmin SEND_OUT_FUNNAI: " # debug_show (SEND_OUT_FUNNAI));
+        if (not SEND_OUT_FUNNAI) {
             return #Err(#Unauthorized);
         };
         let amountToSendE8s : Nat = AMOUNT_FUNNAI_TO_SEND * E8S_PER_ICP; // FUNNAI has 8 decimal places
