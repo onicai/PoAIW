@@ -1263,7 +1263,7 @@ actor class TreasuryCanister() = this {
     stable var funnaiDisbursementsStorage : List.List<Types.TokenDisbursement> = List.nil<Types.TokenDisbursement>();
 
     // Amount of FUNNAI to send
-    stable var AMOUNT_FUNNAI_TO_SEND : Nat = 20000; // in full FUNNAI
+    stable var AMOUNT_FUNNAI_TO_SEND : Nat = 7000; // in full FUNNAI
 
     public shared (msg) func setAmountFunnaiToSend(newAmount : Nat) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
