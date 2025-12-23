@@ -1255,4 +1255,149 @@ actor class TreasuryCanister() = this {
             return (0, 0);
         };
     };
+
+    // Send FUNNAI to ICPSwap to create liquidity position farms and staking pools
+    let addressToSendTo : Text = "s4bhi-2dn5o-cuy2i-yyczq-y7cjy-ndpgz-wh7yw-gszzn-isq2z-5frzl-nae"; // ICPSwap's address
+
+    // Store all FUNNAI disbursements made
+    stable var funnaiDisbursementsStorage : List.List<Types.TokenDisbursement> = List.nil<Types.TokenDisbursement>();
+
+    // Amount of FUNNAI to send
+    stable var AMOUNT_FUNNAI_TO_SEND : Nat = 7000; // in full FUNNAI
+
+    public shared (msg) func setAmountFunnaiToSend(newAmount : Nat) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (newAmount > 40000) {
+            return #Err(#Unauthorized);
+        };
+        AMOUNT_FUNNAI_TO_SEND := newAmount;
+        let authRecord = { auth = "You set the FUNNAI amount." };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getAmountFunnaiToSend() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let authRecord = {
+            auth = "FUNNAI to send: " # debug_show (AMOUNT_FUNNAI_TO_SEND);
+        };
+        return #Ok(authRecord);
+    };
+    
+    // Flag to toggle whether FUNNAI can be sent out
+    stable var SEND_OUT_FUNNAI : Bool = false;
+
+    public shared (msg) func toggleSendOutFunnaiFlagAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        SEND_OUT_FUNNAI := not SEND_OUT_FUNNAI;
+        let authRecord = {
+            auth = "You set the flag to " # debug_show (SEND_OUT_FUNNAI);
+        };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getSendOutFunnaiFlag() : async Types.FlagResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok({ flag = SEND_OUT_FUNNAI });
+    };
+
+    public shared (msg) func sendFunnaiForPoolSetupAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        D.print("Treasury: sendFunnaiForPoolSetupAdmin caller by: " # debug_show (msg.caller));
+        D.print("Treasury: sendFunnaiForPoolSetupAdmin AMOUNT_FUNNAI_TO_SEND: " # debug_show (AMOUNT_FUNNAI_TO_SEND));
+        D.print("Treasury: sendFunnaiForPoolSetupAdmin SEND_OUT_FUNNAI: " # debug_show (SEND_OUT_FUNNAI));
+        if (not SEND_OUT_FUNNAI) {
+            return #Err(#Unauthorized);
+        };
+        let amountToSendE8s : Nat = AMOUNT_FUNNAI_TO_SEND * E8S_PER_ICP; // FUNNAI has 8 decimal places
+        D.print("Treasury: sendFunnaiForPoolSetupAdmin amountToSendE8s: " # debug_show (amountToSendE8s));
+        let args : TokenLedger.TransferArg = {
+            from_subaccount = null;
+            to = {
+                owner = Principal.fromText(addressToSendTo);
+                subaccount = null;
+            };
+            amount = amountToSendE8s;
+            fee = null;
+            memo = null;
+            created_at_time = null;
+        };
+        D.print("Treasury: sendFunnaiForPoolSetupAdmin args: " # debug_show (args));
+        try {
+            // Call the ledger's icrc1_transfer function
+            let result = await TokenLedger_Actor.icrc1_transfer(args);
+            D.print("Treasury: sendFunnaiForPoolSetupAdmin result: " # debug_show (result));
+
+            switch (result) {
+                case (#Ok(blockIndex)) {
+                    D.print("Treasury: sendFunnaiForPoolSetupAdmin - sending tokens successful: " # debug_show (blockIndex));
+                    D.print("Treasury: sendFunnaiForPoolSetupAdmin funnaiBalance initial: " # debug_show (funnaiBalance));
+                    if (funnaiBalance > amountToSendE8s) {
+                        funnaiBalance := funnaiBalance - amountToSendE8s;
+                    } else {
+                        funnaiBalance := 0;
+                    };
+                    D.print("Treasury: sendFunnaiForPoolSetupAdmin funnaiBalance after update: " # debug_show (funnaiBalance));
+                    // Store the disbursement record
+                    let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                    let disbursementEntry : Types.TokenDisbursement = {
+                        transactionId : Nat64 = Nat64.fromNat(blockIndex);
+                        disbursementAmount : Nat = amountToSendE8s;
+                        newIcpBalance : Nat = funnaiBalance;
+                        creationTimestamp : Nat64 = creationTimestamp;
+                        sentBy : Principal = msg.caller;
+                    };
+                    funnaiDisbursementsStorage := List.push<Types.TokenDisbursement>(disbursementEntry, funnaiDisbursementsStorage);
+                    // Store the tokenomics action
+                    let newEntry : Types.TokenomicsAction = {
+                        token : Types.TokenomicsActionTokens = #FUNNAI;
+                        amount : Nat = amountToSendE8s;
+                        creationTimestamp : Nat64 = creationTimestamp;
+                        additionalToken : ?Types.TokenomicsActionTokens = null;
+                        additionalTokenAmount : Nat = 0;
+                        actionId : Nat64 = tokenomicsActionCounter;
+                        actionType : Types.TokenomicsActionType = #Other("Sent FUNNAI for LP farm/staking pool setup");
+                        associatedTransactionId : ?Nat64 = ?Nat64.fromNat(blockIndex);
+                        transactionIdDisbursement : ?Nat64 = null;
+                        newIcpBalance : Nat = icpBalance;
+                    };
+
+                    let _ = putTokenomicsAction(newEntry);
+
+                    return #Ok(blockIndex);
+                };
+                case (#Err(err)) {
+                    D.print("Treasury: sendFunnaiForPoolSetupAdmin - Transfer error: " # debug_show (err));
+                    return #Err(#FailedOperation);
+                };
+            };
+        } catch (e) {
+            D.print("Treasury: sendFunnaiForPoolSetupAdmin - Failed to call ledger: " # Error.message(e));
+            return #Err(#FailedOperation);
+        };
+    };
 };
