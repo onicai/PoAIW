@@ -2,11 +2,11 @@ name: cicd-mac
 
 on:
   workflow_dispatch:
-  # Uncomment to run on PR push:
-  # push:
-  #   paths:
-  #     - "src/**/**"
-  #     - ".github/workflows/cicd-mac.yml"
+  push:
+    paths:
+      - ".github/workflows/cicd-mac.yml"
+      # List the canisters with smoketests
+      - "src/Api/**"
 
 jobs:
   smoketest:
