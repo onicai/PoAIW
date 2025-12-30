@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - ".github/workflows/cicd-mac.yml"
+      - ".github/workflows/trigger.txt"
       # Keep in sync with matrix.canister below
       - "src/Api/**"
 
