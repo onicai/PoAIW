@@ -5,13 +5,17 @@ on:
   push:
     paths:
       - ".github/workflows/cicd-mac.yml"
-      # List the canisters with smoketests
+      # Keep in sync with matrix.canister below
       - "src/Api/**"
 
 jobs:
   smoketest:
-    name: smoketest
+    name: smoketest ${{ matrix.canister }}
     runs-on: macos-latest
+    strategy:
+      matrix:
+        # Keep in sync with on.push.paths above
+        canister: [Api]
 
     steps:
       - name: checkout
@@ -51,8 +55,8 @@ jobs:
           echo "python version: $(python --version)"
           echo "pytest version: $(pytest --version)"
 
-      - name: smoketest Api canister
-        working-directory: src/Api
+      - name: smoketest ${{ matrix.canister }} canister
+        working-directory: src/${{ matrix.canister }}
         run: |
           set -euo pipefail
           mops install
