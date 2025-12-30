@@ -1,0 +1,50 @@
+name: cicd-mac
+
+on:
+  workflow_dispatch:
+  # Uncomment to run on PR push:
+  # push:
+  #   paths:
+  #     - "src/**/**"
+  #     - ".github/workflows/cicd-mac.yml"
+
+jobs:
+  smoketest:
+    name: smoketest
+    runs-on: macos-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: install dfx
+        run: |
+          set -euo pipefail
+          DFXVM_INIT_YES=true sh -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
+          echo "$HOME/.local/share/dfx/bin" >> $GITHUB_PATH
+
+      - name: install python dependencies
+        run: |
+          set -euo pipefail
+          pip install --upgrade pip
+          pip install icpp-pro
+
+      - name: versions
+        run: |
+          echo "dfx version   : $(dfx --version)"
+          echo "pip version   : $(pip --version)"
+          echo "python version: $(python --version)"
+          echo "pytest version: $(pytest --version)"
+
+      - name: smoketest Api canister
+        working-directory: src/Api
+        run: |
+          set -euo pipefail
+          make smoketest
