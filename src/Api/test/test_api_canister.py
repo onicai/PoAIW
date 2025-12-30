@@ -10,7 +10,9 @@ $ pytest -vv --exitfirst --network local test/test_api_canister.py
 Or run a specific test:
 $ pytest -vv --network local test/test_api_canister.py::test__health
 
-To run it against a deployment to the IC, just replace `local` with `ic` in the commands above.
+To run it against a deployment to a network on mainnet, just replace `local` with the network in the commands above.
+Example: 
+$ pytest -vv --network testing test/test_api_canister.py::test__health
 
 """
 # pylint: disable=missing-function-docstring, unused-import, wildcard-import, unused-wildcard-import, line-too-long
