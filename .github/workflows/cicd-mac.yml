@@ -24,6 +24,10 @@ jobs:
         with:
           python-version: '3.11'
 
+      # Node is required for mops install
+      - name: setup node
+        uses: actions/setup-node@v4
+
       - name: install dfx
         run: |
           set -euo pipefail
@@ -37,6 +41,9 @@ jobs:
           pip install --upgrade pip
           pip install icpp-pro
 
+      - name: install mops to manage motoko dependencies
+        run: npm install -g ic-mops
+
       - name: versions
         run: |
           echo "dfx version   : $(dfx --version)"
@@ -48,4 +55,5 @@ jobs:
         working-directory: src/Api
         run: |
           set -euo pipefail
+          mops install
           make smoketest
