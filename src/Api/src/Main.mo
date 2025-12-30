@@ -585,8 +585,8 @@ persistent actor class ApiCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        // Check if caller has AdminUpdate permission or is the master canister
-        if (not (hasAdminRole(msg.caller, #AdminUpdate) or Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID)))) {
+        // Check if caller has AdminUpdate permission
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
 
@@ -605,10 +605,10 @@ persistent actor class ApiCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        if (not (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID)))) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
-        
+
         // Validate date format
         if (not isValidDateFormat(params.date)) {
             return #Err(#Other("Invalid date format. Use YYYY-MM-DD"));
@@ -653,10 +653,10 @@ persistent actor class ApiCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        if (not (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID)))) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
-        
+
         // Validate date format
         if (not isValidDateFormat(date)) {
             return #Err(#Other("Invalid date format. Use YYYY-MM-DD"));
@@ -676,7 +676,7 @@ persistent actor class ApiCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
         
@@ -719,7 +719,7 @@ persistent actor class ApiCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        if (not (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID)))) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
 
