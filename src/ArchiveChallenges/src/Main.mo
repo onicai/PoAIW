@@ -10,11 +10,14 @@ import Array "mo:base/Array";
 
 import Types "../../common/Types";
 
-actor class ArchiveChallengesCanister() = this {
+persistent actor class ArchiveChallengesCanister() = this {
 
     stable var MASTER_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // Corresponds to prd Game State canister
 
     public shared (msg) func setMasterCanisterId(_master_canister_id : Text) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -24,6 +27,9 @@ actor class ArchiveChallengesCanister() = this {
     };
 
     public query (msg) func getMasterCanisterId() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
