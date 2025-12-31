@@ -8,6 +8,9 @@ on:
       - ".github/workflows/trigger.txt"
       # Keep in sync with matrix.canister below
       - "src/Api/**"
+      - "src/mAIner/**"
+      - "src/ArchiveChallenges/**"
+      - "src/common/**"
 
 jobs:
   smoketest:
@@ -16,7 +19,7 @@ jobs:
     strategy:
       matrix:
         # Keep in sync with on.push.paths above
-        canister: [Api]
+        canister: [Api, mAIner, ArchiveChallenges]
 
     steps:
       - name: checkout
