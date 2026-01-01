@@ -30,7 +30,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     transient let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
 
-    stable var MAINER_AGENT_CANISTER_TYPE : Types.MainerAgentCanisterType = #Own;
+    var MAINER_AGENT_CANISTER_TYPE : Types.MainerAgentCanisterType = #Own;
 
     public shared (msg) func setMainerCanisterType(_mainer_agent_canister_type : Types.MainerAgentCanisterType) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -61,7 +61,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     // -------------------------------
-    stable var GAME_STATE_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
+    var GAME_STATE_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
     
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -86,7 +86,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Flag to pause mAIner for maintenance
-    stable var MAINTENANCE : Bool = false;
+    var MAINTENANCE : Bool = false;
 
     public shared (msg) func toggleMaintenanceFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -105,8 +105,8 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Official cycle balance
-    stable var officialCyclesBalance : Nat = Cycles.balance(); // TODO - Implementation: ensure this picks up the cycles the mAIner receives during creation
-    stable var officialCycleTopUpsStorage : List.List<Types.OfficialMainerCycleTopUp> = List.nil<Types.OfficialMainerCycleTopUp>();
+    var officialCyclesBalance : Nat = Cycles.balance(); // TODO - Implementation: ensure this picks up the cycles the mAIner receives during creation
+    var officialCycleTopUpsStorage : List.List<Types.OfficialMainerCycleTopUp> = List.nil<Types.OfficialMainerCycleTopUp>();
     
     public shared (msg) func addCycles() : async Types.AddCyclesResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -139,8 +139,8 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     // -------------------------------
-    stable var SHARE_SERVICE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // Dummy value; Only used by ShareAgent
-    stable var shareServiceCanisterActor = actor (SHARE_SERVICE_CANISTER_ID) : Types.MainerCanister_Actor;
+    var SHARE_SERVICE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // Dummy value; Only used by ShareAgent
+    var shareServiceCanisterActor = actor (SHARE_SERVICE_CANISTER_ID) : Types.MainerCanister_Actor;
     
     public shared (msg) func setShareServiceCanisterId(_share_service_canister_id : Text) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -169,7 +169,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 // Storage & functions used by SharedService mAiner canister to manage SharedAgent mAIner canisters
 
     // Official mAIner Creator canisters
-    stable var mainerCreatorCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
+    var mainerCreatorCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
     transient var mainerCreatorCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
     
     private func putMainerCreatorCanister(canisterAddress : Text, canisterEntry : Types.OfficialProtocolCanister) : Bool {
@@ -199,9 +199,9 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     // ShareAgent Registry: Official ShareAgent canisters (owned by users)
-    stable var shareAgentCanistersStorageStable : [(Text, Types.OfficialMainerAgentCanister)] = [];
+    var shareAgentCanistersStorageStable : [(Text, Types.OfficialMainerAgentCanister)] = [];
     transient var shareAgentCanistersStorage : HashMap.HashMap<Text, Types.OfficialMainerAgentCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
-    stable var userToShareAgentsStorageStable : [(Principal, List.List<Types.OfficialMainerAgentCanister>)] = [];
+    var userToShareAgentsStorageStable : [(Principal, List.List<Types.OfficialMainerAgentCanister>)] = [];
     transient var userToShareAgentsStorage : HashMap.HashMap<Principal, List.List<Types.OfficialMainerAgentCanister>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
 
     private func putShareAgentCanister(canisterAddress : Text, canisterEntry : Types.OfficialMainerAgentCanister) : Types.MainerAgentCanisterResult {
@@ -291,7 +291,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     //-------------------------------------------------------------------------
     // Admin RBAC Storage
     //-------------------------------------------------------------------------
-    stable var adminRoleAssignmentsStable : [(Text, Types.AdminRoleAssignment)] = [];
+    var adminRoleAssignmentsStable : [(Text, Types.AdminRoleAssignment)] = [];
     transient var adminRoleAssignmentsStorage : HashMap.HashMap<Text, Types.AdminRoleAssignment> = HashMap.HashMap(0, Text.equal, Text.hash);
 
     private func putAdminRole(principal : Text, assignment : Types.AdminRoleAssignment) : Bool {
@@ -399,7 +399,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     stable let CYCLE_BALANCE_MINIMUM = 250 * Constants.CYCLES_BILLION;
 
     // A flag for the frontend to pick up and display a message to the user
-    stable var PAUSED_DUE_TO_LOW_CYCLE_BALANCE : Bool = false;
+    var PAUSED_DUE_TO_LOW_CYCLE_BALANCE : Bool = false;
 
     // Internal functions to check if the canister has enough cycles
     private func sufficientCyclesToProcessChallenge(challenge : Types.Challenge) : Bool {
@@ -459,7 +459,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     // Statistics
     // TODO - Implementation: set based on cycles flow data calculated in GameState
-    stable var TOTAL_MAINER_CYCLES_BURNT : Nat = 100 * Constants.CYCLES_BILLION; // Initial value represents costs for creating this canister
+    var TOTAL_MAINER_CYCLES_BURNT : Nat = 100 * Constants.CYCLES_BILLION; // Initial value represents costs for creating this canister
 
     // TODO - Implementation: ensure all relevant events for cycle buring are captured and adjust cycle burning numbers below to actual values
     private func increaseTotalCyclesBurnt(cyclesBurntToAdd : Nat) : Bool {
@@ -502,12 +502,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     // timer IDs for reporting purposes (actual stopping uses the buffers)
     // Note: they're stable for historical reasons; could be transient because timers do not survive upgrades
     //       is ok, because startTimer & stopTimer functions will reset them
-    stable var initialTimerId1 : ?Timer.TimerId = null;  // For reporting only
-    stable var recurringTimerId1 : ?Timer.TimerId = null;
-    stable var recurringTimerId2 : ?Timer.TimerId = null;
+    var initialTimerId1 : ?Timer.TimerId = null;  // For reporting only
+    var recurringTimerId1 : ?Timer.TimerId = null;
+    var recurringTimerId2 : ?Timer.TimerId = null;
 
     // Configurable buffer max size for timer IDs
-    stable var TIMER_BUFFER_MAX_SIZE : Nat = 4;
+    var TIMER_BUFFER_MAX_SIZE : Nat = 4;
 
     // Non-stable buffers to track timer IDs created since last upgrade
     // These reset to empty after each upgrade, which is the desired behavior
@@ -526,7 +526,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Record of settings
-    stable var agentSettings : List.List<Types.MainerAgentSettings> = List.nil<Types.MainerAgentSettings>();
+    var agentSettings : List.List<Types.MainerAgentSettings> = List.nil<Types.MainerAgentSettings>();
 
     private func putAgentSettings(settingsEntry : Types.MainerAgentSettings) : Bool {
         agentSettings := List.push<Types.MainerAgentSettings>(settingsEntry, agentSettings);
@@ -610,8 +610,8 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     // FIFO queue of challenges: retrieved from GameState; to be processed
-    stable var MAX_CHALLENGES_IN_QUEUE : Nat = 5;
-    stable var challengeQueue : List.List<Types.ChallengeQueueInput> = List.nil<Types.ChallengeQueueInput>();
+    var MAX_CHALLENGES_IN_QUEUE : Nat = 5;
+    var challengeQueue : List.List<Types.ChallengeQueueInput> = List.nil<Types.ChallengeQueueInput>();
 
     private func pushChallengeQueue(challengeQueueInput : Types.ChallengeQueueInput) : Bool {
         challengeQueue := List.push<Types.ChallengeQueueInput>(challengeQueueInput, challengeQueue);
@@ -656,7 +656,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Record of generated responses
-    stable var generatedResponses : List.List<Types.ChallengeResponseSubmissionInput> = List.nil<Types.ChallengeResponseSubmissionInput>();
+    var generatedResponses : List.List<Types.ChallengeResponseSubmissionInput> = List.nil<Types.ChallengeResponseSubmissionInput>();
 
     private func putGeneratedResponse(responseEntry : Types.ChallengeResponseSubmissionInput) : Bool {
         generatedResponses := List.push<Types.ChallengeResponseSubmissionInput>(responseEntry, generatedResponses);
@@ -677,7 +677,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Record of submitted responses
-    stable var submittedResponses : List.List<Types.ChallengeResponseSubmission> = List.nil<Types.ChallengeResponseSubmission>();
+    var submittedResponses : List.List<Types.ChallengeResponseSubmission> = List.nil<Types.ChallengeResponseSubmission>();
 
     private func putSubmittedResponse(responseEntry : Types.ChallengeResponseSubmission) : Bool {
         submittedResponses := List.push<Types.ChallengeResponseSubmission>(responseEntry, submittedResponses);
@@ -726,7 +726,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     // -------------------------------------------------------------------------------
     // The C++ LLM canisters that can be called
 
-    stable var llmCanistersStable : [Text] = [];
+    var llmCanistersStable : [Text] = [];
     private transient var llmCanisters : Buffer.Buffer<Types.LLMCanister> = Buffer.fromArray([]);
 
     // Round-robin load balancer for LLM canisters to call
@@ -2125,14 +2125,14 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     // This variable is just for reporting purposes, so an Admin can quickly check the currently used timer regularity
     // It is recalculated each time the timer is started
-    stable var action1RegularityInSeconds = 0; // Timer is not yet set 
+    var action1RegularityInSeconds = 0; // Timer is not yet set 
 
     // ----------------------------------------------------------
     // How often Own and ShareService mAIners wake up to process the next challenge from the queue
     // TODO: revisit for #Own mAiners...
-    stable var action2RegularityInSeconds = 5; 
+    var action2RegularityInSeconds = 5; 
 
-    stable var cyclesBurnRateFromGameState = CYCLES_BURN_RATE_DEFAULT; // Just set it to some default value. The actual value is retrieved from the GameState in startTimerExecution()
+    var cyclesBurnRateFromGameState = CYCLES_BURN_RATE_DEFAULT; // Just set it to some default value. The actual value is retrieved from the GameState in startTimerExecution()
    
     public shared (msg) func setTimerAction2RegularityInSecondsAdmin(_action2RegularityInSeconds : Nat) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {

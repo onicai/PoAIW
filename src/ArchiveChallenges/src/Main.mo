@@ -12,7 +12,7 @@ import Types "../../common/Types";
 
 persistent actor class ArchiveChallengesCanister() = this {
 
-    stable var MASTER_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // Corresponds to prd Game State canister
+    var MASTER_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // Corresponds to prd Game State canister
 
     public shared (msg) func setMasterCanisterId(_master_canister_id : Text) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -61,7 +61,7 @@ persistent actor class ArchiveChallengesCanister() = this {
     };
 
     // Challenges archive
-    stable var archivedChallenges : List.List<Types.Challenge> = List.nil<Types.Challenge>();
+    var archivedChallenges : List.List<Types.Challenge> = List.nil<Types.Challenge>();
 
     private func putArchivedChallenge(challengeEntry : Types.Challenge) : Bool {
         archivedChallenges := List.push<Types.Challenge>(challengeEntry, archivedChallenges);
@@ -132,7 +132,7 @@ persistent actor class ArchiveChallengesCanister() = this {
     };
 
     // mAIners backup
-    stable var mainerAgentCanisters : List.List<(Text, Types.OfficialMainerAgentCanister)> = List.nil<(Text, Types.OfficialMainerAgentCanister)>();
+    var mainerAgentCanisters : List.List<(Text, Types.OfficialMainerAgentCanister)> = List.nil<(Text, Types.OfficialMainerAgentCanister)>();
     
     private func putMainer(entry : (Text, Types.OfficialMainerAgentCanister)) : Bool {
         mainerAgentCanisters := List.push<(Text, Types.OfficialMainerAgentCanister)>(entry, mainerAgentCanisters);
@@ -194,7 +194,7 @@ persistent actor class ArchiveChallengesCanister() = this {
     };
 
     // Submissions archive
-    stable var archivedSubmissions : List.List<Types.ChallengeResponseSubmission> = List.nil<Types.ChallengeResponseSubmission>();
+    var archivedSubmissions : List.List<Types.ChallengeResponseSubmission> = List.nil<Types.ChallengeResponseSubmission>();
     
     private func putArchivedSubmission(entry : Types.ChallengeResponseSubmission) : Bool {
         archivedSubmissions := List.push<Types.ChallengeResponseSubmission>(entry, archivedSubmissions);
@@ -256,7 +256,7 @@ persistent actor class ArchiveChallengesCanister() = this {
     };
 
     // Winner declarations archive
-    stable var archivedWinnerDeclarations : List.List<Types.ChallengeWinnerDeclaration> = List.nil<Types.ChallengeWinnerDeclaration>();
+    var archivedWinnerDeclarations : List.List<Types.ChallengeWinnerDeclaration> = List.nil<Types.ChallengeWinnerDeclaration>();
     
     private func putArchivedWinnerDeclaration(entry : Types.ChallengeWinnerDeclaration) : Bool {
         archivedWinnerDeclarations := List.push<Types.ChallengeWinnerDeclaration>(entry, archivedWinnerDeclarations);
@@ -318,7 +318,7 @@ persistent actor class ArchiveChallengesCanister() = this {
     };
 
     // Scored responses archive
-    stable var archivedScoredResponses : List.List<Types.ScoredResponse> = List.nil<Types.ScoredResponse>();
+    var archivedScoredResponses : List.List<Types.ScoredResponse> = List.nil<Types.ScoredResponse>();
     
     private func putArchivedScoredResponse(entry : Types.ScoredResponse) : Bool {
         archivedScoredResponses := List.push<Types.ScoredResponse>(entry, archivedScoredResponses);

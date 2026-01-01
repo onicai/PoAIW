@@ -24,7 +24,7 @@ import Constants "../../common/Constants";
 
 persistent actor class MainerCreatorCanister() = this {
 
-    stable var MASTER_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
+    var MASTER_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
 
     public shared (msg) func setMasterCanisterId(_master_canister_id : Text) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -74,7 +74,7 @@ persistent actor class MainerCreatorCanister() = this {
     };
 
     // Move cycles to Game State canister
-    stable var cyclesTransactionsStorage : List.List<Types.CyclesTransaction> = List.nil<Types.CyclesTransaction>();
+    var cyclesTransactionsStorage : List.List<Types.CyclesTransaction> = List.nil<Types.CyclesTransaction>();
 
     public query (msg) func getCyclesTransactionsAdmin() : async Types.CyclesTransactionsResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -86,8 +86,8 @@ persistent actor class MainerCreatorCanister() = this {
         return #Ok(List.toArray(cyclesTransactionsStorage));
     };
     
-    stable var MIN_CYCLES_BALANCE : Nat = 30 * Constants.CYCLES_TRILLION;
-    stable var CYCLES_AMOUNT_TO_GAME_STATE_CANISTER : Nat = 10 * Constants.CYCLES_TRILLION;
+    var MIN_CYCLES_BALANCE : Nat = 30 * Constants.CYCLES_TRILLION;
+    var CYCLES_AMOUNT_TO_GAME_STATE_CANISTER : Nat = 10 * Constants.CYCLES_TRILLION;
 
     public shared (msg) func sendCyclesToGameStateCanister() : async Types.AddCyclesResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -289,8 +289,8 @@ persistent actor class MainerCreatorCanister() = this {
     // Wasm Upload Functions
 
     // Admin function to upload mainer agent controller canister wasm
-    private stable var mainerControllerCanisterWasm : [Blob] = [];
-    private stable var mainerControllerCanisterWasmSha256 : Text = "";
+    private var mainerControllerCanisterWasm : [Blob] = [];
+    private var mainerControllerCanisterWasmSha256 : Text = "";
 
     public shared (msg) func start_upload_mainer_controller_canister_wasm() : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -344,11 +344,11 @@ persistent actor class MainerCreatorCanister() = this {
     // Admin function to upload artefacts for mainer agent LLM canister
     // Map each AI model id to a record with the artefacts needed to create a new canister
     private transient var creationArtefactsByModel = HashMap.HashMap<Text, Types.ModelCreationArtefacts>(0, Text.equal, Text.hash);
-    private stable var creationArtefactsByModelStable : [(Text, Types.ModelCreationArtefacts)] = [];
+    private var creationArtefactsByModelStable : [(Text, Types.ModelCreationArtefacts)] = [];
 
     // Separate storage for LLM canister wasm SHA-256 hashes (to avoid modifying ModelCreationArtefacts type)
     private transient var llmCanisterWasmSha256ByModel = HashMap.HashMap<Text, Text>(0, Text.equal, Text.hash);
-    private stable var llmCanisterWasmSha256ByModelStable : [(Text, Text)] = [];
+    private var llmCanisterWasmSha256ByModelStable : [(Text, Text)] = [];
 
     private func getModelCreationArtefacts(selectedModel : Types.SelectableMainerLLMs) : ?Types.ModelCreationArtefacts {
         switch (selectedModel) {
@@ -501,10 +501,10 @@ persistent actor class MainerCreatorCanister() = this {
     };
 
     // Data structure for the model file
-    stable var nextChunkID : Nat = 0;
+    var nextChunkID : Nat = 0;
     stable let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(1, 1));
     stable let initBlob : Blob = Blob.fromArray(innerInitArray);
-    stable var modelFileChunks : [var Blob] = Array.init<Blob>(1, initBlob);
+    var modelFileChunks : [var Blob] = Array.init<Blob>(1, initBlob);
     stable let MAX_MODEL_FILE_CHUNKS : Nat = 400; // TODO - Design: should this be a parameter or switch to Buffer?
 
     // Admin function to start upload of the mainer LLM model file
@@ -1928,14 +1928,14 @@ persistent actor class MainerCreatorCanister() = this {
 
     // System-provided lifecycle method called before an upgrade.
     system func preupgrade() {
-        // Copy the runtime state back into the stable variable before upgrade.
+        // Copy the runtime state back into the variable before upgrade.
         creationArtefactsByModelStable := Iter.toArray(creationArtefactsByModel.entries());
         llmCanisterWasmSha256ByModelStable := Iter.toArray(llmCanisterWasmSha256ByModel.entries());
     };
 
     // System-provided lifecycle method called after an upgrade or on initial deploy.
     system func postupgrade() {
-        // After upgrade, reload the runtime state from the stable variable.
+        // After upgrade, reload the runtime state from the variable.
         creationArtefactsByModel := HashMap.fromIter(Iter.fromArray(creationArtefactsByModelStable), creationArtefactsByModelStable.size(), Text.equal, Text.hash);
         creationArtefactsByModelStable := [];
 

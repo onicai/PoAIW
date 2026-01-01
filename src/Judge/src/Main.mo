@@ -49,7 +49,7 @@ persistent actor class JudgeCtrlbCanister() = this {
 
     // Orthogonal Persisted Data storage
 
-    stable var GAME_STATE_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
+    var GAME_STATE_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
 
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -63,7 +63,7 @@ persistent actor class JudgeCtrlbCanister() = this {
     };
 
     // Flag to decide whether cycles should be sent to LLMs automatically as part of flow
-    stable var SEND_CYCLES_TO_LLM : Bool = true;
+    var SEND_CYCLES_TO_LLM : Bool = true;
 
     public shared (msg) func toggleSendCyclesToLlmFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -89,7 +89,7 @@ persistent actor class JudgeCtrlbCanister() = this {
     };
 
     // Move cycles to Game State canister
-    stable var cyclesTransactionsStorage : List.List<Types.CyclesTransaction> = List.nil<Types.CyclesTransaction>();
+    var cyclesTransactionsStorage : List.List<Types.CyclesTransaction> = List.nil<Types.CyclesTransaction>();
 
     public query (msg) func getCyclesTransactionsAdmin() : async Types.CyclesTransactionsResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -101,8 +101,8 @@ persistent actor class JudgeCtrlbCanister() = this {
         return #Ok(List.toArray(cyclesTransactionsStorage));
     };
     
-    stable var MIN_CYCLES_BALANCE : Nat = 30 * Constants.CYCLES_TRILLION;
-    stable var CYCLES_AMOUNT_TO_GAME_STATE_CANISTER : Nat = 10 * Constants.CYCLES_TRILLION;
+    var MIN_CYCLES_BALANCE : Nat = 30 * Constants.CYCLES_TRILLION;
+    var CYCLES_AMOUNT_TO_GAME_STATE_CANISTER : Nat = 10 * Constants.CYCLES_TRILLION;
 
     public shared (msg) func sendCyclesToGameStateCanister() : async Types.AddCyclesResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -224,13 +224,13 @@ persistent actor class JudgeCtrlbCanister() = this {
     };
 
     // timer ID, so we can stop it after starting
-    stable var recurringTimerId : ?Timer.TimerId = null;
+    var recurringTimerId : ?Timer.TimerId = null;
     
     // Flag to track if we're currently processing submissions
     private transient var isProcessingSubmissions : Bool = false;
 
     // Record of recently score responses
-    stable var scoredResponses : List.List<Types.ScoredResponseByJudge> = List.nil<Types.ScoredResponseByJudge>();
+    var scoredResponses : List.List<Types.ScoredResponseByJudge> = List.nil<Types.ScoredResponseByJudge>();
 
     private func putScoredResponse(scoredResponseEntry : Types.ScoredResponseByJudge) : Bool {
         scoredResponses := List.push<Types.ScoredResponseByJudge>(scoredResponseEntry, scoredResponses);
@@ -252,7 +252,7 @@ persistent actor class JudgeCtrlbCanister() = this {
 
     // -------------------------------------------------------------------------------
     // The C++ LLM canisters that can be called
-    stable var llmCanistersStable : [Text] = [];
+    var llmCanistersStable : [Text] = [];
     private transient var llmCanisters : Buffer.Buffer<Types.LLMCanister> = Buffer.fromArray([]);
 
     // Round-robin load balancer for LLM canisters to call
@@ -1223,7 +1223,7 @@ persistent actor class JudgeCtrlbCanister() = this {
     };
 
 // Timer
-    stable var actionRegularityInSeconds = 5;
+    var actionRegularityInSeconds = 5;
 
     public shared (msg) func setTimerActionRegularityInSecondsAdmin(_actionRegularityInSeconds : Nat) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {

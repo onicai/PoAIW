@@ -75,7 +75,7 @@ persistent actor class ChallengerCtrlbCanister() {
 
     // Orthogonal Persisted Data storage
 
-    stable var GAME_STATE_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
+    var GAME_STATE_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
 
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -100,7 +100,7 @@ persistent actor class ChallengerCtrlbCanister() {
     };
 
     // Flag to decide whether cycles should be sent to LLMs automatically as part of flow
-    stable var SEND_CYCLES_TO_LLM : Bool = true;
+    var SEND_CYCLES_TO_LLM : Bool = true;
 
     public shared (msg) func toggleSendCyclesToLlmFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -126,7 +126,7 @@ persistent actor class ChallengerCtrlbCanister() {
     };
 
     // Move cycles to Game State canister
-    stable var cyclesTransactionsStorage : List.List<Types.CyclesTransaction> = List.nil<Types.CyclesTransaction>();
+    var cyclesTransactionsStorage : List.List<Types.CyclesTransaction> = List.nil<Types.CyclesTransaction>();
 
     public query (msg) func getCyclesTransactionsAdmin() : async Types.CyclesTransactionsResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -138,8 +138,8 @@ persistent actor class ChallengerCtrlbCanister() {
         return #Ok(List.toArray(cyclesTransactionsStorage));
     };
     
-    stable var MIN_CYCLES_BALANCE : Nat = 30 * Constants.CYCLES_TRILLION;
-    stable var CYCLES_AMOUNT_TO_GAME_STATE_CANISTER : Nat = 10 * Constants.CYCLES_TRILLION;
+    var MIN_CYCLES_BALANCE : Nat = 30 * Constants.CYCLES_TRILLION;
+    var CYCLES_AMOUNT_TO_GAME_STATE_CANISTER : Nat = 10 * Constants.CYCLES_TRILLION;
 
     public shared (msg) func sendCyclesToGameStateCanister() : async Types.AddCyclesResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -261,7 +261,7 @@ persistent actor class ChallengerCtrlbCanister() {
     };
 
     // timer ID, so we can stop it after starting
-    stable var recurringTimerId : ?Timer.TimerId = null;
+    var recurringTimerId : ?Timer.TimerId = null;
 
     // Flag to track if challenge generation is in progress
     // Note: This is NOT stable - resets to false on canister upgrades for self-healing
@@ -269,7 +269,7 @@ persistent actor class ChallengerCtrlbCanister() {
     private transient var IS_GENERATING_CHALLENGE : Bool = false;
 
     // Record of all generated challenges
-    stable var generatedChallenges : List.List<Types.GeneratedChallenge> = List.nil<Types.GeneratedChallenge>();
+    var generatedChallenges : List.List<Types.GeneratedChallenge> = List.nil<Types.GeneratedChallenge>();
 
     private func putGeneratedChallenge(challengeEntry : Types.GeneratedChallenge) : Bool {
         generatedChallenges := List.push<Types.GeneratedChallenge>(challengeEntry, generatedChallenges);
@@ -337,7 +337,7 @@ persistent actor class ChallengerCtrlbCanister() {
 
     // -------------------------------------------------------------------------------
     // The C++ LLM canisters that can be called
-    stable var llmCanistersStable : [Text] = [];
+    var llmCanistersStable : [Text] = [];
     private transient var llmCanisters : Buffer.Buffer<Types.LLMCanister> = Buffer.fromArray([]);
 
     // Round-robin load balancer for LLM canisters to call
@@ -1911,7 +1911,7 @@ persistent actor class ChallengerCtrlbCanister() {
     };
 
     // Timer
-    stable var actionRegularityInSeconds = 420;
+    var actionRegularityInSeconds = 420;
 
     public shared (msg) func setTimerActionRegularityInSecondsAdmin(_actionRegularityInSeconds : Nat) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
