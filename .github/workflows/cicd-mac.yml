@@ -17,6 +17,9 @@ on:
       - "src/Treasury/**"
       - "src/common/**"
 
+env:
+  DFX_VERSION: "0.29.2"
+
 jobs:
   smoketest:
     name: smoketest ${{ matrix.canister }}
@@ -46,6 +49,7 @@ jobs:
           set -euo pipefail
           DFXVM_INIT_YES=true sh -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
           source "$HOME/Library/Application Support/org.dfinity.dfx/env"
+          dfxvm default $DFX_VERSION
           echo "$HOME/Library/Application Support/org.dfinity.dfx/bin" >> $GITHUB_PATH
 
       - name: install python dependencies
