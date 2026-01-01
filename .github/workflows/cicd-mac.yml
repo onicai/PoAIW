@@ -14,6 +14,7 @@ on:
       - "src/Judge/**"
       - "src/mAInerCreator/**"
       - "src/GameState/**"
+      - "src/Treasury/**"
       - "src/common/**"
 
 jobs:
@@ -23,7 +24,7 @@ jobs:
     strategy:
       matrix:
         # Keep in sync with on.push.paths above
-        canister: [Api, mAIner, ArchiveChallenges, Challenger, Judge, mAInerCreator, GameState]
+        canister: [Api, mAIner, ArchiveChallenges, Challenger, Judge, mAInerCreator, GameState, Treasury]
 
     steps:
       - name: checkout

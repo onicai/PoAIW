@@ -20,9 +20,9 @@ import Types "../../common/Types";
 import TokenLedger "../../common/icp-ledger-interface";
 import LiquidityPool "../../common/icpswap-liquidity-pool-interface";
 
-actor class TreasuryCanister() = this {
+persistent actor class TreasuryCanister() = this {
 
-    stable var MASTER_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
+    var MASTER_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
 
     public shared (msg) func setMasterCanisterId(_master_canister_id : Text) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -49,23 +49,23 @@ actor class TreasuryCanister() = this {
         return #Ok(authRecord);
     };
 
-    let ICP_LEDGER_ACTOR : TokenLedger.TOKEN_LEDGER = Types.IcpLedger_Actor;
+    transient let ICP_LEDGER_ACTOR : TokenLedger.TOKEN_LEDGER = Types.IcpLedger_Actor;
 
-    let LIQUIDITY_POOL_ACTOR : LiquidityPool.LIQUIDITY_POOL = Types.FunnaiIcpLiquidityPool_Actor;
+    transient let LIQUIDITY_POOL_ACTOR : LiquidityPool.LIQUIDITY_POOL = Types.FunnaiIcpLiquidityPool_Actor;
 
-    let thisAccount : TokenLedger.Account = {
+    transient let thisAccount : TokenLedger.Account = {
         owner : Principal = Principal.fromActor(this);
         subaccount : ?Blob = null;
     };
 
-    let liquidityPoolAccount : TokenLedger.Account = {
+    transient let liquidityPoolAccount : TokenLedger.Account = {
         owner : Principal = Principal.fromActor(LIQUIDITY_POOL_ACTOR);
         subaccount : ?Blob = null;
     };
 
-    let TOKEN_LEDGER_CANISTER_ID : Text = "vpyot-zqaaa-aaaaa-qavaq-cai";
+    transient let TOKEN_LEDGER_CANISTER_ID : Text = "vpyot-zqaaa-aaaaa-qavaq-cai";
 
-    let TREASURY_PRINCIPAL_BLOB : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null);
+    transient let TREASURY_PRINCIPAL_BLOB : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null);
     // Construct subaccount for the canister principal
     private func principalToSubaccount(principal : Principal) : Blob {
         let sub = Buffer.Buffer<Nat8>(32);
@@ -79,18 +79,18 @@ actor class TreasuryCanister() = this {
 
         Blob.fromArray(Buffer.toArray(sub));
     };
-    let TREASURY_SUBACCOUNT : Blob = principalToSubaccount(Principal.fromActor(this));
+    transient let TREASURY_SUBACCOUNT : Blob = principalToSubaccount(Principal.fromActor(this));
 
-    let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (TOKEN_LEDGER_CANISTER_ID);
+    transient let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (TOKEN_LEDGER_CANISTER_ID);
 
-    let liquidityPoolAccountWithTreasurySubaccount : TokenLedger.Account = {
+    transient let liquidityPoolAccountWithTreasurySubaccount : TokenLedger.Account = {
         owner : Principal = Principal.fromActor(LIQUIDITY_POOL_ACTOR);
         subaccount : ?Blob = ?TREASURY_SUBACCOUNT;
     };
 
     // Parameters
     // Flag to toggle whether incoming ICP should be converted to FUNNAI
-    stable var CONVERT_ICP_TO_FUNNAI : Bool = true;
+    var CONVERT_ICP_TO_FUNNAI : Bool = true;
 
     public shared (msg) func toggleConvertIcpToFunnaiFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -117,7 +117,7 @@ actor class TreasuryCanister() = this {
     };
 
     // Threshold of minimum ICP balance to keep
-    stable var MINIMUM_ICP_BALANCE : Nat = 30; // in full ICP
+    var MINIMUM_ICP_BALANCE : Nat = 30; // in full ICP
 
     public shared (msg) func setMinimumIcpBalance(newBalance : Nat) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -142,9 +142,9 @@ actor class TreasuryCanister() = this {
     };
 
     // Parameter to set the smallest amount that will be added from the treasury to add to the incoming ICP to be converted
-    let E8S_PER_ICP : Nat = 100_000_000; // 10^8 e8s per ICP
+    transient let E8S_PER_ICP : Nat = 100_000_000; // 10^8 e8s per ICP
 
-    stable var ICP_BASE_AMOUNT : Nat = 8_000_000; // 0.08 ICP
+    var ICP_BASE_AMOUNT : Nat = 8_000_000; // 0.08 ICP
 
     public shared (msg) func setIcpBaseAmount(newIcpBaseAmount : Nat) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -172,7 +172,7 @@ actor class TreasuryCanister() = this {
     };
 
     // Flag to toggle whether ICP should be disbursed to developers (as payment for their services)
-    stable var DISBURSE_FUNDS_TO_DEVELOPERS : Bool = false;
+    var DISBURSE_FUNDS_TO_DEVELOPERS : Bool = false;
 
     public shared (msg) func toggleDisburseFundsToDevelopersFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -199,7 +199,7 @@ actor class TreasuryCanister() = this {
     };
 
     // Flag to toggle whether cycles should be disbursed to developers (as payment for their services)
-    stable var DISBURSE_CYCLES_TO_DEVELOPERS : Bool = false;
+    var DISBURSE_CYCLES_TO_DEVELOPERS : Bool = false;
 
     public shared (msg) func toggleDisburseCyclesToDevelopersFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -226,7 +226,7 @@ actor class TreasuryCanister() = this {
     };
 
     // Percentage of ICP to disburse to developers
-    stable var DEVELOPER_SHARE_ICP : Nat = 1; // as parts of 10000, i.e. 100 are 1%, 10000 are 100%, etc
+    var DEVELOPER_SHARE_ICP : Nat = 1; // as parts of 10000, i.e. 100 are 1%, 10000 are 100%, etc
 
     public shared (msg) func setDeveloperShareIcp(newDeveloperShare : Nat) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -257,7 +257,7 @@ actor class TreasuryCanister() = this {
     };
 
     // Flag to toggle whether treasury should burn the specified percentage of incoming FUNNAI
-    stable var BURN_INCOMING_FUNNAI : Bool = false;
+    var BURN_INCOMING_FUNNAI : Bool = false;
 
     public shared (msg) func toggleBurnIncomingFunnaiFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -284,7 +284,7 @@ actor class TreasuryCanister() = this {
     };
 
     // Percentage of incoming FUNNAI to burn (remainder will be kept)
-    stable var BURN_SHARE_FUNNAI : Nat = 1; // as parts of 10000, i.e. 100 are 1%, 10000 are 100%, etc
+    var BURN_SHARE_FUNNAI : Nat = 1; // as parts of 10000, i.e. 100 are 1%, 10000 are 100%, etc
 
     public shared (msg) func setBurnShareFunnai(newBurnShare : Nat) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -315,7 +315,7 @@ actor class TreasuryCanister() = this {
     };
 
     // Flag to toggle whether treasury should add the specified percentage of incoming FUNNAI as liquidity
-    stable var LIQUIDITY_ADDITION_INCOMING_FUNNAI : Bool = false;
+    var LIQUIDITY_ADDITION_INCOMING_FUNNAI : Bool = false;
 
     public shared (msg) func toggleLiquidityAdditionIncomingFunnaiFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -342,7 +342,7 @@ actor class TreasuryCanister() = this {
     };
 
     // Percentage of incoming FUNNAI to add as liquidity (remainder is kept)
-    stable var LIQUIDITY_SHARE_FUNNAI : Nat = 1; // as parts of 10000, i.e. 100 are 1%, 10000 are 100%, etc
+    var LIQUIDITY_SHARE_FUNNAI : Nat = 1; // as parts of 10000, i.e. 100 are 1%, 10000 are 100%, etc
 
     public shared (msg) func setLiquidityShareFunnai(newLiquidityShare : Nat) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -373,7 +373,7 @@ actor class TreasuryCanister() = this {
     };
 
     // Flag to toggle whether treasury should match the FUNNAI to be added as liquidity with ICP
-    stable var MATCH_LIQUIDITY_ADDITION_ICP : Bool = false;
+    var MATCH_LIQUIDITY_ADDITION_ICP : Bool = false;
 
     public shared (msg) func toggleMatchLiquidityAdditionIcpFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -423,15 +423,15 @@ actor class TreasuryCanister() = this {
     };
 
     // Official balances // TODO - Implementation: decide if needed
-    stable var icpBalance : Nat = 0;
-    stable var funnaiBalance : Nat = 0;
+    var icpBalance : Nat = 0;
+    var funnaiBalance : Nat = 0;
 
     // Disbursements (received from Game State)
-    stable var icpDisbursementsStorage : List.List<Types.TokenDisbursement> = List.nil<Types.TokenDisbursement>();
+    var icpDisbursementsStorage : List.List<Types.TokenDisbursement> = List.nil<Types.TokenDisbursement>();
 
     // Tokenomics actions taken by this canister
-    stable var tokenomicsActionsStorage : List.List<Types.TokenomicsAction> = List.nil<Types.TokenomicsAction>();
-    stable var tokenomicsActionCounter : Nat64 = 0;
+    var tokenomicsActionsStorage : List.List<Types.TokenomicsAction> = List.nil<Types.TokenomicsAction>();
+    var tokenomicsActionCounter : Nat64 = 0;
 
     private func putTokenomicsAction(actionEntry : Types.TokenomicsAction) : Types.TokenomicsAction {
         tokenomicsActionsStorage := List.push<Types.TokenomicsAction>(actionEntry, tokenomicsActionsStorage);
@@ -844,7 +844,7 @@ actor class TreasuryCanister() = this {
     };
 
 // Treasury's liquidity positions
-    stable var liquidityPositionsStorage : List.List<LiquidityPool.UserPositionInfoWithId> = List.nil<LiquidityPool.UserPositionInfoWithId>();
+    var liquidityPositionsStorage : List.List<LiquidityPool.UserPositionInfoWithId> = List.nil<LiquidityPool.UserPositionInfoWithId>();
 
     public query (msg) func getLiquidityPositionsAdmin() : async Types.LiquidityPositionsResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -1257,13 +1257,13 @@ actor class TreasuryCanister() = this {
     };
 
     // Send FUNNAI to ICPSwap to create liquidity position farms and staking pools
-    let addressToSendTo : Text = "s4bhi-2dn5o-cuy2i-yyczq-y7cjy-ndpgz-wh7yw-gszzn-isq2z-5frzl-nae"; // ICPSwap's address
+    transient let addressToSendTo : Text = "s4bhi-2dn5o-cuy2i-yyczq-y7cjy-ndpgz-wh7yw-gszzn-isq2z-5frzl-nae"; // ICPSwap's address
 
     // Store all FUNNAI disbursements made
-    stable var funnaiDisbursementsStorage : List.List<Types.TokenDisbursement> = List.nil<Types.TokenDisbursement>();
+    var funnaiDisbursementsStorage : List.List<Types.TokenDisbursement> = List.nil<Types.TokenDisbursement>();
 
     // Amount of FUNNAI to send
-    stable var AMOUNT_FUNNAI_TO_SEND : Nat = 7000; // in full FUNNAI
+    var AMOUNT_FUNNAI_TO_SEND : Nat = 7000; // in full FUNNAI
 
     public shared (msg) func setAmountFunnaiToSend(newAmount : Nat) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -1294,7 +1294,7 @@ actor class TreasuryCanister() = this {
     };
     
     // Flag to toggle whether FUNNAI can be sent out
-    stable var SEND_OUT_FUNNAI : Bool = false;
+    var SEND_OUT_FUNNAI : Bool = false;
 
     public shared (msg) func toggleSendOutFunnaiFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
