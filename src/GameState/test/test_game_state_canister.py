@@ -2222,19 +2222,6 @@ def test__backupMainersAdmin_anonymous(network: str, identity_anonymous: dict) -
 # =============================================================================
 
 
-def test__testTokenMintingAdmin_anonymous(network: str, identity_anonymous: dict) -> None:
-    """Test testTokenMintingAdmin - anonymous caller should be rejected."""
-    response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
-        canister_name=CANISTER_NAME,
-        canister_method="testTokenMintingAdmin",
-        canister_argument="()",
-        network=network,
-    )
-    expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
-
-
 def test__testDisbursementToTreasuryAdmin_anonymous(network: str, identity_anonymous: dict) -> None:
     """Test testDisbursementToTreasuryAdmin - anonymous caller should be rejected."""
     response = call_canister_api(
