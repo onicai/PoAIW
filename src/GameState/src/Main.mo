@@ -277,47 +277,6 @@ persistent actor class GameStateCanister() = this {
         return #Ok(authRecord);
     };
 
-    // TODO: remove this function before launching
-    public shared (msg) func testTokenMintingAdmin() : async Types.AuthRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-
-        let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (TOKEN_LEDGER_CANISTER_ID);
-
-        let args : TokenLedger.TransferArg = {
-            from_subaccount = null;
-            to = {
-                owner = Principal.fromText("be2us-64aaa-aaaaa-qaabq-cai");
-                subaccount = null;
-            };
-            amount = 10;
-            fee = null;
-            memo = null;
-            created_at_time = null;
-        };
-
-        try {
-            // Call the ledger's icrc1_transfer function
-            let result = await TokenLedger_Actor.icrc1_transfer(args);
-
-            switch (result) {
-                case (#Ok(blockIndex)) {
-                    let authRecord = { auth = "Your test was successful. Block index: "  # debug_show(blockIndex)};
-                    return #Ok(authRecord);
-                };
-                case (#Err(err)) {
-                    return #Err(#Other("Transfer error: " # debug_show(err)));
-                };
-            };
-        } catch (e) {
-            return #Err(#Other("Failed to call ledger: " # Error.message(e)));
-        };
-    };
-
     // Treasury Canister
     var TREASURY_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // TODO: update
 
