@@ -1304,10 +1304,9 @@ def test__setTimerAction2RegularityInSecondsAdmin_anonymous(
     assert response == expected_response
 
 
+@pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Integration test - requires GameState canister")
 def test__setTimerAction2RegularityInSecondsAdmin(network: str) -> None:
     """Test setTimerAction2RegularityInSecondsAdmin with controller identity"""
-    if TEST_TYPE == "single_canister":
-        pytest.skip("Integration test - requires GameState canister")
     response = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
@@ -1365,10 +1364,9 @@ def test__startTimerExecutionAdmin_anonymous(
     assert response == expected_response
 
 
+@pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Integration test - requires GameState canister")
 def test__startTimerExecutionAdmin(network: str) -> None:
     """Test startTimerExecutionAdmin with controller identity"""
-    if TEST_TYPE == "single_canister":
-        pytest.skip("Integration test - requires GameState canister")
     response = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
@@ -1380,10 +1378,9 @@ def test__startTimerExecutionAdmin(network: str) -> None:
     assert response.startswith("(variant { Ok = record { auth =")
 
 
+@pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Integration test - requires GameState canister (timer must be started)")
 def test__getCurrentAgentTimersAdmin_after_timer_start(network: str) -> None:
     """Test getCurrentAgentTimersAdmin with controller identity - after timer started"""
-    if TEST_TYPE == "single_canister":
-        pytest.skip("Integration test - requires GameState canister (timer must be started)")
     response = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
@@ -1541,10 +1538,9 @@ def test__triggerChallengeResponseAdmin_anonymous(
     assert response == expected_response
 
 
+@pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Integration test - requires GameState canister")
 def test__triggerChallengeResponseAdmin(network: str) -> None:
     """Test triggerChallengeResponseAdmin with controller identity"""
-    if TEST_TYPE == "single_canister":
-        pytest.skip("Integration test - requires GameState canister")
     response = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,

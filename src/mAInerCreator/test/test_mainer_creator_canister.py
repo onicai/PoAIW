@@ -295,10 +295,9 @@ def test__sendCyclesToGameStateCanister_anonymous(network: str, identity_anonymo
     assert response == expected_response
 
 
+@pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Integration test - requires GameState canister")
 def test__sendCyclesToGameStateCanister_as_controller(network: str) -> None:
     """Test sendCyclesToGameStateCanister - requires GameState canister."""
-    if TEST_TYPE == "single_canister":
-        pytest.skip("Integration test - requires GameState canister")
     response = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
@@ -633,10 +632,9 @@ def test__createCanister_anonymous(network: str, identity_anonymous: dict) -> No
     assert response == expected_response
 
 
+@pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Integration test - requires full canister infrastructure (GameState, IC management)")
 def test__createCanister_as_controller(network: str) -> None:
     """Test createCanister - requires full infrastructure setup."""
-    if TEST_TYPE == "single_canister":
-        pytest.skip("Integration test - requires full canister infrastructure (GameState, IC management)")
     arg = '(record { canisterType = variant { MainerAgent = variant { ShareAgent } }; associatedCanisterAddress = null; associatedCanisterSubnet = ""; mainerConfig = record { mainerAgentCanisterType = variant { ShareAgent }; selectedLLM = opt variant { Qwen2_5_500M }; cyclesForMainer = 1_000_000_000_000 : nat; subnetCtrl = ""; subnetLlm = "" }; owner = principal "2vxsx-fae"; userMainerEntryCreationTimestamp = 0 : nat64; userMainerEntryCanisterType = variant { MainerAgent = variant { ShareAgent } }; cyclesCreateMainerctrlGsMc = 0 : nat; cyclesCreateMainerllmGsMc = 0 : nat; cyclesCreateMainerctrlMcMainerctrl = 0 : nat; cyclesCreateMainerllmMcMainerllm = 0 : nat })'
     response = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
@@ -664,10 +662,9 @@ def test__setupCanister_anonymous(network: str, identity_anonymous: dict) -> Non
     assert response == expected_response
 
 
+@pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Integration test - requires existing mainer controller canister")
 def test__setupCanister_as_controller(network: str) -> None:
     """Test setupCanister - requires existing mainer controller canister."""
-    if TEST_TYPE == "single_canister":
-        pytest.skip("Integration test - requires existing mainer controller canister")
     config = 'record { canisterType = variant { MainerAgent = variant { ShareAgent } }; associatedCanisterAddress = null; associatedCanisterSubnet = ""; mainerConfig = record { mainerAgentCanisterType = variant { ShareAgent }; selectedLLM = opt variant { Qwen2_5_500M }; cyclesForMainer = 0 : nat; subnetCtrl = ""; subnetLlm = "" }; owner = principal "2vxsx-fae"; userMainerEntryCreationTimestamp = 0 : nat64; userMainerEntryCanisterType = variant { MainerAgent = variant { ShareAgent } }; cyclesCreateMainerctrlGsMc = 0 : nat; cyclesCreateMainerllmGsMc = 0 : nat; cyclesCreateMainerctrlMcMainerctrl = 0 : nat; cyclesCreateMainerllmMcMainerllm = 0 : nat }'
     arg = f'(record {{ newCanisterId = "aaaaa-aa"; subnet = ""; configurationInput = {config} }})'
     response = call_canister_api(
@@ -701,10 +698,9 @@ def test__upgradeMainerctrl_anonymous(network: str, identity_anonymous: dict) ->
     assert response == expected_response
 
 
+@pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Integration test - requires existing mainer controller canister")
 def test__upgradeMainerctrl_as_controller(network: str) -> None:
     """Test upgradeMainerctrl - requires existing mainer controller canister."""
-    if TEST_TYPE == "single_canister":
-        pytest.skip("Integration test - requires existing mainer controller canister")
     mainer_entry = 'record { address = "aaaaa-aa"; subnet = ""; canisterType = variant { MainerAgent = variant { ShareAgent } }; creationTimestamp = 0 : nat64; createdBy = principal "2vxsx-fae"; ownedBy = principal "2vxsx-fae"; status = variant { Unlocked }; mainerConfig = record { mainerAgentCanisterType = variant { ShareAgent }; selectedLLM = opt variant { Qwen2_5_500M }; cyclesForMainer = 0 : nat; subnetCtrl = ""; subnetLlm = "" } }'
     arg = f'(record {{ mainerAgentEntry = {mainer_entry}; associatedCanisterAddress = null; associatedCanisterSubnet = ""; cyclesUpgradeMainerctrlGsMc = 0 : nat; cyclesUpgradeMainerctrlMcMainerctrl = 0 : nat }})'
     response = call_canister_api(
@@ -733,10 +729,9 @@ def test__reinstallMainerctrl_anonymous(network: str, identity_anonymous: dict) 
     assert response == expected_response
 
 
+@pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Integration test - requires existing mainer controller canister")
 def test__reinstallMainerctrl_as_controller(network: str) -> None:
     """Test reinstallMainerctrl - requires existing mainer controller canister."""
-    if TEST_TYPE == "single_canister":
-        pytest.skip("Integration test - requires existing mainer controller canister")
     mainer_entry = 'record { address = "aaaaa-aa"; subnet = ""; canisterType = variant { MainerAgent = variant { ShareAgent } }; creationTimestamp = 0 : nat64; createdBy = principal "2vxsx-fae"; ownedBy = principal "2vxsx-fae"; status = variant { Unlocked }; mainerConfig = record { mainerAgentCanisterType = variant { ShareAgent }; selectedLLM = opt variant { Qwen2_5_500M }; cyclesForMainer = 0 : nat; subnetCtrl = ""; subnetLlm = "" } }'
     arg = f'(record {{ mainerAgentEntry = {mainer_entry}; associatedCanisterAddress = null; associatedCanisterSubnet = ""; cyclesReinstallMainerctrlGsMc = 0 : nat; cyclesReinstallMainerctrlMcMainerctrl = 0 : nat }})'
     response = call_canister_api(
@@ -767,10 +762,9 @@ def test__getDefaultSubnetsAdmin_anonymous(network: str, identity_anonymous: dic
     assert "Unauthorized" in response or "rejected" in response.lower() or "Ok" in response
 
 
+@pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Integration test - requires GameState canister for inter-canister calls")
 def test__getDefaultSubnetsAdmin_as_controller(network: str) -> None:
     """Test getDefaultSubnetsAdmin - controller should get subnet info."""
-    if TEST_TYPE == "single_canister":
-        pytest.skip("Integration test - requires GameState canister for inter-canister calls")
     response = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
@@ -795,10 +789,9 @@ def test__isSubnetAvailableAdmin_anonymous(network: str, identity_anonymous: dic
     assert "Unauthorized" in response or "rejected" in response.lower() or "Ok" in response
 
 
+@pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Integration test - requires GameState canister for inter-canister calls")
 def test__isSubnetAvailableAdmin_as_controller(network: str) -> None:
     """Test isSubnetAvailableAdmin - controller should get availability info."""
-    if TEST_TYPE == "single_canister":
-        pytest.skip("Integration test - requires GameState canister for inter-canister calls")
     response = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,

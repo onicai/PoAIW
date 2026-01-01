@@ -23,6 +23,11 @@ from typing import Dict
 import pytest
 from icpp.smoketest import call_canister_api
 
+# Test type configuration
+# - "single_canister": Only tests that don't require other canisters (e.g., GameState)
+# - "full_deployment": All tests including integration tests (requires full deployment)
+TEST_TYPE = "single_canister"
+
 # Path to the dfx.json file
 DFX_JSON_PATH = Path(__file__).parent / "../dfx.json"
 

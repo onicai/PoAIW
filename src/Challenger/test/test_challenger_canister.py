@@ -970,10 +970,9 @@ def test__startTimerExecutionAdmin_anonymous(
     assert response == expected_response
 
 
+@pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Integration test - requires GameState canister")
 def test__startTimerExecutionAdmin(network: str) -> None:
     """Test startTimerExecutionAdmin with controller identity"""
-    if TEST_TYPE == "single_canister":
-        pytest.skip("Integration test - requires GameState canister")
     response = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
@@ -1035,10 +1034,9 @@ def test__generateNewChallenge_anonymous(
     assert response == expected_response
 
 
+@pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Integration test - requires GameState and LLM canisters")
 def test__generateNewChallenge(network: str) -> None:
     """Test generateNewChallenge with controller identity"""
-    if TEST_TYPE == "single_canister":
-        pytest.skip("Integration test - requires GameState and LLM canisters")
     response = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
@@ -1071,10 +1069,9 @@ def test__sendCyclesToGameStateCanister_anonymous(
     assert response == expected_response
 
 
+@pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Integration test - requires GameState canister and sufficient cycles")
 def test__sendCyclesToGameStateCanister(network: str) -> None:
     """Test sendCyclesToGameStateCanister with controller identity"""
-    if TEST_TYPE == "single_canister":
-        pytest.skip("Integration test - requires GameState canister and sufficient cycles")
     response = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
