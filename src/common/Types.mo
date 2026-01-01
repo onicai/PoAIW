@@ -369,6 +369,45 @@ module Types {
         mainerConfig : MainerConfigurationInput;
     };
 
+    public type MainerMarketplaceListing = {
+        address : CanisterAddress;
+        mainerType: MainerAgentCanisterType;
+        listedTimestamp : Nat64;
+        listedBy : Principal;
+        priceE8S : Nat;
+        reservedBy : ?Principal;
+    };
+
+    public type MainerMarketplaceListingsResult = Result<[MainerMarketplaceListing], ApiError>;
+
+    public type MainerMarketplaceReservationInput = {
+        address : CanisterAddress;
+    };
+    
+    public type MainerMarketplaceReservationResult = Result<MainerMarketplaceListing, ApiError>;
+
+    public type MarketplaceSale = {
+        mainerAddress : Text;
+        seller : Principal;
+        buyer : Principal;
+        priceE8S : Nat;
+        saleTimestamp : Nat64;
+    };
+
+    public type MarketplaceStats = {
+        totalSales : Nat;
+        totalVolumeE8S : Nat;
+        uniqueBuyers : Nat;
+        uniqueSellers : Nat;
+    };
+
+    public type MarketplaceTransactionHistory = {
+        purchases : [MarketplaceSale];  // mAIners user bought
+        sales : [MarketplaceSale];      // mAIners user sold
+    };
+
+    public type MarketplaceTransactionHistoryResult = Result<MarketplaceTransactionHistory, ApiError>;
+
     public type CanisterInput = {
         address : CanisterAddress;
         subnet : Text;
