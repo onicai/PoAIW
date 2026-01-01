@@ -22,11 +22,14 @@ import CreateCanisterWithCMC "../../common/CreateCanisterWithCMC";
 import InstallCanisterCode "../../common/InstallCanisterCode";
 import Constants "../../common/Constants";
 
-actor class MainerCreatorCanister() = this {
+persistent actor class MainerCreatorCanister() = this {
 
     stable var MASTER_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
 
     public shared (msg) func setMasterCanisterId(_master_canister_id : Text) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -45,7 +48,7 @@ actor class MainerCreatorCanister() = this {
         return MASTER_CANISTER_ID;
     };
 
-    let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
+    private transient let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
 
     // -------------------------------------------------------------------------------
     // Canister Endpoints
@@ -156,17 +159,23 @@ actor class MainerCreatorCanister() = this {
     };
 
     public shared (msg) func setMinCyclesBalanceAdmin(newCyclesBalance : Nat) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (newCyclesBalance < 20 * Constants.CYCLES_TRILLION) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         MIN_CYCLES_BALANCE := newCyclesBalance;
         return #Ok({ status_code = 200 });
     };
 
     public query (msg) func getMinCyclesBalanceAdmin() : async Nat {
+        if (Principal.isAnonymous(msg.caller)) {
+            return 0;
+        };
         if (not Principal.isController(msg.caller)) {
             return 0;
         };
@@ -175,17 +184,23 @@ actor class MainerCreatorCanister() = this {
     };
 
     public shared (msg) func setCyclesToSendToGameStateAdmin(newValue : Nat) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (newValue > 100 * Constants.CYCLES_TRILLION) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         CYCLES_AMOUNT_TO_GAME_STATE_CANISTER := newValue;
         return #Ok({ status_code = 200 });
     };
 
     public query (msg) func getCyclesToSendToGameStateAdmin() : async Nat {
+        if (Principal.isAnonymous(msg.caller)) {
+            return 0;
+        };
         if (not Principal.isController(msg.caller)) {
             return 0;
         };
@@ -278,6 +293,9 @@ actor class MainerCreatorCanister() = this {
     private stable var mainerControllerCanisterWasmSha256 : Text = "";
 
     public shared (msg) func start_upload_mainer_controller_canister_wasm() : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -325,11 +343,11 @@ actor class MainerCreatorCanister() = this {
 
     // Admin function to upload artefacts for mainer agent LLM canister
     // Map each AI model id to a record with the artefacts needed to create a new canister
-    private var creationArtefactsByModel = HashMap.HashMap<Text, Types.ModelCreationArtefacts>(0, Text.equal, Text.hash);
+    private transient var creationArtefactsByModel = HashMap.HashMap<Text, Types.ModelCreationArtefacts>(0, Text.equal, Text.hash);
     private stable var creationArtefactsByModelStable : [(Text, Types.ModelCreationArtefacts)] = [];
 
     // Separate storage for LLM canister wasm SHA-256 hashes (to avoid modifying ModelCreationArtefacts type)
-    private var llmCanisterWasmSha256ByModel = HashMap.HashMap<Text, Text>(0, Text.equal, Text.hash);
+    private transient var llmCanisterWasmSha256ByModel = HashMap.HashMap<Text, Text>(0, Text.equal, Text.hash);
     private stable var llmCanisterWasmSha256ByModelStable : [(Text, Text)] = [];
 
     private func getModelCreationArtefacts(selectedModel : Types.SelectableMainerLLMs) : ?Types.ModelCreationArtefacts {
@@ -375,6 +393,9 @@ actor class MainerCreatorCanister() = this {
     // Admin function to start upload of the mainer LLM canister wasm
     public shared (msg) func start_upload_mainer_llm_canister_wasm(selectedModel : Types.SelectableMainerLLMs) : async Types.StatusCodeRecordResult {
         D.print("mAInerCreator: start_upload_mainer_llm_canister_wasm");
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -489,6 +510,9 @@ actor class MainerCreatorCanister() = this {
     // Admin function to start upload of the mainer LLM model file
     public shared (msg) func start_upload_mainer_llm() : async Types.StatusCodeRecordResult {
         D.print("mAInerCreator: start_upload_mainer_llm");
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -1773,12 +1797,15 @@ actor class MainerCreatorCanister() = this {
         };
     };
 
-// Admin 
+// Admin
     // TODO: remove these helper Admin functions
     public shared (msg) func getDefaultSubnetsAdmin() : async {
         #Ok : [Principal];
         #Err : {#Unauthorized};
     } {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -1789,6 +1816,9 @@ actor class MainerCreatorCanister() = this {
             #Ok : Bool;
             #Err : {#Unauthorized};
         } {
+            if (Principal.isAnonymous(msg.caller)) {
+                return #Err(#Unauthorized);
+            };
             if (not Principal.isController(msg.caller)) {
                 return #Err(#Unauthorized);
             };
