@@ -2203,6 +2203,90 @@ actor class GameStateCanister() = this {
         return sharedServiceCanistersStorage.vals().next();
     };
 
+    // Blackholed mAIner Registry: mAIner agent canisters (owned by users) which collapsed and cannot be reanimated anymore (thus forever inactive)
+    stable var blackholedMainerAgentCanistersStorageStable : [(Text, Types.OfficialMainerAgentCanister)] = [];
+    var blackholedMainerAgentCanistersStorage : HashMap.HashMap<Text, Types.OfficialMainerAgentCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
+    stable var blackholedUserToMainerAgentsStorageStable : [(Principal, List.List<Types.OfficialMainerAgentCanister>)] = [];
+    var blackholedUserToMainerAgentsStorage : HashMap.HashMap<Principal, List.List<Types.OfficialMainerAgentCanister>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+
+    private func addBlackholedMainerAgentCanister(canisterEntryToAdd : Types.OfficialMainerAgentCanister) : Types.MainerAgentCanisterResult {
+        switch (canisterEntryToAdd.canisterType) {
+            case (#MainerAgent(_)) {
+                // continue
+            };
+            case (_) { 
+                D.print("GameState: addBlackholedMainerAgentCanister - Unsupported canisterEntryToAdd.canisterType: " # debug_show(canisterEntryToAdd.canisterType) );
+                return #Err(#Other("Unsupported")); 
+            }
+        };
+        let _ = putBlackholedUserMainerAgent(canisterEntryToAdd);
+        blackholedMainerAgentCanistersStorage.put(canisterEntryToAdd.address, canisterEntryToAdd);
+        D.print("GameState: addBlackholedMainerAgentCanister added canisterEntry: " # debug_show(canisterEntryToAdd) );
+        return #Ok(canisterEntryToAdd);
+    };
+
+    private func putBlackholedUserMainerAgent(canisterEntry : Types.OfficialMainerAgentCanister) : Bool {
+        switch (getBlackholedUserMainerAgents(canisterEntry.ownedBy)) {
+            case (null) {
+                // first entry
+                let userCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.make<Types.OfficialMainerAgentCanister>(canisterEntry);
+                blackholedUserToMainerAgentsStorage.put(canisterEntry.ownedBy, userCanistersList);
+                return true;
+            };
+            case (?userCanistersList) { 
+                //existing list, add entry to it
+                // Deduplicate (based on creationTimestamp)
+                let filteredUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.filter(userCanistersList, func(listEntry: Types.OfficialMainerAgentCanister) : Bool { listEntry.creationTimestamp != canisterEntry.creationTimestamp });
+                let updatedUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.push<Types.OfficialMainerAgentCanister>(canisterEntry, filteredUserCanistersList);
+                blackholedUserToMainerAgentsStorage.put(canisterEntry.ownedBy, updatedUserCanistersList);
+                return true;
+            }; 
+        };
+    };
+
+    private func getBlackholedUserMainerAgents(userId : Principal) : ?List.List<Types.OfficialMainerAgentCanister> {
+        switch (blackholedUserToMainerAgentsStorage.get(userId)) {
+            case (null) { return null; };
+            case (?userCanistersList) { return ?userCanistersList; };
+        };
+    };
+
+    private func getBlackholedMainerAgents() : [Types.OfficialMainerAgentCanister] {
+        var mainerAgents : List.List<Types.OfficialMainerAgentCanister> = List.nil<Types.OfficialMainerAgentCanister>();
+        for (userMainerAgentsList in blackholedUserToMainerAgentsStorage.vals()) {
+            mainerAgents := List.append<Types.OfficialMainerAgentCanister>(userMainerAgentsList, mainerAgents);    
+        };
+        return List.toArray(mainerAgents);
+    };
+
+    private func getNumberBlackholedMainerAgents(mainerType : Types.MainerAgentCanisterType) : Nat {
+        switch (mainerType) {
+            case (#Own) {
+                let iter = blackholedMainerAgentCanistersStorage.vals();
+                let mappedIter = Iter.filter(iter, func (mainerEntry : Types.OfficialMainerAgentCanister) : Bool {
+                    switch (mainerEntry.mainerConfig.mainerAgentCanisterType) {
+                        case (#Own) { return true; };
+                        case (#ShareAgent) { return false; };
+                        case (_) { return false; }
+                    };
+                });
+                return Iter.size(mappedIter);
+            };
+            case (#ShareAgent) {
+                let iter = blackholedMainerAgentCanistersStorage.vals();
+                let mappedIter = Iter.filter(iter, func (mainerEntry : Types.OfficialMainerAgentCanister) : Bool {
+                    switch (mainerEntry.mainerConfig.mainerAgentCanisterType) {
+                        case (#Own) { return false; };
+                        case (#ShareAgent) { return true; };
+                        case (_) { return false; }
+                    };
+                });
+                return Iter.size(mappedIter);                
+            };
+            case (_) { return 0; }
+        };
+    };
+    
     // mAIner Registry: Official mAIner agent canisters (owned by users)
     stable var mainerAgentCanistersStorageStable : [(Text, Types.OfficialMainerAgentCanister)] = [];
     var mainerAgentCanistersStorage : HashMap.HashMap<Text, Types.OfficialMainerAgentCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -4732,6 +4816,19 @@ actor class GameStateCanister() = this {
         return #Ok(CYCLES_BALANCE_THRESHOLD_FUNNAI_TOPUPS);
     };
 
+    stable var PRICE_FUNNAI_FOR_STOPPING_MAINER_FROM_COLLAPSING : Nat64 = 100; // In FUNNAI
+    public shared (msg) func setFunnaiForStoppingMainerFromCollapsingAdmin(funnaiAmount : Nat64) : async Types.StatusCodeRecordResult {
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        PRICE_FUNNAI_FOR_STOPPING_MAINER_FROM_COLLAPSING := funnaiAmount;
+        return #Ok({ status_code = 200 });
+    };
+
+    public query func getPriceFunnaiStoppingMainerFromCollapsingAdmin() : async Types.PriceResult {
+        return #Ok({ price = PRICE_FUNNAI_FOR_STOPPING_MAINER_FROM_COLLAPSING });
+    };
+
     // Decide on usage of incoming funds (e.g. for mAIner creation or top ups)
     private func handleIncomingFunds(transactionEntry : Types.RedeemedTransactionBlock) : async Types.HandleIncomingFundsResult {
         D.print("GameState: handleIncomingFunds - transactionEntry: "# debug_show(transactionEntry));
@@ -5274,6 +5371,15 @@ actor class GameStateCanister() = this {
                     case (#MainerTopUp(_)) {
                         D.print("GameState: verifyIncomingFunnaiPayment - #MainerTopUp ");
                         // continue as there is no fixed price                             
+                    };
+                    case (#MainerStoppedFromCollapsing(_)) {
+                        D.print("GameState: verifyIncomingFunnaiPayment - #MainerStoppedFromCollapsing ");
+                        // Check correct price was paid
+                        D.print("GameState: verifyIncomingFunnaiPayment - #MainerStoppedFromCollapsing PRICE_OWN_MAINER: "# debug_show(PRICE_FOR_OWN_MAINER_ICP));
+                        let E8S_PER_FUNNAI_WITH_BUFFER : Nat64 = 90_000_000; // 10^8 e8s per FUNNAI
+                        if (Nat64.fromNat(burnOperation.amount) < PRICE_FUNNAI_FOR_STOPPING_MAINER_FROM_COLLAPSING * E8S_PER_FUNNAI_WITH_BUFFER) {
+                            return #Err(#Other("Transaction didn't pay full price"));
+                        };
                     };
                     case (_) { return #Err(#Other("Unsupported")); }
                 };
@@ -7550,6 +7656,156 @@ actor class GameStateCanister() = this {
         };
     };
 
+    // Function for user to stop an existing mAIner from collapsing (and thus becoming blackholed) by burning FUNNAI
+    public shared (msg) func stopUserMainerAgentFromCollapsingWithFunnai(mainerInput : Types.MainerAgentTopUpInput) : async Types.MainerAgentCanisterResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (PAUSE_PROTOCOL and not Principal.isController(msg.caller)) {
+            return #Err(#Other("Protocol is currently paused"));
+        };
+
+        // Ensure this transaction block hasn't been redeemed yet (no double spending)     
+        let transactionToVerify = mainerInput.paymentTransactionBlockId;
+        switch (checkExistingFunnaiTransactionBlock(transactionToVerify)) {
+            case (false) {
+                // new transaction, continue
+            };
+            case (true) {
+                // already redeem transaction
+                return #Err(#Other("Already redeemed this transaction block")); // no double spending
+            };
+        };
+
+        // Sanity checks on provided mAIner info
+        let mainerInfo : Types.OfficialMainerAgentCanister = mainerInput.mainerAgent;
+        if (not Principal.equal(mainerInfo.ownedBy, msg.caller)) {
+            // Only the mAIner owner may call this
+            return #Err(#Unauthorized);
+        };
+        if (mainerInfo.address == "") {
+            // The mAIner Controller canister address is needed
+            return #Err(#InvalidId);
+        };
+        switch (mainerInfo.canisterType) {
+            case (#MainerAgent(_)) {
+                // continue
+            };
+            case (_) { return #Err(#Other("Unsupported")); }
+        };
+
+        // Verify existing mAIner entry
+        switch (getUserMainerAgents(msg.caller)) {
+            case (null) {
+                return #Err(#Unauthorized);
+            };
+            case (?userMainerEntries) {
+                switch (List.find<Types.OfficialMainerAgentCanister>(userMainerEntries, func(mainerEntry: Types.OfficialMainerAgentCanister) : Bool { mainerEntry.address == mainerInfo.address } )) {
+                    case (null) {
+                        return #Err(#InvalidId);
+                    };
+                    case (?userMainerEntry) {
+                        // Sanity checks on userMainerEntry (i.e. address provided is correct and matches entry info)
+                        switch (userMainerEntry.canisterType) {
+                            case (#MainerAgent(_)) {
+                                // continue
+                            };
+                            case (_) { return #Err(#Other("Unsupported")); }
+                        };
+
+                        // Verify user's FUNNAI payment for this via the TransactionBlockId
+                        var verifiedPayment : Bool = false;
+                        var amountPaid : Nat = 0;
+                        let redeemedFor : Types.RedeemedForOptions = #MainerStoppedFromCollapsing(userMainerEntry.address);
+                        let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                        let transactionEntryToVerify : Types.RedeemedTransactionBlock = {
+                            paymentTransactionBlockId : Nat64 = mainerInput.paymentTransactionBlockId;
+                            creationTimestamp : Nat64 = creationTimestamp;
+                            redeemedBy : Principal = msg.caller;
+                            redeemedFor : Types.RedeemedForOptions = redeemedFor;
+                            amount : Nat = amountPaid; // to be updated
+                        };
+                        let verificationResponse = await verifyIncomingFunnaiPayment(transactionEntryToVerify);
+                        D.print("GameState: stopUserMainerAgentFromCollapsingWithFunnai - verificationResponse: "# debug_show(verificationResponse));
+                        switch (verificationResponse) {
+                            case (#Ok(verificationResult)) {
+                                verifiedPayment := verificationResult.verified;
+                                amountPaid := verificationResult.amountPaid;
+                            };
+                            case (_) {
+                                return #Err(#Other("Payment verification failed"));                      
+                            };
+                        };
+                        if (not verifiedPayment) {
+                            return #Err(#Other("Payment couldn't be verified"));
+                        };
+
+                        let newTransactionEntry : Types.RedeemedTransactionBlock = {
+                            paymentTransactionBlockId : Nat64 = mainerInput.paymentTransactionBlockId;
+                            creationTimestamp : Nat64 = creationTimestamp;
+                            redeemedBy : Principal = msg.caller;
+                            redeemedFor : Types.RedeemedForOptions = redeemedFor;
+                            amount : Nat = amountPaid;
+                        };
+                        try {
+                            let Mainer_Actor : Types.MainerAgentCtrlbCanister = actor (userMainerEntry.address);
+                            D.print("GameState: stopUserMainerAgentFromCollapsingWithFunnai - calling stopMainerFromCollapsing for mAIner: " # debug_show(userMainerEntry.address));
+                            let stopMainerFromCollapsingResponse = await Mainer_Actor.stopMainerFromCollapsing();
+                            D.print("GameState: stopUserMainerAgentFromCollapsingWithFunnai - stopMainerFromCollapsingResponse: " # debug_show(stopMainerFromCollapsingResponse));
+                            switch (stopMainerFromCollapsingResponse) {
+                                case (#Err(error)) {
+                                    D.print("GameState: stopUserMainerAgentFromCollapsingWithFunnai - stopMainerFromCollapsingResponse FailedOperation: " # debug_show(error));
+                                    return #Err(#FailedOperation);
+                                };
+                                case (#Ok(mainerStatusEntry)) {
+                                    D.print("GameState: stopUserMainerAgentFromCollapsingWithFunnai - mainerStatusEntry: " # debug_show(mainerStatusEntry));
+                                    // Track redeemed FUNNAI transaction blocks to ensure no double spending
+                                    switch (putRedeemedFunnaiTransactionBlock(newTransactionEntry)) {
+                                        case (false) {
+                                            // TODO - Error Handling: likely retry
+                                        };
+                                        case (true) {
+                                            // continue
+                                        };
+                                    };
+                                    return #Ok(userMainerEntry);
+                                };
+                            };
+                        } catch (e) {
+                            D.print("GameState: stopUserMainerAgentFromCollapsingWithFunnai - Failed to stop mAIner from collapsing: " # debug_show(mainerInput) # Error.message(e));      
+                            return #Err(#Other("GameState: stopUserMainerAgentFromCollapsingWithFunnai - Failed to stop mAIner from collapsing: " # debug_show(mainerInput) # Error.message(e)));
+                        };                      
+                    };
+                };
+            };
+        };
+    };
+
+    // Function for mAIner agent canister to notify game state that it collapsed and is now blackholed
+    public shared (msg) func notifyMainerAgentCanisterIsBlackholed() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Only official mAIner agent canisters may call this (and thus blackhole itself)
+        switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
+            case (null) { return #Err(#Unauthorized); };
+            case (?mainerAgentEntry) {
+                // Add mAIner as blackholed
+                let blackholedResult : Types.MainerAgentCanisterResult = addBlackholedMainerAgentCanister(mainerAgentEntry);
+                switch (blackholedResult) {
+                    case (#Ok(blackholedMainerEntry)) {
+                        // Remove mAIner entry from active agents
+                        let result1 = removeMainerAgentCanister(Principal.toText(msg.caller));
+                        let result2 = removeUserMainerAgent(mainerAgentEntry);
+                        let authRecord = { auth = "The mAIner notified that it's blackholed" };
+                        return #Ok(authRecord);               
+                    };
+                    case (_) { return #Err(#FailedOperation); };
+                };             
+            };
+        };
+    };
+
     // Function for user to get their mAIner agent canisters
     public shared query (msg) func getMainerAgentCanistersForUser() : async Types.MainerAgentCanistersResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -7639,6 +7895,76 @@ actor class GameStateCanister() = this {
                 };                               
             };
         };
+    };
+
+    // Blackholed mAIners
+    // Function for user to get their mAIner agent canisters
+    public shared query (msg) func getBlackholedMainerAgentCanistersForUser() : async Types.MainerAgentCanistersResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        switch (getBlackholedUserMainerAgents(msg.caller)) {
+            case (null) { return #Err(#Other("No canisters for this caller")); };
+            case (?userCanistersList) {
+                return #Ok(List.toArray<Types.OfficialMainerAgentCanister>(userCanistersList));                              
+            };
+        };
+    };
+
+    public shared query (msg) func getBlackholedMainerAgentCanistersAdmin() : async Types.MainerAgentCanistersResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        return #Ok(getBlackholedMainerAgents());
+    };
+
+    public shared query (msg) func getBlackholedMainerAgentCanistersForUserAdmin(user : Text) : async Types.MainerAgentCanistersResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        switch (getBlackholedUserMainerAgents(Principal.fromText(user))) {
+            case (null) { return #Err(#Other("No canisters for this user")); };
+            case (?userCanistersList) {
+                return #Ok(List.toArray<Types.OfficialMainerAgentCanister>(userCanistersList));                              
+            };
+        };
+    };
+
+    public shared query (msg) func getNumBlackholedMainerAgentCanistersForUserAdmin(user : Text) : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        switch (getBlackholedUserMainerAgents(Principal.fromText(user))) {
+            case (null) { return #Err(#Other("No canisters for this user")); };
+            case (?userCanistersList) {
+                return #Ok(List.size<Types.OfficialMainerAgentCanister>(userCanistersList));                              
+            };
+        };
+    };
+
+    public shared query (msg) func getNumberBlackholedMainerAgentsAdmin(checkInput : Types.CheckMainerLimit) : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        let result = getNumberBlackholedMainerAgents(checkInput.mainerType);
+        return #Ok(result);
     };
 
     // Function for mAIner agent canister to retrieve a random open challenge
@@ -9758,6 +10084,8 @@ actor class GameStateCanister() = this {
         sharedServiceCanistersStorageStable := Iter.toArray(sharedServiceCanistersStorage.entries());
         redeemedTransactionBlocksStorageStable := Iter.toArray(redeemedTransactionBlocksStorage.entries());
         redeemedFunnaiTransactionBlocksStorageStable := Iter.toArray(redeemedFunnaiTransactionBlocksStorage.entries());
+        blackholedMainerAgentCanistersStorageStable := Iter.toArray(blackholedMainerAgentCanistersStorage.entries());
+        blackholedUserToMainerAgentsStorageStable := Iter.toArray(blackholedUserToMainerAgentsStorage.entries());
         adminRoleAssignmentsStable := Iter.toArray(adminRoleAssignmentsStorage.entries());
         marketplaceListedMainerAgentsStorageStable := Iter.toArray(marketplaceListedMainerAgentsStorage.entries());
         userToMarketplaceListedMainersStorageStable := Iter.toArray(userToMarketplaceListedMainersStorage.entries());
@@ -9800,6 +10128,10 @@ actor class GameStateCanister() = this {
         redeemedTransactionBlocksStorageStable := [];
         redeemedFunnaiTransactionBlocksStorage := HashMap.fromIter(Iter.fromArray(redeemedFunnaiTransactionBlocksStorageStable), redeemedFunnaiTransactionBlocksStorageStable.size(), Nat.equal, Hash.hash);
         redeemedFunnaiTransactionBlocksStorageStable := [];
+        blackholedMainerAgentCanistersStorage := HashMap.fromIter(Iter.fromArray(blackholedMainerAgentCanistersStorageStable), blackholedMainerAgentCanistersStorageStable.size(), Text.equal, Text.hash);
+        blackholedMainerAgentCanistersStorageStable := [];
+        blackholedUserToMainerAgentsStorage := HashMap.fromIter(Iter.fromArray(blackholedUserToMainerAgentsStorageStable), blackholedUserToMainerAgentsStorageStable.size(), Principal.equal, Principal.hash);
+        blackholedUserToMainerAgentsStorageStable := [];
         adminRoleAssignmentsStorage := HashMap.fromIter(Iter.fromArray(adminRoleAssignmentsStable), adminRoleAssignmentsStable.size(), Text.equal, Text.hash);
         adminRoleAssignmentsStable := [];
         marketplaceListedMainerAgentsStorage := HashMap.fromIter(Iter.fromArray(marketplaceListedMainerAgentsStorageStable), marketplaceListedMainerAgentsStorageStable.size(), Text.equal, Text.hash);

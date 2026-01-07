@@ -104,12 +104,9 @@ actor class MainerAgentCtrlbCanister() = this {
         let cyclesAdded = Cycles.accept<system>(Cycles.available());
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): addCycles - Accepted " # Nat.toText(cyclesAdded) # " Cycles from caller " # Principal.toText(msg.caller));
 
-        // Unpause the mAIner if it was paused due to low cycle balance
-        PAUSED_DUE_TO_LOW_CYCLE_BALANCE := false;
-
-        // Add to official cycle balance and store all official top ups
+        // Game State can make official top ups (via its top up flow)
         if (Principal.equal(msg.caller, Principal.fromText(GAME_STATE_CANISTER_ID))) {
-            // Game State can make official top ups (via its top up flow)
+            // Add to official cycle balance and store all official top ups
             officialCyclesBalance := officialCyclesBalance + cyclesAdded;
             let topUpEntry : Types.OfficialMainerCycleTopUp = {
                 amountAdded : Nat = cyclesAdded;
@@ -118,6 +115,8 @@ actor class MainerAgentCtrlbCanister() = this {
                 sentBy : Principal = msg.caller;
             };
             officialCycleTopUpsStorage := List.push<Types.OfficialMainerCycleTopUp>(topUpEntry, officialCycleTopUpsStorage);
+            // Unpause the mAIner if it was inactive due to low cycles balance
+            let statusUpdateResult = handleMainerStatusAfterTopup();
         };
         
         return #Ok({
@@ -376,15 +375,78 @@ actor class MainerAgentCtrlbCanister() = this {
     // --------------------------------------------------------------------------
     // Orthogonal Persisted Data storage
 
+    // Functionality to handle the mAIner's lifecycle
+    stable var mainerStatus : Types.MainerStatus = #Active;
+
+    stable var mainerLastActiveEntry : ?Types.MainerStatusEntry = null;
+
+    stable var mainerInactiveEntries : List.List<Types.MainerStatusEntry> = List.nil<Types.MainerStatusEntry>();
+    stable var previousMainerInactiveEntries : List.List<Types.MainerStatusEntry> = List.nil<Types.MainerStatusEntry>();
+
+    stable var mainerCollapsingEntries : List.List<Types.MainerStatusEntry> = List.nil<Types.MainerStatusEntry>();
+    stable var previousMainerCollapsingEntries : List.List<Types.MainerStatusEntry> = List.nil<Types.MainerStatusEntry>();
+
+    private func handleMainerStatusAfterTopup() : Bool {
+        switch (mainerStatus) {
+            case (#Active) { return true; };
+            case (#Inactive) { 
+                // mAIner is currently inactive and has to be switched back to active thanks to the topup
+                // update status, archive inactive entries and reset them
+                mainerStatus := #Active;
+                previousMainerInactiveEntries := mainerInactiveEntries;
+                mainerInactiveEntries := List.nil<Types.MainerStatusEntry>();
+                return true;
+            };
+            case (#Collapsing) { return false; }; // Topups don't affect collapsing mAIners, they need to be reanimated via a dedicated flow 
+            case (#Blackholed) { return false; }; // Blackholed mAIners aren't affected by topups (or by anything else)
+            case (#Maintenance) { return false; }; // Nothing to do
+            case (#Other(_)) { return false; }; // Nothing to do
+        };
+    };
+
+    
 
     // The minimum cycle balance we want to maintain
     stable let CYCLE_BALANCE_MINIMUM = 250 * Constants.CYCLES_BILLION;
 
-    // A flag for the frontend to pick up and display a message to the user
-    stable var PAUSED_DUE_TO_LOW_CYCLE_BALANCE : Bool = false;
+    // A flag for the frontend to pick up and display a message to the user (now calculated based on the mAIner's status)
+    private func getPausedDueToLowCycleBalanceFlagValue() : Bool {
+        if (mainerStatus == #Active) {
+            return false;
+        };
+        return true;
+    };
+
+    private func getMainerInactivityStateGracePeriod() : Nat64 {
+        switch (MAINER_AGENT_CANISTER_TYPE) {
+            case (#ShareAgent) {
+                return 7 * 24 * 60 * 60 * 1_000_000_000; // 7 days in nanoseconds
+            };
+            case (#Own) {
+                return 3 * 24 * 60 * 60 * 1_000_000_000; // 3 days in nanoseconds                
+            };
+            case (_) {
+                return 0;                
+            };
+        };
+    };
+
+    private func getMainerCollapsingStateGracePeriod() : Nat64 {
+        switch (MAINER_AGENT_CANISTER_TYPE) {
+            case (#ShareAgent) {
+                return 14 * 24 * 60 * 60 * 1_000_000_000; // 14 days in nanoseconds
+            };
+            case (#Own) {
+                return 4 * 24 * 60 * 60 * 1_000_000_000; // 4 days in nanoseconds                
+            };
+            case (_) {
+                return 0;                
+            };
+        };
+    };
 
     // Internal functions to check if the canister has enough cycles
-    private func sufficientCyclesToProcessChallenge(challenge : Types.Challenge) : Bool {
+    private func sufficientCyclesToProcessChallenge(challenge : Types.Challenge) : async Bool {
         // The ShareService canister does not Queue or Submit
         if (MAINER_AGENT_CANISTER_TYPE == #ShareService) {
             return true;
@@ -399,13 +461,116 @@ actor class MainerAgentCtrlbCanister() = this {
             // TODO: do calculation based on actual setting for LOW, MEDIUM, HIGH
             requiredCycles := requiredCycles + challenge.cyclesGenerateResponseOwnctrlGs + challenge.cyclesGenerateResponseOwnctrlOwnllmHIGH;
         };
-        if (availableCycles < requiredCycles) {
-            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): CYCLE BALANCE TOO LOW TO PROCESS CHALLENGE:");
-            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): requiredCycles  = " # debug_show(requiredCycles));
-            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): availableCycles = " # debug_show(availableCycles));
-            return false;
+
+        switch (mainerStatus) {
+            case (#Active) {
+                if (availableCycles < requiredCycles) {
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): CYCLE BALANCE TOO LOW TO PROCESS CHALLENGE:");
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): requiredCycles  = " # debug_show(requiredCycles));
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): availableCycles = " # debug_show(availableCycles));
+                    // mAIner needs to be switched to inactive
+                    mainerStatus := #Inactive;
+                    mainerInactiveEntries := List.nil<Types.MainerStatusEntry>(); // Should not be necessary but as a precaution
+                    let newEntry : Types.MainerStatusEntry = {
+                        status : Types.MainerStatus = #Inactive;
+                        timestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                        currentCyclesBalance : Nat = availableCycles;
+                        note : Text = "Switched to inactive due to low cycles balance";
+                        previousStatus : Types.MainerStatus = #Active;
+                    };
+                    mainerInactiveEntries := List.push<Types.MainerStatusEntry>(newEntry, mainerInactiveEntries);
+                    return false;
+                };
+                // Update last active entry to now
+                let newEntry : Types.MainerStatusEntry = {
+                    status : Types.MainerStatus = #Active;
+                    timestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                    currentCyclesBalance : Nat = availableCycles;
+                    note : Text = "";
+                    previousStatus : Types.MainerStatus = #Active;
+                };
+                mainerLastActiveEntry := ?newEntry;
+                return true;
+            };
+            case (#Inactive) { 
+                // Keep track of how long the mAIner has been in the Inactive state
+                // Add a new entry
+                let timestampNow : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                let newEntry : Types.MainerStatusEntry = {
+                    status : Types.MainerStatus = #Inactive;
+                    timestamp : Nat64 = timestampNow;
+                    currentCyclesBalance : Nat = availableCycles;
+                    note : Text = "Still inactive";
+                    previousStatus : Types.MainerStatus = #Inactive;
+                };
+                mainerInactiveEntries := List.push<Types.MainerStatusEntry>(newEntry, mainerInactiveEntries);
+                // Check the oldest entry and if too old (i.e. grace period over), change the status to Collapsing                
+                switch (List.last<Types.MainerStatusEntry>(mainerInactiveEntries)) {
+                    case (null) {}; // Continue
+                    case (?earliestInactiveEntry) {
+                        let mainerInactivityStateGracePeriod : Nat64 = getMainerInactivityStateGracePeriod();
+                        if (timestampNow > earliestInactiveEntry.timestamp + mainerInactivityStateGracePeriod) {
+                            // Grace period is over
+                            mainerStatus := #Collapsing;
+                            previousMainerInactiveEntries := mainerInactiveEntries;
+                            mainerInactiveEntries := List.nil<Types.MainerStatusEntry>();
+                            let firstCollapsingEntry : Types.MainerStatusEntry = {
+                                status : Types.MainerStatus = #Collapsing;
+                                timestamp : Nat64 = timestampNow;
+                                currentCyclesBalance : Nat = availableCycles;
+                                note : Text = "Switched from inactive to collapsing";
+                                previousStatus : Types.MainerStatus = #Inactive;
+                            };
+                            mainerCollapsingEntries := List.nil<Types.MainerStatusEntry>(); // Should not be necessary but as a precaution
+                            mainerCollapsingEntries := List.push<Types.MainerStatusEntry>(firstCollapsingEntry, mainerCollapsingEntries);
+                        };                        
+                    };
+                };
+                return false;
+            };
+            case (#Collapsing) {
+                // Collapsing mAIners never work 
+                // Keep track of how long the mAIner has been in the Collapsing state
+                // Add a new entry
+                let timestampNow : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                let newEntry : Types.MainerStatusEntry = {
+                    status : Types.MainerStatus = #Collapsing;
+                    timestamp : Nat64 = timestampNow;
+                    currentCyclesBalance : Nat = availableCycles;
+                    note : Text = "Still collapsing";
+                    previousStatus : Types.MainerStatus = #Collapsing;
+                };
+                mainerCollapsingEntries := List.push<Types.MainerStatusEntry>(newEntry, mainerCollapsingEntries);
+                // Check the oldest entry and if too old (i.e. grace period over), change the status to Blackholed
+                switch (List.last<Types.MainerStatusEntry>(mainerCollapsingEntries)) {
+                    case (null) {}; // Continue
+                    case (?earliestCollapsingEntry) {
+                        let mainerCollapsingStateGracePeriod : Nat64 = getMainerCollapsingStateGracePeriod();
+                        if (timestampNow > earliestCollapsingEntry.timestamp + mainerCollapsingStateGracePeriod) {
+                            // Grace period is over
+                            mainerStatus := #Blackholed;
+                            let lastCollapsingEntry : Types.MainerStatusEntry = {
+                                status : Types.MainerStatus = #Blackholed;
+                                timestamp : Nat64 = timestampNow;
+                                currentCyclesBalance : Nat = availableCycles;
+                                note : Text = "Switched from collapsing to blackholed";
+                                previousStatus : Types.MainerStatus = #Collapsing;
+                            };
+                            mainerCollapsingEntries := List.push<Types.MainerStatusEntry>(lastCollapsingEntry, mainerCollapsingEntries);
+                            previousMainerCollapsingEntries := mainerCollapsingEntries;
+                            // Call Game State with this update to notify that this mAIner is now blackholed
+                            let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
+                            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): calling notifyMainerAgentCanisterIsBlackholed of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
+                            ignore gameStateCanisterActor.notifyMainerAgentCanisterIsBlackholed();
+                        };                        
+                    };
+                };
+                return false;
+            };
+            case (#Blackholed) { return false; }; // Blackholed mAIners never work again
+            case (#Maintenance) { return false; };
+            case (#Other(_)) { return false; };
         };
-        return true;
     };
 
     private func sufficientCyclesToSubmit(cyclesSubmitResponse : Nat) : Bool {
@@ -434,9 +599,46 @@ actor class MainerAgentCtrlbCanister() = this {
             return #Err(#Unauthorized);
         };
         let response : Types.IssueFlagsRecord = {
-            lowCycleBalance = PAUSED_DUE_TO_LOW_CYCLE_BALANCE;
+            lowCycleBalance = getPausedDueToLowCycleBalanceFlagValue();
         };
         return #Ok(response);
+    };
+
+    public shared (msg) func stopMainerFromCollapsing() : async Types.MainerStatusEntryResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };    
+        if (not Principal.equal(msg.caller, Principal.fromText(GAME_STATE_CANISTER_ID))) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopMainerFromCollapsing - Called by unauthorized caller " # Principal.toText(msg.caller));
+            return #Err(#Unauthorized);
+        };
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopMainerFromCollapsing - Called by game state " # GAME_STATE_CANISTER_ID);
+        switch (mainerStatus) {
+            case (#Collapsing) { 
+                // mAIner is currently collapsing and has to be switched back to inactive
+                // update status, archive and reset collapsing entries, and create first inactive entry
+                mainerStatus := #Inactive;
+                let newEntry : Types.MainerStatusEntry = {
+                    status : Types.MainerStatus = #Inactive;
+                    timestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                    currentCyclesBalance : Nat = Cycles.balance();
+                    note : Text = "Switched from collapsing to inactive";
+                    previousStatus : Types.MainerStatus = #Collapsing;
+                };
+                mainerCollapsingEntries := List.push<Types.MainerStatusEntry>(newEntry, mainerCollapsingEntries);
+                previousMainerCollapsingEntries := mainerCollapsingEntries;
+                mainerCollapsingEntries := List.nil<Types.MainerStatusEntry>();                
+                mainerInactiveEntries := List.nil<Types.MainerStatusEntry>(); // should not be needed but as a precaution
+                mainerInactiveEntries := List.push<Types.MainerStatusEntry>(newEntry, mainerInactiveEntries);
+                
+                return #Ok(newEntry);
+            };
+            case (_) {
+                // This should not happen (as game state would be making a wrong call)
+                D.print("mAIner: stopMainerFromCollapsing - Called by game state but not in state Collapsing but " # debug_show(mainerStatus));
+                return #Err(#Unauthorized);
+            };
+        };
     };
 
     // Statistics
@@ -1809,14 +2011,12 @@ actor class MainerAgentCtrlbCanister() = this {
             case (#Ok(challenge : Types.Challenge)) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - challenge = " # debug_show (challenge));
 
-                if (not sufficientCyclesToProcessChallenge(challenge)) {
+                let sufficientCyclesResult : Bool = await sufficientCyclesToProcessChallenge(challenge);
+                if (not sufficientCyclesResult) {
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - PAUSING RESPONSE GENERATION DUE TO LOW CYCLE BALANCE");
-                    PAUSED_DUE_TO_LOW_CYCLE_BALANCE := true;
                     return;
                 };
-                // Ok,the canister has enough cycles
-                PAUSED_DUE_TO_LOW_CYCLE_BALANCE := false;
-                
+                // Ok,the canister has enough cycles                
                 // Add the challenge to the queue
                 let challengeQueuedId : Text = await Utils.newRandomUniqueId();
                 let challengeQueuedBy : Principal = Principal.fromActor(this);
@@ -1935,7 +2135,8 @@ actor class MainerAgentCtrlbCanister() = this {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge - challengeQueueInput" # debug_show (challengeQueueInput));
 
                 // Check if the canister has enough cycles for this particular Challenge
-                if (not sufficientCyclesToProcessChallenge(challengeQueueInput)) {
+                let sufficientCyclesResult : Bool = await sufficientCyclesToProcessChallenge(challengeQueueInput);
+                if (not sufficientCyclesResult) {
                     // Note: do not set pause flag
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge - Not enough cycles to process challenge. Pushing it back on the queue to try later.");
                     // Push the challenge back to the queue to try again later

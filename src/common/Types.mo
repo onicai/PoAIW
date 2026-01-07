@@ -494,6 +494,8 @@ module Types {
     public type RedeemedForOptions = {
         #MainerCreation : MainerAgentCanisterType;
         #MainerTopUp : CanisterAddress;
+        #MainerStoppedFromCollapsing : CanisterAddress;
+        #Other : Text;
     };
 
     public type HandleIncomingFundsRecord = {
@@ -920,6 +922,25 @@ module Types {
     };
 
     public type ChallengeResponseResult = Result<ChallengeResponse, ApiError>;
+
+    public type MainerStatus = {
+        #Active;
+        #Inactive;
+        #Collapsing;
+        #Blackholed;
+        #Maintenance;
+        #Other : Text;
+    };
+
+    public type MainerStatusEntry = {
+        status : MainerStatus;
+        timestamp : Nat64;
+        currentCyclesBalance : Nat;
+        note : Text;
+        previousStatus : MainerStatus;
+    };
+
+    public type MainerStatusEntryResult = Result<MainerStatusEntry, ApiError>;
 
 // Judge
     public type ScoredResponseInput = ChallengeResponseSubmission and {
@@ -1353,7 +1374,8 @@ module Types {
         getJudgePromptInfo : (Text) -> async Types.JudgePromptInfoResult;
         getMainerCyclesUsedPerResponse : () -> async NatResult;
         getCyclesBurnRate : (Types.CyclesBurnRateDefault) -> async Types.CyclesBurnRateResult;
-        addCycles: () -> async AddCyclesResult;
+        addCycles : () -> async AddCyclesResult;
+        notifyMainerAgentCanisterIsBlackholed : () -> async AuthRecordResult;
     };
 
     public type MainerCreator_Actor = actor {
@@ -1378,6 +1400,7 @@ module Types {
         addMainerShareAgentCanister: (OfficialMainerAgentCanister) -> async MainerAgentCanisterResult;
         startTimerExecutionAdmin: () -> async AuthRecordResult;
         addCycles: () -> async AddCyclesResult;
+        stopMainerFromCollapsing: () -> async MainerStatusEntryResult;
     };
 
     public type LLMCanister = actor {
