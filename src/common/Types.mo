@@ -27,6 +27,32 @@ module Types {
     };
 
     //-------------------------------------------------------------------------
+    // Admin RBAC Types
+    public type AdminRole = {
+        #AdminUpdate;    // Access to Admin endpoints requiring #AdminUpdate or #AdminQuery roles only; No access to endpoints requiring controller level
+        #AdminQuery;     // Access to Admin endpoints requiring #AdminQuery role only.
+    };
+
+    public type AdminRoleAssignment = {
+        principal : Text;  // Principal in text format
+        role : AdminRole;
+        assignedBy : Text;  // Principal in text format
+        assignedAt : Nat64;
+        note : Text;
+    };
+
+    // Input record for admin role assignment
+    public type AssignAdminRoleInputRecord = {
+        principal : Text;
+        role : AdminRole;
+        note : Text;
+    };
+
+    // Result types for admin endpoints
+    public type AdminRoleAssignmentResult = Result<AdminRoleAssignment, ApiError>;
+    public type AdminRoleAssignmentsResult = Result<[AdminRoleAssignment], ApiError>;
+
+    //-------------------------------------------------------------------------
     public type AuthRecord = {
         auth : Text;
     };
@@ -341,6 +367,68 @@ module Types {
 
     public type OfficialMainerAgentCanister = OfficialProtocolCanister and {
         mainerConfig : MainerConfigurationInput;
+    };
+
+    public type MainerMarketplaceListing = {
+        address : CanisterAddress;
+        mainerType: MainerAgentCanisterType;
+        listedTimestamp : Nat64;
+        listedBy : Principal;
+        priceE8S : Nat;
+        reservedBy : ?Principal;
+    };
+
+    public type MainerMarketplaceListingsResult = Result<[MainerMarketplaceListing], ApiError>;
+
+    public type MainerMarketplaceReservationInput = {
+        address : CanisterAddress;
+    };
+    
+    public type MainerMarketplaceReservationResult = Result<MainerMarketplaceListing, ApiError>;
+
+    public type MarketplaceSale = {
+        mainerAddress : Text;
+        seller : Principal;
+        buyer : Principal;
+        priceE8S : Nat;
+        saleTimestamp : Nat64;
+    };
+
+    public type MarketplaceStats = {
+        totalSales : Nat;
+        totalVolumeE8S : Nat;
+        uniqueBuyers : Nat;
+        uniqueSellers : Nat;
+        uniqueTraders : Nat; // Unique principals who are buyers OR sellers (deduplicated)
+    };
+
+    public type MarketplaceTransactionHistory = {
+        purchases : [MarketplaceSale];  // mAIners user bought
+        sales : [MarketplaceSale];      // mAIners user sold
+    };
+
+    public type MarketplaceTransactionHistoryResult = Result<MarketplaceTransactionHistory, ApiError>;
+
+    public type MainerTransferFailure = {
+        transactionId : Nat;
+        seller : Principal;
+        buyer : Principal;
+        mainerListing : MainerMarketplaceListing;
+        failureTimestamp : Nat64;
+        failureReason : Text;
+        resolvedTimestamp : ?Nat64;
+        resolvedBy : ?Principal;
+        resolvedNote : ?Text;
+    };
+
+    public type MainerTransferFailureResult = Result<MainerTransferFailure, ApiError>;
+
+    public type MainerTransferFailuresResult = Result<[MainerTransferFailure], ApiError>;
+
+    public type ResolveMainerTransferFailureInput = {
+        transactionId : Nat;
+        resolvedNote : Text;
+        resolvedBy : Principal;
     };
 
     public type CanisterInput = {
@@ -938,6 +1026,30 @@ module Types {
         max_tokens_query : Nat64;
     };
 
+    public type RemoveControllerFromMainerCanisterInput = {
+        mainerEntry : OfficialMainerAgentCanister;
+        toRemoveControllerPrincipal : Principal;
+    };
+    
+    public type RemoveControllerFromMainerCanisterRecord = {
+        removed : Bool;
+        removedControllerPrincipal : Principal;
+    };
+    
+    public type RemoveControllerFromMainerCanisterResult = Result<RemoveControllerFromMainerCanisterRecord, ApiError>;
+
+    public type AddControllerToMainerCanisterInput = {
+        mainerEntry : OfficialMainerAgentCanister;
+        newControllerPrincipal : Principal;
+    };
+    
+    public type AddControllerToMainerCanisterRecord = {
+        added : Bool;
+        addedControllerPrincipal : Principal;
+    };
+    
+    public type AddControllerToMainerCanisterResult = Result<AddControllerToMainerCanisterRecord, ApiError>;
+
     //-------------------------------------------------------------------------
     public type ChallengeWinnerDeclaration = {
         challengeId : Text;
@@ -1271,6 +1383,8 @@ module Types {
         setupCanister: shared SetupCanisterInput -> async CanisterCreationResult;
         upgradeMainerctrl: shared UpgradeMainerctrlInput -> async Types.StatusCodeRecordResult;
         reinstallMainerctrl: shared ReinstallMainerctrlInput -> async Types.StatusCodeRecordResult;
+        addControllerToMainerCanister: shared AddControllerToMainerCanisterInput -> async Types.AddControllerToMainerCanisterResult;
+        removeControllerFromMainerCanister: shared RemoveControllerFromMainerCanisterInput -> async Types.RemoveControllerFromMainerCanisterResult;
     };
 
     // mAIner
@@ -1514,4 +1628,14 @@ module Types {
 
     // Simple result type for token rewards API
     public type TokenRewardsDataResult = Result<TokenRewardsData, ApiError>;
+
+    //-------------------------------------------------------------------------
+    // SHA-256 Hashes for uploaded WASM & LLM Model files
+
+    public type Sha256HashesRecord = {
+        mainerControllerWasmSha256 : Text;
+        llmWasmHashes : [(Text, { wasmSha256 : Text; modelFileSha256 : Text })];
+    };
+
+    public type Sha256HashesResult = Result<Sha256HashesRecord, ApiError>;
 };

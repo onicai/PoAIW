@@ -1,4 +1,9 @@
 type TimeInterval = variant {Daily;};
+type TextResult = 
+ variant {
+   Err: ApiError;
+   Ok: text;
+ };
 type StatusCodeRecordResult = 
  variant {
    Err: ApiError;
@@ -125,8 +130,11 @@ type MainerAgentCtrlbCanister =
    add_llm_canister: (llmCanisterIdRecord: CanisterIDRecord) ->
     (StatusCodeRecordResult);
    amiController: () -> (StatusCodeRecordResult) query;
+   assignAdminRole: (input: AssignAdminRoleInputRecord) ->
+    (AdminRoleAssignmentResult);
    canAgentSettingsBeUpdated: () -> (StatusCodeRecordResult);
    checkAccessToLLMs: () -> (StatusCodeRecordResult);
+   getAdminRoles: () -> (AdminRoleAssignmentsResult) query;
    getAgentSettingsAdmin: () -> (MainerAgentSettingsListResult) query;
    getAgentTimersAdmin: () -> (MainerAgentTimersListResult) query;
    getChallengeQueueAdmin: () -> (ChallengeQueueInputsResult) query;
@@ -155,6 +163,7 @@ type MainerAgentCtrlbCanister =
    resetChallengeQueueAdmin: () -> (StatusCodeRecordResult);
    resetRoundRobinLLMs: () -> (StatusCodeRecordResult);
    reset_llm_canisters: () -> (StatusCodeRecordResult);
+   revokeAdminRole: ("principal": text) -> (TextResult);
    setGameStateCanisterId: (_game_state_canister_id: text) ->
     (StatusCodeRecordResult);
    setMainerCanisterType: (_mainer_agent_canister_type:
@@ -417,6 +426,12 @@ type AuthRecordResult =
    Ok: AuthRecord;
  };
 type AuthRecord = record {auth: text;};
+type AssignAdminRoleInputRecord = 
+ record {
+   note: text;
+   "principal": text;
+   role: AdminRole;
+ };
 type ApiError = 
  variant {
    FailedOperation;
@@ -426,6 +441,29 @@ type ApiError =
    StatusCode: StatusCode;
    Unauthorized;
    ZeroAddress;
+ };
+type AdminRoleAssignmentsResult = 
+ variant {
+   Err: ApiError;
+   Ok: vec AdminRoleAssignment;
+ };
+type AdminRoleAssignmentResult = 
+ variant {
+   Err: ApiError;
+   Ok: AdminRoleAssignment;
+ };
+type AdminRoleAssignment = 
+ record {
+   assignedAt: nat64;
+   assignedBy: text;
+   note: text;
+   "principal": text;
+   role: AdminRole;
+ };
+type AdminRole = 
+ variant {
+   AdminQuery;
+   AdminUpdate;
  };
 type AddCyclesResult = 
  variant {
