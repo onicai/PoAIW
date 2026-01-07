@@ -1,30 +1,22 @@
 export const idlFactory = ({ IDL }) => {
-  const SelectableMainerLLMs = IDL.Variant({ 'Qwen2_5_500M' : IDL.Null });
-  const ModelCreationArtefacts = IDL.Record({
-    'canisterWasm' : IDL.Vec(IDL.Vec(IDL.Nat8)),
-    'modelFileSha256' : IDL.Text,
-    'modelFile' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+  const LlmSetupStatus = IDL.Variant({
+    'CodeInstallInProgress' : IDL.Null,
+    'CanisterCreated' : IDL.Null,
+    'ConfigurationInProgress' : IDL.Null,
+    'CanisterCreationInProgress' : IDL.Null,
+    'ModelUploadProgress' : IDL.Nat8,
   });
-  const AddModelCreationArtefactsEntry = IDL.Record({
-    'selectedModel' : SelectableMainerLLMs,
-    'creationArtefacts' : ModelCreationArtefacts,
-  });
-  const StatusCode = IDL.Nat16;
-  const ApiError = IDL.Variant({
-    'FailedOperation' : IDL.Null,
-    'InvalidId' : IDL.Null,
-    'ZeroAddress' : IDL.Null,
-    'Unauthorized' : IDL.Null,
-    'StatusCode' : StatusCode,
+  const CanisterStatus = IDL.Variant({
+    'Paused' : IDL.Null,
+    'Paid' : IDL.Null,
+    'Unlocked' : IDL.Null,
+    'LlmSetupFinished' : IDL.Null,
+    'ControllerCreated' : IDL.Null,
+    'LlmSetupInProgress' : LlmSetupStatus,
+    'Running' : IDL.Null,
     'Other' : IDL.Text,
-    'InsuffientCycles' : IDL.Nat,
+    'ControllerCreationInProgress' : IDL.Null,
   });
-  const InsertArtefactsResult = IDL.Variant({
-    'Ok' : ModelCreationArtefacts,
-    'Err' : ApiError,
-  });
-  const AuthRecord = IDL.Record({ 'auth' : IDL.Text });
-  const AuthRecordResult = IDL.Variant({ 'Ok' : AuthRecord, 'Err' : ApiError });
   const MainerAgentCanisterType = IDL.Variant({
     'NA' : IDL.Null,
     'Own' : IDL.Null,
@@ -39,6 +31,7 @@ export const idlFactory = ({ IDL }) => {
     'Verifier' : IDL.Null,
     'MainerCreator' : IDL.Null,
   });
+  const SelectableMainerLLMs = IDL.Variant({ 'Qwen2_5_500M' : IDL.Null });
   const MainerConfigurationInput = IDL.Record({
     'selectedLLM' : IDL.Opt(SelectableMainerLLMs),
     'subnetLlm' : IDL.Text,
@@ -47,6 +40,53 @@ export const idlFactory = ({ IDL }) => {
     'subnetCtrl' : IDL.Text,
   });
   const CanisterAddress = IDL.Text;
+  const OfficialMainerAgentCanister = IDL.Record({
+    'status' : CanisterStatus,
+    'canisterType' : ProtocolCanisterType,
+    'ownedBy' : IDL.Principal,
+    'creationTimestamp' : IDL.Nat64,
+    'createdBy' : IDL.Principal,
+    'mainerConfig' : MainerConfigurationInput,
+    'subnet' : IDL.Text,
+    'address' : CanisterAddress,
+  });
+  const AddControllerToMainerCanisterInput = IDL.Record({
+    'newControllerPrincipal' : IDL.Principal,
+    'mainerEntry' : OfficialMainerAgentCanister,
+  });
+  const AddControllerToMainerCanisterRecord = IDL.Record({
+    'added' : IDL.Bool,
+    'addedControllerPrincipal' : IDL.Principal,
+  });
+  const StatusCode = IDL.Nat16;
+  const ApiError = IDL.Variant({
+    'FailedOperation' : IDL.Null,
+    'InvalidId' : IDL.Null,
+    'ZeroAddress' : IDL.Null,
+    'Unauthorized' : IDL.Null,
+    'StatusCode' : StatusCode,
+    'Other' : IDL.Text,
+    'InsuffientCycles' : IDL.Nat,
+  });
+  const AddControllerToMainerCanisterResult = IDL.Variant({
+    'Ok' : AddControllerToMainerCanisterRecord,
+    'Err' : ApiError,
+  });
+  const ModelCreationArtefacts = IDL.Record({
+    'canisterWasm' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+    'modelFileSha256' : IDL.Text,
+    'modelFile' : IDL.Vec(IDL.Vec(IDL.Nat8)),
+  });
+  const AddModelCreationArtefactsEntry = IDL.Record({
+    'selectedModel' : SelectableMainerLLMs,
+    'creationArtefacts' : ModelCreationArtefacts,
+  });
+  const InsertArtefactsResult = IDL.Variant({
+    'Ok' : ModelCreationArtefacts,
+    'Err' : ApiError,
+  });
+  const AuthRecord = IDL.Record({ 'auth' : IDL.Text });
+  const AuthRecordResult = IDL.Variant({ 'Ok' : AuthRecord, 'Err' : ApiError });
   const CanisterCreationConfiguration = IDL.Record({
     'associatedCanisterSubnet' : IDL.Text,
     'canisterType' : ProtocolCanisterType,
@@ -106,35 +146,10 @@ export const idlFactory = ({ IDL }) => {
   });
   const Sha256HashesResult = IDL.Variant({
     'Ok' : Sha256HashesRecord,
+  const StatusCodeRecord = IDL.Record({ 'status_code' : StatusCode });
+  const StatusCodeRecordResult = IDL.Variant({
+    'Ok' : StatusCodeRecord,
     'Err' : ApiError,
-  });
-  const LlmSetupStatus = IDL.Variant({
-    'CodeInstallInProgress' : IDL.Null,
-    'CanisterCreated' : IDL.Null,
-    'ConfigurationInProgress' : IDL.Null,
-    'CanisterCreationInProgress' : IDL.Null,
-    'ModelUploadProgress' : IDL.Nat8,
-  });
-  const CanisterStatus = IDL.Variant({
-    'Paused' : IDL.Null,
-    'Paid' : IDL.Null,
-    'Unlocked' : IDL.Null,
-    'LlmSetupFinished' : IDL.Null,
-    'ControllerCreated' : IDL.Null,
-    'LlmSetupInProgress' : LlmSetupStatus,
-    'Running' : IDL.Null,
-    'Other' : IDL.Text,
-    'ControllerCreationInProgress' : IDL.Null,
-  });
-  const OfficialMainerAgentCanister = IDL.Record({
-    'status' : CanisterStatus,
-    'canisterType' : ProtocolCanisterType,
-    'ownedBy' : IDL.Principal,
-    'creationTimestamp' : IDL.Nat64,
-    'createdBy' : IDL.Principal,
-    'mainerConfig' : MainerConfigurationInput,
-    'subnet' : IDL.Text,
-    'address' : CanisterAddress,
   });
   const ReinstallMainerctrlInput = IDL.Record({
     'associatedCanisterSubnet' : IDL.Text,
@@ -142,6 +157,18 @@ export const idlFactory = ({ IDL }) => {
     'associatedCanisterAddress' : IDL.Opt(CanisterAddress),
     'cyclesReinstallMainerctrlGsMc' : IDL.Nat,
     'mainerAgentEntry' : OfficialMainerAgentCanister,
+  });
+  const RemoveControllerFromMainerCanisterInput = IDL.Record({
+    'toRemoveControllerPrincipal' : IDL.Principal,
+    'mainerEntry' : OfficialMainerAgentCanister,
+  });
+  const RemoveControllerFromMainerCanisterRecord = IDL.Record({
+    'removedControllerPrincipal' : IDL.Principal,
+    'removed' : IDL.Bool,
+  });
+  const RemoveControllerFromMainerCanisterResult = IDL.Variant({
+    'Ok' : RemoveControllerFromMainerCanisterRecord,
+    'Err' : ApiError,
   });
   const AddCyclesRecord = IDL.Record({
     'added' : IDL.Bool,
@@ -172,6 +199,11 @@ export const idlFactory = ({ IDL }) => {
     'bytesChunk' : IDL.Vec(IDL.Nat8),
   });
   const MainerCreatorCanister = IDL.Service({
+    'addControllerToMainerCanister' : IDL.Func(
+        [AddControllerToMainerCanisterInput],
+        [AddControllerToMainerCanisterResult],
+        [],
+      ),
     'addModelCreationArtefactsEntry' : IDL.Func(
         [AddModelCreationArtefactsEntry],
         [InsertArtefactsResult],
@@ -217,6 +249,7 @@ export const idlFactory = ({ IDL }) => {
     'getMasterCanisterIdAdmin' : IDL.Func([], [IDL.Text], ['query']),
     'getMinCyclesBalanceAdmin' : IDL.Func([], [IDL.Nat], ['query']),
     'getSha256HashesAdmin' : IDL.Func([], [Sha256HashesResult], ['query']),
+    'getMinCyclesBalanceAdmin' : IDL.Func([], [IDL.Nat], ['query']),
     'health' : IDL.Func([], [StatusCodeRecordResult], ['query']),
     'isSubnetAvailableAdmin' : IDL.Func(
         [IDL.Text],
@@ -231,6 +264,11 @@ export const idlFactory = ({ IDL }) => {
     'reinstallMainerctrl' : IDL.Func(
         [ReinstallMainerctrlInput],
         [StatusCodeRecordResult],
+        [],
+      ),
+    'removeControllerFromMainerCanister' : IDL.Func(
+        [RemoveControllerFromMainerCanisterInput],
+        [RemoveControllerFromMainerCanisterResult],
         [],
       ),
     'sendCyclesToGameStateCanister' : IDL.Func([], [AddCyclesResult], []),
