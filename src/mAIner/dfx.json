@@ -2124,6 +2124,42 @@
     },
     "mainer_ctrlb_canister_706": {
       "main": "src/Main.mo"
+    },
+    "mainer_ctrlb_canister_707": {
+      "main": "src/Main.mo"
+    },
+    "mainer_ctrlb_canister_708": {
+      "main": "src/Main.mo"
+    },
+    "mainer_ctrlb_canister_709": {
+      "main": "src/Main.mo"
+    },
+    "mainer_ctrlb_canister_710": {
+      "main": "src/Main.mo"
+    },
+    "mainer_ctrlb_canister_711": {
+      "main": "src/Main.mo"
+    },
+    "mainer_ctrlb_canister_712": {
+      "main": "src/Main.mo"
+    },
+    "mainer_ctrlb_canister_713": {
+      "main": "src/Main.mo"
+    },
+    "mainer_ctrlb_canister_714": {
+      "main": "src/Main.mo"
+    },
+    "mainer_ctrlb_canister_715": {
+      "main": "src/Main.mo"
+    },
+    "mainer_ctrlb_canister_716": {
+      "main": "src/Main.mo"
+    },
+    "mainer_ctrlb_canister_717": {
+      "main": "src/Main.mo"
+    },
+    "mainer_ctrlb_canister_718": {
+      "main": "src/Main.mo"
     }
   },
   "defaults": {

@@ -1,3 +1,6 @@
 [dependencies]
 base = "0.13.5"
 uuid = "https://github.com/aviate-labs/uuid.mo#v0.2.0"
+icrc3-mo = "0.2.4"
+icrc37-mo = "0.5.1"
+icrc7-mo = "0.5.0"

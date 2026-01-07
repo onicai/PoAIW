@@ -8,7 +8,6 @@
 # Default network type is local
 NETWORK_TYPE="local"
 NUM_LLMS_DEPLOYED=1
-NUM_LLMS_ROUND_ROBIN=1 # how many LLMs we actually use
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do
@@ -34,7 +33,6 @@ done
 echo "Using network type: $NETWORK_TYPE"
 if [ "$NETWORK_TYPE" = "prd" ]; then
     NUM_LLMS_DEPLOYED=2
-    NUM_LLMS_ROUND_ROBIN=2
 fi
 
 #######################################################################
@@ -85,16 +83,3 @@ do
         echo "Successfully called add_llm_canister for $CANISTER_ID_LLM."
     fi
 done
-
-# We no longer call this, so all LLMs will be used
-# echo " "
-# echo "--------------------------------------------------"
-# echo "Setting NUM_LLMS_ROUND_ROBIN to $NUM_LLMS_ROUND_ROBIN"
-# output=$(dfx canister call challenger_ctrlb_canister setRoundRobinLLMs "($NUM_LLMS_ROUND_ROBIN)" --network $NETWORK_TYPE)
-
-# if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
-#     echo "setRoundRobinLLMs call failed. Exiting."
-#     exit 1
-# else
-#     echo "setRoundRobinLLMs was successful."
-# fi
