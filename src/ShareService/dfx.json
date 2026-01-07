@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "canisters": {
+    "mainer_service_canister": {
+      "main": "src/Main.mo"
+    }
+  },
+  "defaults": {
+    "build": {
+      "packtool": "mops sources"
+    }
+  },
+  "networks": {
+    "development": {
+      "providers": [
+        "https://icp0.io"
+      ],
+      "type": "persistent"
+    },
+    "testing": {
+      "providers": [
+        "https://icp0.io"
+      ],
+      "type": "persistent"
+    },
+    "prd": {
+      "providers": [
+        "https://icp0.io"
+      ],
+      "type": "persistent"
+    },
+    "demo": {
+      "providers": [
+        "https://icp0.io"
+      ],
+      "type": "persistent"
+    },
+    "ic": {
+      "providers": [
+        "https://icp0.io"
+      ],
+      "type": "persistent"
+    },
+    "backup": {
+      "providers": [
+        "https://icp0.io"
+      ],
+      "type": "persistent"
+    }
+  },
+  "output_env_file": ".env"
+}
