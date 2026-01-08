@@ -505,7 +505,7 @@ persistent actor class MainerCreatorCanister() = this {
     stable let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(1, 1));
     stable let initBlob : Blob = Blob.fromArray(innerInitArray);
     var modelFileChunks : [var Blob] = Array.init<Blob>(1, initBlob);
-    stable let MAX_MODEL_FILE_CHUNKS : Nat = 400; // TODO - Design: should this be a parameter or switch to Buffer?
+    stable let MAX_MODEL_FILE_CHUNKS : Nat = 400;
 
     // Admin function to start upload of the mainer LLM model file
     public shared (msg) func start_upload_mainer_llm() : async Types.StatusCodeRecordResult {
@@ -603,8 +603,6 @@ persistent actor class MainerCreatorCanister() = this {
                 
             } catch (e) {
                 D.print("LLM file_upload_chunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
-                
-                // TODO - Implementation: introduce a delay using a timer...
                 // Just retry immediately with decremented attempts
                 return await retryLlmChunkUploadWithDelay(llmCanisterActor, uploadChunk, attempts - 1, delay);
             };
@@ -636,7 +634,7 @@ persistent actor class MainerCreatorCanister() = this {
                 // Create mAIner controller canister for new mAIner agent                
                 let mainerAgentCanisterType = configurationInput.mainerConfig.mainerAgentCanisterType;
                 D.print("mAInerCreator: createCanister - mainerAgentCanisterType = " # debug_show (mainerAgentCanisterType));
-                var shareServiceCanisterAddress : Types.CanisterAddress = ""; // TODO - Design: determine if this should be provided or whether Creator stores this info and fills it in here
+                var shareServiceCanisterAddress : Types.CanisterAddress = "";
                 if (mainerAgentCanisterType == #ShareAgent) {
                     switch (configurationInput.associatedCanisterAddress) {
                         case (null) {
@@ -678,7 +676,6 @@ persistent actor class MainerCreatorCanister() = this {
                 // CMC based approach, allows to specify the subnet
                 let subnetCtrl : Text = configurationInput.mainerConfig.subnetCtrl;
                 let cyclesToAttach : Nat = configurationInput.cyclesCreateMainerctrlMcMainerctrl;
-                // TODO - Testing: remove our principals
                 let controllers : [Principal] = [Principal.fromActor(this), configurationInput.owner, Principal.fromText("3v5vy-2aaaa-aaaai-aapla-cai"), Principal.fromText("fqkhp-waaaa-aaaam-qdmta-cai"), Principal.fromText("cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"), Principal.fromText("fsmbm-odyjn-hkwt2-3be4e-h6bg3-yi3pi-f5eny-2rosh-4u6jm-3rwa5-xae"), Principal.fromText("chfec-vmrjj-vsmhw-uiolc-dpldl-ujifg-k6aph-pwccq-jfwii-nezv4-2ae"), Principal.fromText("opcne-svazk-6dnsy-iejci-fsm7h-miuun-ovpm4-wtsgw-5pgbz-teu3h-eqe")];
                 D.print("mAInerCreator: createCanister - Calling CMC.create_canister_on_subnet targeting subnet " # subnetCtrl # " with " # debug_show(cyclesToAttach) # " cycles.");
                 let createCanisterWithCMCResult = await CreateCanisterWithCMC.createCanisterOnSubnet(cyclesToAttach, subnetCtrl, ?controllers);
@@ -732,7 +729,7 @@ persistent actor class MainerCreatorCanister() = this {
                         switch (configurationInput.mainerConfig.selectedLLM) {
                             case (null) {
                                 // use default
-                                selectedModel := #Qwen2_5_500M; // TODO - Implementation: retrieve default via function
+                                selectedModel := #Qwen2_5_500M;
                             };
                             case (?selectedLLM) {
                                 selectedModel := selectedLLM;                                
@@ -759,7 +756,6 @@ persistent actor class MainerCreatorCanister() = this {
                                 // CMC based approach, allows to specify the subnet
                                 let subnetLlm : Text = configurationInput.mainerConfig.subnetLlm;
                                 let cyclesToAttach : Nat = configurationInput.cyclesCreateMainerllmMcMainerllm;
-                                // TODO - remove owner from controllers
                                 let controllers : [Principal] = [Principal.fromActor(this), Principal.fromText(associatedCanisterAddress), configurationInput.owner];
                                 D.print("mAInerCreator: createCanister - Calling CMC.create_canister_on_subnet targeting subnet " # subnetLlm # " with " # debug_show(cyclesToAttach) # " cycles.");
                                 let createCanisterWithCMCResult = await CreateCanisterWithCMC.createCanisterOnSubnet(cyclesToAttach, subnetLlm, ?controllers);
@@ -821,7 +817,7 @@ persistent actor class MainerCreatorCanister() = this {
                 // Create mAIner controller canister for new mAIner agent                
                 let mainerAgentCanisterType = configurationInput.mainerConfig.mainerAgentCanisterType;
                 D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): setupCanister (" # newCanisterId # ")");
-                var shareServiceCanisterAddress : Types.CanisterAddress = ""; // TODO - Design: determine if this should be provided or whether Creator stores this info and fills it in here
+                var shareServiceCanisterAddress : Types.CanisterAddress = "";
                 if (mainerAgentCanisterType == #ShareAgent) {
                     switch (configurationInput.associatedCanisterAddress) {
                         case (null) {
@@ -1025,7 +1021,7 @@ persistent actor class MainerCreatorCanister() = this {
                         switch (configurationInput.mainerConfig.selectedLLM) {
                             case (null) {
                                 // use default
-                                selectedModel := #Qwen2_5_500M; // TODO - Implementation: retrieve default via function
+                                selectedModel := #Qwen2_5_500M;
                             };
                             case (?selectedLLM) {
                                 selectedModel := selectedLLM;                                
@@ -1240,7 +1236,7 @@ persistent actor class MainerCreatorCanister() = this {
                                 };
 
                                 // set max tokens
-                                // TODO - Implementation: This is for the Qwen 2.5-0.5B model, need to make it dynamic
+                                // Note: This is for the Qwen 2.5-0.5B model, need to make it dynamic
                                 let MAX_TOKENS : Nat64 = 13;
                                 let maxTokensRecord : Types.MaxTokensRecord = {
                                     max_tokens_update : Nat64 = MAX_TOKENS;
@@ -1277,7 +1273,7 @@ persistent actor class MainerCreatorCanister() = this {
                                     return #Err(#Other("mAInerCreator (#MainerLlm): setupCanister (" # newCanisterId # ") - Failed to register LLM with it's controller, with associatedCanisterAddress: " # debug_show(associatedCanisterAddress ) # Error.message(e)));
                                 };
                                 
-                                // TODO - Testing: Don't call this, so all the LLMs will be used by default in a round robbin fashion
+                                // Testing: Don't call this, so all the LLMs will be used by default in a round robbin fashion
                                 // let roundRobinSetting : Nat = 1;
                                 // let setControllerRoundRobinResult = await associatedControllerCanisterActor.setRoundRobinLLMs(roundRobinSetting);
                                 // D.print("mAInerCreator (#MainerLlm): setupCanister setControllerRoundRobinResult" # debug_show (setControllerRoundRobinResult));
@@ -1407,7 +1403,7 @@ persistent actor class MainerCreatorCanister() = this {
                 
                 // --------------------------------------------------
                 // Verify the Shared Service canister. We are upgrading the links to it during a ShareAgent upgrade
-                var shareServiceCanisterAddress : Types.CanisterAddress = ""; // TODO - Design: determine if this should be provided or whether Creator stores this info and fills it in here
+                var shareServiceCanisterAddress : Types.CanisterAddress = "";
                 if (mainerAgentCanisterType == #ShareAgent) {
                     switch (upgradeMainerctrlInput.associatedCanisterAddress) {
                         case (null) {
@@ -1624,7 +1620,7 @@ persistent actor class MainerCreatorCanister() = this {
                 
                 // --------------------------------------------------
                 // Verify the Shared Service canister. We are upgrading the links to it during a ShareAgent reinstall
-                var shareServiceCanisterAddress : Types.CanisterAddress = ""; // TODO - Design: determine if this should be provided or whether Creator stores this info and fills it in here
+                var shareServiceCanisterAddress : Types.CanisterAddress = "";
                 if (mainerAgentCanisterType == #ShareAgent) {
                     switch (reinstallMainerctrlInput.associatedCanisterAddress) {
                         case (null) {
@@ -1798,7 +1794,6 @@ persistent actor class MainerCreatorCanister() = this {
     };
 
 // Admin
-    // TODO: remove these helper Admin functions
     public shared (msg) func getDefaultSubnetsAdmin() : async {
         #Ok : [Principal];
         #Err : {#Unauthorized};
@@ -1825,103 +1820,6 @@ persistent actor class MainerCreatorCanister() = this {
             let result = await CreateCanisterWithCMC.isSubnetAvailable(subnet);
             return #Ok(result);
     };
-    // TODO - REMOVE
-    // // public shared (msg) func testCreateMainerControllerCanister(mainerAgentCanisterType : Types.MainerAgentCanisterType, shareServiceCanisterAddress : ?Types.CanisterAddress) : async Types.CanisterCreationResult {
-    // public shared (msg) func testCreateMainerControllerCanister(testCreateMainerControllerCanister : Types.TestCreateMainerControllerCanister) : async Types.CanisterCreationResult {
-    //     D.print("mAInerCreator: entered testCreateMainerControllerCanister");
-    //     if (Principal.isAnonymous(msg.caller)) {
-    //         return #Err(#Unauthorized);
-    //     };
-    //     if (not Principal.isController(msg.caller)) {
-    //         return #Err(#Unauthorized);
-    //     };
-    //     let mainerAgentCanisterType : Types.MainerAgentCanisterType = testCreateMainerControllerCanister.mainerAgentCanisterType;
-    //     let shareServiceCanisterAddress : ?Types.CanisterAddress = testCreateMainerControllerCanister.shareServiceCanisterAddress;
-
-    //     let mainerConfig : Types.MainerConfigurationInput = {
-    //         mainerAgentCanisterType: Types.MainerAgentCanisterType = mainerAgentCanisterType;
-    //         selectedLLM : ?Types.SelectableMainerLLMs = ?#Qwen2_5_500M;
-    //     };
-    //     let config : Types.CanisterCreationConfiguration = {
-    //         canisterType : Types.ProtocolCanisterType = #MainerAgent(mainerAgentCanisterType);
-    //         associatedCanisterAddress : ?Types.CanisterAddress = shareServiceCanisterAddress;
-    //         owner : Principal = msg.caller; 
-    //         mainerConfig : Types.MainerConfigurationInput = mainerConfig;
-    //         userMainerEntryCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-    //         userMainerEntryCanisterType : Types.ProtocolCanisterType = #MainerAgent(mainerAgentCanisterType);
-    //     };
-    //     D.print("mAInerCreator: testCreateMainerControllerCanister - calling createCanister with config" # debug_show(config));
-    //     let result = await createCanister(config);
-    //     return result;
-    // };
-
-    // // TODO - REMOVE
-    // public shared (msg) func testCreateMainerLlmCanister(controllerCanisterAddress : Text) : async Types.CanisterCreationResult {
-    //     if (Principal.isAnonymous(msg.caller)) {
-    //         return #Err(#Unauthorized);
-    //     };
-    //     if (not Principal.isController(msg.caller)) {
-    //         return #Err(#Unauthorized);
-    //     };
-
-    //     // Sanity checks for controllerCanisterAddress
-    //     try {
-    //         // Check if the controller canister address exists and is functioning
-    //         let controllerActor = actor (controllerCanisterAddress) : Types.MainerAgentCtrlbCanister;
-    //         let healthResult = await controllerActor.health();
-            
-    //         switch (healthResult) {
-    //         case (#Err(_)) {
-    //             return #Err(#Other("Controller canister " # controllerCanisterAddress # " is not healthy"));
-    //         };
-    //         case (#Ok(_)) {
-    //             // Controller is healthy, now check its type
-    //             let canisterTypeResult = await controllerActor.getMainerCanisterType();
-                
-    //             switch (canisterTypeResult) {
-    //             case (#Err(_)) {
-    //                 return #Err(#Other("Failed to get controller canister type"));
-    //             };
-    //             case (#Ok(canisterType)) {
-    //                 // Verify this is an allowed controller type
-    //                 switch (canisterType) {
-    //                 case (#Own) {
-    //                     // This is allowed
-    //                 };
-    //                 case (#ShareService) {
-    //                     // This is allowed
-    //                 };
-    //                 case (#ShareAgent) {
-    //                     return #Err(#Other("ShareAgent type canister is not allowed to control an LLM canister"));
-    //                 };
-    //                 case _ {
-    //                     return #Err(#Other("Invalid controller canister type " # debug_show(canisterType)));
-    //                 };
-    //                 };
-    //             };
-    //             };
-    //         };
-    //         };
-    //     } catch (_) {
-    //         D.print("mAInerCreator: testCreateMainerLlmCanister - Error accessing controller canister: ");
-    //         return #Err(#Other("Controller canister does not exist or is not accessible"));
-    //     };
-    //     let mainerConfig : Types.MainerConfigurationInput = {
-    //         mainerAgentCanisterType: Types.MainerAgentCanisterType = #Own;
-    //         selectedLLM : ?Types.SelectableMainerLLMs = ?#Qwen2_5_500M;
-    //     };
-
-    //     let config : Types.CanisterCreationConfiguration = {
-    //         canisterType : Types.ProtocolCanisterType = #MainerLlm;
-    //         associatedCanisterAddress : ?Types.CanisterAddress = ?controllerCanisterAddress;
-    //         owner : Principal = msg.caller;
-    //         mainerConfig : Types.MainerConfigurationInput = mainerConfig;
-    //         userMainerEntryCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-    //         userMainerEntryCanisterType : Types.ProtocolCanisterType = #MainerLlm;
-    //     };
-    //     let result = await createCanister(config);
-    //     return result;
-    // };
 
     // -------------------------------------------------------------------------------
     // Canister upgrades
