@@ -755,14 +755,6 @@ persistent actor class ChallengerCtrlbCanister() {
                                         let additionResult : Types.ChallengeAdditionResult = await gameStateCanisterActor.addChallenge(newChallenge);
                                         D.print("Challenger: generateChallenge generatedChallengeOutput Ok additionResult");
                                         print(debug_show (additionResult));
-                                        switch (additionResult) {
-                                            case (#Err(error)) {
-                                                // TODO - Error Handling (e.g. put into queue and try again later)
-                                            };
-                                            case (#Ok(addedChallenge)) {
-                                                // TODO - Design: decide if returned challenge entry should be stored as well
-                                            };
-                                        };
                                         return generatedChallengeOutput;
                                     };
                                 };
@@ -784,8 +776,6 @@ persistent actor class ChallengerCtrlbCanister() {
                 
             } catch (e) {
                 D.print("gameStateCanisterActor.uploadMainerPromptCacheBytesChunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
-                
-                // TODO - Implementation: introduce a delay using a timer...
                 // Just retry immediately with decremented attempts
                 return await retryGameStateMainerPromptCacheChunkUploadWithDelay(gameStateCanisterActor, uploadMainerPromptCacheBytesChunkInput, attempts - 1, delay);
             };
@@ -805,8 +795,6 @@ persistent actor class ChallengerCtrlbCanister() {
                 
             } catch (e) {
                 D.print("gameStateCanisterActor.download_prompt_cache_chunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
-                
-                // TODO - Implementation: introduce a delay using a timer...
                 // Just retry immediately with decremented attempts
                 return await retryLlmMainerPromptCacheChunkDownloadWithDelay(llmCanister, downloadPromptCacheInputRecord, attempts - 1, delay);
             };
@@ -1164,8 +1152,6 @@ persistent actor class ChallengerCtrlbCanister() {
                 
             } catch (e) {
                 D.print("gameStateCanisterActor.uploadJudgePromptCacheBytesChunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
-                
-                // TODO - Implementation: introduce a delay using a timer...
                 // Just retry immediately with decremented attempts
                 return await retryGameStateJudgePromptCacheChunkUploadWithDelay(gameStateCanisterActor, uploadJudgePromptCacheBytesChunkInput, attempts - 1, delay);
             };
@@ -1185,8 +1171,6 @@ persistent actor class ChallengerCtrlbCanister() {
                 
             } catch (e) {
                 D.print("gameStateCanisterActor.download_prompt_cache_chunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
-                
-                // TODO - Implementation: introduce a delay using a timer...
                 // Just retry immediately with decremented attempts
                 return await retryLlmJudgePromptCacheChunkDownloadWithDelay(llmCanister, downloadPromptCacheInputRecord, attempts - 1, delay);
             };
