@@ -105,7 +105,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Official cycle balance
-    var officialCyclesBalance : Nat = Cycles.balance(); // TODO - Implementation: ensure this picks up the cycles the mAIner receives during creation
+    var officialCyclesBalance : Nat = Cycles.balance();
     var officialCycleTopUpsStorage : List.List<Types.OfficialMainerCycleTopUp> = List.nil<Types.OfficialMainerCycleTopUp>();
     
     public shared (msg) func addCycles() : async Types.AddCyclesResult {
@@ -267,7 +267,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         };
     };
 
-    // Caution: function that returns all ShareAgent canisters (TODO - Security: decide if needed)
+    // Caution: function that returns all ShareAgent canisters
     private func getShareAgents() : [Types.OfficialMainerAgentCanister] {
         var shareAgents : List.List<Types.OfficialMainerAgentCanister> = List.nil<Types.OfficialMainerAgentCanister>();
         for (userShareAgentsList in userToShareAgentsStorage.vals()) {
@@ -458,16 +458,13 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Statistics
-    // TODO - Implementation: set based on cycles flow data calculated in GameState
     var TOTAL_MAINER_CYCLES_BURNT : Nat = 100 * Constants.CYCLES_BILLION; // Initial value represents costs for creating this canister
 
-    // TODO - Implementation: ensure all relevant events for cycle buring are captured and adjust cycle burning numbers below to actual values
     private func increaseTotalCyclesBurnt(cyclesBurntToAdd : Nat) : Bool {
         TOTAL_MAINER_CYCLES_BURNT := TOTAL_MAINER_CYCLES_BURNT + cyclesBurntToAdd;
         return true;
     };
 
-    // TODO - Implementation: set based on cycles flow data calculated in GameState
     stable let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * Constants.CYCLES_BILLION;
 
     // This is just a placeholder to be used until the startTimerExecution is called.
@@ -920,7 +917,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
-    // TODO: deprecate this function - use get_llm_canisters instead
+    // Deprecate this function - use get_llm_canisters instead
     public query (msg) func getLLMCanisterIds() : async Types.CanisterAddressesResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -1085,8 +1082,6 @@ persistent actor class MainerAgentCtrlbCanister() = this {
             case (#Err(error)) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge error" # debug_show (error));
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): WARNING - ShareService is likely broken & admin must call resetChallengeQueueAdmin of the ShareAgent " # debug_show(challengeQueueInput.challengeQueuedBy) # " once the ShareService is fixed");
-                // TODO - Error Handling
-                // TODO - Design: in case of ShareService, do we refund the cycles to the ShareAgent?
                 // NOTE:
                 // - We are NOT sending anything back to the ShareAgent.
                 // - This is the safest approach to avoid sucking all cycles out of the ShareAgent in case the ShareService is not working
@@ -1097,7 +1092,6 @@ persistent actor class MainerAgentCtrlbCanister() = this {
             case (#Ok(respondingOutput : Types.ChallengeResponse)) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - calling putGeneratedResponse");
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondingOutput = " # debug_show (respondingOutput));
-                // TODO - Implementation: adapt cycles burnt stats
                 ignore increaseTotalCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
                 
                 var submittedBy : Principal = Principal.fromActor(this);
@@ -1212,7 +1206,6 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         switch (storeResult) {
             case (false) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - storeResult error");
-                // TODO - Error Handling
             };
             case (true) {
                 // Check if the canister still has enough cycles to submit it
@@ -1254,7 +1247,6 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                     case (#Err(error)) {
                         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - submitMetada error");
                         D.print(debug_show (error));
-                        // TODO - Error Handling
                     };
                     case (#Ok(submitMetada : Types.ChallengeResponseSubmissionMetadata)) {
                         // Successfully submitted to Game State
@@ -1316,10 +1308,8 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                         switch (putResult) {
                             case (false) {
                                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - putResult error");
-                                // TODO - Error Handling
                             };
                             case (true) {
-                                // TODO - Implementation: adapt cycles burnt stats - also, check we're not counting double...
                                 ignore increaseTotalCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
                             };
                         };
@@ -1798,8 +1788,6 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                 
             } catch (e) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): - retryGameStateMainerPromptCacheChunkDownloadWithDelay - gameStateCanisterActor.uploadMainerPromptCacheBytesChunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
-                
-                // TODO - Implementation: introduce a delay using a timer...
                 // Just retry immediately with decremented attempts
                 return await retryGameStateMainerPromptCacheChunkDownloadWithDelay(gameStateCanisterActor, downloadMainerPromptCacheBytesChunkInput, attempts - 1, delay);
             };
@@ -1819,8 +1807,6 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                 
             } catch (e) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): - retryLlmPrompCacheChunkUploadWithDelay - LLM upload_prompt_cache_chunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
-                
-                // TODO - Implementation: introduce a delay using a timer...
                 // Just retry immediately with decremented attempts
                 return await retryLlmPrompCacheChunkUploadWithDelay(llmCanisterActor, uploadChunk, attempts - 1, delay);
             };
@@ -1855,7 +1841,6 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         switch (challengeResult) {
             case (#Err(error)) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - challengeResult error : " # debug_show (error));
-                // TODO - Error Handling
             };
             case (#Ok(challenge : Types.Challenge)) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - challenge = " # debug_show (challenge));
@@ -1954,8 +1939,6 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                 if (challengeQueueInput.challengeQueuedBy != msg.caller) {
                     return #Err(#Unauthorized);
                 };
-
-                // TODO: make sure the cycles are sufficient
                 // Accept required cycles for queue input
                 let cyclesAcceptedForShareServiceQueue = Cycles.accept<system>(challengeQueueInput.cyclesGenerateResponseSactrlSsctrl);
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): addChallengeToShareServiceQueue - cyclesAcceptedForShareServiceQueue = " # Nat.toText(cyclesAcceptedForShareServiceQueue) # " from caller " # Principal.toText(msg.caller));
@@ -2074,11 +2057,6 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
         // This check does not apply because the mAIner Creator creates the ShareService canister
         // Just verifying that only a controller can call this is enough, and also all we can do.
-
-        // TODO - Security: Only official mAIner Creator canisters may call this
-        // switch (getMainerCreatorCanister(Principal.toText(msg.caller))) {
-        //     case (null) { return #Err(#Unauthorized); };
-        //     case (?mainerCreatorEntry) {
         let canisterEntry : Types.OfficialMainerAgentCanister = {
             address : Text = canisterEntryToAdd.address;
             subnet : Text = canisterEntryToAdd.subnet;
@@ -2089,12 +2067,10 @@ persistent actor class MainerAgentCtrlbCanister() = this {
             status : Types.CanisterStatus = canisterEntryToAdd.status;
             mainerConfig : Types.MainerConfigurationInput = canisterEntryToAdd.mainerConfig;
         };
-        putShareAgentCanister(canisterEntryToAdd.address, canisterEntry);           
-            // };
-        // };
+        putShareAgentCanister(canisterEntryToAdd.address, canisterEntry);
     };
 
-    // TODO - Testing: remove; admin Function to add new mAIner ShareAgent for testing
+    // Testing: admin Function to add new mAIner ShareAgent for testing
     public shared (msg) func addMainerShareAgentCanisterAdmin(canisterEntryToAdd : Types.OfficialMainerAgentCanister) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -2184,7 +2160,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - recurringTimerId2 = " # debug_show(recurringTimerId2) # ", bufferTimerId2 size = " # Nat.toText(bufferTimerId2.size()));
 
         var res = "You started the timers: ";
-        let TIMER_REGULARITY_DEFAULT = 5; // TODO - Implementation: move to common file
+        let TIMER_REGULARITY_DEFAULT = 5;
         var timerRegularity = TIMER_REGULARITY_DEFAULT;
 
         // Calculate timer regularity based on cycles burn rate for user's mAIner
