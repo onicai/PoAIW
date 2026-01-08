@@ -917,7 +917,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
-    // Deprecate this function - use get_llm_canisters instead
+    // Alternative function: get_llm_canisters
     public query (msg) func getLLMCanisterIds() : async Types.CanisterAddressesResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
