@@ -494,7 +494,6 @@ persistent actor class JudgeCtrlbCanister() = this {
             case (#Err(error)) {
                 D.print("Judge: processSubmission - processSubmission error");
                 D.print(debug_show (error));
-                // TODO - Error Handling
             };
             case (#Ok(scoringOutput)) {
                 // Store record of scoring the response
@@ -549,7 +548,6 @@ persistent actor class JudgeCtrlbCanister() = this {
                 switch (pushResult) {
                     case (false) {
                         D.print("Judge: processSubmission - pushResult error");
-                        // TODO - Error Handling
                     };
                     case (true) {
                         // Send scored response to Game State canister
@@ -603,7 +601,6 @@ persistent actor class JudgeCtrlbCanister() = this {
                             case (#Err(error)) {
                                 D.print("Judge: processSubmission - sendResult error");
                                 D.print(debug_show (error));
-                                // TODO - Error Handling
                             };
                             case (_) {
                                 // Successfully processed and sent to Game State
@@ -1107,8 +1104,6 @@ persistent actor class JudgeCtrlbCanister() = this {
                 
             } catch (e) {
                 D.print("Judge: retryGameStateJudgePromptCacheChunkDownloadWithDelay - gameStateCanisterActor.uploadJudgePromptCacheBytesChunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
-                
-                // TODO - Implementation: introduce a delay using a timer...
                 // Just retry immediately with decremented attempts
                 return await retryGameStateJudgePromptCacheChunkDownloadWithDelay(gameStateCanisterActor, downloadJudgePromptCacheBytesChunkInput, attempts - 1, delay);
             };
@@ -1128,8 +1123,6 @@ persistent actor class JudgeCtrlbCanister() = this {
                 
             } catch (e) {
                 D.print("Judge: retryLlmPrompCacheChunkUploadWithDelay - LLM upload_prompt_cache_chunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
-                
-                // TODO - Implementation: introduce a delay using a timer...
                 // Just retry immediately with decremented attempts
                 return await retryLlmPrompCacheChunkUploadWithDelay(llmCanisterActor, uploadChunk, attempts - 1, delay);
             };
@@ -1163,7 +1156,6 @@ persistent actor class JudgeCtrlbCanister() = this {
                 // Sanity checks on submitted response
                 if (submissionEntry.submissionStatus != #Judging or submissionEntry.submissionId == "" or submissionEntry.judgePromptId == "" or submissionEntry.challengeId == "" or submissionEntry.challengeQuestion == "" or submissionEntry.challengeAnswer == "") {
                     D.print("Judge: scoreNextSubmission - 02 - submissionEntry error - submissionEntry: " # debug_show (submissionEntry));
-                    // TODO - Error Handling: If this happens, we need to call the Game State canister to update the submissionStatus of the submission to #Error
                     return;
                 };
 
@@ -1325,7 +1317,7 @@ persistent actor class JudgeCtrlbCanister() = this {
         await stopTimerExecution();
     };
 
-    // TODO - Testing: remove; testing function for admin
+    // Testing: testing function for admin
     public shared (msg) func triggerScoreSubmissionAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
