@@ -422,7 +422,7 @@ persistent actor class TreasuryCanister() = this {
         return #Ok(authRecord);
     };
 
-    // Official balances // TODO - Implementation: decide if needed
+    // Official balances
     var icpBalance : Nat = 0;
     var funnaiBalance : Nat = 0;
 
@@ -460,7 +460,7 @@ persistent actor class TreasuryCanister() = this {
         };
         icpDisbursementsStorage := List.push<Types.TokenDisbursement>(disbursementEntry, icpDisbursementsStorage);
 
-        // TODO - Implementation: trigger tokenomics actions to handle disbursementAmount
+        // Trigger tokenomics actions to handle disbursementAmount
         ignore handleDisbursement(disbursementEntry);
 
         return #Ok({
@@ -641,13 +641,11 @@ persistent actor class TreasuryCanister() = this {
                 };
                 case (#Err(err)) {
                     D.print("Treasury: burnFunnaiTransaction - Transfer error: " # debug_show (err));
-                    // TODO - Error Handling (e.g. put into queue and try again later)
                     return 0;
                 };
             };
         } catch (e) {
             D.print("Treasury: burnFunnaiTransaction - Failed to call ledger: " # Error.message(e));
-            // TODO - Error Handling (e.g. put into queue and try again later)
             return 0;
         };
     };
@@ -826,7 +824,6 @@ persistent actor class TreasuryCanister() = this {
                                 };
                             } catch (error : Error) {
                                 D.print("Treasury: swapIcpToFunnai depositAndSwapResult error: " # Error.message(error));
-                                // TODO: try again, otherwise transferred ICP need to be reclaimed
                                 return #Err(#FailedOperation);
                             };
                         };
@@ -1034,7 +1031,6 @@ persistent actor class TreasuryCanister() = this {
                 return 0;
             };
         } else {
-            // TODO: Decide if only FUNNAI should be added to liquidity pool
             D.print("Treasury: mintLiquidityPosition MATCH_LIQUIDITY_ADDITION_ICP is false");
             return 0;
         };
@@ -1250,7 +1246,6 @@ persistent actor class TreasuryCanister() = this {
                 return (0, 0);
             };
         } else {
-            // TODO: Decide if only FUNNAI should be added to liquidity pool
             D.print("Treasury: addLiquidity MATCH_LIQUIDITY_ADDITION_ICP is false");
             return (0, 0);
         };
