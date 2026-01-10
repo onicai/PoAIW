@@ -258,13 +258,12 @@ persistent actor class GameStateCanister() = this {
     };
 
     // Token Ledger
-    var TOKEN_LEDGER_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // TODO: update
+    var TOKEN_LEDGER_CANISTER_ID : Text = "vpyot-zqaaa-aaaaa-qavaq-cai";
 
     transient let ICP_LEDGER_ACTOR : TokenLedger.TOKEN_LEDGER = Types.IcpLedger_Actor;
 
     transient let CMC_ACTOR : CMC.CYCLES_MINTING_CANISTER = Types.CyclesMintingCanister_Actor;
 
-    // TODO: remove this function before launching
     public shared (msg) func setTokenLedgerCanisterId(_token_ledger_canister_id : Text) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -278,7 +277,7 @@ persistent actor class GameStateCanister() = this {
     };
 
     // Treasury Canister
-    var TREASURY_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // TODO: update
+    var TREASURY_CANISTER_ID : Text = "qbhxa-ziaaa-aaaaa-qbqza-cai";
 
     public shared (msg) func setTreasuryCanisterId(_treasury_canister_id : Text) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -508,21 +507,10 @@ persistent actor class GameStateCanister() = this {
         };
     };
 
-    /* private func verify_payment(paymentBlockIndex : TokenLedger.BlockIndex) : async Result.Result<Text, Text> {
-        // https://internetcomputer.org/docs/defi/token-ledgers/usage/icp_ledger_usage#receiving-icp
-        let startIndex : Nat64 = paymentBlockIndex;
-        let queryLength : Nat64 = 1;
-        let queryResult = await ICP_LEDGER_ACTOR.get_blocks({
-            start = startIndex;
-            length = queryLength;
-        });
-    }; */
-
     // Code Verification for all mAIner agents
         // Users should not be able to tamper with the mAIner code
 
     // mAIner agent wasm module hash that must match
-        // TODO - Implementation: finalize implementation, ensure it's all stable, and remove any code not needed for production
         // -> For now, do not make it stable, so it can be updated via a canister upgrade
     transient var officialMainerAgentCanisterWasmHash : Blob = "\f5\d5\ab\57\f4\be\2d\c1\b2\1e\eb\51\02\1f\95\74\1f\3f\72\39\c5\c9\31\b1\e9\15\7d\73\4c\fc\8e\d8";
     var officialMainerAgentCanisterWasmHashVersion : Nat = 0;
@@ -662,7 +650,6 @@ persistent actor class GameStateCanister() = this {
     };
 
     // Game Settings
-    // TODO - Design: determine settings to use
     var THRESHOLD_ARCHIVE_CLOSED_CHALLENGES : Nat = 150;
     var THRESHOLD_MAX_OPEN_CHALLENGES : Nat = 4; // When above, Challengers will not be given a topic able to generate new challenges
     var THRESHOLD_MAX_OPEN_SUBMISSIONS : Nat = 140; // When above, mAIner agents will not be given a challenge to generate new responses
@@ -857,8 +844,8 @@ persistent actor class GameStateCanister() = this {
     };
 
     // Statistics 
-    var TOTAL_PROTOCOL_CYCLES_BURNT : Nat = 0; // TODO - Implementation: ensure all relevant events for cycle buring are captured and adjust cycle burning numbers below to actual values
-    // TODO: Update to actual values
+    var TOTAL_PROTOCOL_CYCLES_BURNT : Nat = 0;
+
     transient let CYCLES_BURNT_CHALLENGE_CREATION : Nat = 110 * Constants.CYCLES_BILLION;
     transient let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * Constants.CYCLES_BILLION;
     transient let CYCLES_BURNT_JUDGE_SCORING : Nat = 300 * Constants.CYCLES_BILLION;
@@ -904,7 +891,7 @@ persistent actor class GameStateCanister() = this {
 
     // Cycles for Own mAIner Creation 
     // Note: the ShareService mAIner will also use these values
-    var PRICE_FOR_OWN_MAINER_ICP : Nat64 = 1000; // TODO: Set to cost of a Own mAIner, in ICP
+    var PRICE_FOR_OWN_MAINER_ICP : Nat64 = 1000; // Set to cost of a Own mAIner, in ICP
     public shared (msg) func setIcpForOwnMainerAdmin(icpForOwnMainer : Nat64) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -918,7 +905,6 @@ persistent actor class GameStateCanister() = this {
     };
 
     // Function to set the price for creating a mAIner
-        // TODO - Implementation: Set timer for once a day that calculates the creation price based on the ICP/cycles conversion rate
     private func setPriceForCreatingMainer(newPrice : Nat64, mainerType : Types.MainerAgentCanisterType) : Bool {
         switch (mainerType) {
             case (#Own) {
@@ -932,7 +918,7 @@ persistent actor class GameStateCanister() = this {
         return true;
     };
 
-    var WHITELIST_PRICE_FOR_OWN_MAINER_ICP : Nat64 = PRICE_FOR_OWN_MAINER_ICP / 2; // TODO: Set to cost of a Own mAIner, in ICP
+    var WHITELIST_PRICE_FOR_OWN_MAINER_ICP : Nat64 = PRICE_FOR_OWN_MAINER_ICP / 2; // Set to cost of a whitelisted Own mAIner, in ICP
     public shared (msg) func setIcpForWhitelistOwnMainerAdmin(icpForOwnMainer : Nat64) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -1369,29 +1355,29 @@ persistent actor class GameStateCanister() = this {
     };
 
     // Protocol parameters used in the Generation Cycles Flow calculations
-    transient let DEFAULT_DAILY_CHALLENGES                : Nat = 6*24;                      // TODO: set the actual value or let the GameState automatically update this on a daily basis
+    transient let DEFAULT_DAILY_CHALLENGES                : Nat = 6*24;
     var dailyChallenges                  : Nat = DEFAULT_DAILY_CHALLENGES; // The lower the value, the more cycles are send with each challenge to the Challenger
 
     // -----------
     // TODO -- REMOVE THIS LOGIC. IT IS NOT USED...
-    transient let DEFAULT_DAILY_SUBMISSIONS_PER_OWN_LOW      : Nat =  24; // TODO: set the actual value
+    transient let DEFAULT_DAILY_SUBMISSIONS_PER_OWN_LOW      : Nat =  24;
     var dailySubmissionsPerOwnLOW           : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_OWN_LOW;
-    transient let DEFAULT_DAILY_SUBMISSIONS_PER_OWN_MEDIUM   : Nat =  48; // TODO: set the actual value
+    transient let DEFAULT_DAILY_SUBMISSIONS_PER_OWN_MEDIUM   : Nat =  48;
     var dailySubmissionsPerOwnMEDIUM        : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_OWN_MEDIUM;
-    transient let DEFAULT_DAILY_SUBMISSIONS_PER_OWN_HIGH     : Nat =  72; // TODO: set the actual value
+    transient let DEFAULT_DAILY_SUBMISSIONS_PER_OWN_HIGH     : Nat =  72;
     var dailySubmissionsPerOwnHIGH          : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_OWN_HIGH;
 
-    transient let DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_LOW    : Nat =   1; // TODO: set the actual value
+    transient let DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_LOW    : Nat =   1;
     var dailySubmissionsPerShareLOW         : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_LOW;
-    transient let DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_MEDIUM : Nat =   2; // TODO: set the actual value
+    transient let DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_MEDIUM : Nat =   2;
     var dailySubmissionsPerShareMEDIUM      : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_MEDIUM;
-    transient let DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_HIGH   : Nat =   3; // TODO: set the actual value
+    transient let DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_HIGH   : Nat =   3;
     var dailySubmissionsPerShareHIGH        : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_HIGH;
     // -----------
 
-    transient let DEFAULT_DAILY_SUBMISSIONS_ALL_OWN          : Nat =   0; // TODO = GameState automatically updates this on a daily basis
+    transient let DEFAULT_DAILY_SUBMISSIONS_ALL_OWN          : Nat =   0;
     var dailySubmissionsAllOwn              : Nat = DEFAULT_DAILY_SUBMISSIONS_ALL_OWN;
-    transient let DEFAULT_DAILY_SUBMISSIONS_ALL_SHARE        : Nat = 100; // TODO = GameState automatically updates this on a daily basis
+    transient let DEFAULT_DAILY_SUBMISSIONS_ALL_SHARE        : Nat = 100;
     var dailySubmissionsAllShare            : Nat = DEFAULT_DAILY_SUBMISSIONS_ALL_SHARE;
 
     transient let DEFAULT_PROTOCOL_OPERATION_FEES_CUT        : Nat =  10; // % added to unofficial mAIner agent's cycle topups to cover protocol operation fees
@@ -1404,11 +1390,11 @@ persistent actor class GameStateCanister() = this {
     var submissionFee                       : Nat = DEFAULT_SUBMISSION_FEE;
 
     // Number of protocol LLMs
-    transient let DEFAULT_NUM_CHALLENGER_LLMS                : Nat =   1; // Number of Challenger   LLMs     - TODO: update to actual value
+    transient let DEFAULT_NUM_CHALLENGER_LLMS                : Nat =   1; // Number of Challenger   LLMs     - update value if there are changes
     var numChallengerLlms                   : Nat = DEFAULT_NUM_CHALLENGER_LLMS;
-    transient let DEFAULT_NUM_JUDGE_LLMS                     : Nat =  24; // Number of Judge        LLMs     - TODO: update to actual value
+    transient let DEFAULT_NUM_JUDGE_LLMS                     : Nat =  24; // Number of Judge        LLMs     - update value if there are changes
     var numJudgeLlms                        : Nat = DEFAULT_NUM_JUDGE_LLMS;
-    transient let DEFAULT_NUM_SHARE_SERVICE_LLMS             : Nat =  16; // Number of ShareService LLMs     - TODO: update to actual value
+    transient let DEFAULT_NUM_SHARE_SERVICE_LLMS             : Nat =  16; // Number of ShareService LLMs     - update value if there are changes
     var numShareServiceLlms                 : Nat = DEFAULT_NUM_SHARE_SERVICE_LLMS;
 
     // Cost of the idle burn rates for protocol canisters
@@ -2079,7 +2065,7 @@ persistent actor class GameStateCanister() = this {
     };
 
     private func getRandomJudgeCanister() : ?Types.OfficialProtocolCanister {
-        // TODO: this function isn't random but always returns the first entry
+        // For now, this function isn't random but always returns the first entry
         let canisterIds : Iter.Iter<Types.OfficialProtocolCanister> = judgeCanistersStorage.vals();
         switch (canisterIds.next()) {
             case (null) { return null; };
@@ -2098,7 +2084,6 @@ persistent actor class GameStateCanister() = this {
 
     private func getMainerCreatorCanister(canisterAddress : Text) : ?Types.OfficialProtocolCanister {
         D.print("GameState: getMainerCreatorCanister - canisterAddress: " # debug_show(canisterAddress));
-        // TODO - Testing: remove (as just for debugging) 
         let mainerCreatorCanistersEntries = Iter.toArray(mainerCreatorCanistersStorage.entries());
         D.print("GameState: getMainerCreatorCanister - mainerCreatorCanistersStorage: " # debug_show(mainerCreatorCanistersEntries));
         switch (mainerCreatorCanistersStorage.get(canisterAddress)) {
@@ -2118,7 +2103,7 @@ persistent actor class GameStateCanister() = this {
     };
 
     private func getNextMainerCreatorCanisterEntry() : ?Types.OfficialProtocolCanister {
-        // TODO - Implementation: if this should be used for load balancing, then a different implementation is needed (likely by keeping an index of last used canister)
+        // Note: if this should be used for load balancing, then a different implementation is needed (likely by keeping an index of last used canister)
         return mainerCreatorCanistersStorage.vals().next();
     };
 
@@ -2133,7 +2118,6 @@ persistent actor class GameStateCanister() = this {
 
     private func getSharedServiceCanister(canisterAddress : Text) : ?Types.OfficialProtocolCanister {
         D.print("GameState: getSharedServiceCanister - canisterAddress: " # debug_show(canisterAddress));
-        // TODO - Testing: remove (as just for debugging) 
         let canistersEntries = Iter.toArray(sharedServiceCanistersStorage.entries());
         D.print("GameState: getSharedServiceCanister - canistersEntries: " # debug_show(canistersEntries));
         switch (sharedServiceCanistersStorage.get(canisterAddress)) {
@@ -2153,7 +2137,7 @@ persistent actor class GameStateCanister() = this {
     };
 
     private func getNextSharedServiceCanisterEntry() : ?Types.OfficialProtocolCanister {
-        // TODO - Implementation: if this should be used for load balancing, then a different implementation is needed (likely by keeping an index of last used canister)
+        // Note: If this should be used for load balancing, then a different implementation is needed (likely by keeping an index of last used canister)
         return sharedServiceCanistersStorage.vals().next();
     };
 
@@ -2164,7 +2148,6 @@ persistent actor class GameStateCanister() = this {
     transient var userToMainerAgentsStorage : HashMap.HashMap<Principal, List.List<Types.OfficialMainerAgentCanister>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
 
     private func putMainerAgentCanister(canisterAddress : Text, canisterEntry : Types.OfficialMainerAgentCanister) : Types.MainerAgentCanisterResult {
-        // TODO - Security: for security reasons, include checks here for an entry that already exists i.e. that immutable fields aren't changed
         mainerAgentCanistersStorage.put(canisterAddress, canisterEntry);
         return #Ok(canisterEntry);
     };
@@ -2213,7 +2196,7 @@ persistent actor class GameStateCanister() = this {
         };
     };
 
-    // Caution: function that returns all mAIner agents (TODO: decide if needed)
+    // Caution: function that returns all mAIner agents
     private func getMainerAgents() : [Types.OfficialMainerAgentCanister] {
         var mainerAgents : List.List<Types.OfficialMainerAgentCanister> = List.nil<Types.OfficialMainerAgentCanister>();
         for (userMainerAgentsList in userToMainerAgentsStorage.vals()) {
@@ -3773,7 +3756,7 @@ persistent actor class GameStateCanister() = this {
         return #Ok(authRecord);
     };
 
-    // TODO - Design: determine exact reward
+    // mAIning rewards
         // TODO - Design: define details of sponsored challenges and then add reward per challenge
     transient let DEFAULT_REWARD_PER_CHALLENGE : Types.RewardPerChallenge = {
         rewardType : Types.RewardType = #MainerToken;
@@ -3793,7 +3776,6 @@ persistent actor class GameStateCanister() = this {
         return #Ok(rewardPerChallenge);
     };
 
-    // TODO - Implementation: keep a history of the reward changes
     public shared (msg) func setRewardPerChallengeAdmin(totalReward : Nat) : async Types.RewardPerChallengeResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -3810,8 +3792,7 @@ persistent actor class GameStateCanister() = this {
         return #Ok(rewardPerChallenge);
     };
 
-    private func getRewardAmountForResult(achievedResult : Types.ChallengeParticipationResult, totalNumberParticipants : Nat) : Nat { 
-        // TODO - Implementation: is this safe? i.e. what could happen with rounding errors?
+    private func getRewardAmountForResult(achievedResult : Types.ChallengeParticipationResult, totalNumberParticipants : Nat) : Nat {
         let participationReward = rewardPerChallenge.amountForAllParticipants / totalNumberParticipants; 
         switch (achievedResult) {
             case (#Winner) { return rewardPerChallenge.winnerAmount + participationReward; };
@@ -3940,11 +3921,7 @@ persistent actor class GameStateCanister() = this {
             };
         };
 
-    };
-    
-
-    // TODO - Implementation: settings
-    
+    };    
 
     // -------------------------------------------------------------------------------
     // Canister Endpoints
@@ -4320,7 +4297,7 @@ persistent actor class GameStateCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
-    // TODO - Implementation:: Function to unlock a mAIner (and thus gain the right to create one and follow the creation flow below)
+    // Function to unlock a mAIner (and thus gain the right to create one and follow the whitelist creation flow below)
         // (called by admin e.g. when lottery is won with user as mAIner owner, potentially later on called by users directly too)
     public shared (msg) func unlockUserMainerAgent(mainerCreationInput : Types.MainerCreationInput) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -4542,7 +4519,7 @@ persistent actor class GameStateCanister() = this {
     };
 
     // Payment memo to specify in transaction to Protocol
-    let MEMO_PAYMENT : Nat64 = 173; // TODO - Security: double check value can be used
+    let MEMO_PAYMENT : Nat64 = 173;
     transient let PROTOCOL_PRINCIPAL_BLOB : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null);
     // Construct subaccount for the canister principal
     private func principalToSubaccount(principal : Principal) : Blob {
@@ -4606,15 +4583,14 @@ persistent actor class GameStateCanister() = this {
     // Decide on usage of incoming funds (e.g. for mAIner creation or top ups)
     private func handleIncomingFunds(transactionEntry : Types.RedeemedTransactionBlock) : async Types.HandleIncomingFundsResult {
         D.print("GameState: handleIncomingFunds - transactionEntry: "# debug_show(transactionEntry));
-        // TODO - Implementation: Calculate cut for Protocol's operational expenses (in ICP)
+        // Calculate cut for Protocol's operational expenses (in ICP)
         D.print("GameState: handleIncomingFunds - protocolOperationFeesCut: "# debug_show(protocolOperationFeesCut));
         D.print("GameState: handleIncomingFunds - protocolOperationFeesCut / 100: "# debug_show(protocolOperationFeesCut / 100));
-        var amountToKeep : Nat = transactionEntry.amount * protocolOperationFeesCut / 100; // TODO - Implementation: ensure this math operation works
+        var amountToKeep : Nat = transactionEntry.amount * protocolOperationFeesCut / 100;
         let amountForMainer : Nat = transactionEntry.amount - amountToKeep;
         var amountToConvert : Nat = 0;
         D.print("GameState: handleIncomingFunds - amountToKeep: "# debug_show(amountToKeep));
-        D.print("GameState: handleIncomingFunds - amountForMainer: "# debug_show(amountForMainer));       
-        // TODO - Implementation: if cycle balance > security buffer: take cycles from cycle balance
+        D.print("GameState: handleIncomingFunds - amountForMainer: "# debug_show(amountForMainer));
         switch (transactionEntry.redeemedFor) {
             case (#MainerCreation(#Own)) {
                 D.print("GameState: handleIncomingFunds - #MainerCreation(#Own) PROTOCOL_CYCLES_BALANCE_BUFFER: "# debug_show(PROTOCOL_CYCLES_BALANCE_BUFFER)); 
@@ -4645,7 +4621,6 @@ persistent actor class GameStateCanister() = this {
             case (_) { return #Err(#Other("Unsupported")); }
         };
         D.print("GameState: handleIncomingFunds - amountToKeep: "# debug_show(amountToKeep));
-        // TODO - Implementation: Convert amountToKeep to FUNNAI
 
         D.print("GameState: handleIncomingFunds - amountToConvert: "# debug_show(amountToConvert));
         if (amountToConvert > 0) {
@@ -4656,14 +4631,14 @@ persistent actor class GameStateCanister() = this {
                 owner : Principal = Principal.fromActor(CMC_ACTOR);
                 subaccount : ?Blob = ?PROTOCOL_SUBACCOUNT; // needs to match canister to credit cycles to in notify_top_up call, thus this canister
             };
-            let notifyTopUpMemo : ?Blob = ?"\54\50\55\50\00\00\00\00"; // TODO - Implementation: double check
+            let notifyTopUpMemo : ?Blob = ?"\54\50\55\50\00\00\00\00";
             let transferArg : TokenLedger.TransferArg = {
                 to : TokenLedger.Account = cmcAccount;
                 fee : ?Nat = null;
                 memo : ?Blob = notifyTopUpMemo; // needed for CMC to accept top up
                 from_subaccount : ?Blob = null;
                 created_at_time : ?Nat64 = null;
-                amount : Nat = amountToConvert; // TODO: deduct transfer fee
+                amount : Nat = amountToConvert;
             };
             let transferResult : TokenLedger.Result = await ICP_LEDGER_ACTOR.icrc1_transfer(transferArg);
             D.print("GameState: handleIncomingFunds - transferResult: "# debug_show(transferResult));
@@ -4719,7 +4694,7 @@ persistent actor class GameStateCanister() = this {
                 case (_) { return #Err(#FailedOperation); }
             };
         } else {
-            // TODO - Implementation: calculate the amount of cycles that the mAIner will get based on the payment
+            // Calculate the amount of cycles that the mAIner will get based on the payment
             D.print("GameState: handleIncomingFunds - no conversion necessary, calculate mAIner's cycles");
             // Call Cycles Minting Canister for cycles/ICP exchange rate            
             // First, get the ICP amount for the mAIner
@@ -4759,8 +4734,7 @@ persistent actor class GameStateCanister() = this {
         let amountForMainer : Nat = transactionEntry.amount - amountToKeep;
         var amountToConvert : Nat = 0;
         D.print("GameState: whitelistHandleIncomingFunds - amountToKeep: "# debug_show(amountToKeep));
-        D.print("GameState: whitelistHandleIncomingFunds - amountForMainer: "# debug_show(amountForMainer));       
-        // TODO - Implementation: if cycle balance > security buffer: take cycles from cycle balance
+        D.print("GameState: whitelistHandleIncomingFunds - amountForMainer: "# debug_show(amountForMainer));
         switch (transactionEntry.redeemedFor) {
             case (#MainerCreation(#Own)) {
                 D.print("GameState: whitelistHandleIncomingFunds - #MainerCreation(#Own) PROTOCOL_CYCLES_BALANCE_BUFFER: "# debug_show(PROTOCOL_CYCLES_BALANCE_BUFFER)); 
@@ -4799,14 +4773,14 @@ persistent actor class GameStateCanister() = this {
                 owner : Principal = Principal.fromActor(CMC_ACTOR);
                 subaccount : ?Blob = ?PROTOCOL_SUBACCOUNT; // needs to match canister to credit cycles to in notify_top_up call, thus this canister
             };
-            let notifyTopUpMemo : ?Blob = ?"\54\50\55\50\00\00\00\00"; // TODO - Implementation: double check
+            let notifyTopUpMemo : ?Blob = ?"\54\50\55\50\00\00\00\00";
             let transferArg : TokenLedger.TransferArg = {
                 to : TokenLedger.Account = cmcAccount;
                 fee : ?Nat = null;
                 memo : ?Blob = notifyTopUpMemo; // needed for CMC to accept top up
                 from_subaccount : ?Blob = null;
                 created_at_time : ?Nat64 = null;
-                amount : Nat = amountToConvert; // TODO: deduct transfer fee
+                amount : Nat = amountToConvert;
             };
             let transferResult : TokenLedger.Result = await ICP_LEDGER_ACTOR.icrc1_transfer(transferArg);
             D.print("GameState: whitelistHandleIncomingFunds - transferResult: "# debug_show(transferResult));
@@ -4854,8 +4828,7 @@ persistent actor class GameStateCanister() = this {
                 case (_) { return #Err(#FailedOperation); }
             };
         } else {
-            // TODO - Implementation: calculate the amount of cycles that the mAIner will get based on the payment
-                // TODO: this part is untested so far
+            // Calculate the amount of cycles that the mAIner will get based on the payment
             D.print("GameState: whitelistHandleIncomingFunds - no conversion necessary, calculate mAIner's cycles");
             // Call Cycles Minting Canister for cycles/ICP exchange rate            
             // First, get the ICP amount for the mAIner
@@ -4939,7 +4912,6 @@ persistent actor class GameStateCanister() = this {
 
     // Verify an incoming payment to the Protocol (e.g. for mAIner creation or top ups)
     private func verifyIncomingPayment(transactionEntry : Types.RedeemedTransactionBlock) : async Types.VerifyPaymentResult {
-        // Memo to add to transaction?
         // Retrieve transaction from Ledger
             // https://dashboard.internetcomputer.org/canister/ryjl3-tyaaa-aaaaa-aaaba-cai
         let getBlocksArgs : TokenLedger.GetBlocksArgs = {
@@ -4961,7 +4933,7 @@ persistent actor class GameStateCanister() = this {
         D.print("GameState: verifyIncomingPayment - MEMO_PAYMENT: "# debug_show(MEMO_PAYMENT));
         /* if (Nat64.notEqual(retrievedTransaction.memo, MEMO_PAYMENT)) {
             return #Err(#Other("Unsupported Memo"));
-        }; */ // TODO - Implementation: check if needed
+        }; */
         // Verify transaction went to Protocol's account
         D.print("GameState: verifyIncomingPayment - retrievedTransaction.operation: "# debug_show(retrievedTransaction.operation));
         switch (retrievedTransaction.operation) {
@@ -4980,7 +4952,7 @@ persistent actor class GameStateCanister() = this {
                         if (Blob.notEqual(transferDetails.to, PROTOCOL_PRINCIPAL_BLOB)) {
                             return #Err(#Other("Transaction didn't go to Protocol's address")); 
                         };
-                        // TODO - Implementation: ensure that paid amount equals price
+                        // Ensure that paid amount equals price
                         D.print("GameState: verifyIncomingPayment - transactionEntry.redeemedFor: "# debug_show(transactionEntry.redeemedFor));
                         switch (transactionEntry.redeemedFor) {
                             case (#MainerCreation(mainerAgentCanisterType)) {
@@ -5048,7 +5020,7 @@ persistent actor class GameStateCanister() = this {
         D.print("GameState: whitelistVerifyIncomingPayment - MEMO_PAYMENT: "# debug_show(MEMO_PAYMENT));
         /* if (Nat64.notEqual(retrievedTransaction.memo, MEMO_PAYMENT)) {
             return #Err(#Other("Unsupported Memo"));
-        }; */ // TODO - Implementation: check if needed
+        }; */
         // Verify transaction went to Protocol's account
         D.print("GameState: whitelistVerifyIncomingPayment - retrievedTransaction.operation: "# debug_show(retrievedTransaction.operation));
         switch (retrievedTransaction.operation) {
@@ -5067,7 +5039,7 @@ persistent actor class GameStateCanister() = this {
                         if (Blob.notEqual(transferDetails.to, PROTOCOL_PRINCIPAL_BLOB)) {
                             return #Err(#Other("Transaction didn't go to Protocol's address")); 
                         };
-                        // TODO - Implementation: ensure that paid amount equals price
+                        // Ensure that paid amount equals price
                         D.print("GameState: whitelistVerifyIncomingPayment - transactionEntry.redeemedFor: "# debug_show(transactionEntry.redeemedFor));
                         switch (transactionEntry.redeemedFor) {
                             case (#MainerCreation(mainerAgentCanisterType)) {
@@ -5184,7 +5156,7 @@ persistent actor class GameStateCanister() = this {
         };
         switch (mainerConfig.mainerAgentCanisterType) {
             case (#Own) {
-                // TODO - Implementation: ensure this transaction block hasn't been redeemed yet (no double spending)
+                // Ensure this transaction block hasn't been redeemed yet (no double spending)
                 switch (checkExistingTransactionBlock(transactionToVerify)) {
                     case (false) {
                         // new transaction, continue
@@ -5225,13 +5197,13 @@ persistent actor class GameStateCanister() = this {
 
         D.print("GameState: createUserMainerAgent - mainerConfig: "# debug_show(mainerConfig));
 
-        // TODO - Implementation: verify user's payment for this agent via the TransactionBlockId
+        // Verify user's payment for this agent via the TransactionBlockId
         var verifiedPayment : Bool = false;
         var amountPaid : Nat = 0;
         let redeemedFor : Types.RedeemedForOptions = #MainerCreation(mainerConfig.mainerAgentCanisterType);
         let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
         var continueForAdminWithoutPaymentVerification : Bool = false;
-        // TODO - Testing: comment out this switch statement for testing locally
+        // Testing: comment out this switch statement for testing locally
         switch (mainerConfig.mainerAgentCanisterType) {
             case (#ShareService) {
                 // Skip payment verification in case of ShareService, which is created by an Admin (Controller)
@@ -5258,7 +5230,7 @@ persistent actor class GameStateCanister() = this {
                         amountPaid := verificationResult.amountPaid;
                     };
                     case (_) {
-                        // TODO - Outcomment this for testing without actual ICP payment
+                        // Outcomment this for testing without actual ICP payment
                         if (Principal.isController(msg.caller)) {
                             verifiedPayment := true; 
                             amountPaid := 6 * Constants.CYCLES_TRILLION; // #own needs this much... TODO: amount is in ICP, not cycles
@@ -5274,7 +5246,7 @@ persistent actor class GameStateCanister() = this {
 
         if (not verifiedPayment) {
             return #Err(#Other("Payment couldn't be verified"));
-        }; // TODO - Testing: comment out this check for testing locally
+        }; // Testing: comment out this check for testing locally
 
         var handleResponse : Types.HandleIncomingFundsResult = #Err(#FailedOperation);
         switch (mainerConfig.mainerAgentCanisterType) {
@@ -5329,7 +5301,7 @@ persistent actor class GameStateCanister() = this {
                     creationTimestamp : Nat64 = creationTimestamp;
                     createdBy : Principal = msg.caller; // User (Admin (controller) in case of ShareService)
                     ownedBy : Principal = msg.caller; // User (Admin (controller) in case of ShareService)
-                    status : Types.CanisterStatus = #Paid; // TODO - Implementation: add transaction id to status #Paid or introduce new field
+                    status : Types.CanisterStatus = #Paid;
                     mainerConfig : Types.MainerConfigurationInput = updatedMainerConfig;
                 };
                 let newTransactionEntry : Types.RedeemedTransactionBlock = {
@@ -5343,10 +5315,9 @@ persistent actor class GameStateCanister() = this {
                 switch (putUserMainerAgent(canisterEntry)) {
                     case (true) {
                         D.print("GameState: createUserMainerAgent - putUserMainerAgent: true");
-                        // TODO - Implementation: track redeemed transaction blocks to ensure no double spending
+                        // Track redeemed transaction blocks to ensure no double spending
                         switch (putRedeemedTransactionBlock(newTransactionEntry)) {
                             case (false) {
-                                // TODO - Error Handling: likely retry
                                 D.print("GameState: createUserMainerAgent - putRedeemedTransactionBlock: false");
                             };
                             case (true) {
@@ -5358,7 +5329,6 @@ persistent actor class GameStateCanister() = this {
                     };
                     case (false) {
                         D.print("GameState: createUserMainerAgent - putUserMainerAgent: false");
-                        // TODO - Error Handling: likely retry
                         return #Err(#FailedOperation);
                     }
                 };
@@ -5394,7 +5364,7 @@ persistent actor class GameStateCanister() = this {
         };
         switch (mainerConfig.mainerAgentCanisterType) {
             case (#Own) {
-                // TODO - Implementation: ensure this transaction block hasn't been redeemed yet (no double spending)
+                // Ensure this transaction block hasn't been redeemed yet (no double spending)
                 switch (checkExistingTransactionBlock(transactionToVerify)) {
                     case (false) {
                         // new transaction, continue
@@ -5476,13 +5446,13 @@ persistent actor class GameStateCanister() = this {
             };
         };
 
-        // TODO - Implementation: verify user's payment for this agent via the TransactionBlockId
+        // Verify user's payment for this agent via the TransactionBlockId
         var verifiedPayment : Bool = false;
         var amountPaid : Nat = 0;
         let redeemedFor : Types.RedeemedForOptions = #MainerCreation(mainerConfig.mainerAgentCanisterType);
         let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
         var continueForAdminWithoutPaymentVerification : Bool = false;
-        // TODO - Testing: comment out this switch statement for testing locally
+        // Testing: comment out this switch statement for testing locally
         switch (mainerConfig.mainerAgentCanisterType) {
             case (#ShareService) {
                 // Skip payment verification in case of ShareService, which is created by an Admin (Controller)
@@ -5509,7 +5479,7 @@ persistent actor class GameStateCanister() = this {
                         amountPaid := verificationResult.amountPaid;
                     };
                     case (_) {
-                        // TODO - Outcomment this for testing without actual ICP payment
+                        // Outcomment this for testing without actual ICP payment
                         if (Principal.isController(msg.caller)) {
                             verifiedPayment := true; 
                             amountPaid := 6 * Constants.CYCLES_TRILLION; // #own needs this much... TODO: amount is in ICP, not cycles
@@ -5525,7 +5495,7 @@ persistent actor class GameStateCanister() = this {
 
         if (not verifiedPayment) {
             return #Err(#Other("Payment couldn't be verified"));
-        }; // TODO - Testing: comment out this check for testing locally
+        }; // Testing: comment out this check for testing locally
 
         var handleResponse : Types.HandleIncomingFundsResult = #Err(#FailedOperation);
         switch (mainerConfig.mainerAgentCanisterType) {
@@ -5580,7 +5550,7 @@ persistent actor class GameStateCanister() = this {
                     creationTimestamp : Nat64 = mainerCreationInput.creationTimestamp; // Original timestamp (from Unlocked mAIner entry)
                     createdBy : Principal = mainerCreationInput.createdBy; // Original creator (usually admin)
                     ownedBy : Principal = msg.caller; // User (Admin (controller) in case of ShareService)
-                    status : Types.CanisterStatus = #Paid; // TODO - Implementation: add transaction id to status #Paid or introduce new field
+                    status : Types.CanisterStatus = #Paid;
                     mainerConfig : Types.MainerConfigurationInput = updatedMainerConfig;
                 };
                 let newTransactionEntry : Types.RedeemedTransactionBlock = {
@@ -5594,10 +5564,9 @@ persistent actor class GameStateCanister() = this {
                 switch (putUserMainerAgent(canisterEntry)) {
                     case (true) {
                         D.print("GameState: whitelistCreateUserMainerAgent - putUserMainerAgent: true");
-                        // TODO - Implementation: track redeemed transaction blocks to ensure no double spending
+                        // Track redeemed transaction blocks to ensure no double spending
                         switch (putRedeemedTransactionBlock(newTransactionEntry)) {
                             case (false) {
-                                // TODO - Error Handling: likely retry
                                 D.print("GameState: whitelistCreateUserMainerAgent - putRedeemedTransactionBlock: false");
                             };
                             case (true) {
@@ -5609,7 +5578,6 @@ persistent actor class GameStateCanister() = this {
                     };
                     case (false) {
                         D.print("GameState: whitelistCreateUserMainerAgent - putUserMainerAgent: false");
-                        // TODO - Error Handling: likely retry
                         return #Err(#FailedOperation);
                     }
                 };
@@ -6304,7 +6272,7 @@ persistent actor class GameStateCanister() = this {
                             mainerConfig : Types.MainerConfigurationInput = mainerAgentEntry.mainerConfig;
                         };
                         D.print("GameState: upgradeMainerControllerAdmin - canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );
-                        // ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_MAINER_CREATION); // TODO
+                        // ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_MAINER_CREATION);
                         addMainerAgentCanister_(canisterEntryToAdd);            
                     };
                 };
@@ -6412,7 +6380,7 @@ persistent actor class GameStateCanister() = this {
                             mainerConfig : Types.MainerConfigurationInput = mainerAgentEntry.mainerConfig;
                         };
                         D.print("GameState: reinstallMainerControllerAdmin - canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );
-                        // ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_MAINER_CREATION); // TODO
+                        // ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_MAINER_CREATION);
                         addMainerAgentCanister_(canisterEntryToAdd);            
                     };
                 };
@@ -6500,7 +6468,7 @@ persistent actor class GameStateCanister() = this {
                                 return #Err(#Other("Unsupported")); 
                             }
                         };
-                        // TODO: These checks are dangerous.
+                        // These checks are dangerous.
                         // for example, if something went wrong with setup of LLM before, the status may be set to #LlmSetupInProgress(#CanisterCreated)
                         // and we are not able to add an LLM canister -> the controller is stuck
                         switch (userMainerEntry.status) {
@@ -6712,7 +6680,7 @@ persistent actor class GameStateCanister() = this {
                                 D.print("GameState: addLlmCanisterToMainer - Unsupported mAIner type: " # debug_show(userMainerEntry.canisterType) );   
                                 return #Err(#Other("Unsupported mAIner type: " # debug_show(userMainerEntry.canisterType))); }
                         };
-                        // TODO: These checks are dangerous.
+                        // These checks are dangerous.
                         // for example, if something went wrong with setup of LLM before, the status may be set to #LlmSetupInProgress(#CanisterCreated)
                         // and we are not able to add an LLM canister -> the controller is stuck
                         switch (userMainerEntry.status) {
@@ -6891,7 +6859,7 @@ persistent actor class GameStateCanister() = this {
         return #Ok(canisterEntry);
     };
 
-    // TODO - Testing: remove; admin Function to add new mAIner agent for testing
+    // Testing: admin Function to add new mAIner agent for testing
     public shared (msg) func addMainerAgentCanisterAdmin(canisterEntryToAdd : Types.OfficialMainerAgentCanister) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -6928,7 +6896,7 @@ persistent actor class GameStateCanister() = this {
         };
         D.print("GameState: topUpCyclesForMainerAgent - mainerTopUpInfo: "# debug_show(mainerTopUpInfo));
 
-        // TODO - Implementation: ensure this transaction block hasn't been redeemed yet (no double spending)     
+        // Ensure this transaction block hasn't been redeemed yet (no double spending)     
         let transactionToVerify = mainerTopUpInfo.paymentTransactionBlockId;
         switch (checkExistingTransactionBlock(transactionToVerify)) {
             case (false) {
@@ -6976,7 +6944,7 @@ persistent actor class GameStateCanister() = this {
                             case (_) { return #Err(#Other("Unsupported")); }
                         };
 
-                        // TODO - Implementation: verify user's payment for this agent via the TransactionBlockId
+                        // Verify user's payment for this agent via the TransactionBlockId
                         var verifiedPayment : Bool = false;
                         var amountPaid : Nat = 0;
                         let redeemedFor : Types.RedeemedForOptions = #MainerTopUp(userMainerEntry.address);
@@ -7069,12 +7037,9 @@ persistent actor class GameStateCanister() = this {
                                         };
                                         case (#Ok(addCyclesResult)) {
                                             D.print("GameState: topUpCyclesForMainerAgent - addCyclesResult: " # debug_show(addCyclesResult));
-                                            //TODO - Design: decide whether a top up history should be kept
                                             // Track redeemed transaction blocks to ensure no double spending
                                             switch (putRedeemedTransactionBlock(newTransactionEntry)) {
-                                                case (false) {
-                                                    // TODO - Error Handling: likely retry
-                                                };
+                                                case (false) { };
                                                 case (true) {
                                                     // continue
                                                 };
@@ -7104,10 +7069,9 @@ persistent actor class GameStateCanister() = this {
         };
         D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - mainerTopUpInfo: "# debug_show(mainerTopUpInfo));
 
-        // TODO: put this check back in place
         // Ensure this transaction block hasn't been redeemed yet (no double spending)     
         let transactionToVerify = mainerTopUpInfo.paymentTransactionBlockId;
-        /* switch (checkExistingTransactionBlock(transactionToVerify)) {
+        switch (checkExistingTransactionBlock(transactionToVerify)) {
             case (false) {
                 // new transaction, continue
             };
@@ -7115,7 +7079,7 @@ persistent actor class GameStateCanister() = this {
                 // already redeem transaction
                 return #Err(#Other("Already redeemd this transaction block")); // no double spending
             };
-        }; */
+        };
 
         // Sanity checks on provided mAIner info
         let mainerInfo : Types.OfficialMainerAgentCanister = mainerTopUpInfo.mainerAgent;
@@ -7249,12 +7213,9 @@ persistent actor class GameStateCanister() = this {
                                         };
                                         case (#Ok(addCyclesResult)) {
                                             D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - addCyclesResult: " # debug_show(addCyclesResult));
-                                            //TODO - Design: decide whether a top up history should be kept
                                             // Track redeemed transaction blocks to ensure no double spending
                                             switch (putRedeemedTransactionBlock(newTransactionEntry)) {
-                                                case (false) {
-                                                    // TODO - Error Handling: likely retry
-                                                };
+                                                case (false) {};
                                                 case (true) {
                                                     // continue
                                                 };
@@ -7396,12 +7357,9 @@ persistent actor class GameStateCanister() = this {
                                         };
                                         case (#Ok(addCyclesResult)) {
                                             D.print("GameState: topUpCyclesForMainerAgentWithFunnai - addCyclesResult: " # debug_show(addCyclesResult));
-                                            //TODO - Design: decide whether a top up history should be kept
                                             // Track redeemed FUNNAI transaction blocks to ensure no double spending
                                             switch (putRedeemedFunnaiTransactionBlock(newTransactionEntry)) {
-                                                case (false) {
-                                                    // TODO - Error Handling: likely retry
-                                                };
+                                                case (false) {};
                                                 case (true) {
                                                     // continue
                                                 };
@@ -7702,7 +7660,6 @@ persistent actor class GameStateCanister() = this {
                             cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
                         };
                         D.print("GameState: submitChallengeResponse - submitted! response for challengeId: " # challengeResponseSubmissionInput.challengeId # " for caller " # Principal.toText(msg.caller)) ;
-                        // TODO - Implementation: adapt cycles burnt stats
                         ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
                         return #Ok(submissionMetada);       
                     };
@@ -7877,13 +7834,11 @@ persistent actor class GameStateCanister() = this {
                 };
                 case (#Err(err)) {
                     D.print("GameState: mintRewardOnTokenLedger - Transfer error: " # debug_show(err));
-                    // TODO - Error Handling (e.g. put into queue and try again later)
                     return false;
                 };
             };
         } catch (e) {
             D.print("GameState: mintRewardOnTokenLedger - Failed to call ledger: " # Error.message(e));
-            // TTODO - Error Handling (e.g. put into queue and try again later)
             return false;
         };
     };
@@ -7931,7 +7886,6 @@ persistent actor class GameStateCanister() = this {
         // Close the challenge
         switch (closeChallenge(challengeId)) {
             case (false) {
-                // TODO - Error Handling (e.g. put into queue and try ranking again later)
                 return false;
             };
             case (true) {
@@ -7939,7 +7893,6 @@ persistent actor class GameStateCanister() = this {
                 let rankResult : ?Types.ChallengeWinnerDeclaration = rankScoredResponsesForChallenge(challengeId);
                 switch (rankResult) {
                     case (null) {
-                        // TODO - Error Handling (e.g. put into queue and try ranking again later)
                         return false;
                     };
                     case (?challengeWinnerDeclaration) {
@@ -7947,11 +7900,9 @@ persistent actor class GameStateCanister() = this {
                         // Distribute reward to winners and participants
                         switch (await distributeRewardForChallenge(challengeWinnerDeclaration)) {
                             case (false) {
-                                // TODO - Error Handling (e.g. put into queue and try ranking again later)
                                 return false;
                             };
                             case (true) {
-                                // TODO - Implementation: adapt cycles burnt stats
                                 ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_WINNER_DECLARATION);
                                 if (List.size<Types.Challenge>(archivedChallenges) >= THRESHOLD_ARCHIVE_CLOSED_CHALLENGES / 10) {
                                     // If the archived challenges storage is getting too big, migrate them to another canister and remove related data
@@ -7984,16 +7935,12 @@ persistent actor class GameStateCanister() = this {
                     D.print("GameState: addScoredResponse - 02");
                     return #Err(#Unauthorized);
                 };
-                // TODO - Design: likely we want to store the submissions from the mAIners and check here that it was an actual submission and that the data matches up
-
                 // Verify that challenge is open
                 if (not verifyChallenge(#Open, scoredResponseInput.challengeId)) {
-                    // TODO - Design: likely we want to store the scored response nevertheless for the closed challenge
                     D.print("GameState: addScoredResponse - 03");
                     return #Err(#InvalidId);
                 };
 
-                // TODO - Design: do we really need a separate storage for submissions & scored submissions?
                 // Change submissionStatus of the submission in submissionsStorage to #Judged
                 let submissionId : Text = scoredResponseInput.submissionId;
                 let submission : Types.ChallengeResponseSubmission = {
@@ -8092,7 +8039,6 @@ persistent actor class GameStateCanister() = this {
                 };
                 D.print("GameState: addScoredResponse - All Good - calling putScoredResponseForChallenge");
                 D.print("GameState: addScoredResponse - scoredResponseEntry = " # debug_show(scoredResponseEntry));
-                // TODO - Implementation: adapt cycles burnt stats
                 ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_JUDGE_SCORING);
                 let numberOfScoredResponsesForChallenge : Nat = putScoredResponseForChallenge(scoredResponseEntry);
                 D.print("GameState: addScoredResponse - numberOfScoredResponsesForChallenge = " # debug_show(numberOfScoredResponsesForChallenge));
@@ -8100,16 +8046,14 @@ persistent actor class GameStateCanister() = this {
 
                 // Determine if ranking of scored responses can be triggered
                 if (numberOfScoredResponsesForChallenge >= THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE) {
-                    // TODO - Design: we should close the challenge for handing out to mAIners, but we need to:
+                    // Design: we should close the challenge for handing out to mAIners, but we need to:
                     //       (-) accept mAIner submissions that have already received this challenge
                     //       (-) score those submissions
                     //       FOR NOW - JUST CLOSE IT AND RANK IT...
                     // Close challenge
                     D.print("GameState: addScoredResponse - reached threshold & closing the challenge: " # debug_show(scoredResponseInput.challengeQuestion));
                     switch (await finalizeOpenChallenge(scoredResponseInput.challengeId)) {
-                        case (false) {
-                            // TODO - Error Handling: error handling (e.g. put into queue and try again later)
-                        };
+                        case (false) {};
                         case (true) {
                             // continue
                         };
@@ -8133,7 +8077,7 @@ persistent actor class GameStateCanister() = this {
         return #Ok(getWinnersForRecentChallenges());
     };
 
-    // Function to get recent protocol activity (TODO - Security: decide if access should remain public)
+    // Function to get recent protocol activity
     public query func getRecentProtocolActivity() : async Types.ProtocolActivityResult {
         let winnersForRecentChallenges : [Types.ChallengeWinnerDeclaration] = getWinnersForRecentChallenges();
         let openChallenges : [Types.Challenge] = getOpenChallenges();
@@ -8181,7 +8125,6 @@ persistent actor class GameStateCanister() = this {
         return #Ok(TOTAL_PROTOCOL_CYCLES_BURNT);
     };
 
-    // TODO - Security: decide if kept in production
     public shared query (msg) func getOfficialCanistersAdmin() : async [Types.OfficialProtocolCanister] {
         if (not Principal.isController(msg.caller)) {
             return [];
@@ -8202,250 +8145,7 @@ persistent actor class GameStateCanister() = this {
         return List.toArray(officialCanisters);        
     };
 
-/* // Mockup functions (TODO - Testing: remove)
-    // Function for frontend integration testing that returns mockup data
-    public query (msg) func getScoreForSubmission_mockup(submissionInput : Types.SubmissionRetrievalInput) : async Types.ScoredResponseRetrievalResult {
-        switch (getOpenChallenge(submissionInput.challengeId)) {
-            case (?openChallenge) {
-                let scoredResponseEntry : Types.ScoredResponse = {
-                    challengeTopic : Text = openChallenge.challengeTopic;
-                    challengeTopicId : Text = openChallenge.challengeTopicId;
-                    challengeTopicCreationTimestamp : Nat64 = openChallenge.challengeTopicCreationTimestamp;
-                    challengeTopicStatus : Types.ChallengeTopicStatus = openChallenge.challengeTopicStatus;
-                    cyclesGenerateChallengeGsChctrl : Nat = openChallenge.cyclesGenerateChallengeGsChctrl;
-                    cyclesGenerateChallengeChctrlChllm : Nat = openChallenge.cyclesGenerateChallengeChctrlChllm;
-                    challengeQuestion : Text = openChallenge.challengeQuestion;
-                    challengeQuestionSeed : Nat32 = openChallenge.challengeQuestionSeed;
-                    mainerPromptId : Text = openChallenge.mainerPromptId;
-                    mainerMaxContinueLoopCount : Nat = openChallenge.mainerMaxContinueLoopCount;
-                    mainerNumTokens : Nat64 = openChallenge.mainerNumTokens;
-                    mainerTemp : Float = openChallenge.mainerTemp;
-                    judgePromptId : Text = openChallenge.judgePromptId;
-                    challengeId : Text = openChallenge.challengeId;
-                    challengeCreationTimestamp : Nat64 = openChallenge.challengeCreationTimestamp;
-                    challengeCreatedBy : Types.CanisterAddress = openChallenge.challengeCreatedBy;
-                    challengeStatus : Types.ChallengeStatus = openChallenge.challengeStatus;
-                    challengeClosedTimestamp : ?Nat64 = openChallenge.challengeClosedTimestamp;
-                    cyclesSubmitResponse : Nat = openChallenge.cyclesSubmitResponse;
-                    protocolOperationFeesCut : Nat = openChallenge.protocolOperationFeesCut;
-                    cyclesGenerateResponseSactrlSsctrl : Nat = openChallenge.cyclesGenerateResponseSactrlSsctrl;
-                    cyclesGenerateResponseSsctrlGs : Nat = openChallenge.cyclesGenerateResponseSsctrlGs;
-                    cyclesGenerateResponseSsctrlSsllm : Nat = openChallenge.cyclesGenerateResponseSsctrlSsllm;
-                    cyclesGenerateResponseOwnctrlGs : Nat = openChallenge.cyclesGenerateResponseOwnctrlGs;
-                    cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = openChallenge.cyclesGenerateResponseOwnctrlOwnllmLOW;
-                    cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = openChallenge.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
-                    cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = openChallenge.cyclesGenerateResponseOwnctrlOwnllmHIGH;
-                    challengeQueuedId : Text = submissionInput.submissionId;
-                    challengeQueuedBy : Principal = msg.caller;
-                    challengeQueuedTo : Principal = msg.caller;
-                    challengeQueuedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                    challengeAnswer : Text = "";
-                    challengeAnswerSeed : Nat32 = 0;
-                    submittedBy : Principal = msg.caller;
-                    submissionId : Text = submissionInput.submissionId;
-                    submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                    submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
-                    cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
-                    cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
-                    judgedBy: Principal = msg.caller;
-                    score: Nat = 5;
-                    scoreSeed: Nat32 = 0;
-                    judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                };
-                return #Ok(scoredResponseEntry);              
-            };
-            case (null) {
-                switch (getClosedChallenge(submissionInput.challengeId)) {
-                    case (?closedChallenge) {
-                        let scoredResponseEntry : Types.ScoredResponse = {
-                            challengeTopic : Text = closedChallenge.challengeTopic;
-                            challengeTopicId : Text = closedChallenge.challengeTopicId;
-                            challengeTopicCreationTimestamp : Nat64 = closedChallenge.challengeTopicCreationTimestamp;
-                            challengeTopicStatus : Types.ChallengeTopicStatus = closedChallenge.challengeTopicStatus;
-                            cyclesGenerateChallengeGsChctrl : Nat = closedChallenge.cyclesGenerateChallengeGsChctrl;
-                            cyclesGenerateChallengeChctrlChllm : Nat = closedChallenge.cyclesGenerateChallengeChctrlChllm;
-                            challengeQuestion : Text = closedChallenge.challengeQuestion;
-                            challengeQuestionSeed : Nat32 = closedChallenge.challengeQuestionSeed;
-                            mainerPromptId : Text = closedChallenge.mainerPromptId;
-                            mainerMaxContinueLoopCount : Nat = closedChallenge.mainerMaxContinueLoopCount;
-                            mainerNumTokens : Nat64 = closedChallenge.mainerNumTokens;
-                            mainerTemp : Float = closedChallenge.mainerTemp;
-                            judgePromptId : Text = closedChallenge.judgePromptId;
-                            challengeId : Text = closedChallenge.challengeId;
-                            challengeCreationTimestamp : Nat64 = closedChallenge.challengeCreationTimestamp;
-                            challengeCreatedBy : Types.CanisterAddress = closedChallenge.challengeCreatedBy;
-                            challengeStatus : Types.ChallengeStatus = closedChallenge.challengeStatus;
-                            challengeClosedTimestamp : ?Nat64 = closedChallenge.challengeClosedTimestamp;
-                            cyclesSubmitResponse : Nat = closedChallenge.cyclesSubmitResponse;
-                            protocolOperationFeesCut : Nat = closedChallenge.protocolOperationFeesCut;
-                            cyclesGenerateResponseSactrlSsctrl : Nat = closedChallenge.cyclesGenerateResponseSactrlSsctrl;
-                            cyclesGenerateResponseSsctrlGs : Nat = closedChallenge.cyclesGenerateResponseSsctrlGs;
-                            cyclesGenerateResponseSsctrlSsllm : Nat = closedChallenge.cyclesGenerateResponseSsctrlSsllm;
-                            cyclesGenerateResponseOwnctrlGs : Nat = closedChallenge.cyclesGenerateResponseOwnctrlGs;
-                            cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = closedChallenge.cyclesGenerateResponseOwnctrlOwnllmLOW;
-                            cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = closedChallenge.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
-                            cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = closedChallenge.cyclesGenerateResponseOwnctrlOwnllmHIGH;
-                            challengeQueuedId : Text = submissionInput.submissionId;
-                            challengeQueuedBy : Principal = msg.caller;
-                            challengeQueuedTo : Principal = msg.caller;
-                            challengeQueuedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                            challengeAnswer : Text = "";
-                            challengeAnswerSeed : Nat32 = 0;
-                            submittedBy : Principal = msg.caller;
-                            submissionId : Text = submissionInput.submissionId;
-                            submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                            submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
-                            cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
-                            cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
-                            judgedBy: Principal = msg.caller;
-                            score: Nat = 5;
-                            scoreSeed: Nat32 = 0;
-                            judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                        };
-                        return #Ok(scoredResponseEntry);                       
-                    };
-                    case (null) {
-                        let scoredResponseEntry : Types.ScoredResponse = {
-                            challengeTopic : Text = "";
-                            challengeTopicId : Text = "";
-                            challengeTopicCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                            challengeTopicStatus : Types.ChallengeTopicStatus = #Archived;
-                            cyclesGenerateChallengeGsChctrl : Nat = cyclesGenerateChallengeGsChctrl;
-                            cyclesGenerateChallengeChctrlChllm : Nat = cyclesGenerateChallengeChctrlChllm;
-                            challengeQuestion : Text = "";
-                            challengeQuestionSeed : Nat32 = 0;
-                            mainerPromptId : Text = "submissionInput.mainerPromptId";
-                            mainerMaxContinueLoopCount : Nat = 3;
-                            mainerNumTokens : Nat64 = 1024;
-                            mainerTemp : Float = 0.8;
-                            judgePromptId : Text = "submissionInput.judgePromptId";
-                            challengeId : Text = submissionInput.challengeId;
-                            challengeCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                            challengeCreatedBy : Types.CanisterAddress = "";
-                            challengeStatus : Types.ChallengeStatus = #Archived;
-                            challengeClosedTimestamp : ?Nat64 = ?Nat64.fromNat(Int.abs(Time.now()));
-                            cyclesSubmitResponse : Nat = cyclesSubmitResponse;
-                            protocolOperationFeesCut : Nat = protocolOperationFeesCut;
-                            cyclesGenerateResponseSactrlSsctrl : Nat = cyclesGenerateResponseSactrlSsctrl;
-                            cyclesGenerateResponseSsctrlGs : Nat = cyclesGenerateResponseSsctrlGs;
-                            cyclesGenerateResponseSsctrlSsllm : Nat = cyclesGenerateResponseSsctrlSsllm;
-                            cyclesGenerateResponseOwnctrlGs : Nat = cyclesGenerateResponseOwnctrlGs;
-                            cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = cyclesGenerateResponseOwnctrlOwnllmLOW;
-                            cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
-                            cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = cyclesGenerateResponseOwnctrlOwnllmHIGH;
-                            challengeQueuedId : Text = submissionInput.submissionId;
-                            challengeQueuedBy : Principal = msg.caller;
-                            challengeQueuedTo : Principal = msg.caller;
-                            challengeQueuedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                            challengeAnswer : Text = "";
-                            challengeAnswerSeed : Nat32 = 0;
-                            submittedBy : Principal = msg.caller;
-                            submissionId : Text = submissionInput.submissionId;
-                            submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                            submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
-                            cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
-                            cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
-                            judgedBy: Principal = msg.caller;
-                            score: Nat = 5;
-                            scoreSeed: Nat32 = 0;
-                            judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                        };
-                        return #Ok(scoredResponseEntry);                        
-                    };
-                };  
-            };
-        };
-    };
-
-    public query func getRecentProtocolActivity_mockup() : async Types.ProtocolActivityResult {
-        let mainerAgents : [Types.OfficialProtocolCanister] = getMainerAgents();
-
-        if (mainerAgents.size() > 0) {
-            var winnerAgent = mainerAgents[0];
-            var secondPlaceAgent = mainerAgents[0];
-            var thirdPlaceAgent = mainerAgents[0];
-            if (mainerAgents.size() > 1) {
-                secondPlaceAgent := mainerAgents[1];
-            } else if (mainerAgents.size() > 2) {
-                secondPlaceAgent := mainerAgents[1];
-                thirdPlaceAgent := mainerAgents[2];
-            };
-            var participantsList : List.List<Types.ChallengeParticipantEntry> = List.nil<Types.ChallengeParticipantEntry>();
-            // Winner
-            var rewardAmount : Nat = getRewardAmountForResult(#Winner, 3);
-            let winnerReward : Types.ChallengeWinnerReward = {
-                rewardType : Types.RewardType = rewardPerChallenge.rewardType;
-                amount : Nat = rewardAmount;
-                rewardDetails : Text = "";
-                distributed : Bool = false;
-                distributedTimestamp : ?Nat64 = null;
-            };
-            let winnerParticipant : Types.ChallengeParticipantEntry = {
-                submissionId : Text = "";
-                submittedBy : Principal = Principal.fromText(winnerAgent.address);
-                ownedBy: Principal = winnerAgent.ownedBy;
-                result : Types.ChallengeParticipationResult = #Winner;
-                reward : Types.ChallengeWinnerReward = winnerReward;
-            };
-            participantsList := List.push<Types.ChallengeParticipantEntry>(winnerParticipant, participantsList);
-            
-            // Second Place
-            rewardAmount := getRewardAmountForResult(#SecondPlace, 3);
-            let secondPlaceReward : Types.ChallengeWinnerReward = {
-                rewardType : Types.RewardType = rewardPerChallenge.rewardType;
-                amount : Nat = rewardAmount;
-                rewardDetails : Text = "";
-                distributed : Bool = false;
-                distributedTimestamp : ?Nat64 = null;
-            };
-            let secondPlaceParticipant : Types.ChallengeParticipantEntry = {
-                submissionId : Text = "";
-                submittedBy : Principal = Principal.fromText(secondPlaceAgent.address);
-                ownedBy: Principal = secondPlaceAgent.ownedBy;
-                result : Types.ChallengeParticipationResult = #SecondPlace;
-                reward : Types.ChallengeWinnerReward = secondPlaceReward;
-            };
-            participantsList := List.push<Types.ChallengeParticipantEntry>(secondPlaceParticipant, participantsList);
-            
-            // Third Place
-            rewardAmount := getRewardAmountForResult(#ThirdPlace, 3);
-            let thirdPlaceReward : Types.ChallengeWinnerReward = {
-                rewardType : Types.RewardType = rewardPerChallenge.rewardType;
-                amount : Nat = rewardAmount;
-                rewardDetails : Text = "";
-                distributed : Bool = false;
-                distributedTimestamp : ?Nat64 = null;
-            };
-            let thirdPlaceParticipant : Types.ChallengeParticipantEntry = {
-                submissionId : Text = "";
-                submittedBy : Principal = Principal.fromText(thirdPlaceAgent.address);
-                ownedBy: Principal = thirdPlaceAgent.ownedBy;
-                result : Types.ChallengeParticipationResult = #ThirdPlace;
-                reward : Types.ChallengeWinnerReward = thirdPlaceReward;
-            };
-            participantsList := List.push<Types.ChallengeParticipantEntry>(thirdPlaceParticipant, participantsList);
-            
-            let challengeWinnerDeclaration : Types.ChallengeWinnerDeclaration = {
-                challengeId : Text = "";
-                finalizedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                winner : Types.ChallengeParticipantEntry = winnerParticipant;
-                secondPlace : Types.ChallengeParticipantEntry = secondPlaceParticipant;
-                thirdPlace : Types.ChallengeParticipantEntry = thirdPlaceParticipant;
-                participants : List.List<Types.ChallengeParticipantEntry> = participantsList;
-            };
-            let winnersForRecentChallenges : [Types.ChallengeWinnerDeclaration] = [challengeWinnerDeclaration];
-            let openChallenges : [Types.Challenge] = getOpenChallenges();
-            let result : Types.ProtocolActivityRecord = {
-                winners = winnersForRecentChallenges;
-                challenges = openChallenges;
-            };
-            return #Ok(result);
-        } else {
-            return #Err(#InvalidId);
-        };
-    }; */
-
-// Upgrade Hooks (TODO - Implementation: upgrade Motoko to use enhanced orthogonal persistence)
+// Upgrade Hooks
     system func preupgrade() {
         challengerCanistersStorageStable := Iter.toArray(challengerCanistersStorage.entries());
         judgeCanistersStorageStable := Iter.toArray(judgeCanistersStorage.entries());
