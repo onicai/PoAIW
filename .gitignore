@@ -5,6 +5,9 @@ CLAUDE.md
 
 .mops/
 
+# LLM models
+*.gguf
+
 # Various IDEs and Editors
 .vscode/
 .idea/

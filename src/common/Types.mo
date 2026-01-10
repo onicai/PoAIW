@@ -625,6 +625,8 @@ module Types {
         args : [Text]; // the CLI args of llama.cpp/examples/main, as a list of strings
     };
 
+    // TODO: This has always been wrong, it must be changed to:
+    // correct: public type OutputRecordResult = Result<OutputRecord, OutputRecord>;
     public type OutputRecordResult = Result<OutputRecord, ApiError>;
     public type OutputRecord = {
         status_code : Nat16;
