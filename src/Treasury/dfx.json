@@ -2,7 +2,8 @@
   "version": 1,
   "canisters": {
     "funnai_treasury_canister": {
-      "main": "src/Main.mo"
+      "main": "src/Main.mo",
+      "type": "motoko"
     }
   },
   "defaults": {
