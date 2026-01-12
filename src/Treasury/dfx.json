@@ -3,7 +3,8 @@
   "canisters": {
     "funnai_treasury_canister": {
       "main": "src/Main.mo",
-      "type": "motoko"
+      "type": "motoko",
+      "args": "--enhanced-orthogonal-persistence"
     }
   },
   "defaults": {

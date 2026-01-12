@@ -21,7 +21,6 @@ import Timer "mo:base/Timer";
 
 import ICRC7 "mo:icrc7-mo";
 import ICRC37 "mo:icrc37-mo";
-import ICRC3 "mo:icrc3-mo";
 
 import Types "../../common/Types";
 import ICManagementCanister "../../common/ICManagementCanister";
