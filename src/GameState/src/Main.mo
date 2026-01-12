@@ -8761,10 +8761,10 @@ persistent actor class GameStateCanister() = this {
     };
 
     // Record mAIner transfer failures an admin must check on
-    stable var marketplaceMainerTransferFailuresStorageStable : [(Nat, Types.MainerTransferFailure)] = [];
+    var marketplaceMainerTransferFailuresStorageStable : [(Nat, Types.MainerTransferFailure)] = [];
     transient var marketplaceMainerTransferFailuresStorage : HashMap.HashMap<Nat, Types.MainerTransferFailure> = HashMap.HashMap(0, Nat.equal, Hash.hash); 
 
-    stable var resolvedMarketplaceMainerTransferFailures : List.List<Types.MainerTransferFailure> = List.nil<Types.MainerTransferFailure>();
+    var resolvedMarketplaceMainerTransferFailures : List.List<Types.MainerTransferFailure> = List.nil<Types.MainerTransferFailure>();
 
     private func putMainerTransferFailure(entry : Types.MainerTransferFailure) : Types.MainerTransferFailure {
         marketplaceMainerTransferFailuresStorage.put(entry.transactionId, entry);
@@ -9156,22 +9156,22 @@ persistent actor class GameStateCanister() = this {
     };
 
     // Marketplace functionality to sell and buy mAIners
-    stable var mainerMarketplaceTransactionsCounter : Nat = 0;
+    var mainerMarketplaceTransactionsCounter : Nat = 0;
     private func getNextMainerMarketplaceTransactionId() : Nat {
         mainerMarketplaceTransactionsCounter := mainerMarketplaceTransactionsCounter + 1;
         return mainerMarketplaceTransactionsCounter;
     };
 
     // When a mAIner owner lists a mAIner on the marketplace for selling, the mAIner is approved for the sale and added to the listings data structures
-    stable var marketplaceListedMainerAgentsStorageStable : [(Text, Types.MainerMarketplaceListing)] = [];
+    var marketplaceListedMainerAgentsStorageStable : [(Text, Types.MainerMarketplaceListing)] = [];
     transient var marketplaceListedMainerAgentsStorage : HashMap.HashMap<Text, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Text.equal, Text.hash);
-    stable var userToMarketplaceListedMainersStorageStable : [(Principal, List.List<Types.MainerMarketplaceListing>)] = [];
+    var userToMarketplaceListedMainersStorageStable : [(Principal, List.List<Types.MainerMarketplaceListing>)] = [];
     transient var userToMarketplaceListedMainersStorage : HashMap.HashMap<Principal, List.List<Types.MainerMarketplaceListing>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
 
     // When a buyer starts the buying process of a listed mAIner, the mAIner is reserved (thus added to the data structures) and while reserved removed from the listings
-    stable var marketplaceReservedMainerAgentsStorageStable : [(Text, Types.MainerMarketplaceListing)] = [];
+    var marketplaceReservedMainerAgentsStorageStable : [(Text, Types.MainerMarketplaceListing)] = [];
     transient var marketplaceReservedMainerAgentsStorage : HashMap.HashMap<Text, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Text.equal, Text.hash);
-    stable var userToMarketplaceReservedMainerStorageStable : [(Principal, Types.MainerMarketplaceListing)] = [];
+    var userToMarketplaceReservedMainerStorageStable : [(Principal, Types.MainerMarketplaceListing)] = [];
     transient var userToMarketplaceReservedMainerStorage : HashMap.HashMap<Principal, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Principal.equal, Principal.hash);
     
     // Non-stable: Timer IDs for marketplace reservations (2 minute expiry)
@@ -9179,7 +9179,7 @@ persistent actor class GameStateCanister() = this {
     let MARKETPLACE_RESERVATION_TIMEOUT_SECONDS : Nat = 120; // 2 minutes
 
     // Marketplace sales history for statistics
-    stable var marketplaceSalesHistoryStable : [Types.MarketplaceSale] = [];
+    var marketplaceSalesHistoryStable : [Types.MarketplaceSale] = [];
     transient var marketplaceSalesHistory : Buffer.Buffer<Types.MarketplaceSale> = Buffer.Buffer<Types.MarketplaceSale>(0);
 
     // CRUD helper functions for listings

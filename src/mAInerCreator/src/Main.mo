@@ -502,10 +502,10 @@ persistent actor class MainerCreatorCanister() = this {
 
     // Data structure for the model file
     var nextChunkID : Nat = 0;
-    stable let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(1, 1));
-    stable let initBlob : Blob = Blob.fromArray(innerInitArray);
+    let innerInitArray : [Nat8] = Array.freeze<Nat8>(Array.init<Nat8>(1, 1));
+    let initBlob : Blob = Blob.fromArray(innerInitArray);
     var modelFileChunks : [var Blob] = Array.init<Blob>(1, initBlob);
-    stable let MAX_MODEL_FILE_CHUNKS : Nat = 400;
+    let MAX_MODEL_FILE_CHUNKS : Nat = 400;
 
     // Admin function to start upload of the mainer LLM model file
     public shared (msg) func start_upload_mainer_llm() : async Types.StatusCodeRecordResult {

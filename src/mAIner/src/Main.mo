@@ -396,7 +396,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
 
     // The minimum cycle balance we want to maintain
-    stable let CYCLE_BALANCE_MINIMUM = 250 * Constants.CYCLES_BILLION;
+    let CYCLE_BALANCE_MINIMUM = 250 * Constants.CYCLES_BILLION;
 
     // A flag for the frontend to pick up and display a message to the user
     var PAUSED_DUE_TO_LOW_CYCLE_BALANCE : Bool = false;
@@ -465,10 +465,10 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         return true;
     };
 
-    stable let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * Constants.CYCLES_BILLION;
+    let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * Constants.CYCLES_BILLION;
 
     // This is just a placeholder to be used until the startTimerExecution is called.
-    stable let CYCLES_BURN_RATE_DEFAULT : Types.CyclesBurnRate = {
+    let CYCLES_BURN_RATE_DEFAULT : Types.CyclesBurnRate = {
         cycles : Nat = 1 * Constants.CYCLES_TRILLION;
         timeInterval : Types.TimeInterval = #Daily;
     };
