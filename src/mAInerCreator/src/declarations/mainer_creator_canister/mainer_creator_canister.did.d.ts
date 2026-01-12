@@ -2,6 +2,18 @@ import type { Principal } from '@dfinity/principal';
 import type { ActorMethod } from '@dfinity/agent';
 import type { IDL } from '@dfinity/candid';
 
+export interface AddControllerToMainerCanisterInput {
+  'newControllerPrincipal' : Principal,
+  'mainerEntry' : OfficialMainerAgentCanister,
+}
+export interface AddControllerToMainerCanisterRecord {
+  'added' : boolean,
+  'addedControllerPrincipal' : Principal,
+}
+export type AddControllerToMainerCanisterResult = {
+    'Ok' : AddControllerToMainerCanisterRecord
+  } |
+  { 'Err' : ApiError };
 export interface AddCyclesRecord { 'added' : boolean, 'amount' : bigint }
 export type AddCyclesResult = { 'Ok' : AddCyclesRecord } |
   { 'Err' : ApiError };
@@ -84,6 +96,10 @@ export interface MainerConfigurationInput {
   'subnetCtrl' : string,
 }
 export interface MainerCreatorCanister {
+  'addControllerToMainerCanister' : ActorMethod<
+    [AddControllerToMainerCanisterInput],
+    AddControllerToMainerCanisterResult
+  >,
   'addModelCreationArtefactsEntry' : ActorMethod<
     [AddModelCreationArtefactsEntry],
     InsertArtefactsResult
@@ -115,6 +131,7 @@ export interface MainerCreatorCanister {
   'getMasterCanisterIdAdmin' : ActorMethod<[], string>,
   'getMinCyclesBalanceAdmin' : ActorMethod<[], bigint>,
   'getSha256HashesAdmin' : ActorMethod<[], Sha256HashesResult>,
+  'getMinCyclesBalanceAdmin' : ActorMethod<[], bigint>,
   'health' : ActorMethod<[], StatusCodeRecordResult>,
   'isSubnetAvailableAdmin' : ActorMethod<
     [string],
@@ -124,6 +141,10 @@ export interface MainerCreatorCanister {
   'reinstallMainerctrl' : ActorMethod<
     [ReinstallMainerctrlInput],
     StatusCodeRecordResult
+  >,
+  'removeControllerFromMainerCanister' : ActorMethod<
+    [RemoveControllerFromMainerCanisterInput],
+    RemoveControllerFromMainerCanisterResult
   >,
   'sendCyclesToGameStateCanister' : ActorMethod<[], AddCyclesResult>,
   'setCyclesToSendToGameStateAdmin' : ActorMethod<
@@ -188,6 +209,18 @@ export interface ReinstallMainerctrlInput {
   'cyclesReinstallMainerctrlGsMc' : bigint,
   'mainerAgentEntry' : OfficialMainerAgentCanister,
 }
+export interface RemoveControllerFromMainerCanisterInput {
+  'toRemoveControllerPrincipal' : Principal,
+  'mainerEntry' : OfficialMainerAgentCanister,
+}
+export interface RemoveControllerFromMainerCanisterRecord {
+  'removedControllerPrincipal' : Principal,
+  'removed' : boolean,
+}
+export type RemoveControllerFromMainerCanisterResult = {
+    'Ok' : RemoveControllerFromMainerCanisterRecord
+  } |
+  { 'Err' : ApiError };
 export type SelectableMainerLLMs = { 'Qwen2_5_500M' : null };
 export interface SetupCanisterInput {
   'configurationInput' : CanisterCreationConfiguration,

@@ -19,6 +19,10 @@ import Array "mo:base/Array";
 import { setTimer; recurringTimer } = "mo:base/Timer";
 import Timer "mo:base/Timer";
 
+import ICRC7 "mo:icrc7-mo";
+import ICRC37 "mo:icrc37-mo";
+import ICRC3 "mo:icrc3-mo";
+
 import Types "../../common/Types";
 import ICManagementCanister "../../common/ICManagementCanister";
 import TokenLedger "../../common/icp-ledger-interface";
@@ -26,6 +30,7 @@ import Constants "../../common/Constants";
 import CMC "../../common/cycles-minting-canister-interface";
 
 import Utils "Utils";
+import NFT "NFT";
 
 persistent actor class GameStateCanister() = this {
 
@@ -2195,6 +2200,89 @@ persistent actor class GameStateCanister() = this {
             case (?userCanistersList) { return ?userCanistersList; };
         };
     };
+
+    // Admin function to check user-mAIner mapping consistency
+    // Returns info about any discrepancies between the two storage structures
+    public shared query (msg) func checkUserMainerMappingConsistencyAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Count total mAIners in main storage
+        var totalMainersInStorage : Nat = 0;
+        for ((address, mainerEntry) in mainerAgentCanistersStorage.entries()) {
+            totalMainersInStorage += 1;
+        };
+
+        // Count total mAIners in user mapping
+        var totalMainersInUserMapping : Nat = 0;
+        for ((user, mainersList) in userToMainerAgentsStorage.entries()) {
+            totalMainersInUserMapping += List.size(mainersList);
+        };
+
+        // Count unique users in user mapping
+        var uniqueUsers : Nat = 0;
+        for ((user, mainersList) in userToMainerAgentsStorage.entries()) {
+            uniqueUsers += 1;
+        };
+
+        let statusMsg = "Total mAIners in storage: " # Nat.toText(totalMainersInStorage) 
+                      # ", Total mAIners in user mapping: " # Nat.toText(totalMainersInUserMapping)
+                      # ", Unique users: " # Nat.toText(uniqueUsers);
+
+        if (totalMainersInStorage != totalMainersInUserMapping) {
+            let authRecord = { auth = "INCONSISTENCY: " # statusMsg # " - Run rebuildUserMainerMappingAdmin() to fix." };
+            return #Ok(authRecord);
+        } else {
+            let authRecord = { auth = "OK: Mapping is consistent. " # statusMsg };
+            return #Ok(authRecord);
+        };
+    };
+
+    // COMMENTED OUT: Admin function to rebuild userToMainerAgentsStorage from mainerAgentCanistersStorage
+    // This is useful if the user-to-mAIner mapping gets corrupted during an upgrade
+    // WARNING: This function is too risky to leave enabled as it clears and rebuilds the entire mapping
+    // Uncomment only if absolutely necessary for emergency recovery
+    /*
+    public shared (msg) func rebuildUserMainerMappingAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        // Clear the existing mapping
+        userToMainerAgentsStorage := HashMap.HashMap(0, Principal.equal, Principal.hash);
+        
+        // Rebuild from mainerAgentCanistersStorage
+        var rebuiltCount : Nat = 0;
+        for ((address, mainerEntry) in mainerAgentCanistersStorage.entries()) {
+            // Add this mAIner to the user's list
+            switch (getUserMainerAgents(mainerEntry.ownedBy)) {
+                case (null) {
+                    // First mAIner for this user
+                    let userCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.make<Types.OfficialMainerAgentCanister>(mainerEntry);
+                    userToMainerAgentsStorage.put(mainerEntry.ownedBy, userCanistersList);
+                    rebuiltCount += 1;
+                };
+                case (?userCanistersList) {
+                    // Add to existing list, with deduplication based on address
+                    let filteredUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.filter(userCanistersList, func(listEntry: Types.OfficialMainerAgentCanister) : Bool { listEntry.address != mainerEntry.address });
+                    let updatedUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.push<Types.OfficialMainerAgentCanister>(mainerEntry, filteredUserCanistersList);
+                    userToMainerAgentsStorage.put(mainerEntry.ownedBy, updatedUserCanistersList);
+                    rebuiltCount += 1;
+                };
+            };
+        };
+
+        let authRecord = { auth = "Rebuilt user-mAIner mapping for " # Nat.toText(rebuiltCount) # " mAIners" };
+        return #Ok(authRecord);
+    };
+    */
 
     // Caution: function that returns all mAIner agents
     private func getMainerAgents() : [Types.OfficialMainerAgentCanister] {
@@ -8145,7 +8233,1416 @@ persistent actor class GameStateCanister() = this {
         return List.toArray(officialCanisters);        
     };
 
-// Upgrade Hooks
+/* // Mockup functions (TODO - Testing: remove)
+    // Function for frontend integration testing that returns mockup data
+    public query (msg) func getScoreForSubmission_mockup(submissionInput : Types.SubmissionRetrievalInput) : async Types.ScoredResponseRetrievalResult {
+        switch (getOpenChallenge(submissionInput.challengeId)) {
+            case (?openChallenge) {
+                let scoredResponseEntry : Types.ScoredResponse = {
+                    challengeTopic : Text = openChallenge.challengeTopic;
+                    challengeTopicId : Text = openChallenge.challengeTopicId;
+                    challengeTopicCreationTimestamp : Nat64 = openChallenge.challengeTopicCreationTimestamp;
+                    challengeTopicStatus : Types.ChallengeTopicStatus = openChallenge.challengeTopicStatus;
+                    cyclesGenerateChallengeGsChctrl : Nat = openChallenge.cyclesGenerateChallengeGsChctrl;
+                    cyclesGenerateChallengeChctrlChllm : Nat = openChallenge.cyclesGenerateChallengeChctrlChllm;
+                    challengeQuestion : Text = openChallenge.challengeQuestion;
+                    challengeQuestionSeed : Nat32 = openChallenge.challengeQuestionSeed;
+                    mainerPromptId : Text = openChallenge.mainerPromptId;
+                    mainerMaxContinueLoopCount : Nat = openChallenge.mainerMaxContinueLoopCount;
+                    mainerNumTokens : Nat64 = openChallenge.mainerNumTokens;
+                    mainerTemp : Float = openChallenge.mainerTemp;
+                    judgePromptId : Text = openChallenge.judgePromptId;
+                    challengeId : Text = openChallenge.challengeId;
+                    challengeCreationTimestamp : Nat64 = openChallenge.challengeCreationTimestamp;
+                    challengeCreatedBy : Types.CanisterAddress = openChallenge.challengeCreatedBy;
+                    challengeStatus : Types.ChallengeStatus = openChallenge.challengeStatus;
+                    challengeClosedTimestamp : ?Nat64 = openChallenge.challengeClosedTimestamp;
+                    cyclesSubmitResponse : Nat = openChallenge.cyclesSubmitResponse;
+                    protocolOperationFeesCut : Nat = openChallenge.protocolOperationFeesCut;
+                    cyclesGenerateResponseSactrlSsctrl : Nat = openChallenge.cyclesGenerateResponseSactrlSsctrl;
+                    cyclesGenerateResponseSsctrlGs : Nat = openChallenge.cyclesGenerateResponseSsctrlGs;
+                    cyclesGenerateResponseSsctrlSsllm : Nat = openChallenge.cyclesGenerateResponseSsctrlSsllm;
+                    cyclesGenerateResponseOwnctrlGs : Nat = openChallenge.cyclesGenerateResponseOwnctrlGs;
+                    cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = openChallenge.cyclesGenerateResponseOwnctrlOwnllmLOW;
+                    cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = openChallenge.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+                    cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = openChallenge.cyclesGenerateResponseOwnctrlOwnllmHIGH;
+                    challengeQueuedId : Text = submissionInput.submissionId;
+                    challengeQueuedBy : Principal = msg.caller;
+                    challengeQueuedTo : Principal = msg.caller;
+                    challengeQueuedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                    challengeAnswer : Text = "";
+                    challengeAnswerSeed : Nat32 = 0;
+                    submittedBy : Principal = msg.caller;
+                    submissionId : Text = submissionInput.submissionId;
+                    submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                    submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                    cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
+                    cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
+                    judgedBy: Principal = msg.caller;
+                    score: Nat = 5;
+                    scoreSeed: Nat32 = 0;
+                    judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                };
+                return #Ok(scoredResponseEntry);              
+            };
+            case (null) {
+                switch (getClosedChallenge(submissionInput.challengeId)) {
+                    case (?closedChallenge) {
+                        let scoredResponseEntry : Types.ScoredResponse = {
+                            challengeTopic : Text = closedChallenge.challengeTopic;
+                            challengeTopicId : Text = closedChallenge.challengeTopicId;
+                            challengeTopicCreationTimestamp : Nat64 = closedChallenge.challengeTopicCreationTimestamp;
+                            challengeTopicStatus : Types.ChallengeTopicStatus = closedChallenge.challengeTopicStatus;
+                            cyclesGenerateChallengeGsChctrl : Nat = closedChallenge.cyclesGenerateChallengeGsChctrl;
+                            cyclesGenerateChallengeChctrlChllm : Nat = closedChallenge.cyclesGenerateChallengeChctrlChllm;
+                            challengeQuestion : Text = closedChallenge.challengeQuestion;
+                            challengeQuestionSeed : Nat32 = closedChallenge.challengeQuestionSeed;
+                            mainerPromptId : Text = closedChallenge.mainerPromptId;
+                            mainerMaxContinueLoopCount : Nat = closedChallenge.mainerMaxContinueLoopCount;
+                            mainerNumTokens : Nat64 = closedChallenge.mainerNumTokens;
+                            mainerTemp : Float = closedChallenge.mainerTemp;
+                            judgePromptId : Text = closedChallenge.judgePromptId;
+                            challengeId : Text = closedChallenge.challengeId;
+                            challengeCreationTimestamp : Nat64 = closedChallenge.challengeCreationTimestamp;
+                            challengeCreatedBy : Types.CanisterAddress = closedChallenge.challengeCreatedBy;
+                            challengeStatus : Types.ChallengeStatus = closedChallenge.challengeStatus;
+                            challengeClosedTimestamp : ?Nat64 = closedChallenge.challengeClosedTimestamp;
+                            cyclesSubmitResponse : Nat = closedChallenge.cyclesSubmitResponse;
+                            protocolOperationFeesCut : Nat = closedChallenge.protocolOperationFeesCut;
+                            cyclesGenerateResponseSactrlSsctrl : Nat = closedChallenge.cyclesGenerateResponseSactrlSsctrl;
+                            cyclesGenerateResponseSsctrlGs : Nat = closedChallenge.cyclesGenerateResponseSsctrlGs;
+                            cyclesGenerateResponseSsctrlSsllm : Nat = closedChallenge.cyclesGenerateResponseSsctrlSsllm;
+                            cyclesGenerateResponseOwnctrlGs : Nat = closedChallenge.cyclesGenerateResponseOwnctrlGs;
+                            cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = closedChallenge.cyclesGenerateResponseOwnctrlOwnllmLOW;
+                            cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = closedChallenge.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+                            cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = closedChallenge.cyclesGenerateResponseOwnctrlOwnllmHIGH;
+                            challengeQueuedId : Text = submissionInput.submissionId;
+                            challengeQueuedBy : Principal = msg.caller;
+                            challengeQueuedTo : Principal = msg.caller;
+                            challengeQueuedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            challengeAnswer : Text = "";
+                            challengeAnswerSeed : Nat32 = 0;
+                            submittedBy : Principal = msg.caller;
+                            submissionId : Text = submissionInput.submissionId;
+                            submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                            cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
+                            cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
+                            judgedBy: Principal = msg.caller;
+                            score: Nat = 5;
+                            scoreSeed: Nat32 = 0;
+                            judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                        };
+                        return #Ok(scoredResponseEntry);                       
+                    };
+                    case (null) {
+                        let scoredResponseEntry : Types.ScoredResponse = {
+                            challengeTopic : Text = "";
+                            challengeTopicId : Text = "";
+                            challengeTopicCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            challengeTopicStatus : Types.ChallengeTopicStatus = #Archived;
+                            cyclesGenerateChallengeGsChctrl : Nat = cyclesGenerateChallengeGsChctrl;
+                            cyclesGenerateChallengeChctrlChllm : Nat = cyclesGenerateChallengeChctrlChllm;
+                            challengeQuestion : Text = "";
+                            challengeQuestionSeed : Nat32 = 0;
+                            mainerPromptId : Text = "submissionInput.mainerPromptId";
+                            mainerMaxContinueLoopCount : Nat = 3;
+                            mainerNumTokens : Nat64 = 1024;
+                            mainerTemp : Float = 0.8;
+                            judgePromptId : Text = "submissionInput.judgePromptId";
+                            challengeId : Text = submissionInput.challengeId;
+                            challengeCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            challengeCreatedBy : Types.CanisterAddress = "";
+                            challengeStatus : Types.ChallengeStatus = #Archived;
+                            challengeClosedTimestamp : ?Nat64 = ?Nat64.fromNat(Int.abs(Time.now()));
+                            cyclesSubmitResponse : Nat = cyclesSubmitResponse;
+                            protocolOperationFeesCut : Nat = protocolOperationFeesCut;
+                            cyclesGenerateResponseSactrlSsctrl : Nat = cyclesGenerateResponseSactrlSsctrl;
+                            cyclesGenerateResponseSsctrlGs : Nat = cyclesGenerateResponseSsctrlGs;
+                            cyclesGenerateResponseSsctrlSsllm : Nat = cyclesGenerateResponseSsctrlSsllm;
+                            cyclesGenerateResponseOwnctrlGs : Nat = cyclesGenerateResponseOwnctrlGs;
+                            cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = cyclesGenerateResponseOwnctrlOwnllmLOW;
+                            cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+                            cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = cyclesGenerateResponseOwnctrlOwnllmHIGH;
+                            challengeQueuedId : Text = submissionInput.submissionId;
+                            challengeQueuedBy : Principal = msg.caller;
+                            challengeQueuedTo : Principal = msg.caller;
+                            challengeQueuedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            challengeAnswer : Text = "";
+                            challengeAnswerSeed : Nat32 = 0;
+                            submittedBy : Principal = msg.caller;
+                            submissionId : Text = submissionInput.submissionId;
+                            submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                            submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
+                            cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
+                            cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
+                            judgedBy: Principal = msg.caller;
+                            score: Nat = 5;
+                            scoreSeed: Nat32 = 0;
+                            judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                        };
+                        return #Ok(scoredResponseEntry);                        
+                    };
+                };  
+            };
+        };
+    };
+
+    public query func getRecentProtocolActivity_mockup() : async Types.ProtocolActivityResult {
+        let mainerAgents : [Types.OfficialProtocolCanister] = getMainerAgents();
+
+        if (mainerAgents.size() > 0) {
+            var winnerAgent = mainerAgents[0];
+            var secondPlaceAgent = mainerAgents[0];
+            var thirdPlaceAgent = mainerAgents[0];
+            if (mainerAgents.size() > 1) {
+                secondPlaceAgent := mainerAgents[1];
+            } else if (mainerAgents.size() > 2) {
+                secondPlaceAgent := mainerAgents[1];
+                thirdPlaceAgent := mainerAgents[2];
+            };
+            var participantsList : List.List<Types.ChallengeParticipantEntry> = List.nil<Types.ChallengeParticipantEntry>();
+            // Winner
+            var rewardAmount : Nat = getRewardAmountForResult(#Winner, 3);
+            let winnerReward : Types.ChallengeWinnerReward = {
+                rewardType : Types.RewardType = rewardPerChallenge.rewardType;
+                amount : Nat = rewardAmount;
+                rewardDetails : Text = "";
+                distributed : Bool = false;
+                distributedTimestamp : ?Nat64 = null;
+            };
+            let winnerParticipant : Types.ChallengeParticipantEntry = {
+                submissionId : Text = "";
+                submittedBy : Principal = Principal.fromText(winnerAgent.address);
+                ownedBy: Principal = winnerAgent.ownedBy;
+                result : Types.ChallengeParticipationResult = #Winner;
+                reward : Types.ChallengeWinnerReward = winnerReward;
+            };
+            participantsList := List.push<Types.ChallengeParticipantEntry>(winnerParticipant, participantsList);
+            
+            // Second Place
+            rewardAmount := getRewardAmountForResult(#SecondPlace, 3);
+            let secondPlaceReward : Types.ChallengeWinnerReward = {
+                rewardType : Types.RewardType = rewardPerChallenge.rewardType;
+                amount : Nat = rewardAmount;
+                rewardDetails : Text = "";
+                distributed : Bool = false;
+                distributedTimestamp : ?Nat64 = null;
+            };
+            let secondPlaceParticipant : Types.ChallengeParticipantEntry = {
+                submissionId : Text = "";
+                submittedBy : Principal = Principal.fromText(secondPlaceAgent.address);
+                ownedBy: Principal = secondPlaceAgent.ownedBy;
+                result : Types.ChallengeParticipationResult = #SecondPlace;
+                reward : Types.ChallengeWinnerReward = secondPlaceReward;
+            };
+            participantsList := List.push<Types.ChallengeParticipantEntry>(secondPlaceParticipant, participantsList);
+            
+            // Third Place
+            rewardAmount := getRewardAmountForResult(#ThirdPlace, 3);
+            let thirdPlaceReward : Types.ChallengeWinnerReward = {
+                rewardType : Types.RewardType = rewardPerChallenge.rewardType;
+                amount : Nat = rewardAmount;
+                rewardDetails : Text = "";
+                distributed : Bool = false;
+                distributedTimestamp : ?Nat64 = null;
+            };
+            let thirdPlaceParticipant : Types.ChallengeParticipantEntry = {
+                submissionId : Text = "";
+                submittedBy : Principal = Principal.fromText(thirdPlaceAgent.address);
+                ownedBy: Principal = thirdPlaceAgent.ownedBy;
+                result : Types.ChallengeParticipationResult = #ThirdPlace;
+                reward : Types.ChallengeWinnerReward = thirdPlaceReward;
+            };
+            participantsList := List.push<Types.ChallengeParticipantEntry>(thirdPlaceParticipant, participantsList);
+            
+            let challengeWinnerDeclaration : Types.ChallengeWinnerDeclaration = {
+                challengeId : Text = "";
+                finalizedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                winner : Types.ChallengeParticipantEntry = winnerParticipant;
+                secondPlace : Types.ChallengeParticipantEntry = secondPlaceParticipant;
+                thirdPlace : Types.ChallengeParticipantEntry = thirdPlaceParticipant;
+                participants : List.List<Types.ChallengeParticipantEntry> = participantsList;
+            };
+            let winnersForRecentChallenges : [Types.ChallengeWinnerDeclaration] = [challengeWinnerDeclaration];
+            let openChallenges : [Types.Challenge] = getOpenChallenges();
+            let result : Types.ProtocolActivityRecord = {
+                winners = winnersForRecentChallenges;
+                challenges = openChallenges;
+            };
+            return #Ok(result);
+        } else {
+            return #Err(#InvalidId);
+        };
+    }; */
+
+// ============================================================================
+    // NFT COMPATIBILITY FUNCTIONS (ICRC-7 and ICRC-37)
+    // See NFT.mo for additional NFT functions not actively used by marketplace
+    // ============================================================================
+    
+    // --- Static metadata functions (delegated to NFT module) ---
+    public query func icrc7_symbol() : async Text {
+        return NFT.symbol();
+    };
+
+    public query func icrc7_name() : async Text {
+        return NFT.name();
+    };
+
+    public query func icrc7_description() : async ?Text {
+        return NFT.description();
+    };
+
+    public query func icrc7_logo() : async ?Text {
+        return NFT.logo();
+    };
+
+    public query func icrc7_collection_metadata() : async [(Text, ICRC7.Value)] {
+        return NFT.collectionMetadata();
+    };
+
+    public query func icrc10_supported_standards() : async ICRC7.SupportedStandards {
+        return NFT.supportedStandards();
+    };
+
+    // --- Marketplace-essential ICRC-7 functions ---
+    
+    public query func icrc7_total_supply() : async Nat {
+        return marketplaceListedMainerAgentsStorage.size();
+    };
+
+    public query func icrc7_token_metadata(token_ids: [Nat]) : async [?[(Text, ICRC7.Value)]]{
+        // Retrieve all mAIner marketplace listings
+        let listings : [Types.MainerMarketplaceListing] = getAllMarketplaceListedMainers();
+        // Convert each listing NFT metadata (array which contains the (Text, Value) pairs)
+        let out : [?[(Text, ICRC7.Value)]] = Array.map<Types.MainerMarketplaceListing, ?[(Text, ICRC7.Value)]>(
+            listings,
+            func (l : Types.MainerMarketplaceListing) : ?[(Text, ICRC7.Value)] {
+                let meta : [(Text, ICRC7.Value)] = [
+                    ("address",         #Text(l.address)),
+                    ("mainerType",      #Text(debug_show(l.mainerType))),
+                    ("listedTimestamp", #Nat(Nat64.toNat(l.listedTimestamp))),
+                    ("listedBy",        #Text(Principal.toText(l.listedBy))),
+                    ("priceE8S",        #Nat(l.priceE8S)),
+                ];
+                ?meta
+            }
+        );
+
+        return out;
+    };
+
+    // --- NFT functions moved to NFT.mo (kept here for interface compatibility, may be removed later) ---
+    
+    public query func icrc7_supply_cap() : async ?Nat {
+        let currentNumberOfMainers = getNumberMainerAgents(#ShareAgent);
+        return ?currentNumberOfMainers;
+    };
+
+    public query (msg) func icrc7_balance_of(accounts: [TokenLedger.Account]) : async [Nat] {
+        // Only allows 1 account and retrieves info for it
+        if (Principal.isAnonymous(msg.caller)) {
+            return [0];
+        };
+        if (accounts.size() != 1) {
+            return [0];
+        };
+        switch (getMarketplaceListedMainersForUser(accounts[0].owner)) {
+            case (null) { return [0]; };
+            case (?userCanistersList) {
+                let numberOfListings : Nat = List.size<Types.MainerMarketplaceListing>(userCanistersList);
+                return [numberOfListings];
+            };
+        };
+    };
+
+    public query func icrc7_tokens(prev: ?Nat, take: ?Nat) : async [Nat] {
+        let total = marketplaceListedMainerAgentsStorage.size();
+        return NFT.generateTokenIds(total);
+    };
+
+    public shared(msg) func icrc37_approve_tokens(args: [ICRC37.Service.ApproveTokenArg]) : async [?ICRC37.Service.ApproveTokenResult] {
+        /* type Account = record { owner : principal; subaccount : opt Subaccount };
+
+        type ApprovalInfo = record {
+            spender : Account;             // Game State (no Subaccount) but doesn't need to be checked
+            from_subaccount : opt blob;    // null
+            expires_at : opt nat64; // null
+            memo : opt blob; // mAIner address
+            created_at_time : nat64; // doesn't matter, canister will create a timestamp
+        };
+
+        type ApproveTokenArg = record {
+            token_id : nat; // price (for listing)
+            approval_info : ApprovalInfo;
+        }; */
+        /* type ApproveTokenResult = variant {
+            Ok : nat; // Transaction index for successful approval
+            Err : ApproveTokenError;
+        };
+
+        type ApproveTokenError = variant {
+            InvalidSpender;
+            Unauthorized;
+            NonExistingTokenId;
+            TooOld;
+            CreatedInFuture : record { ledger_time: nat64 };
+            GenericError : record { error_code : nat; message : text };
+            GenericBatchError : record { error_code : nat; message : text };
+        }; */
+        // mAIner Owner lists one of their mAIners (this call only works for one mAIner, thus first entry in array args)
+        if (Principal.isAnonymous(msg.caller)) {
+            return [?#Err(#Unauthorized)];
+        };
+        if (args.size() != 1) {
+            return [?#Err(#Unauthorized)];
+        };
+        let approveTokenArg : ICRC37.Service.ApproveTokenArg = args[0];
+        D.print("GameState: icrc37_approve_tokens - approveTokenArg: "# debug_show(approveTokenArg));
+        if (approveTokenArg.token_id < 1000000) {
+            // Price has to be at least 0.01 ICP
+            D.print("GameState: icrc37_approve_tokens - specified price to small: "# debug_show(approveTokenArg.token_id));
+            return [?#Err(#Unauthorized)];
+        };
+        // Get mAIner address from memo
+        switch (approveTokenArg.approval_info.memo) {
+            case (null) {
+                // No mAIner canister specified
+                D.print("GameState: icrc37_approve_tokens - no mAIner canister specified (as memo): "# debug_show(approveTokenArg.approval_info.memo));
+                return [?#Err(#Unauthorized)];
+            };
+            case (?approvalMemo) {
+                let text = Text.decodeUtf8(approvalMemo);
+                switch (text) {
+                    case (null) {
+                        // No mAIner canister specified
+                        D.print("GameState: icrc37_approve_tokens - no mAIner canister received from decoded memo: "# debug_show(approvalMemo));
+                        return [?#Err(#Unauthorized)];
+                    };
+                    case (?mainerAddress) {
+                        D.print("GameState: icrc37_approve_tokens - specified mainerAddress (in memo): "# debug_show(mainerAddress));
+                        // Confirm caller owns mAIner
+                        switch (getUserMainerAgents(msg.caller)) {
+                            case (null) {
+                                D.print("GameState: icrc37_approve_tokens - caller does not own any mAIners: "# debug_show(msg.caller));
+                                return [?#Err(#Unauthorized)];
+                            };
+                            case (?userMainerEntries) {
+                                switch (List.find<Types.OfficialMainerAgentCanister>(userMainerEntries, func(mainerEntry: Types.OfficialMainerAgentCanister) : Bool { mainerEntry.address == mainerAddress } )) {
+                                    case (null) {
+                                        D.print("GameState: icrc37_approve_tokens - caller does not own the mAIner: "# debug_show(msg.caller));
+                                        return [?#Err(#NonExistingTokenId)];
+                                    };
+                                    case (?userMainerEntry) {
+                                        D.print("GameState: icrc37_approve_tokens - specified mAIner exists: "# debug_show(userMainerEntry));
+                                        // Sanity checks on userMainerEntry (i.e. address provided is correct and matches entry info)
+                                        switch (userMainerEntry.canisterType) {
+                                            case (#MainerAgent(mainerAgentCanisterType)) {
+                                                // Check that mAIner is not reserved currently
+                                                switch (getMarketplaceReservedMainer(mainerAddress)) {
+                                                    case (?canisterEntry) { return [?#Err(#Unauthorized)]; }; // The mAIner is currently reserved and thus in the process of being bought
+                                                    case (null) {
+                                                        // Add mAIner to listings
+                                                        let entry : Types.MainerMarketplaceListing = {
+                                                            address : Types.CanisterAddress = userMainerEntry.address;
+                                                            mainerType: Types.MainerAgentCanisterType = mainerAgentCanisterType;
+                                                            listedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                                                            listedBy : Principal = msg.caller;
+                                                            priceE8S : Nat = approveTokenArg.token_id;
+                                                            reservedBy : ?Principal = null;
+                                                        };
+                                                        let result = putMarketplaceListedMainer(entry);
+                                                        D.print("GameState: icrc37_approve_tokens - added mAIner to listings: "# debug_show(entry));
+                                                        return [?#Ok(getNextMainerMarketplaceTransactionId())];                                                
+                                                    };
+                                                };
+                                            };
+                                            case (_) { return [?#Err(#Unauthorized)]; }
+                                        };
+                                    };
+                                };
+                            };
+                        };                        
+                    }; 
+                };
+            }; 
+        };
+    };
+
+    public shared(msg) func icrc37_revoke_token_approvals<system>(args: [ICRC37.Service.RevokeTokenApprovalArg]) : async [?ICRC37.Service.RevokeTokenApprovalResult] {
+        /* type RevokeTokenApprovalArg = record {
+            spender : opt Account;      // null revokes matching approvals for all spenders
+            from_subaccount : opt blob; // null refers to the default subaccount
+            token_id : nat;
+            memo : opt blob; // only field that matters: use for mAIner's id (canister address)
+            created_at_time : opt nat64;
+        };
+
+        type RevokeTokenApprovalResponse = variant {
+            Ok : nat; // Transaction index for successful approval revocation
+            Err : RevokeTokenApprovalError;
+        };
+
+        type RevokeTokenApprovalError = variant {
+            ApprovalDoesNotExist;
+            Unauthorized;
+            NonExistingTokenId;
+            TooOld;
+            CreatedInFuture : record { ledger_time: nat64 };
+            GenericError : record { error_code : nat; message : text };
+            GenericBatchError : record { error_code : nat; message : text };
+        }; */
+        if (Principal.isAnonymous(msg.caller)) {
+            return [?#Err(#Unauthorized)];
+        };
+        if (args.size() != 1) {
+            return [?#Err(#Unauthorized)];
+        };
+        let revokeTokenArg : ICRC37.Service.RevokeTokenApprovalArg = args[0];
+        D.print("GameState: icrc37_revoke_token_approvals - revokeTokenArg: "# debug_show(revokeTokenArg));
+        // Get mAIner address from memo
+        switch (revokeTokenArg.memo) {
+            case (null) {
+                // No mAIner canister specified
+                D.print("GameState: icrc37_revoke_token_approvals - No mAIner canister specified by caller: "# debug_show(msg.caller));
+                return [?#Err(#Unauthorized)];
+            };
+            case (?revokeMemo) {
+                let text = Text.decodeUtf8(revokeMemo);
+                switch (text) {
+                    case (null) {
+                        // No mAIner canister specified
+                        D.print("GameState: icrc37_revoke_token_approvals - No mAIner canister specified by caller: "# debug_show(msg.caller));
+                        return [?#Err(#Unauthorized)];
+                    };
+                    case (?mainerAddress) {
+                        // Confirm caller owns mAIner
+                        switch (getUserMainerAgents(msg.caller)) {
+                            case (null) {
+                                D.print("GameState: icrc37_revoke_token_approvals - caller doesn't own any mAIner: "# debug_show(msg.caller));
+                                return [?#Err(#Unauthorized)];
+                            };
+                            case (?userMainerEntries) {
+                                switch (List.find<Types.OfficialMainerAgentCanister>(userMainerEntries, func(mainerEntry: Types.OfficialMainerAgentCanister) : Bool { mainerEntry.address == mainerAddress } )) {
+                                    case (null) {
+                                        D.print("GameState: icrc37_revoke_token_approvals - caller doesn't own mAIner: "# debug_show(msg.caller));
+                                        return [?#Err(#Unauthorized)];
+                                    };
+                                    case (?userMainerEntry) {
+                                        D.print("GameState: icrc37_revoke_token_approvals - mAIner exists: "# debug_show(userMainerEntry));
+                                        switch (userMainerEntry.canisterType) {
+                                            case (#MainerAgent(mainerAgentCanisterType)) {
+                                                // Check that mAIner is listed currently
+                                                switch (getMarketplaceListedMainer(mainerAddress)) {
+                                                    case (null) { return [?#Err(#Unauthorized)]; };
+                                                    case (?canisterEntry) {
+                                                        // Remove mAIner from listings
+                                                        switch (removeMarketplaceListedMainer(mainerAddress)) {
+                                                            case (false) { return [?#Err(#Unauthorized)]; };
+                                                            case (true) {
+                                                                D.print("GameState: icrc37_revoke_token_approvals - removed mAIner from listings: "# debug_show(canisterEntry));
+                                                                return [?#Ok(getNextMainerMarketplaceTransactionId())];                                                
+                                                            };
+                                                        };                                                
+                                                    };
+                                                };
+                                            };
+                                            case (_) { return [?#Err(#Unauthorized)]; }
+                                        };
+                                    };
+                                };
+                            };
+                        };                        
+                    }; 
+                };
+            }; 
+        };
+    };
+
+    // Record mAIner transfer failures an admin must check on
+    stable var marketplaceMainerTransferFailuresStorageStable : [(Nat, Types.MainerTransferFailure)] = [];
+    var marketplaceMainerTransferFailuresStorage : HashMap.HashMap<Nat, Types.MainerTransferFailure> = HashMap.HashMap(0, Nat.equal, Hash.hash); 
+
+    stable var resolvedMarketplaceMainerTransferFailures : List.List<Types.MainerTransferFailure> = List.nil<Types.MainerTransferFailure>();
+
+    private func putMainerTransferFailure(entry : Types.MainerTransferFailure) : Types.MainerTransferFailure {
+        marketplaceMainerTransferFailuresStorage.put(entry.transactionId, entry);
+        return entry;
+    };
+
+    private func getAllMainerTransferFailures() : [Types.MainerTransferFailure] {
+        return Iter.toArray(marketplaceMainerTransferFailuresStorage.vals());
+    };
+
+    private func resolveMainerTransferFailure(resolveInput : Types.ResolveMainerTransferFailureInput) : Bool {
+        switch (marketplaceMainerTransferFailuresStorage.get(resolveInput.transactionId)) {
+            case (null) { return false; };
+            case (?failureEntry) {
+                let resolvedEntry : Types.MainerTransferFailure = {
+                    transactionId : Nat = failureEntry.transactionId;
+                    seller : Principal = failureEntry.seller;
+                    buyer : Principal = failureEntry.buyer;
+                    mainerListing : Types.MainerMarketplaceListing = failureEntry.mainerListing;
+                    failureTimestamp : Nat64 = failureEntry.failureTimestamp;
+                    failureReason : Text = failureEntry.failureReason;
+                    resolvedTimestamp : ?Nat64 = ?Nat64.fromNat(Int.abs(Time.now()));
+                    resolvedBy : ?Principal = ?resolveInput.resolvedBy;
+                    resolvedNote : ?Text = ?resolveInput.resolvedNote;
+                };
+                resolvedMarketplaceMainerTransferFailures := List.push<Types.MainerTransferFailure>(resolvedEntry, resolvedMarketplaceMainerTransferFailures);
+
+                let removeResult = marketplaceMainerTransferFailuresStorage.remove(resolveInput.transactionId);
+                return true;
+            };
+        };
+    };
+
+    public query (msg) func getMainerTransferFailuresAdmin() : async Types.MainerTransferFailuresResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        return #Ok(getAllMainerTransferFailures());
+    };
+
+    public query (msg) func resolveMainerTransferFailureAdmin(resolveInput : Types.ResolveMainerTransferFailureInput) : async Bool {
+        if (Principal.isAnonymous(msg.caller)) {
+            return false;
+        };
+        if (not Principal.isController(msg.caller)) {
+            return false;
+        };
+        let resolveInputWithCaller : Types.ResolveMainerTransferFailureInput = {
+            transactionId : Nat = resolveInput.transactionId;
+            resolvedBy : Principal = msg.caller;
+            resolvedNote : Text = resolveInput.resolvedNote;
+        };
+        return resolveMainerTransferFailure(resolveInputWithCaller);
+    };
+
+    public query (msg) func getResolvedMainerTransferFailuresAdmin() : async Types.MainerTransferFailuresResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        return #Ok(List.toArray<Types.MainerTransferFailure>(resolvedMarketplaceMainerTransferFailures));
+    };
+
+    public shared(msg) func icrc37_transfer_from<system>(args: [ICRC37.Service.TransferFromArg]) : async [?ICRC37.Service.TransferFromResult] {
+        /* type TransferFromArg = record {
+            spender_subaccount: opt blob; // The subaccount of the caller (used to identify the spender)
+            from : Account;
+            to : Account;
+            token_id : nat;
+            memo : opt blob; // Used as mAIner's address
+            created_at_time : opt nat64;
+        };
+
+        type TransferFromResult = variant {
+            Ok : nat; // Transaction index for successful transfer
+            Err : TransferFromError;
+        };
+
+        type TransferFromError = variant {
+            InvalidRecipient;
+            Unauthorized;
+            NonExistingTokenId;
+            TooOld;
+            CreatedInFuture : record { ledger_time: nat64 };
+            Duplicate : record { duplicate_of : nat };
+            GenericError : record { error_code : nat; message : text };
+            GenericBatchError : record { error_code : nat; message : text };
+        }; */
+        if (Principal.isAnonymous(msg.caller)) {
+            return [?#Err(#Unauthorized)];
+        };
+        if (args.size() != 1) {
+            return [?#Err(#Unauthorized)];
+        };
+        let transferTokenArg : ICRC37.Service.TransferFromArg = args[0];
+        D.print("GameState: icrc37_transfer_from - transferTokenArg: "# debug_show(transferTokenArg));
+        switch (transferTokenArg.memo) {
+            case (null) {
+                // No mAIner canister specified
+                D.print("GameState: icrc37_transfer_from - no mAIner specified by caller: "# debug_show(msg.caller));
+                return [?#Err(#Unauthorized)];
+            };
+            case (?transferMemo) {
+                let text = Text.decodeUtf8(transferMemo);
+                switch (text) {
+                    case (null) {
+                        // No mAIner canister specified
+                        D.print("GameState: icrc37_transfer_from - no mAIner address received from caller: "# debug_show(msg.caller));
+                        return [?#Err(#Unauthorized)];
+                    };
+                    case (?mainerAddress) {
+                        D.print("GameState: icrc37_transfer_from - mainerAddress: "# debug_show(mainerAddress));
+                        // Verify that caller has reserved the mAIner
+                        switch (getMarketplaceReservedMainerForUser(msg.caller)) {
+                            case (null) {
+                                D.print("GameState: icrc37_transfer_from - caller doesn't have a reservation: "# debug_show(msg.caller));
+                                return [?#Err(#Unauthorized)];
+                            };
+                            case (?userCanisterEntry) {
+                                if (userCanisterEntry.address != mainerAddress) {
+                                    D.print("GameState: icrc37_transfer_from - caller has a different reservation: "# debug_show(msg.caller) # debug_show(userCanisterEntry));
+                                    return [?#Err(#Unauthorized)];
+                                };
+                                switch (getMainerAgentCanister(mainerAddress)) {
+                                    case (null) {
+                                        D.print("GameState: icrc37_transfer_from - mAIner doesn't exist: "# debug_show(msg.caller) # debug_show(userCanisterEntry));
+                                        return [?#Err(#InvalidRecipient)];
+                                    };
+                                    case (?mainerEntry) {
+                                        D.print("GameState: icrc37_transfer_from - mainerEntry: "# debug_show(mainerEntry));
+                                        switch (getNextMainerCreatorCanisterEntry()) {
+                                            case (null) {
+                                                // This should never happen as it indicates there isn't any mAIner Creator canister registered here
+                                                D.print("GameState: icrc37_transfer_from - no mAIner Creator canister registered");
+                                                return [?#Err(#Unauthorized)];
+                                            };
+                                            case (?mainerCreatorEntry) {
+                                                // Retrieve approved ICP from buyer using icrc2_transfer_from
+                                                let priceE8s : Nat = userCanisterEntry.priceE8S;
+                                                let icpFee : Nat = 10_000; // 0.0001 ICP fee                                                
+                                                let transferFromArgs : TokenLedger.TransferFromArgs = {
+                                                    from = { owner = msg.caller; subaccount = null };
+                                                    to = { owner = Principal.fromActor(this); subaccount = null };
+                                                    amount = priceE8s;
+                                                    fee = ?icpFee;
+                                                    memo = null;
+                                                    created_at_time = null;
+                                                    spender_subaccount = null;
+                                                };
+                                                
+                                                let icpTransferResult : TokenLedger.Result_3 = await ICP_LEDGER_ACTOR.icrc2_transfer_from(transferFromArgs);
+                                                D.print("GameState: icrc37_transfer_from - icpTransferResult: "# debug_show(icpTransferResult));
+                                                
+                                                switch (icpTransferResult) {
+                                                    case (#Err(transferError)) {
+                                                        D.print("GameState: icrc37_transfer_from - ICP transfer failed: "# debug_show(transferError));
+                                                        return [?#Err(#GenericError({ error_code = 1; message = "ICP payment transfer failed" }))];
+                                                    };
+                                                    case (#Ok(icpBlockIndex)) {
+                                                        D.print("GameState: icrc37_transfer_from - ICP transferred successfully, block: "# debug_show(icpBlockIndex));
+                                                        // Transfer mAIner ownership
+                                                        let buyerPrincipal : Principal = msg.caller;
+                                                        let sellerPrincipal : Principal = mainerEntry.ownedBy;
+                                                        // Add the buyer as a controller of the mAIner canister via mAIner Creator 
+                                                        let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
+                                                        let addControllerInput : Types.AddControllerToMainerCanisterInput = {
+                                                            mainerEntry : Types.OfficialMainerAgentCanister  = mainerEntry;
+                                                            newControllerPrincipal : Principal = buyerPrincipal;
+                                                        };
+                                                        let addControllerResult : Types.AddControllerToMainerCanisterResult = await creatorCanisterActor.addControllerToMainerCanister(addControllerInput);
+                                                        D.print("GameState: icrc37_transfer_from - addControllerResult: "# debug_show(addControllerResult));
+
+                                                        switch (addControllerResult) {
+                                                            case (#Ok(addControllerToMainerCanisterRecord)) {
+                                                                D.print("GameState: icrc37_transfer_from - addControllerToMainerCanisterRecord: " # debug_show(addControllerToMainerCanisterRecord) );
+                                                                // Update mAIner entry 
+                                                                let newCanisterEntry : Types.OfficialMainerAgentCanister = {
+                                                                    address : Text = mainerEntry.address;
+                                                                    subnet : Text = mainerEntry.subnet;
+                                                                    canisterType: Types.ProtocolCanisterType = mainerEntry.canisterType;
+                                                                    creationTimestamp : Nat64 = mainerEntry.creationTimestamp;
+                                                                    createdBy : Principal = mainerEntry.createdBy;
+                                                                    ownedBy : Principal = buyerPrincipal; // only field updated: to new owner
+                                                                    status : Types.CanisterStatus = mainerEntry.status; 
+                                                                    mainerConfig : Types.MainerConfigurationInput = mainerEntry.mainerConfig;
+                                                                };
+                                                                let updateResult : Types.MainerAgentCanisterResult = putMainerAgentCanister(mainerAddress, newCanisterEntry);
+                                                                D.print("GameState: icrc37_transfer_from - updated mainerEntry: "# debug_show(newCanisterEntry));                              
+
+                                                                // Remove from seller
+                                                                let removeResult : Bool = removeUserMainerAgent(mainerEntry);
+                                                                D.print("GameState: icrc37_transfer_from - removed from seller: "# debug_show(removeResult));  
+
+                                                                // Add to buyer 
+                                                                let addResult : Bool = putUserMainerAgent(newCanisterEntry);
+                                                                D.print("GameState: icrc37_transfer_from - added to buyer: "# debug_show(addResult));  
+
+                                                                // Remove the seller as controller from the mAIner canister via mAIner Creator
+                                                                let removeControllerInput : Types.RemoveControllerFromMainerCanisterInput = {
+                                                                    mainerEntry : Types.OfficialMainerAgentCanister  = mainerEntry;
+                                                                    toRemoveControllerPrincipal : Principal = sellerPrincipal;
+                                                                };
+                                                                let removeControllerResult : Types.RemoveControllerFromMainerCanisterResult = await creatorCanisterActor.removeControllerFromMainerCanister(removeControllerInput);
+                                                                D.print("GameState: icrc37_transfer_from - removeControllerResult: "# debug_show(removeControllerResult));
+                                                                switch (removeControllerResult) {
+                                                                    case (#Ok(removeControllerFromMainerCanisterRecord)) {
+                                                                        // Record the sale for statistics
+                                                                        let sale : Types.MarketplaceSale = {
+                                                                            mainerAddress = mainerAddress;
+                                                                            seller = mainerEntry.ownedBy;
+                                                                            buyer = msg.caller;
+                                                                            priceE8S = userCanisterEntry.priceE8S;
+                                                                            saleTimestamp = Nat64.fromNat(Int.abs(Time.now()));
+                                                                        };
+                                                                        marketplaceSalesHistory.add(sale);
+                                                                        D.print("GameState: icrc37_transfer_from - sale record: "# debug_show(sale)); 
+
+                                                                        // Clean up reservation and cancel the timer
+                                                                        switch (marketplaceReservationTimers.get(mainerAddress)) {
+                                                                            case (?timerId) {
+                                                                                Timer.cancelTimer(timerId);
+                                                                                ignore marketplaceReservationTimers.remove(mainerAddress);
+                                                                            };
+                                                                            case (null) {};
+                                                                        };
+                                                                        ignore marketplaceReservedMainerAgentsStorage.remove(mainerAddress);
+                                                                        ignore userToMarketplaceReservedMainerStorage.remove(msg.caller);
+                                                                        D.print("GameState: icrc37_transfer_from - cleared reservation for mainerAddress: "# debug_show(mainerAddress)); 
+                                                                        // Should not be needed but remove from listings just in case
+                                                                        let removeListingResult = removeMarketplaceListedMainer(mainerAddress);
+                                                                        D.print("GameState: icrc37_transfer_from - called removeMarketplaceListedMainer to ensure the listing is already removed: "# debug_show(removeListingResult)); 
+
+                                                                        // Take protocol cut and send the rest to the seller
+                                                                        D.print("GameState: icrc37_transfer_from - protocolOperationFeesCut: "# debug_show(protocolOperationFeesCut));
+                                                                        let protocolFee : Nat = (priceE8s * protocolOperationFeesCut) / 100;
+                                                                        // Sanity check
+                                                                        if (protocolFee > priceE8s or icpFee > priceE8s or (protocolFee + icpFee) > priceE8s) {
+                                                                            // This should never happend
+                                                                            D.print("GameState: icrc37_transfer_from - numbers don't add up... priceE8s: " # debug_show(priceE8s) # ", protocolFee: " # debug_show(protocolFee) # ", icpFee: " # debug_show(icpFee));
+                                                                            // Store the failure for an admin to check
+                                                                            let failureEntry : Types.MainerTransferFailure = {
+                                                                                transactionId : Nat = getNextMainerMarketplaceTransactionId();
+                                                                                seller : Principal = sellerPrincipal;
+                                                                                buyer : Principal = buyerPrincipal;
+                                                                                mainerListing : Types.MainerMarketplaceListing = userCanisterEntry;
+                                                                                failureTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                                                                                failureReason : Text = "Error calculating seller's amount based on price";
+                                                                                resolvedTimestamp : ?Nat64 = null;
+                                                                                resolvedBy : ?Principal = null;
+                                                                                resolvedNote : ?Text = null;
+                                                                            };
+                                                                            let storedFailure = putMainerTransferFailure(failureEntry);
+                                                                            return [?#Err(#GenericError({ error_code = 2; message = "Error calculating seller's amount based on price" }))];
+                                                                        };
+                                                                        let sellerAmount : Nat = priceE8s - protocolFee - icpFee; // Deduct protocol fee and transfer fee
+                                                                        D.print("GameState: icrc37_transfer_from - priceE8s: " # debug_show(priceE8s) # ", protocolFee: " # debug_show(protocolFee) # ", sellerAmount: " # debug_show(sellerAmount));
+                                                                        // Transfer ICP to seller
+                                                                        let sellerTransferArg : TokenLedger.TransferArg = {
+                                                                            to = { owner = sellerPrincipal; subaccount = null };
+                                                                            fee = ?icpFee;
+                                                                            memo = null;
+                                                                            from_subaccount = null;
+                                                                            created_at_time = null;
+                                                                            amount = sellerAmount;
+                                                                        };
+                                                                        
+                                                                        let sellerTransferResult : TokenLedger.Result = await ICP_LEDGER_ACTOR.icrc1_transfer(sellerTransferArg);
+                                                                        D.print("GameState: icrc37_transfer_from - sellerTransferResult: "# debug_show(sellerTransferResult));
+                                                                        
+                                                                        switch (sellerTransferResult) {
+                                                                            case (#Err(sellerTransferError)) {
+                                                                                // Log the error but don't fail the sale - the ICP is already in GameState
+                                                                                D.print("GameState: icrc37_transfer_from - WARNING: Failed to send ICP to seller: "# debug_show(sellerTransferError));
+                                                                                // Admin can manually resolve this later
+                                                                                // Store the failure for an admin to check
+                                                                                let failureEntry : Types.MainerTransferFailure = {
+                                                                                    transactionId : Nat = getNextMainerMarketplaceTransactionId();
+                                                                                    seller : Principal = sellerPrincipal;
+                                                                                    buyer : Principal = buyerPrincipal;
+                                                                                    mainerListing : Types.MainerMarketplaceListing = userCanisterEntry;
+                                                                                    failureTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                                                                                    failureReason : Text = "Failed to send ICP to seller: "# debug_show(sellerTransferError);
+                                                                                    resolvedTimestamp : ?Nat64 = null;
+                                                                                    resolvedBy : ?Principal = null;
+                                                                                    resolvedNote : ?Text = null;
+                                                                                };
+                                                                                let storedFailure = putMainerTransferFailure(failureEntry);
+                                                                                return [?#Err(#GenericError({ error_code = 2; message = "Error sending ICP to seller" }))];
+                                                                            };
+                                                                            case (#Ok(sellerBlockIndex)) {
+                                                                                D.print("GameState: icrc37_transfer_from - ICP sent to seller, block: "# debug_show(sellerBlockIndex));
+                                                                            };
+                                                                        };
+
+                                                                        return [?#Ok(getNextMainerMarketplaceTransactionId())];
+                                                                    };
+                                                                    case (_) {
+                                                                        // Removing seller as controller failed - store the failure for an admin to check
+                                                                        D.print("GameState: icrc37_transfer_from - removeController failed, storing the failure for admin to check");
+                                                                        let failureEntry : Types.MainerTransferFailure = {
+                                                                            transactionId : Nat = getNextMainerMarketplaceTransactionId();
+                                                                            seller : Principal = sellerPrincipal;
+                                                                            buyer : Principal = buyerPrincipal;
+                                                                            mainerListing : Types.MainerMarketplaceListing = userCanisterEntry;
+                                                                            failureTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                                                                            failureReason : Text = "removeController failed";
+                                                                            resolvedTimestamp : ?Nat64 = null;
+                                                                            resolvedBy : ?Principal = null;
+                                                                            resolvedNote : ?Text = null;
+                                                                        };
+                                                                        let storedFailure = putMainerTransferFailure(failureEntry);
+                                                                        return [?#Ok(getNextMainerMarketplaceTransactionId())];
+                                                                    };
+                                                                };                                                        
+                                                            };
+                                                            case (_) {
+                                                                // Adding buyer as controller failed - try to return ICP to buyer
+                                                                D.print("GameState: icrc37_transfer_from - addController failed, attempting to refund buyer");
+                                                                try {
+                                                                    let refundArg : TokenLedger.TransferArg = {
+                                                                        to = { owner = msg.caller; subaccount = null };
+                                                                        fee = ?icpFee;
+                                                                        memo = null;
+                                                                        from_subaccount = null;
+                                                                        created_at_time = null;
+                                                                        amount = priceE8s - icpFee; // Refund minus fee
+                                                                    };
+                                                                    let refundResult = await ICP_LEDGER_ACTOR.icrc1_transfer(refundArg);
+                                                                    switch (refundResult) {
+                                                                        case (#Ok(blockIndex)) {
+                                                                            return [?#Err(#GenericError({ error_code = 2; message = "Controller update failed, ICP refunded" }))];
+                                                                        };
+                                                                        case (#Err(err)) {
+                                                                            D.print("GameState: icrc37_transfer_from - refund to buyer failed, manual intervention required. Error from icrc1_transfer: "# debug_show(err));
+                                                                            // Store the failure for an admin to check
+                                                                            let failureEntry : Types.MainerTransferFailure = {
+                                                                                transactionId : Nat = getNextMainerMarketplaceTransactionId();
+                                                                                seller : Principal = sellerPrincipal;
+                                                                                buyer : Principal = buyerPrincipal;
+                                                                                mainerListing : Types.MainerMarketplaceListing = userCanisterEntry;
+                                                                                failureTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                                                                                failureReason : Text = "refund to buyer failed. Error from icrc1_transfer: "# debug_show(err);
+                                                                                resolvedTimestamp : ?Nat64 = null;
+                                                                                resolvedBy : ?Principal = null;
+                                                                                resolvedNote : ?Text = null;
+                                                                            };
+                                                                            let storedFailure = putMainerTransferFailure(failureEntry);
+                                                                            return [?#Err(#GenericError({ error_code = 2; message = "Controller update failed, error refunding ICP" }))];
+                                                                        };
+                                                                    };
+                                                                } catch (e) {
+                                                                    D.print("GameState: icrc37_transfer_from - refund to buyer failed, manual intervention required. Caught error: " # Error.message(e));
+                                                                    // Store the failure for an admin to check
+                                                                    let failureEntry : Types.MainerTransferFailure = {
+                                                                        transactionId : Nat = getNextMainerMarketplaceTransactionId();
+                                                                        seller : Principal = sellerPrincipal;
+                                                                        buyer : Principal = buyerPrincipal;
+                                                                        mainerListing : Types.MainerMarketplaceListing = userCanisterEntry;
+                                                                        failureTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                                                                        failureReason : Text = "refund to buyer failed. Caught error: " # Error.message(e);
+                                                                        resolvedTimestamp : ?Nat64 = null;
+                                                                        resolvedBy : ?Principal = null;
+                                                                        resolvedNote : ?Text = null;
+                                                                    };
+                                                                    let storedFailure = putMainerTransferFailure(failureEntry);
+                                                                    return [?#Err(#GenericError({ error_code = 2; message = "Controller update failed, error refunding ICP" }))];
+                                                                };                                                                
+                                                            };
+                                                        };
+                                                    }; // Close #Ok(icpBlockIndex)
+                                                }; // Close icpTransferResult switch
+                                            };
+                                        };                                        
+                                    };
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+    };
+
+    // Marketplace functionality to sell and buy mAIners
+    stable var mainerMarketplaceTransactionsCounter : Nat = 0;
+    private func getNextMainerMarketplaceTransactionId() : Nat {
+        mainerMarketplaceTransactionsCounter := mainerMarketplaceTransactionsCounter + 1;
+        return mainerMarketplaceTransactionsCounter;
+    };
+
+    // When a mAIner owner lists a mAIner on the marketplace for selling, the mAIner is approved for the sale and added to the listings data structures
+    stable var marketplaceListedMainerAgentsStorageStable : [(Text, Types.MainerMarketplaceListing)] = [];
+    var marketplaceListedMainerAgentsStorage : HashMap.HashMap<Text, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Text.equal, Text.hash);
+    stable var userToMarketplaceListedMainersStorageStable : [(Principal, List.List<Types.MainerMarketplaceListing>)] = [];
+    var userToMarketplaceListedMainersStorage : HashMap.HashMap<Principal, List.List<Types.MainerMarketplaceListing>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+
+    // When a buyer starts the buying process of a listed mAIner, the mAIner is reserved (thus added to the data structures) and while reserved removed from the listings
+    stable var marketplaceReservedMainerAgentsStorageStable : [(Text, Types.MainerMarketplaceListing)] = [];
+    var marketplaceReservedMainerAgentsStorage : HashMap.HashMap<Text, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Text.equal, Text.hash);
+    stable var userToMarketplaceReservedMainerStorageStable : [(Principal, Types.MainerMarketplaceListing)] = [];
+    var userToMarketplaceReservedMainerStorage : HashMap.HashMap<Principal, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+    
+    // Non-stable: Timer IDs for marketplace reservations (2 minute expiry)
+    var marketplaceReservationTimers : HashMap.HashMap<Text, Timer.TimerId> = HashMap.HashMap(0, Text.equal, Text.hash);
+    let MARKETPLACE_RESERVATION_TIMEOUT_SECONDS : Nat = 120; // 2 minutes
+
+    // Marketplace sales history for statistics
+    stable var marketplaceSalesHistoryStable : [Types.MarketplaceSale] = [];
+    var marketplaceSalesHistory : Buffer.Buffer<Types.MarketplaceSale> = Buffer.Buffer<Types.MarketplaceSale>(0);
+
+    // CRUD helper functions for listings
+    private func putMarketplaceListedMainer(entry : Types.MainerMarketplaceListing) : Types.MainerMarketplaceListing {
+        marketplaceListedMainerAgentsStorage.put(entry.address, entry);
+        switch (getMarketplaceListedMainersForUser(entry.listedBy)) {
+            case (null) {
+                // first entry
+                let userCanistersList : List.List<Types.MainerMarketplaceListing> = List.make<Types.MainerMarketplaceListing>(entry);
+                userToMarketplaceListedMainersStorage.put(entry.listedBy, userCanistersList);
+            };
+            case (?userCanistersList) { 
+                //existing list, add entry to it
+                // Deduplicate (based on address)
+                let filteredUserCanistersList : List.List<Types.MainerMarketplaceListing> = List.filter(userCanistersList, func(listEntry: Types.MainerMarketplaceListing) : Bool { listEntry.address != entry.address });
+                let updatedUserCanistersList : List.List<Types.MainerMarketplaceListing> = List.push<Types.MainerMarketplaceListing>(entry, filteredUserCanistersList);
+                userToMarketplaceListedMainersStorage.put(entry.listedBy, updatedUserCanistersList);
+            }; 
+        };
+        return entry;
+    };
+
+    private func getMarketplaceListedMainer(canisterAddress : Text) : ?Types.MainerMarketplaceListing {
+        switch (marketplaceListedMainerAgentsStorage.get(canisterAddress)) {
+            case (null) { return null; };
+            case (?canisterEntry) { return ?canisterEntry; };
+        };
+    };
+
+    private func removeMarketplaceListedMainer(canisterAddress : Text) : Bool {
+        switch (marketplaceListedMainerAgentsStorage.get(canisterAddress)) {
+            case (null) { return false; };
+            case (?canisterEntry) {
+                let removeResult = marketplaceListedMainerAgentsStorage.remove(canisterAddress);
+                switch (getMarketplaceListedMainersForUser(canisterEntry.listedBy)) {
+                    case (null) {
+                        // this should not happen
+                    };
+                    case (?userCanistersList) { 
+                        //existing list, remove entry
+                        let filteredUserCanistersList : List.List<Types.MainerMarketplaceListing> = List.filter(userCanistersList, func(listEntry: Types.MainerMarketplaceListing) : Bool { listEntry.address != canisterEntry.address });
+                        let result = userToMarketplaceListedMainersStorage.put(canisterEntry.listedBy, filteredUserCanistersList);
+                    }; 
+                };
+                return true;
+            };
+        };
+    };
+
+    private func getMarketplaceListedMainersForUser(userId : Principal) : ?List.List<Types.MainerMarketplaceListing> {
+        switch (userToMarketplaceListedMainersStorage.get(userId)) {
+            case (null) { return null; };
+            case (?userCanistersList) { return ?userCanistersList; };
+        };
+    };
+
+    private func getAllMarketplaceListedMainers() : [Types.MainerMarketplaceListing] {
+        var mainerAgents : List.List<Types.MainerMarketplaceListing> = List.nil<Types.MainerMarketplaceListing>();
+        for (userMainerAgentsList in userToMarketplaceListedMainersStorage.vals()) {
+            mainerAgents := List.append<Types.MainerMarketplaceListing>(userMainerAgentsList, mainerAgents);    
+        };
+        return List.toArray(mainerAgents);
+    };
+
+    private func getNumberMarketplaceListedMainers(mainerType : Types.MainerAgentCanisterType) : Nat {
+        switch (mainerType) {
+            case (#Own) {
+                let iter = marketplaceListedMainerAgentsStorage.vals();
+                let mappedIter = Iter.filter(iter, func (mainerEntry : Types.MainerMarketplaceListing) : Bool {
+                    switch (mainerEntry.mainerType) {
+                        case (#Own) { return true; };
+                        case (#ShareAgent) { return false; };
+                        case (_) { return false; }
+                    };
+                });
+                return Iter.size(mappedIter);
+            };
+            case (#ShareAgent) {
+                let iter = marketplaceListedMainerAgentsStorage.vals();
+                let mappedIter = Iter.filter(iter, func (mainerEntry : Types.MainerMarketplaceListing) : Bool {
+                    switch (mainerEntry.mainerType) {
+                        case (#Own) { return false; };
+                        case (#ShareAgent) { return true; };
+                        case (_) { return false; }
+                    };
+                });
+                return Iter.size(mappedIter);                
+            };
+            case (_) { return 0; }
+        };
+    };
+
+    // CRUD helper functions for reservations
+    private func putMarketplaceReservedMainer<system>(entry : Types.MainerMarketplaceListing) : Bool {
+        // Check that entry is in listings and isn't reserved already
+        switch (getMarketplaceListedMainer(entry.address)) {
+            case (null) {
+                return false;
+            };
+            case (?listedEntry) {
+                switch (marketplaceReservedMainerAgentsStorage.get(entry.address)) {
+                    case (null) {
+                        // Continue
+                    };
+                    case (?reservedEntry) { 
+                        return false;                        
+                    }; 
+                };
+            }; 
+        };
+        // Sanity check on entry 
+        switch (entry.reservedBy) {
+            case (null) {
+                return false;
+            };
+            case (?reservingUserPrincipal) {
+                // Reserve the mAIner and remove it from listings
+                marketplaceReservedMainerAgentsStorage.put(entry.address, entry);
+                userToMarketplaceReservedMainerStorage.put(reservingUserPrincipal, entry);
+                switch (removeMarketplaceListedMainer(entry.address)) {
+                    case (true) {
+                        // Set a timer to automatically unreserve if purchase isn't completed within timeout period
+                        let timerId = Timer.setTimer<system>(
+                            #seconds MARKETPLACE_RESERVATION_TIMEOUT_SECONDS,
+                            func () : async () {
+                                // Timer expired - unreserve the mAIner and put it back as a listing
+                                ignore removeMarketplaceReservedMainer(entry.address);
+                                // Clean up timer reference
+                                ignore marketplaceReservationTimers.remove(entry.address);
+                            }
+                        );
+                        marketplaceReservationTimers.put(entry.address, timerId);
+                        return true;
+                    };
+                    case (false) { 
+                        // Revert reservation changes
+                        let removeResult = marketplaceReservedMainerAgentsStorage.remove(entry.address);
+                        let removeResult2 = userToMarketplaceReservedMainerStorage.remove(reservingUserPrincipal);
+                        return false;                
+                    }; 
+                };
+            }; 
+        };
+    };
+
+    private func getMarketplaceReservedMainer(canisterAddress : Text) : ?Types.MainerMarketplaceListing {
+        switch (marketplaceReservedMainerAgentsStorage.get(canisterAddress)) {
+            case (null) { return null; };
+            case (?canisterEntry) { return ?canisterEntry; };
+        };
+    };
+
+    private func removeMarketplaceReservedMainer(canisterAddress : Text) : Bool {
+        // If the reservation (still) exists, remove it and put the entry back up as a listing
+        // IMPORTANT: This is called by the timer callback, which may race with sale completion
+        switch (marketplaceReservedMainerAgentsStorage.get(canisterAddress)) {
+            case (null) { 
+                D.print("GameState: removeMarketplaceReservedMainer - no reservation found for: "# debug_show(canisterAddress));
+                return false; 
+            };
+            case (?canisterEntry) {
+                // Cancel the reservation timer if it exists
+                switch (marketplaceReservationTimers.get(canisterAddress)) {
+                    case (?timerId) {
+                        Timer.cancelTimer(timerId);
+                        ignore marketplaceReservationTimers.remove(canisterAddress);
+                    };
+                    case (null) {};
+                };
+                
+                let removeResult = marketplaceReservedMainerAgentsStorage.remove(canisterAddress);
+                switch (canisterEntry.reservedBy) {
+                    case (null) {
+                        // This should not happen
+                    };
+                    case (?reservingUserPrincipal) {
+                        let removeResult2 = userToMarketplaceReservedMainerStorage.remove(reservingUserPrincipal);
+                    }; 
+                };
+                
+                // CRITICAL FIX: Before re-listing, verify the original seller still owns the mAIner
+                // This prevents re-listing a mAIner that was already sold (race condition with timer)
+                switch (getMainerAgentCanister(canisterAddress)) {
+                    case (null) {
+                        // mAIner no longer exists in our records - don't re-list
+                        D.print("GameState: removeMarketplaceReservedMainer - mAIner not found in canister storage, not re-listing: "# debug_show(canisterAddress));
+                        return true;
+                    };
+                    case (?mainerInfo) {
+                        // Check if the original seller (listedBy) still owns the mAIner
+                        if (mainerInfo.ownedBy != canisterEntry.listedBy) {
+                            // Ownership has changed - the sale already completed, don't re-list!
+                            D.print("GameState: removeMarketplaceReservedMainer - ownership changed from "# debug_show(canisterEntry.listedBy) #" to "# debug_show(mainerInfo.ownedBy) #", not re-listing");
+                            return true;
+                        };
+                        
+                        // Seller still owns it - safe to re-list
+                        D.print("GameState: removeMarketplaceReservedMainer - re-listing mAIner: "# debug_show(canisterAddress));
+                        let newListingEntry = {
+                            address : Types.CanisterAddress = canisterEntry.address;
+                            mainerType: Types.MainerAgentCanisterType = canisterEntry.mainerType;
+                            listedTimestamp : Nat64 = canisterEntry.listedTimestamp;
+                            listedBy : Principal = canisterEntry.listedBy;
+                            priceE8S : Nat = canisterEntry.priceE8S;
+                            reservedBy : ?Principal = null; // Only change
+                        };
+                        let result = putMarketplaceListedMainer(newListingEntry); 
+                        return true;
+                    };
+                };
+            };
+        };
+    };
+
+    private func getMarketplaceReservedMainerForUser(userId : Principal) : ?Types.MainerMarketplaceListing {
+        switch (userToMarketplaceReservedMainerStorage.get(userId)) {
+            case (null) { return null; };
+            case (?userCanisterEntry) { return ?userCanisterEntry; };
+        };
+    };
+
+    // Native mAIner marketplace endpoints (not NFT compatible)
+    public query (msg) func getUserMarketplaceMainerListings() : async Types.MainerMarketplaceListingsResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        switch (getMarketplaceListedMainersForUser(msg.caller)) {
+            case (null) { return #Ok([]); };
+            case (?userCanistersList) {
+                return #Ok(List.toArray(userCanistersList));
+            };
+        };
+    };
+
+    // Get user's current reservation (if any)
+    public query (msg) func getUserMarketplaceReservation() : async ?Types.MainerMarketplaceListing {
+        if (Principal.isAnonymous(msg.caller)) {
+            return null;
+        };
+        return getMarketplaceReservedMainerForUser(msg.caller);
+    };
+
+    // Admin: Check if a specific mAIner is in reserved storage (for debugging)
+    public query (msg) func isMainerReservedOnMarketplaceAdmin(mainerAddress : Text) : async Bool {
+        if (Principal.isAnonymous(msg.caller)) {
+            return false;
+        };
+        if (not Principal.isController(msg.caller)) {
+            return false;
+        };
+        
+        switch (marketplaceReservedMainerAgentsStorage.get(mainerAddress)) {
+            case (null) { return false; };
+            case (?_) { return true; };
+        };
+    };
+
+    // Admin function to clear all marketplace reservations
+    // This is useful if reservations get stuck due to timer issues or data corruption
+    public shared (msg) func clearMarketplaceReservationsAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        var clearedCount : Nat = 0;
+        
+        // Get all reserved mAIners
+        let reservedEntries = Iter.toArray(marketplaceReservedMainerAgentsStorage.entries());
+        
+        // Clear all reservations and return them to listings
+        for ((address, reservedEntry) in reservedEntries.vals()) {
+            // Cancel timers if they exist
+            switch (marketplaceReservationTimers.get(address)) {
+                case (?timerId) {
+                    Timer.cancelTimer(timerId);
+                    ignore marketplaceReservationTimers.remove(address);
+                };
+                case (null) {};
+            };
+            
+            // Return to listings
+            let listingEntry : Types.MainerMarketplaceListing = {
+                address = reservedEntry.address;
+                mainerType = reservedEntry.mainerType;
+                listedTimestamp = reservedEntry.listedTimestamp;
+                listedBy = reservedEntry.listedBy;
+                priceE8S = reservedEntry.priceE8S;
+                reservedBy = null;
+            };
+            ignore putMarketplaceListedMainer(listingEntry);
+            clearedCount += 1;
+        };
+        
+        // Clear the reservation storages
+        marketplaceReservedMainerAgentsStorage := HashMap.HashMap(0, Text.equal, Text.hash);
+        userToMarketplaceReservedMainerStorage := HashMap.HashMap(0, Principal.equal, Principal.hash);
+        
+        let authRecord = { auth = "Cleared " # Nat.toText(clearedCount) # " marketplace reservations" };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getMarketplaceMainerListings() : async Types.MainerMarketplaceListingsResult {
+        // Retrieve all mAIner marketplace listings
+        return #Ok(getAllMarketplaceListedMainers());
+    };
+
+    public query func getMarketplaceSalesStats() : async Types.MarketplaceStats {
+        // Calculate stats from sales history
+        var totalVolumeE8S : Nat = 0;
+        var buyersSet = HashMap.HashMap<Principal, Bool>(0, Principal.equal, Principal.hash);
+        var sellersSet = HashMap.HashMap<Principal, Bool>(0, Principal.equal, Principal.hash);
+        var tradersSet = HashMap.HashMap<Principal, Bool>(0, Principal.equal, Principal.hash); // Combined unique traders
+
+        for (sale in marketplaceSalesHistory.vals()) {
+            totalVolumeE8S += sale.priceE8S;
+            buyersSet.put(sale.buyer, true);
+            sellersSet.put(sale.seller, true);
+            // Add both to traders set (automatically deduplicated by HashMap)
+            tradersSet.put(sale.buyer, true);
+            tradersSet.put(sale.seller, true);
+        };
+
+        return {
+            totalSales = marketplaceSalesHistory.size();
+            totalVolumeE8S = totalVolumeE8S;
+            uniqueBuyers = buyersSet.size();
+            uniqueSellers = sellersSet.size();
+            uniqueTraders = tradersSet.size(); // True unique count (buyers OR sellers)
+        };
+    };
+
+    // Get user's marketplace transaction history (buys and sells)
+    public query (msg) func getUserMarketplaceTransactionHistory() : async Types.MarketplaceTransactionHistoryResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        var purchases : List.List<Types.MarketplaceSale> = List.nil<Types.MarketplaceSale>();
+        var sales : List.List<Types.MarketplaceSale> = List.nil<Types.MarketplaceSale>();
+
+        for (sale in marketplaceSalesHistory.vals()) {
+            if (Principal.equal(sale.buyer, msg.caller)) {
+                purchases := List.push(sale, purchases);
+            };
+            if (Principal.equal(sale.seller, msg.caller)) {
+                sales := List.push(sale, sales);
+            };
+        };
+
+        return #Ok({
+            purchases = List.toArray(purchases);
+            sales = List.toArray(sales);
+        });
+    };
+
+    public shared (msg) func reserveMarketplaceListedMainer<system>(reservationInput : Types.MainerMarketplaceReservationInput) : async Types.MainerMarketplaceReservationResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        D.print("GameState: reserveMarketplaceListedMainer - called by: "# debug_show(msg.caller));
+        D.print("GameState: reserveMarketplaceListedMainer - reservationInput: "# debug_show(reservationInput));
+        // Verify user doesn't have a reservation yet
+        switch (getMarketplaceReservedMainerForUser(msg.caller)) {
+            case (null) { 
+                // Continue
+            };
+            case (?userCanisterEntry) {
+                D.print("GameState: reserveMarketplaceListedMainer - caller already has a reservation: "# debug_show(userCanisterEntry));
+                return #Err(#Unauthorized);
+            };
+        };
+
+        // Verify mAIner is not reserved
+        switch (getMarketplaceReservedMainer(reservationInput.address)) {
+            case (null) { 
+                // Continue
+            };
+            case (?canisterEntry) {
+                D.print("GameState: reserveMarketplaceListedMainer - mAIner is already reserved: "# debug_show(canisterEntry));
+                return #Err(#Unauthorized);
+            };
+        };
+
+        // Verify mAIner is listed
+        switch (getMarketplaceListedMainer(reservationInput.address)) {
+            case (null) {
+                D.print("GameState: reserveMarketplaceListedMainer - mAIner is not listed: "# debug_show(reservationInput.address));
+                return #Err(#Unauthorized);
+            };
+            case (?canisterEntry) {
+                // Reserve mAIner for buying (incl. removing listing during purchase completion)
+                let newEntry : Types.MainerMarketplaceListing = {
+                    address : Types.CanisterAddress = canisterEntry.address;
+                    mainerType: Types.MainerAgentCanisterType = canisterEntry.mainerType;
+                    listedTimestamp : Nat64 = canisterEntry.listedTimestamp;
+                    listedBy : Principal = canisterEntry.listedBy;
+                    priceE8S : Nat = canisterEntry.priceE8S;
+                    reservedBy : ?Principal = ?msg.caller; // Only change
+                };
+                let result = putMarketplaceReservedMainer(newEntry);
+                D.print("GameState: reserveMarketplaceListedMainer - reserved mAIner: "# debug_show(newEntry));
+                return #Ok(newEntry);
+            };
+        };
+    };
+
+    public query (msg) func confirmUserMarketplaceMainerReservation(reservationInput : Types.MainerMarketplaceReservationInput) : async Types.MainerMarketplaceReservationResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        switch (getMarketplaceReservedMainerForUser(msg.caller)) {
+            case (null) { 
+                return #Err(#Unauthorized);
+            };
+            case (?userCanisterEntry) {
+                if (userCanisterEntry.address == reservationInput.address) {
+                    return #Ok(userCanisterEntry);
+                };
+                return #Err(#Unauthorized);
+            };
+        };
+    };
+
+    public shared (msg) func cancelMarketplaceReservation(reservationInput : Types.MainerMarketplaceReservationInput) : async Types.StatusCodeRecordResult {
+        // Allow the original seller OR the buyer who reserved it to cancel the reservation
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        
+        // Check if mAIner is reserved
+        switch (getMarketplaceReservedMainer(reservationInput.address)) {
+            case (null) { 
+                return #Err(#Unauthorized); // Not reserved
+            };
+            case (?reservedEntry) {
+                // Allow either the seller OR the buyer who reserved it to cancel
+                let isSeller = reservedEntry.listedBy == msg.caller;
+                let isBuyer = switch (reservedEntry.reservedBy) {
+                    case (null) { false };
+                    case (?buyer) { buyer == msg.caller };
+                };
+                
+                if (not isSeller and not isBuyer) {
+                    return #Err(#Unauthorized);
+                };
+                
+                // Remove the reservation and put it back as a listing
+                switch (removeMarketplaceReservedMainer(reservationInput.address)) {
+                    case (true) {
+                        return #Ok({ status_code = 200; });
+                    };
+                    case (false) {
+                        return #Err(#Unauthorized);
+                    };
+                };
+            };
+        };
+    };
+
+// Upgrade Hooks (TODO - Implementation: upgrade Motoko to use enhanced orthogonal persistence)
     system func preupgrade() {
         challengerCanistersStorageStable := Iter.toArray(challengerCanistersStorage.entries());
         judgeCanistersStorageStable := Iter.toArray(judgeCanistersStorage.entries());
@@ -8164,6 +9661,12 @@ persistent actor class GameStateCanister() = this {
         redeemedTransactionBlocksStorageStable := Iter.toArray(redeemedTransactionBlocksStorage.entries());
         redeemedFunnaiTransactionBlocksStorageStable := Iter.toArray(redeemedFunnaiTransactionBlocksStorage.entries());
         adminRoleAssignmentsStable := Iter.toArray(adminRoleAssignmentsStorage.entries());
+        marketplaceListedMainerAgentsStorageStable := Iter.toArray(marketplaceListedMainerAgentsStorage.entries());
+        userToMarketplaceListedMainersStorageStable := Iter.toArray(userToMarketplaceListedMainersStorage.entries());
+        marketplaceReservedMainerAgentsStorageStable := Iter.toArray(marketplaceReservedMainerAgentsStorage.entries());
+        userToMarketplaceReservedMainerStorageStable := Iter.toArray(userToMarketplaceReservedMainerStorage.entries());
+        marketplaceSalesHistoryStable := Buffer.toArray(marketplaceSalesHistory);
+        marketplaceMainerTransferFailuresStorageStable := Iter.toArray(marketplaceMainerTransferFailuresStorage.entries());
     };
 
     system func postupgrade() {
@@ -8201,5 +9704,17 @@ persistent actor class GameStateCanister() = this {
         redeemedFunnaiTransactionBlocksStorageStable := [];
         adminRoleAssignmentsStorage := HashMap.fromIter(Iter.fromArray(adminRoleAssignmentsStable), adminRoleAssignmentsStable.size(), Text.equal, Text.hash);
         adminRoleAssignmentsStable := [];
+        marketplaceListedMainerAgentsStorage := HashMap.fromIter(Iter.fromArray(marketplaceListedMainerAgentsStorageStable), marketplaceListedMainerAgentsStorageStable.size(), Text.equal, Text.hash);
+        marketplaceListedMainerAgentsStorageStable := [];
+        userToMarketplaceListedMainersStorage := HashMap.fromIter(Iter.fromArray(userToMarketplaceListedMainersStorageStable), userToMarketplaceListedMainersStorageStable.size(), Principal.equal, Principal.hash);
+        userToMarketplaceListedMainersStorageStable := [];
+        marketplaceReservedMainerAgentsStorage := HashMap.fromIter(Iter.fromArray(marketplaceReservedMainerAgentsStorageStable), marketplaceReservedMainerAgentsStorageStable.size(), Text.equal, Text.hash);
+        marketplaceReservedMainerAgentsStorageStable := [];
+        userToMarketplaceReservedMainerStorage := HashMap.fromIter(Iter.fromArray(userToMarketplaceReservedMainerStorageStable), userToMarketplaceReservedMainerStorageStable.size(), Principal.equal, Principal.hash);
+        userToMarketplaceReservedMainerStorageStable := [];
+        marketplaceSalesHistory := Buffer.fromArray(marketplaceSalesHistoryStable);
+        marketplaceSalesHistoryStable := [];
+        marketplaceMainerTransferFailuresStorage := HashMap.fromIter(Iter.fromArray(marketplaceMainerTransferFailuresStorageStable), marketplaceMainerTransferFailuresStorageStable.size(), Nat.equal, Hash.hash);
+        marketplaceMainerTransferFailuresStorageStable := [];
     };
 };
