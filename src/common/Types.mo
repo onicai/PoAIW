@@ -409,6 +409,8 @@ module Types {
 
     public type MarketplaceTransactionHistoryResult = Result<MarketplaceTransactionHistory, ApiError>;
 
+    public type MarketplaceTransactionsResult = Result<[MarketplaceSale], ApiError>;
+
     public type MainerTransferFailure = {
         transactionId : Nat;
         seller : Principal;
@@ -1285,6 +1287,22 @@ module Types {
         creationTimestamp : Nat64;
         sentBy : Principal;
     };
+
+    public type TokenDisbursementsResult = Result<[TokenDisbursement], ApiError>;
+
+    public type RewardEntryInput = {
+        rewardedTo : Text;
+        amount : Nat;
+        note : Text;
+    };
+
+    public type RewardEntry = RewardEntryInput and {
+        rewardId : Nat64;
+        creationTimestamp : Nat64;
+        sentBy : Principal;
+    };
+
+    public type RewardEntriesResult = Result<[RewardEntry], ApiError>;
 
     public type TokenomicsActionType = {
         #Swap;
