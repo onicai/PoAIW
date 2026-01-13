@@ -1288,6 +1288,8 @@ module Types {
         sentBy : Principal;
     };
 
+    public type TokenDisbursementsResult = Result<[TokenDisbursement], ApiError>;
+
     public type RewardEntryInput = {
         rewardedTo : Text;
         amount : Nat;

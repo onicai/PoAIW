@@ -1257,6 +1257,18 @@ persistent actor class TreasuryCanister() = this {
     // Store all FUNNAI disbursements made
     var funnaiDisbursementsStorage : List.List<Types.TokenDisbursement> = List.nil<Types.TokenDisbursement>();
 
+    // Admin function to get all FUNNAI disbursements made
+    public query (msg) func getFunnaiDisbursementsAdmin() : async Types.TokenDisbursementsResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        return #Ok(List.toArray(funnaiDisbursementsStorage));
+    };
+
     // Amount of FUNNAI to send
     var AMOUNT_FUNNAI_TO_SEND : Nat = 7000; // in full FUNNAI
 
@@ -1398,6 +1410,18 @@ persistent actor class TreasuryCanister() = this {
 
     // Store all FUNNAI disbursements for additional rewards
     var funnaiAdditionalRewardsDisbursedStorage : List.List<Types.RewardEntry> = List.nil<Types.RewardEntry>();
+
+    // Admin function to get all additional rewards disbursements
+    public query (msg) func getFunnaiAdditionalRewardsAdmin() : async Types.RewardEntriesResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        return #Ok(List.toArray(funnaiAdditionalRewardsDisbursedStorage));
+    };
 
     // Admin function to send FUNNAI for additional rewards
     public shared (msg) func sendFunnaiAsAdditionalRewardsAdmin(rewardsEntries : [Types.RewardEntryInput]) : async Types.RewardEntriesResult {
