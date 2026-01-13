@@ -1288,6 +1288,20 @@ module Types {
         sentBy : Principal;
     };
 
+    public type RewardEntryInput = {
+        rewardedTo : Text;
+        amount : Nat;
+        note : Text;
+    };
+
+    public type RewardEntry = RewardEntryInput and {
+        rewardId : Nat64;
+        creationTimestamp : Nat64;
+        sentBy : Principal;
+    };
+
+    public type RewardEntriesResult = Result<[RewardEntry], ApiError>;
+
     public type TokenomicsActionType = {
         #Swap;
         #LiquidityProvision;

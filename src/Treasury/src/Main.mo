@@ -1395,4 +1395,95 @@ persistent actor class TreasuryCanister() = this {
             return #Err(#FailedOperation);
         };
     };
+
+    // Store all FUNNAI disbursements for additional rewards
+    var funnaiAdditionalRewardsDisbursedStorage : List.List<Types.RewardEntry> = List.nil<Types.RewardEntry>();
+
+    // Admin function to send FUNNAI for additional rewards
+    public shared (msg) func sendFunnaiAsAdditionalRewardsAdmin(rewardsEntries : [Types.RewardEntryInput]) : async Types.RewardEntriesResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin caller by: " # debug_show (msg.caller));
+        D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin SEND_OUT_FUNNAI: " # debug_show (SEND_OUT_FUNNAI));
+        if (not SEND_OUT_FUNNAI) {
+            return #Err(#Unauthorized);
+        };
+        // For each reward entry, send FUNNAI and store the record
+        var entriesToReturn : List.List<Types.RewardEntry> = List.nil<Types.RewardEntry>();
+        for (entryInput in rewardsEntries.vals()) {
+            D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin processing entryInput: " # debug_show (entryInput));
+            let addressToSendTo : Principal = Principal.fromText(entryInput.rewardedTo);
+            D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin addressToSendTo: " # debug_show (addressToSendTo));
+            let amountToSendE8s : Nat = entryInput.amount; // FUNNAI has 8 decimal places
+            D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin amountToSendE8s: " # debug_show (amountToSendE8s));
+            let args : TokenLedger.TransferArg = {
+                from_subaccount = null;
+                to = {
+                    owner = addressToSendTo;
+                    subaccount = null;
+                };
+                amount = amountToSendE8s;
+                fee = null;
+                memo = null;
+                created_at_time = null;
+            };
+            D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin args: " # debug_show (args));
+            try {
+                // Call the ledger's icrc1_transfer function
+                let result = await TokenLedger_Actor.icrc1_transfer(args);
+                D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin result: " # debug_show (result));
+                switch (result) {
+                    case (#Ok(blockIndex)) {
+                        D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin - sending tokens successful: " # debug_show (blockIndex));
+                        D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin funnaiBalance initial: " # debug_show (funnaiBalance));
+                        if (funnaiBalance > amountToSendE8s) {
+                            funnaiBalance := funnaiBalance - amountToSendE8s;
+                        } else {
+                            funnaiBalance := 0;
+                        };
+                        D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin funnaiBalance after update: " # debug_show (funnaiBalance));
+                        // Store the disbursement record
+                        let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                        let disbursementEntry : Types.RewardEntry = {
+                            rewardId : Nat64 = Nat64.fromNat(blockIndex);
+                            rewardedTo : Text = entryInput.rewardedTo;
+                            amount : Nat = amountToSendE8s;
+                            note : Text = entryInput.note;
+                            creationTimestamp : Nat64 = creationTimestamp;
+                            sentBy : Principal = msg.caller;
+                        };
+                        funnaiAdditionalRewardsDisbursedStorage := List.push<Types.RewardEntry>(disbursementEntry, funnaiAdditionalRewardsDisbursedStorage);
+                        entriesToReturn := List.push<Types.RewardEntry>(disbursementEntry, entriesToReturn);
+                        // Store the tokenomics action
+                        let newEntry : Types.TokenomicsAction = {
+                            token : Types.TokenomicsActionTokens = #FUNNAI;
+                            amount : Nat = amountToSendE8s;
+                            creationTimestamp : Nat64 = creationTimestamp;
+                            additionalToken : ?Types.TokenomicsActionTokens = null;
+                            additionalTokenAmount : Nat = 0;
+                            actionId : Nat64 = tokenomicsActionCounter;
+                            actionType : Types.TokenomicsActionType = #Other("Sent FUNNAI as additional rewards");
+                            associatedTransactionId : ?Nat64 = ?Nat64.fromNat(blockIndex);
+                            transactionIdDisbursement : ?Nat64 = null;
+                            newIcpBalance : Nat = icpBalance;
+                        };
+
+                        let _ = putTokenomicsAction(newEntry);
+                    };
+                    case (#Err(err)) {
+                        D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin - Transfer error: " # debug_show (err));
+                        return #Err(#FailedOperation);
+                    };
+                };
+            } catch (e) {
+                D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin - Failed to call ledger: " # Error.message(e));
+                return #Err(#FailedOperation);
+            };
+        };
+        return #Ok(List.toArray<Types.RewardEntry>(entriesToReturn));
+    };
 };
