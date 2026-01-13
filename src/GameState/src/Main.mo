@@ -9270,6 +9270,18 @@ persistent actor class GameStateCanister() = this {
         };
     };
 
+    // Admin function to get all marketplace transactions
+    public query (msg) func getMarketplaceSalesAdmin() : async Types.MarketplaceTransactionsResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        return #Ok(Buffer.toArray(marketplaceSalesHistory));
+    };
+
     // Get user's marketplace transaction history (buys and sells)
     public query (msg) func getUserMarketplaceTransactionHistory() : async Types.MarketplaceTransactionHistoryResult {
         if (Principal.isAnonymous(msg.caller)) {

@@ -409,6 +409,8 @@ module Types {
 
     public type MarketplaceTransactionHistoryResult = Result<MarketplaceTransactionHistory, ApiError>;
 
+    public type MarketplaceTransactionsResult = Result<[MarketplaceSale], ApiError>;
+
     public type MainerTransferFailure = {
         transactionId : Nat;
         seller : Principal;
