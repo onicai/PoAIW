@@ -146,9 +146,6 @@ export const idlFactory = ({ IDL }) => {
   });
   const Sha256HashesResult = IDL.Variant({
     'Ok' : Sha256HashesRecord,
-  const StatusCodeRecord = IDL.Record({ 'status_code' : StatusCode });
-  const StatusCodeRecordResult = IDL.Variant({
-    'Ok' : StatusCodeRecord,
     'Err' : ApiError,
   });
   const ReinstallMainerctrlInput = IDL.Record({
@@ -249,7 +246,6 @@ export const idlFactory = ({ IDL }) => {
     'getMasterCanisterIdAdmin' : IDL.Func([], [IDL.Text], ['query']),
     'getMinCyclesBalanceAdmin' : IDL.Func([], [IDL.Nat], ['query']),
     'getSha256HashesAdmin' : IDL.Func([], [Sha256HashesResult], ['query']),
-    'getMinCyclesBalanceAdmin' : IDL.Func([], [IDL.Nat], ['query']),
     'health' : IDL.Func([], [StatusCodeRecordResult], ['query']),
     'isSubnetAvailableAdmin' : IDL.Func(
         [IDL.Text],
