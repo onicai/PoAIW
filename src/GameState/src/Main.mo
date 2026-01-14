@@ -7480,7 +7480,7 @@ persistent actor class GameStateCanister() = this {
         };
     };
 
-    // Function for admin to get all mAIner agent canisters
+    // Function for admin to get all mAIner agent canisters (from userToMainerAgentsStorage)
     public shared query (msg) func getMainerAgentCanistersAdmin() : async Types.MainerAgentCanistersResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -7491,6 +7491,19 @@ persistent actor class GameStateCanister() = this {
         };
 
         return #Ok(getMainerAgents());
+    };
+
+    // Function for admin to get all mAIner agent canisters (from mainerAgentCanistersStorage)
+    public shared query (msg) func getAllMainerAgentsAdmin() : async Types.MainerAgentCanistersResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Check if caller has AdminQuery permission
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
+            return #Err(#Unauthorized);
+        };
+
+        return #Ok(Iter.toArray<Types.OfficialMainerAgentCanister>(mainerAgentCanistersStorage.vals()));
     };
 
     public shared query (msg) func getMainerAgentCanistersForUserAdmin(user : Text) : async Types.MainerAgentCanistersResult {
