@@ -2148,8 +2148,11 @@ persistent actor class GameStateCanister() = this {
     // mAIner Registry: Official mAIner agent canisters (owned by users)
     var mainerAgentCanistersStorageStable : [(Text, Types.OfficialMainerAgentCanister)] = [];
     transient var mainerAgentCanistersStorage : HashMap.HashMap<Text, Types.OfficialMainerAgentCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
+    var mainerAgentCanistersStorageBackup : [(Text, Types.OfficialMainerAgentCanister)] = [];
+    
     var userToMainerAgentsStorageStable : [(Principal, List.List<Types.OfficialMainerAgentCanister>)] = [];
     transient var userToMainerAgentsStorage : HashMap.HashMap<Principal, List.List<Types.OfficialMainerAgentCanister>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+    var userToMainerAgentsStorageBackup : [(Principal, List.List<Types.OfficialMainerAgentCanister>)] = [];
 
     private func putMainerAgentCanister(canisterAddress : Text, canisterEntry : Types.OfficialMainerAgentCanister) : Types.MainerAgentCanisterResult {
         mainerAgentCanistersStorage.put(canisterAddress, canisterEntry);
@@ -2241,11 +2244,9 @@ persistent actor class GameStateCanister() = this {
         };
     };
 
-    // COMMENTED OUT: Admin function to rebuild userToMainerAgentsStorage from mainerAgentCanistersStorage
-    // This is useful if the user-to-mAIner mapping gets corrupted during an upgrade
-    // WARNING: This function is too risky to leave enabled as it clears and rebuilds the entire mapping
-    // Uncomment only if absolutely necessary for emergency recovery
-    /*
+    // Admin function to rebuild userToMainerAgentsStorage from mainerAgentCanistersStorage
+    // This is useful if the user-to-mAIner mapping gets corrupted during an upgrade (it rebuilds the entire mapping)
+    // Run only if absolutely necessary for emergency recovery
     public shared (msg) func rebuildUserMainerMappingAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -2254,34 +2255,40 @@ persistent actor class GameStateCanister() = this {
             return #Err(#Unauthorized);
         };
 
-        // Clear the existing mapping
-        userToMainerAgentsStorage := HashMap.HashMap(0, Principal.equal, Principal.hash);
+        // Backup existing mapping
+        mainerAgentCanistersStorageBackup := Iter.toArray(mainerAgentCanistersStorage.entries());
+        userToMainerAgentsStorageBackup := Iter.toArray(userToMainerAgentsStorage.entries());
+
+        // Build a new temporary mapping
+        var newUserToMainerAgentsStorage : HashMap.HashMap<Principal, List.List<Types.OfficialMainerAgentCanister>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
         
         // Rebuild from mainerAgentCanistersStorage
         var rebuiltCount : Nat = 0;
         for ((address, mainerEntry) in mainerAgentCanistersStorage.entries()) {
             // Add this mAIner to the user's list
-            switch (getUserMainerAgents(mainerEntry.ownedBy)) {
+            switch (newUserToMainerAgentsStorage.get(mainerEntry.ownedBy)) {
                 case (null) {
                     // First mAIner for this user
                     let userCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.make<Types.OfficialMainerAgentCanister>(mainerEntry);
-                    userToMainerAgentsStorage.put(mainerEntry.ownedBy, userCanistersList);
+                    newUserToMainerAgentsStorage.put(mainerEntry.ownedBy, userCanistersList);
                     rebuiltCount += 1;
                 };
                 case (?userCanistersList) {
                     // Add to existing list, with deduplication based on address
                     let filteredUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.filter(userCanistersList, func(listEntry: Types.OfficialMainerAgentCanister) : Bool { listEntry.address != mainerEntry.address });
                     let updatedUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.push<Types.OfficialMainerAgentCanister>(mainerEntry, filteredUserCanistersList);
-                    userToMainerAgentsStorage.put(mainerEntry.ownedBy, updatedUserCanistersList);
+                    newUserToMainerAgentsStorage.put(mainerEntry.ownedBy, updatedUserCanistersList);
                     rebuiltCount += 1;
                 };
             };
         };
 
+        // Replace the old mapping with the new one
+        userToMainerAgentsStorage := newUserToMainerAgentsStorage;
+
         let authRecord = { auth = "Rebuilt user-mAIner mapping for " # Nat.toText(rebuiltCount) # " mAIners" };
         return #Ok(authRecord);
     };
-    */
 
     // Caution: function that returns all mAIner agents
     private func getMainerAgents() : [Types.OfficialMainerAgentCanister] {
