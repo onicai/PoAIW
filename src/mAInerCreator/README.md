@@ -125,10 +125,6 @@ ANOTHER_MAINER_SHARE_AGENT_CANISTER="zzzzz-...-cai"   # copy newCanisterId from 
 dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_AGENT_CANISTER\")"
 
 ###################################################
-# TODO:
-# We need a mechanism to remove LLM canisters
-# We need a mechanism to upgrade the source code of all the canisters, without reinstalling the LLM models
-###################################################
 
 ## Might come in handy during local testing
 dfx ledger fabricate-cycles --canister mainer_creator_canister

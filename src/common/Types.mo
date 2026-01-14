@@ -409,6 +409,8 @@ module Types {
 
     public type MarketplaceTransactionHistoryResult = Result<MarketplaceTransactionHistory, ApiError>;
 
+    public type MarketplaceTransactionsResult = Result<[MarketplaceSale], ApiError>;
+
     public type MainerTransferFailure = {
         transactionId : Nat;
         seller : Principal;
@@ -687,6 +689,8 @@ module Types {
         args : [Text]; // the CLI args of llama.cpp/examples/main, as a list of strings
     };
 
+    // TODO: This has always been wrong, it must be changed to:
+    // correct: public type OutputRecordResult = Result<OutputRecord, OutputRecord>;
     public type OutputRecordResult = Result<OutputRecord, ApiError>;
     public type OutputRecord = {
         status_code : Nat16;
@@ -1283,6 +1287,22 @@ module Types {
         creationTimestamp : Nat64;
         sentBy : Principal;
     };
+
+    public type TokenDisbursementsResult = Result<[TokenDisbursement], ApiError>;
+
+    public type RewardEntryInput = {
+        rewardedTo : Text;
+        amount : Nat;
+        note : Text;
+    };
+
+    public type RewardEntry = RewardEntryInput and {
+        rewardId : Nat64;
+        creationTimestamp : Nat64;
+        sentBy : Principal;
+    };
+
+    public type RewardEntriesResult = Result<[RewardEntry], ApiError>;
 
     public type TokenomicsActionType = {
         #Swap;

@@ -131,7 +131,6 @@ export interface MainerCreatorCanister {
   'getMasterCanisterIdAdmin' : ActorMethod<[], string>,
   'getMinCyclesBalanceAdmin' : ActorMethod<[], bigint>,
   'getSha256HashesAdmin' : ActorMethod<[], Sha256HashesResult>,
-  'getMinCyclesBalanceAdmin' : ActorMethod<[], bigint>,
   'health' : ActorMethod<[], StatusCodeRecordResult>,
   'isSubnetAvailableAdmin' : ActorMethod<
     [string],

@@ -2,16 +2,32 @@ name: cicd-mac
 
 on:
   workflow_dispatch:
-  # Uncomment to run on PR push:
-  # push:
-  #   paths:
-  #     - "src/**/**"
-  #     - ".github/workflows/cicd-mac.yml"
+  push:
+    paths:
+      - ".github/workflows/cicd-mac.yml"
+      - ".github/workflows/trigger.txt"
+      # Keep in sync with matrix.canister below
+      - "src/Api/**"
+      - "src/mAIner/**"
+      - "src/ArchiveChallenges/**"
+      - "src/Challenger/**"
+      - "src/Judge/**"
+      - "src/mAInerCreator/**"
+      - "src/GameState/**"
+      - "src/Treasury/**"
+      - "src/common/**"
+
+env:
+  DFX_VERSION: "0.29.2"
 
 jobs:
   smoketest:
-    name: smoketest
+    name: smoketest ${{ matrix.canister }}
     runs-on: macos-latest
+    strategy:
+      matrix:
+        # Keep in sync with on.push.paths above
+        canister: [Api, mAIner, ArchiveChallenges, Challenger, Judge, mAInerCreator, GameState, Treasury]
 
     steps:
       - name: checkout
@@ -24,17 +40,26 @@ jobs:
         with:
           python-version: '3.11'
 
+      # Node is required for mops install
+      - name: setup node
+        uses: actions/setup-node@v4
+
       - name: install dfx
         run: |
           set -euo pipefail
           DFXVM_INIT_YES=true sh -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
-          echo "$HOME/.local/share/dfx/bin" >> $GITHUB_PATH
+          source "$HOME/Library/Application Support/org.dfinity.dfx/env"
+          dfxvm default $DFX_VERSION
+          echo "$HOME/Library/Application Support/org.dfinity.dfx/bin" >> $GITHUB_PATH
 
       - name: install python dependencies
         run: |
           set -euo pipefail
           pip install --upgrade pip
           pip install icpp-pro
+
+      - name: install mops to manage motoko dependencies
+        run: npm install -g ic-mops
 
       - name: versions
         run: |
@@ -43,8 +68,9 @@ jobs:
           echo "python version: $(python --version)"
           echo "pytest version: $(pytest --version)"
 
-      - name: smoketest Api canister
-        working-directory: src/Api
+      - name: smoketest ${{ matrix.canister }} canister
+        working-directory: src/${{ matrix.canister }}
         run: |
           set -euo pipefail
+          mops install
           make smoketest

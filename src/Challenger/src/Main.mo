@@ -24,9 +24,9 @@ import Constants "../../common/Constants";
 import ICManagementCanister "../../common/ICManagementCanister";
 import Utils "Utils";
 
-actor class ChallengerCtrlbCanister() {
+persistent actor class ChallengerCtrlbCanister() {
 
-    let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
+    private transient let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
 
     public shared query (msg) func whoami() : async Principal {
         return msg.caller;
@@ -39,8 +39,11 @@ actor class ChallengerCtrlbCanister() {
 
     // Function to verify that canister is ready for inference
     public shared (msg) func ready() : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         for (llmCanister in llmCanisters.vals()) {
             try {
@@ -61,34 +64,43 @@ actor class ChallengerCtrlbCanister() {
 
     // Admin function to verify that caller is a controller of this canister
     public shared query (msg) func amiController() : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         return #Ok({ status_code = 200 });
     };
 
     // Orthogonal Persisted Data storage
 
-    stable var GAME_STATE_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
+    var GAME_STATE_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
 
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         GAME_STATE_CANISTER_ID := _game_state_canister_id;
         return #Ok({ status_code = 200 });
     };
 
     public query (msg) func getGameStateCanisterId() : async Text {
+        if (Principal.isAnonymous(msg.caller)) {
+            return "#Err(#Unauthorized)";
+        };
         if (not Principal.isController(msg.caller)) {
-            return "#Err(#StatusCode(401))";
+            return "#Err(#Unauthorized)";
         };
 
         return GAME_STATE_CANISTER_ID;
     };
 
     // Flag to decide whether cycles should be sent to LLMs automatically as part of flow
-    stable var SEND_CYCLES_TO_LLM : Bool = true;
+    var SEND_CYCLES_TO_LLM : Bool = true;
 
     public shared (msg) func toggleSendCyclesToLlmFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -114,7 +126,7 @@ actor class ChallengerCtrlbCanister() {
     };
 
     // Move cycles to Game State canister
-    stable var cyclesTransactionsStorage : List.List<Types.CyclesTransaction> = List.nil<Types.CyclesTransaction>();
+    var cyclesTransactionsStorage : List.List<Types.CyclesTransaction> = List.nil<Types.CyclesTransaction>();
 
     public query (msg) func getCyclesTransactionsAdmin() : async Types.CyclesTransactionsResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -126,8 +138,8 @@ actor class ChallengerCtrlbCanister() {
         return #Ok(List.toArray(cyclesTransactionsStorage));
     };
     
-    stable var MIN_CYCLES_BALANCE : Nat = 30 * Constants.CYCLES_TRILLION;
-    stable var CYCLES_AMOUNT_TO_GAME_STATE_CANISTER : Nat = 10 * Constants.CYCLES_TRILLION;
+    var MIN_CYCLES_BALANCE : Nat = 30 * Constants.CYCLES_TRILLION;
+    var CYCLES_AMOUNT_TO_GAME_STATE_CANISTER : Nat = 10 * Constants.CYCLES_TRILLION;
 
     public shared (msg) func sendCyclesToGameStateCanister() : async Types.AddCyclesResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -199,17 +211,23 @@ actor class ChallengerCtrlbCanister() {
     };
 
     public shared (msg) func setMinCyclesBalanceAdmin(newCyclesBalance : Nat) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (newCyclesBalance < 20 * Constants.CYCLES_TRILLION) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         MIN_CYCLES_BALANCE := newCyclesBalance;
         return #Ok({ status_code = 200 });
     };
 
     public query (msg) func getMinCyclesBalanceAdmin() : async Nat {
+        if (Principal.isAnonymous(msg.caller)) {
+            return 0;
+        };
         if (not Principal.isController(msg.caller)) {
             return 0;
         };
@@ -218,17 +236,23 @@ actor class ChallengerCtrlbCanister() {
     };
 
     public shared (msg) func setCyclesToSendToGameStateAdmin(newValue : Nat) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (newValue > 100 * Constants.CYCLES_TRILLION) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         CYCLES_AMOUNT_TO_GAME_STATE_CANISTER := newValue;
         return #Ok({ status_code = 200 });
     };
 
     public query (msg) func getCyclesToSendToGameStateAdmin() : async Nat {
+        if (Principal.isAnonymous(msg.caller)) {
+            return 0;
+        };
         if (not Principal.isController(msg.caller)) {
             return 0;
         };
@@ -237,7 +261,7 @@ actor class ChallengerCtrlbCanister() {
     };
 
     // timer ID, so we can stop it after starting
-    stable var recurringTimerId : ?Timer.TimerId = null;
+    var recurringTimerId : ?Timer.TimerId = null;
 
     // Flag to track if challenge generation is in progress
     // Note: This is NOT stable - resets to false on canister upgrades for self-healing
@@ -245,7 +269,7 @@ actor class ChallengerCtrlbCanister() {
     private transient var IS_GENERATING_CHALLENGE : Bool = false;
 
     // Record of all generated challenges
-    stable var generatedChallenges : List.List<Types.GeneratedChallenge> = List.nil<Types.GeneratedChallenge>();
+    var generatedChallenges : List.List<Types.GeneratedChallenge> = List.nil<Types.GeneratedChallenge>();
 
     private func putGeneratedChallenge(challengeEntry : Types.GeneratedChallenge) : Bool {
         generatedChallenges := List.push<Types.GeneratedChallenge>(challengeEntry, generatedChallenges);
@@ -266,6 +290,9 @@ actor class ChallengerCtrlbCanister() {
     };
 
     public shared query (msg) func getChallengesAdmin() : async Types.GeneratedChallengesResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -274,6 +301,9 @@ actor class ChallengerCtrlbCanister() {
     };
 
     public query (msg) func getChallengesListAdmin() : async List.List<Types.GeneratedChallenge> {
+        if (Principal.isAnonymous(msg.caller)) {
+            return List.nil<Types.GeneratedChallenge>();
+        };
         if (not Principal.isController(msg.caller)) {
             return List.nil<Types.GeneratedChallenge>();
         };
@@ -307,20 +337,20 @@ actor class ChallengerCtrlbCanister() {
 
     // -------------------------------------------------------------------------------
     // The C++ LLM canisters that can be called
-    stable var llmCanistersStable : [Text] = [];
-    private var llmCanisters : Buffer.Buffer<Types.LLMCanister> = Buffer.fromArray([]);
+    var llmCanistersStable : [Text] = [];
+    private transient var llmCanisters : Buffer.Buffer<Types.LLMCanister> = Buffer.fromArray([]);
 
     // Round-robin load balancer for LLM canisters to call
-    private var roundRobinIndex : Nat = 0;
-    private var roundRobinUseAll : Bool = true;
-    private var roundRobinLLMs : Nat = 0; // Only used when roundRobinUseAll is false
+    private transient var roundRobinIndex : Nat = 0;
+    private transient var roundRobinUseAll : Bool = true;
+    private transient var roundRobinLLMs : Nat = 0; // Only used when roundRobinUseAll is false
 
     public shared query (msg) func get_llm_canisters() : async Types.LlmCanistersRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         let llmCanisterIds : [Types.CanisterAddress] = Buffer.toArray(
             Buffer.map<Types.LLMCanister, Text>(llmCanisters, func (llm : Types.LLMCanister) : Text {
@@ -336,10 +366,10 @@ actor class ChallengerCtrlbCanister() {
 
     public shared (msg) func reset_llm_canisters() : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         D.print("Challenger: reset_llm_canisters - Resetting all LLM canisters & round-robin state");
         llmCanisters.clear();
@@ -349,10 +379,10 @@ actor class ChallengerCtrlbCanister() {
 
     public shared (msg) func add_llm_canister(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         D.print("Challenger: add_llm_canister - Adding llm: " # llmCanisterIdRecord.canister_id);
         let llmCanister = actor (llmCanisterIdRecord.canister_id) : Types.LLMCanister;
@@ -362,10 +392,10 @@ actor class ChallengerCtrlbCanister() {
 
     public shared (msg) func remove_llm_canister(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
 
         let targetCanisterText = llmCanisterIdRecord.canister_id;
@@ -397,10 +427,10 @@ actor class ChallengerCtrlbCanister() {
     // Admin function to reset roundRobinLLMs
     public shared (msg) func resetRoundRobinLLMs() : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         resetRoundRobinLLMs_();
         return #Ok({ status_code = 200 });
@@ -414,10 +444,10 @@ actor class ChallengerCtrlbCanister() {
     // Admin function to set roundRobinLLMs
     public shared (msg) func setRoundRobinLLMs(_roundRobinLLMs : Nat) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         roundRobinUseAll := false;
         roundRobinLLMs := _roundRobinLLMs;
@@ -428,8 +458,11 @@ actor class ChallengerCtrlbCanister() {
 
     // Admin function to verify that challenger_ctrlb_canister is a controller of all the llm canisters
     public shared (msg) func checkAccessToLLMs() : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
 
         // Call all the llm canisters to verify that challenger_ctrlb_canister is a controller
@@ -452,8 +485,11 @@ actor class ChallengerCtrlbCanister() {
 
     // Endpoint to generate a new challenge
     public shared (msg) func generateNewChallenge() : async Types.GeneratedChallengeResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
 
         // Check if already generating a challenge
@@ -719,14 +755,6 @@ actor class ChallengerCtrlbCanister() {
                                         let additionResult : Types.ChallengeAdditionResult = await gameStateCanisterActor.addChallenge(newChallenge);
                                         D.print("Challenger: generateChallenge generatedChallengeOutput Ok additionResult");
                                         print(debug_show (additionResult));
-                                        switch (additionResult) {
-                                            case (#Err(error)) {
-                                                // TODO - Error Handling (e.g. put into queue and try again later)
-                                            };
-                                            case (#Ok(addedChallenge)) {
-                                                // TODO - Design: decide if returned challenge entry should be stored as well
-                                            };
-                                        };
                                         return generatedChallengeOutput;
                                     };
                                 };
@@ -748,8 +776,6 @@ actor class ChallengerCtrlbCanister() {
                 
             } catch (e) {
                 D.print("gameStateCanisterActor.uploadMainerPromptCacheBytesChunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
-                
-                // TODO - Implementation: introduce a delay using a timer...
                 // Just retry immediately with decremented attempts
                 return await retryGameStateMainerPromptCacheChunkUploadWithDelay(gameStateCanisterActor, uploadMainerPromptCacheBytesChunkInput, attempts - 1, delay);
             };
@@ -769,8 +795,6 @@ actor class ChallengerCtrlbCanister() {
                 
             } catch (e) {
                 D.print("gameStateCanisterActor.download_prompt_cache_chunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
-                
-                // TODO - Implementation: introduce a delay using a timer...
                 // Just retry immediately with decremented attempts
                 return await retryLlmMainerPromptCacheChunkDownloadWithDelay(llmCanister, downloadPromptCacheInputRecord, attempts - 1, delay);
             };
@@ -1128,8 +1152,6 @@ actor class ChallengerCtrlbCanister() {
                 
             } catch (e) {
                 D.print("gameStateCanisterActor.uploadJudgePromptCacheBytesChunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
-                
-                // TODO - Implementation: introduce a delay using a timer...
                 // Just retry immediately with decremented attempts
                 return await retryGameStateJudgePromptCacheChunkUploadWithDelay(gameStateCanisterActor, uploadJudgePromptCacheBytesChunkInput, attempts - 1, delay);
             };
@@ -1149,8 +1171,6 @@ actor class ChallengerCtrlbCanister() {
                 
             } catch (e) {
                 D.print("gameStateCanisterActor.download_prompt_cache_chunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
-                
-                // TODO - Implementation: introduce a delay using a timer...
                 // Just retry immediately with decremented attempts
                 return await retryLlmJudgePromptCacheChunkDownloadWithDelay(llmCanister, downloadPromptCacheInputRecord, attempts - 1, delay);
             };
@@ -1836,8 +1856,14 @@ actor class ChallengerCtrlbCanister() {
     };
 
     public shared query (msg) func getRoundRobinCanister() : async Types.CanisterIDRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
+        };
+        if (llmCanisters.size() == 0) {
+            return #Err(#Other("No LLM canisters configured"));
         };
         let canisterIDRecord : Types.CanisterIDRecord = {
             canister_id = Principal.toText(Principal.fromActor(_getRoundRobinCanister()));
@@ -1869,11 +1895,14 @@ actor class ChallengerCtrlbCanister() {
     };
 
     // Timer
-    stable var actionRegularityInSeconds = 420;
+    var actionRegularityInSeconds = 420;
 
     public shared (msg) func setTimerActionRegularityInSecondsAdmin(_actionRegularityInSeconds : Nat) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         actionRegularityInSeconds := _actionRegularityInSeconds;
         // Restart the timer with the new regularity
@@ -1882,8 +1911,11 @@ actor class ChallengerCtrlbCanister() {
     };
 
     public shared query (msg) func getTimerActionRegularityInSecondsAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         return #Ok(actionRegularityInSeconds);
     };
@@ -1915,8 +1947,11 @@ actor class ChallengerCtrlbCanister() {
     };
 
     public shared (msg) func startTimerExecutionAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         await startTimerExecution();
     };
@@ -1959,7 +1994,7 @@ actor class ChallengerCtrlbCanister() {
 
     public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         await stopTimerExecution();
     };

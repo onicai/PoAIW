@@ -1,6 +1,6 @@
 #!/bin/bash
 
-LLAMA_CPP_CANISTER_PATH="../../../../llama_cpp_canister"
+../llama_cpp_canister
 export PYTHONPATH="${PYTHONPATH}:$(realpath $LLAMA_CPP_CANISTER_PATH)"
 
 #######################################################################
@@ -13,7 +13,7 @@ NETWORK_TYPE="local"
 NUM_LLMS_DEPLOYED=2
 
 # The gguf model files to upload to each LLM(Relative to llama_cpp_canister folder)
-MODEL="models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q8_0.gguf"
+MODEL="../models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q8_0.gguf"
 
 # Parse command line arguments for network type
 while [ $# -gt 0 ]; do

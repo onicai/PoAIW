@@ -3,7 +3,8 @@
   "canisters": {
     "archive_challenges_canister": {
       "main": "src/Main.mo",
-      "type": "motoko"
+      "type": "motoko",
+      "args": "--enhanced-orthogonal-persistence"
     }
   },
   "output_env_file": ".env",

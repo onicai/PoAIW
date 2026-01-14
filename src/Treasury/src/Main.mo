@@ -20,9 +20,9 @@ import Types "../../common/Types";
 import TokenLedger "../../common/icp-ledger-interface";
 import LiquidityPool "../../common/icpswap-liquidity-pool-interface";
 
-actor class TreasuryCanister() = this {
+persistent actor class TreasuryCanister() = this {
 
-    stable var MASTER_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
+    var MASTER_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
 
     public shared (msg) func setMasterCanisterId(_master_canister_id : Text) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -49,23 +49,23 @@ actor class TreasuryCanister() = this {
         return #Ok(authRecord);
     };
 
-    let ICP_LEDGER_ACTOR : TokenLedger.TOKEN_LEDGER = Types.IcpLedger_Actor;
+    transient let ICP_LEDGER_ACTOR : TokenLedger.TOKEN_LEDGER = Types.IcpLedger_Actor;
 
-    let LIQUIDITY_POOL_ACTOR : LiquidityPool.LIQUIDITY_POOL = Types.FunnaiIcpLiquidityPool_Actor;
+    transient let LIQUIDITY_POOL_ACTOR : LiquidityPool.LIQUIDITY_POOL = Types.FunnaiIcpLiquidityPool_Actor;
 
-    let thisAccount : TokenLedger.Account = {
+    transient let thisAccount : TokenLedger.Account = {
         owner : Principal = Principal.fromActor(this);
         subaccount : ?Blob = null;
     };
 
-    let liquidityPoolAccount : TokenLedger.Account = {
+    transient let liquidityPoolAccount : TokenLedger.Account = {
         owner : Principal = Principal.fromActor(LIQUIDITY_POOL_ACTOR);
         subaccount : ?Blob = null;
     };
 
-    let TOKEN_LEDGER_CANISTER_ID : Text = "vpyot-zqaaa-aaaaa-qavaq-cai";
+    transient let TOKEN_LEDGER_CANISTER_ID : Text = "vpyot-zqaaa-aaaaa-qavaq-cai";
 
-    let TREASURY_PRINCIPAL_BLOB : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null);
+    transient let TREASURY_PRINCIPAL_BLOB : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null);
     // Construct subaccount for the canister principal
     private func principalToSubaccount(principal : Principal) : Blob {
         let sub = Buffer.Buffer<Nat8>(32);
@@ -79,18 +79,18 @@ actor class TreasuryCanister() = this {
 
         Blob.fromArray(Buffer.toArray(sub));
     };
-    let TREASURY_SUBACCOUNT : Blob = principalToSubaccount(Principal.fromActor(this));
+    transient let TREASURY_SUBACCOUNT : Blob = principalToSubaccount(Principal.fromActor(this));
 
-    let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (TOKEN_LEDGER_CANISTER_ID);
+    transient let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (TOKEN_LEDGER_CANISTER_ID);
 
-    let liquidityPoolAccountWithTreasurySubaccount : TokenLedger.Account = {
+    transient let liquidityPoolAccountWithTreasurySubaccount : TokenLedger.Account = {
         owner : Principal = Principal.fromActor(LIQUIDITY_POOL_ACTOR);
         subaccount : ?Blob = ?TREASURY_SUBACCOUNT;
     };
 
     // Parameters
     // Flag to toggle whether incoming ICP should be converted to FUNNAI
-    stable var CONVERT_ICP_TO_FUNNAI : Bool = true;
+    var CONVERT_ICP_TO_FUNNAI : Bool = true;
 
     public shared (msg) func toggleConvertIcpToFunnaiFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -117,7 +117,7 @@ actor class TreasuryCanister() = this {
     };
 
     // Threshold of minimum ICP balance to keep
-    stable var MINIMUM_ICP_BALANCE : Nat = 30; // in full ICP
+    var MINIMUM_ICP_BALANCE : Nat = 30; // in full ICP
 
     public shared (msg) func setMinimumIcpBalance(newBalance : Nat) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -142,9 +142,9 @@ actor class TreasuryCanister() = this {
     };
 
     // Parameter to set the smallest amount that will be added from the treasury to add to the incoming ICP to be converted
-    let E8S_PER_ICP : Nat = 100_000_000; // 10^8 e8s per ICP
+    transient let E8S_PER_ICP : Nat = 100_000_000; // 10^8 e8s per ICP
 
-    stable var ICP_BASE_AMOUNT : Nat = 8_000_000; // 0.08 ICP
+    var ICP_BASE_AMOUNT : Nat = 8_000_000; // 0.08 ICP
 
     public shared (msg) func setIcpBaseAmount(newIcpBaseAmount : Nat) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -172,7 +172,7 @@ actor class TreasuryCanister() = this {
     };
 
     // Flag to toggle whether ICP should be disbursed to developers (as payment for their services)
-    stable var DISBURSE_FUNDS_TO_DEVELOPERS : Bool = false;
+    var DISBURSE_FUNDS_TO_DEVELOPERS : Bool = false;
 
     public shared (msg) func toggleDisburseFundsToDevelopersFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -199,7 +199,7 @@ actor class TreasuryCanister() = this {
     };
 
     // Flag to toggle whether cycles should be disbursed to developers (as payment for their services)
-    stable var DISBURSE_CYCLES_TO_DEVELOPERS : Bool = false;
+    var DISBURSE_CYCLES_TO_DEVELOPERS : Bool = false;
 
     public shared (msg) func toggleDisburseCyclesToDevelopersFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -226,7 +226,7 @@ actor class TreasuryCanister() = this {
     };
 
     // Percentage of ICP to disburse to developers
-    stable var DEVELOPER_SHARE_ICP : Nat = 1; // as parts of 10000, i.e. 100 are 1%, 10000 are 100%, etc
+    var DEVELOPER_SHARE_ICP : Nat = 1; // as parts of 10000, i.e. 100 are 1%, 10000 are 100%, etc
 
     public shared (msg) func setDeveloperShareIcp(newDeveloperShare : Nat) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -257,7 +257,7 @@ actor class TreasuryCanister() = this {
     };
 
     // Flag to toggle whether treasury should burn the specified percentage of incoming FUNNAI
-    stable var BURN_INCOMING_FUNNAI : Bool = false;
+    var BURN_INCOMING_FUNNAI : Bool = false;
 
     public shared (msg) func toggleBurnIncomingFunnaiFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -284,7 +284,7 @@ actor class TreasuryCanister() = this {
     };
 
     // Percentage of incoming FUNNAI to burn (remainder will be kept)
-    stable var BURN_SHARE_FUNNAI : Nat = 1; // as parts of 10000, i.e. 100 are 1%, 10000 are 100%, etc
+    var BURN_SHARE_FUNNAI : Nat = 1; // as parts of 10000, i.e. 100 are 1%, 10000 are 100%, etc
 
     public shared (msg) func setBurnShareFunnai(newBurnShare : Nat) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -315,7 +315,7 @@ actor class TreasuryCanister() = this {
     };
 
     // Flag to toggle whether treasury should add the specified percentage of incoming FUNNAI as liquidity
-    stable var LIQUIDITY_ADDITION_INCOMING_FUNNAI : Bool = false;
+    var LIQUIDITY_ADDITION_INCOMING_FUNNAI : Bool = false;
 
     public shared (msg) func toggleLiquidityAdditionIncomingFunnaiFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -342,7 +342,7 @@ actor class TreasuryCanister() = this {
     };
 
     // Percentage of incoming FUNNAI to add as liquidity (remainder is kept)
-    stable var LIQUIDITY_SHARE_FUNNAI : Nat = 1; // as parts of 10000, i.e. 100 are 1%, 10000 are 100%, etc
+    var LIQUIDITY_SHARE_FUNNAI : Nat = 1; // as parts of 10000, i.e. 100 are 1%, 10000 are 100%, etc
 
     public shared (msg) func setLiquidityShareFunnai(newLiquidityShare : Nat) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -373,7 +373,7 @@ actor class TreasuryCanister() = this {
     };
 
     // Flag to toggle whether treasury should match the FUNNAI to be added as liquidity with ICP
-    stable var MATCH_LIQUIDITY_ADDITION_ICP : Bool = false;
+    var MATCH_LIQUIDITY_ADDITION_ICP : Bool = false;
 
     public shared (msg) func toggleMatchLiquidityAdditionIcpFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -422,16 +422,16 @@ actor class TreasuryCanister() = this {
         return #Ok(authRecord);
     };
 
-    // Official balances // TODO - Implementation: decide if needed
-    stable var icpBalance : Nat = 0;
-    stable var funnaiBalance : Nat = 0;
+    // Official balances
+    var icpBalance : Nat = 0;
+    var funnaiBalance : Nat = 0;
 
     // Disbursements (received from Game State)
-    stable var icpDisbursementsStorage : List.List<Types.TokenDisbursement> = List.nil<Types.TokenDisbursement>();
+    var icpDisbursementsStorage : List.List<Types.TokenDisbursement> = List.nil<Types.TokenDisbursement>();
 
     // Tokenomics actions taken by this canister
-    stable var tokenomicsActionsStorage : List.List<Types.TokenomicsAction> = List.nil<Types.TokenomicsAction>();
-    stable var tokenomicsActionCounter : Nat64 = 0;
+    var tokenomicsActionsStorage : List.List<Types.TokenomicsAction> = List.nil<Types.TokenomicsAction>();
+    var tokenomicsActionCounter : Nat64 = 0;
 
     private func putTokenomicsAction(actionEntry : Types.TokenomicsAction) : Types.TokenomicsAction {
         tokenomicsActionsStorage := List.push<Types.TokenomicsAction>(actionEntry, tokenomicsActionsStorage);
@@ -460,7 +460,7 @@ actor class TreasuryCanister() = this {
         };
         icpDisbursementsStorage := List.push<Types.TokenDisbursement>(disbursementEntry, icpDisbursementsStorage);
 
-        // TODO - Implementation: trigger tokenomics actions to handle disbursementAmount
+        // Trigger tokenomics actions to handle disbursementAmount
         ignore handleDisbursement(disbursementEntry);
 
         return #Ok({
@@ -641,13 +641,11 @@ actor class TreasuryCanister() = this {
                 };
                 case (#Err(err)) {
                     D.print("Treasury: burnFunnaiTransaction - Transfer error: " # debug_show (err));
-                    // TODO - Error Handling (e.g. put into queue and try again later)
                     return 0;
                 };
             };
         } catch (e) {
             D.print("Treasury: burnFunnaiTransaction - Failed to call ledger: " # Error.message(e));
-            // TODO - Error Handling (e.g. put into queue and try again later)
             return 0;
         };
     };
@@ -826,7 +824,6 @@ actor class TreasuryCanister() = this {
                                 };
                             } catch (error : Error) {
                                 D.print("Treasury: swapIcpToFunnai depositAndSwapResult error: " # Error.message(error));
-                                // TODO: try again, otherwise transferred ICP need to be reclaimed
                                 return #Err(#FailedOperation);
                             };
                         };
@@ -844,7 +841,7 @@ actor class TreasuryCanister() = this {
     };
 
 // Treasury's liquidity positions
-    stable var liquidityPositionsStorage : List.List<LiquidityPool.UserPositionInfoWithId> = List.nil<LiquidityPool.UserPositionInfoWithId>();
+    var liquidityPositionsStorage : List.List<LiquidityPool.UserPositionInfoWithId> = List.nil<LiquidityPool.UserPositionInfoWithId>();
 
     public query (msg) func getLiquidityPositionsAdmin() : async Types.LiquidityPositionsResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -1034,7 +1031,6 @@ actor class TreasuryCanister() = this {
                 return 0;
             };
         } else {
-            // TODO: Decide if only FUNNAI should be added to liquidity pool
             D.print("Treasury: mintLiquidityPosition MATCH_LIQUIDITY_ADDITION_ICP is false");
             return 0;
         };
@@ -1250,20 +1246,31 @@ actor class TreasuryCanister() = this {
                 return (0, 0);
             };
         } else {
-            // TODO: Decide if only FUNNAI should be added to liquidity pool
             D.print("Treasury: addLiquidity MATCH_LIQUIDITY_ADDITION_ICP is false");
             return (0, 0);
         };
     };
 
     // Send FUNNAI to ICPSwap to create liquidity position farms and staking pools
-    let addressToSendTo : Text = "s4bhi-2dn5o-cuy2i-yyczq-y7cjy-ndpgz-wh7yw-gszzn-isq2z-5frzl-nae"; // ICPSwap's address
+    transient let addressToSendTo : Text = "s4bhi-2dn5o-cuy2i-yyczq-y7cjy-ndpgz-wh7yw-gszzn-isq2z-5frzl-nae"; // ICPSwap's address
 
     // Store all FUNNAI disbursements made
-    stable var funnaiDisbursementsStorage : List.List<Types.TokenDisbursement> = List.nil<Types.TokenDisbursement>();
+    var funnaiDisbursementsStorage : List.List<Types.TokenDisbursement> = List.nil<Types.TokenDisbursement>();
+
+    // Admin function to get all FUNNAI disbursements made
+    public query (msg) func getFunnaiDisbursementsAdmin() : async Types.TokenDisbursementsResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        return #Ok(List.toArray(funnaiDisbursementsStorage));
+    };
 
     // Amount of FUNNAI to send
-    stable var AMOUNT_FUNNAI_TO_SEND : Nat = 7000; // in full FUNNAI
+    var AMOUNT_FUNNAI_TO_SEND : Nat = 7000; // in full FUNNAI
 
     public shared (msg) func setAmountFunnaiToSend(newAmount : Nat) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -1294,7 +1301,7 @@ actor class TreasuryCanister() = this {
     };
     
     // Flag to toggle whether FUNNAI can be sent out
-    stable var SEND_OUT_FUNNAI : Bool = false;
+    var SEND_OUT_FUNNAI : Bool = false;
 
     public shared (msg) func toggleSendOutFunnaiFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -1399,5 +1406,108 @@ actor class TreasuryCanister() = this {
             D.print("Treasury: sendFunnaiForPoolSetupAdmin - Failed to call ledger: " # Error.message(e));
             return #Err(#FailedOperation);
         };
+    };
+
+    // Store all FUNNAI disbursements for additional rewards
+    var funnaiAdditionalRewardsDisbursedStorage : List.List<Types.RewardEntry> = List.nil<Types.RewardEntry>();
+
+    // Admin function to get all additional rewards disbursements
+    public query (msg) func getFunnaiAdditionalRewardsAdmin() : async Types.RewardEntriesResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        return #Ok(List.toArray(funnaiAdditionalRewardsDisbursedStorage));
+    };
+
+    // Admin function to send FUNNAI for additional rewards
+    public shared (msg) func sendFunnaiAsAdditionalRewardsAdmin(rewardsEntries : [Types.RewardEntryInput]) : async Types.RewardEntriesResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin caller by: " # debug_show (msg.caller));
+        D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin SEND_OUT_FUNNAI: " # debug_show (SEND_OUT_FUNNAI));
+        if (not SEND_OUT_FUNNAI) {
+            return #Err(#Unauthorized);
+        };
+        // For each reward entry, send FUNNAI and store the record
+        var entriesToReturn : List.List<Types.RewardEntry> = List.nil<Types.RewardEntry>();
+        for (entryInput in rewardsEntries.vals()) {
+            D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin processing entryInput: " # debug_show (entryInput));
+            let addressToSendTo : Principal = Principal.fromText(entryInput.rewardedTo);
+            D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin addressToSendTo: " # debug_show (addressToSendTo));
+            let amountToSendE8s : Nat = entryInput.amount; // FUNNAI has 8 decimal places
+            D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin amountToSendE8s: " # debug_show (amountToSendE8s));
+            let args : TokenLedger.TransferArg = {
+                from_subaccount = null;
+                to = {
+                    owner = addressToSendTo;
+                    subaccount = null;
+                };
+                amount = amountToSendE8s;
+                fee = null;
+                memo = null;
+                created_at_time = null;
+            };
+            D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin args: " # debug_show (args));
+            try {
+                // Call the ledger's icrc1_transfer function
+                let result = await TokenLedger_Actor.icrc1_transfer(args);
+                D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin result: " # debug_show (result));
+                switch (result) {
+                    case (#Ok(blockIndex)) {
+                        D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin - sending tokens successful: " # debug_show (blockIndex));
+                        D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin funnaiBalance initial: " # debug_show (funnaiBalance));
+                        if (funnaiBalance > amountToSendE8s) {
+                            funnaiBalance := funnaiBalance - amountToSendE8s;
+                        } else {
+                            funnaiBalance := 0;
+                        };
+                        D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin funnaiBalance after update: " # debug_show (funnaiBalance));
+                        // Store the disbursement record
+                        let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+                        let disbursementEntry : Types.RewardEntry = {
+                            rewardId : Nat64 = Nat64.fromNat(blockIndex);
+                            rewardedTo : Text = entryInput.rewardedTo;
+                            amount : Nat = amountToSendE8s;
+                            note : Text = entryInput.note;
+                            creationTimestamp : Nat64 = creationTimestamp;
+                            sentBy : Principal = msg.caller;
+                        };
+                        funnaiAdditionalRewardsDisbursedStorage := List.push<Types.RewardEntry>(disbursementEntry, funnaiAdditionalRewardsDisbursedStorage);
+                        entriesToReturn := List.push<Types.RewardEntry>(disbursementEntry, entriesToReturn);
+                        // Store the tokenomics action
+                        let newEntry : Types.TokenomicsAction = {
+                            token : Types.TokenomicsActionTokens = #FUNNAI;
+                            amount : Nat = amountToSendE8s;
+                            creationTimestamp : Nat64 = creationTimestamp;
+                            additionalToken : ?Types.TokenomicsActionTokens = null;
+                            additionalTokenAmount : Nat = 0;
+                            actionId : Nat64 = tokenomicsActionCounter;
+                            actionType : Types.TokenomicsActionType = #Other("Sent FUNNAI as additional rewards");
+                            associatedTransactionId : ?Nat64 = ?Nat64.fromNat(blockIndex);
+                            transactionIdDisbursement : ?Nat64 = null;
+                            newIcpBalance : Nat = icpBalance;
+                        };
+
+                        let _ = putTokenomicsAction(newEntry);
+                    };
+                    case (#Err(err)) {
+                        D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin - Transfer error: " # debug_show (err));
+                        return #Err(#FailedOperation);
+                    };
+                };
+            } catch (e) {
+                D.print("Treasury: sendFunnaiAsAdditionalRewardsAdmin - Failed to call ledger: " # Error.message(e));
+                return #Err(#FailedOperation);
+            };
+        };
+        return #Ok(List.toArray<Types.RewardEntry>(entriesToReturn));
     };
 };

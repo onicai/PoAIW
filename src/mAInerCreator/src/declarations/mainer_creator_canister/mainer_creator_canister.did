@@ -99,12 +99,11 @@ type ModelCreationArtefacts =
  };
 type MainerCreatorCanister = 
  service {
+   addControllerToMainerCanister: (addControllerInput:
+    AddControllerToMainerCanisterInput) ->
+    (AddControllerToMainerCanisterResult);
    addModelCreationArtefactsEntry: (addModelCreationArtefactsEntryInput:
     AddModelCreationArtefactsEntry) -> (InsertArtefactsResult);
-   addControllerToMainerCanister: (AddControllerToMainerCanisterInput) ->
-    (AddControllerToMainerCanisterResult);
-   addModelCreationArtefactsEntry: (AddModelCreationArtefactsEntry) ->
-    (InsertArtefactsResult);
    amiController: () -> (AuthRecordResult) query;
    createCanister: (configurationInput: CanisterCreationConfiguration) ->
     (CanisterCreationResult);
@@ -114,8 +113,6 @@ type MainerCreatorCanister =
     FinishUploadMainerLlmInput) -> (FileUploadResult);
    finish_upload_mainer_llm_canister_wasm: (selectedModel:
     SelectableMainerLLMs) -> (StatusCodeRecordResult);
-   finish_upload_mainer_llm: (FinishUploadMainerLlmInput) ->
-    (FileUploadResult);
    getCyclesToSendToGameStateAdmin: () -> (nat) query;
    getCyclesTransactionsAdmin: () -> (CyclesTransactionsResult) query;
    getDefaultSubnetsAdmin: () ->
@@ -126,7 +123,6 @@ type MainerCreatorCanister =
    getMasterCanisterIdAdmin: () -> (text) query;
    getMinCyclesBalanceAdmin: () -> (nat) query;
    getSha256HashesAdmin: () -> (Sha256HashesResult) query;
-   getMinCyclesBalanceAdmin: () -> (nat) query;
    health: () -> (StatusCodeRecordResult) query;
    isSubnetAvailableAdmin: (subnet: text) ->
     (variant {
@@ -135,6 +131,9 @@ type MainerCreatorCanister =
      });
    reinstallMainerctrl: (reinstallMainerctrlInput:
     ReinstallMainerctrlInput) -> (StatusCodeRecordResult);
+   removeControllerFromMainerCanister: (removeControllerInput:
+    RemoveControllerFromMainerCanisterInput) ->
+    (RemoveControllerFromMainerCanisterResult);
    sendCyclesToGameStateCanister: () -> (AddCyclesResult);
    setCyclesToSendToGameStateAdmin: (newValue: nat) ->
     (StatusCodeRecordResult);
@@ -143,14 +142,6 @@ type MainerCreatorCanister =
     (StatusCodeRecordResult);
    setupCanister: (setupCanisterInput: SetupCanisterInput) ->
     (CanisterCreationResult);
-   removeControllerFromMainerCanister:
-    (RemoveControllerFromMainerCanisterInput) ->
-    (RemoveControllerFromMainerCanisterResult);
-   sendCyclesToGameStateCanister: () -> (AddCyclesResult);
-   setCyclesToSendToGameStateAdmin: (nat) -> (StatusCodeRecordResult);
-   setMasterCanisterId: (text) -> (AuthRecordResult);
-   setMinCyclesBalanceAdmin: (nat) -> (StatusCodeRecordResult);
-   setupCanister: (SetupCanisterInput) -> (CanisterCreationResult);
    start_upload_mainer_controller_canister_wasm: () ->
     (StatusCodeRecordResult);
    start_upload_mainer_llm: () -> (StatusCodeRecordResult);

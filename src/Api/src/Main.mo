@@ -13,7 +13,7 @@ import Types "../../common/Types";
 
 persistent actor class ApiCanister() = this {
 
-    stable var MASTER_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // Corresponds to prd Game State canister
+    var MASTER_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // Corresponds to prd Game State canister
 
     public shared (msg) func setMasterCanisterId(newMasterCanisterId : Text) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -65,13 +65,13 @@ persistent actor class ApiCanister() = this {
     // Daily Metrics Storage
 
     // Using HashMap for O(1) lookups by date
-    stable var dailyMetricsEntries : [(Text, Types.DailyMetric)] = [];
+    var dailyMetricsEntries : [(Text, Types.DailyMetric)] = [];
     transient var dailyMetrics = HashMap.HashMap<Text, Types.DailyMetric>(10, Text.equal, Text.hash);
 
     //-------------------------------------------------------------------------
     // Admin RBAC Storage
     //-------------------------------------------------------------------------
-    stable var adminRoleAssignmentsStable : [(Text, Types.AdminRoleAssignment)] = [];
+    var adminRoleAssignmentsStable : [(Text, Types.AdminRoleAssignment)] = [];
     transient var adminRoleAssignmentsStorage : HashMap.HashMap<Text, Types.AdminRoleAssignment> = HashMap.HashMap(0, Text.equal, Text.hash);
 
     private func putAdminRole(principal : Text, assignment : Types.AdminRoleAssignment) : Bool {
@@ -585,8 +585,8 @@ persistent actor class ApiCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        // Check if caller has AdminUpdate permission or is the master canister
-        if (not (hasAdminRole(msg.caller, #AdminUpdate) or Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID)))) {
+        // Check if caller has AdminUpdate permission
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
 
@@ -605,10 +605,10 @@ persistent actor class ApiCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        if (not (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID)))) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
-        
+
         // Validate date format
         if (not isValidDateFormat(params.date)) {
             return #Err(#Other("Invalid date format. Use YYYY-MM-DD"));
@@ -653,10 +653,10 @@ persistent actor class ApiCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        if (not (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID)))) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
-        
+
         // Validate date format
         if (not isValidDateFormat(date)) {
             return #Err(#Other("Invalid date format. Use YYYY-MM-DD"));
@@ -676,7 +676,7 @@ persistent actor class ApiCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
         
@@ -719,7 +719,7 @@ persistent actor class ApiCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        if (not (Principal.isController(msg.caller) or Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID)))) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
 

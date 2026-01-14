@@ -26,15 +26,18 @@ import ICManagementCanister "../../common/ICManagementCanister";
 import TimerRegularity "../../common/TimerRegularity";
 import Utils "Utils";
 
-actor class MainerAgentCtrlbCanister() = this {
+persistent actor class MainerAgentCtrlbCanister() = this {
 
-    let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
+    transient let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
 
-    stable var MAINER_AGENT_CANISTER_TYPE : Types.MainerAgentCanisterType = #Own;
+    var MAINER_AGENT_CANISTER_TYPE : Types.MainerAgentCanisterType = #Own;
 
     public shared (msg) func setMainerCanisterType(_mainer_agent_canister_type : Types.MainerAgentCanisterType) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         MAINER_AGENT_CANISTER_TYPE := _mainer_agent_canister_type;
 
@@ -47,34 +50,43 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getMainerCanisterType() : async Types.MainerAgentCanisterTypeResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
 
         return #Ok(MAINER_AGENT_CANISTER_TYPE);
     };
 
     // -------------------------------
-    stable var GAME_STATE_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
+    var GAME_STATE_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
     
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         GAME_STATE_CANISTER_ID := _game_state_canister_id;
         return #Ok({ status_code = 200 });
     };
 
     public query (msg) func getGameStateCanisterId() : async Text {
+        if (Principal.isAnonymous(msg.caller)) {
+            return "#Err(#Unauthorized)";
+        };
         if (not Principal.isController(msg.caller)) {
-            return "#Err(#StatusCode(401))";
+            return "#Err(#Unauthorized)";
         };
 
         return GAME_STATE_CANISTER_ID;
     };
 
     // Flag to pause mAIner for maintenance
-    stable var MAINTENANCE : Bool = false;
+    var MAINTENANCE : Bool = false;
 
     public shared (msg) func toggleMaintenanceFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -93,8 +105,8 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Official cycle balance
-    stable var officialCyclesBalance : Nat = Cycles.balance(); // TODO - Implementation: ensure this picks up the cycles the mAIner receives during creation
-    stable var officialCycleTopUpsStorage : List.List<Types.OfficialMainerCycleTopUp> = List.nil<Types.OfficialMainerCycleTopUp>();
+    var officialCyclesBalance : Nat = Cycles.balance();
+    var officialCycleTopUpsStorage : List.List<Types.OfficialMainerCycleTopUp> = List.nil<Types.OfficialMainerCycleTopUp>();
     
     public shared (msg) func addCycles() : async Types.AddCyclesResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -127,12 +139,15 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // -------------------------------
-    stable var SHARE_SERVICE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // Dummy value; Only used by ShareAgent
-    stable var shareServiceCanisterActor = actor (SHARE_SERVICE_CANISTER_ID) : Types.MainerCanister_Actor;
+    var SHARE_SERVICE_CANISTER_ID : Text = "bkyz2-fmaaa-aaaaa-qaaaq-cai"; // Dummy value; Only used by ShareAgent
+    var shareServiceCanisterActor = actor (SHARE_SERVICE_CANISTER_ID) : Types.MainerCanister_Actor;
     
     public shared (msg) func setShareServiceCanisterId(_share_service_canister_id : Text) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         SHARE_SERVICE_CANISTER_ID := _share_service_canister_id;
         shareServiceCanisterActor := actor (SHARE_SERVICE_CANISTER_ID);
@@ -140,8 +155,11 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getShareServiceCanisterId() : async Text {
+        if (Principal.isAnonymous(msg.caller)) {
+            return "#Err(#Unauthorized)";
+        };
         if (not Principal.isController(msg.caller)) {
-            return "#Err(#StatusCode(401))";
+            return "#Err(#Unauthorized)";
         };
 
         return SHARE_SERVICE_CANISTER_ID;
@@ -151,8 +169,8 @@ actor class MainerAgentCtrlbCanister() = this {
 // Storage & functions used by SharedService mAiner canister to manage SharedAgent mAIner canisters
 
     // Official mAIner Creator canisters
-    stable var mainerCreatorCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
-    var mainerCreatorCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
+    var mainerCreatorCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
+    transient var mainerCreatorCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
     
     private func putMainerCreatorCanister(canisterAddress : Text, canisterEntry : Types.OfficialProtocolCanister) : Bool {
         mainerCreatorCanistersStorage.put(canisterAddress, canisterEntry);
@@ -181,10 +199,10 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // ShareAgent Registry: Official ShareAgent canisters (owned by users)
-    stable var shareAgentCanistersStorageStable : [(Text, Types.OfficialMainerAgentCanister)] = [];
-    var shareAgentCanistersStorage : HashMap.HashMap<Text, Types.OfficialMainerAgentCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
-    stable var userToShareAgentsStorageStable : [(Principal, List.List<Types.OfficialMainerAgentCanister>)] = [];
-    var userToShareAgentsStorage : HashMap.HashMap<Principal, List.List<Types.OfficialMainerAgentCanister>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+    var shareAgentCanistersStorageStable : [(Text, Types.OfficialMainerAgentCanister)] = [];
+    transient var shareAgentCanistersStorage : HashMap.HashMap<Text, Types.OfficialMainerAgentCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
+    var userToShareAgentsStorageStable : [(Principal, List.List<Types.OfficialMainerAgentCanister>)] = [];
+    transient var userToShareAgentsStorage : HashMap.HashMap<Principal, List.List<Types.OfficialMainerAgentCanister>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
 
     private func putShareAgentCanister(canisterAddress : Text, canisterEntry : Types.OfficialMainerAgentCanister) : Types.MainerAgentCanisterResult {
         switch (getShareAgentCanister(canisterAddress)) {
@@ -249,7 +267,7 @@ actor class MainerAgentCtrlbCanister() = this {
         };
     };
 
-    // Caution: function that returns all ShareAgent canisters (TODO - Security: decide if needed)
+    // Caution: function that returns all ShareAgent canisters
     private func getShareAgents() : [Types.OfficialMainerAgentCanister] {
         var shareAgents : List.List<Types.OfficialMainerAgentCanister> = List.nil<Types.OfficialMainerAgentCanister>();
         for (userShareAgentsList in userToShareAgentsStorage.vals()) {
@@ -273,7 +291,7 @@ actor class MainerAgentCtrlbCanister() = this {
     //-------------------------------------------------------------------------
     // Admin RBAC Storage
     //-------------------------------------------------------------------------
-    stable var adminRoleAssignmentsStable : [(Text, Types.AdminRoleAssignment)] = [];
+    var adminRoleAssignmentsStable : [(Text, Types.AdminRoleAssignment)] = [];
     transient var adminRoleAssignmentsStorage : HashMap.HashMap<Text, Types.AdminRoleAssignment> = HashMap.HashMap(0, Text.equal, Text.hash);
 
     private func putAdminRole(principal : Text, assignment : Types.AdminRoleAssignment) : Bool {
@@ -378,10 +396,10 @@ actor class MainerAgentCtrlbCanister() = this {
 
 
     // The minimum cycle balance we want to maintain
-    stable let CYCLE_BALANCE_MINIMUM = 250 * Constants.CYCLES_BILLION;
+    let CYCLE_BALANCE_MINIMUM = 250 * Constants.CYCLES_BILLION;
 
     // A flag for the frontend to pick up and display a message to the user
-    stable var PAUSED_DUE_TO_LOW_CYCLE_BALANCE : Bool = false;
+    var PAUSED_DUE_TO_LOW_CYCLE_BALANCE : Bool = false;
 
     // Internal functions to check if the canister has enough cycles
     private func sufficientCyclesToProcessChallenge(challenge : Types.Challenge) : Bool {
@@ -440,20 +458,17 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Statistics
-    // TODO - Implementation: set based on cycles flow data calculated in GameState
-    stable var TOTAL_MAINER_CYCLES_BURNT : Nat = 100 * Constants.CYCLES_BILLION; // Initial value represents costs for creating this canister
+    var TOTAL_MAINER_CYCLES_BURNT : Nat = 100 * Constants.CYCLES_BILLION; // Initial value represents costs for creating this canister
 
-    // TODO - Implementation: ensure all relevant events for cycle buring are captured and adjust cycle burning numbers below to actual values
     private func increaseTotalCyclesBurnt(cyclesBurntToAdd : Nat) : Bool {
         TOTAL_MAINER_CYCLES_BURNT := TOTAL_MAINER_CYCLES_BURNT + cyclesBurntToAdd;
         return true;
     };
 
-    // TODO - Implementation: set based on cycles flow data calculated in GameState
-    stable let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * Constants.CYCLES_BILLION;
+    let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * Constants.CYCLES_BILLION;
 
     // This is just a placeholder to be used until the startTimerExecution is called.
-    stable let CYCLES_BURN_RATE_DEFAULT : Types.CyclesBurnRate = {
+    let CYCLES_BURN_RATE_DEFAULT : Types.CyclesBurnRate = {
         cycles : Nat = 1 * Constants.CYCLES_TRILLION;
         timeInterval : Types.TimeInterval = #Daily;
     };
@@ -484,12 +499,12 @@ actor class MainerAgentCtrlbCanister() = this {
     // timer IDs for reporting purposes (actual stopping uses the buffers)
     // Note: they're stable for historical reasons; could be transient because timers do not survive upgrades
     //       is ok, because startTimer & stopTimer functions will reset them
-    stable var initialTimerId1 : ?Timer.TimerId = null;  // For reporting only
-    stable var recurringTimerId1 : ?Timer.TimerId = null;
-    stable var recurringTimerId2 : ?Timer.TimerId = null;
+    var initialTimerId1 : ?Timer.TimerId = null;  // For reporting only
+    var recurringTimerId1 : ?Timer.TimerId = null;
+    var recurringTimerId2 : ?Timer.TimerId = null;
 
     // Configurable buffer max size for timer IDs
-    stable var TIMER_BUFFER_MAX_SIZE : Nat = 4;
+    var TIMER_BUFFER_MAX_SIZE : Nat = 4;
 
     // Non-stable buffers to track timer IDs created since last upgrade
     // These reset to empty after each upgrade, which is the desired behavior
@@ -508,7 +523,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Record of settings
-    stable var agentSettings : List.List<Types.MainerAgentSettings> = List.nil<Types.MainerAgentSettings>();
+    var agentSettings : List.List<Types.MainerAgentSettings> = List.nil<Types.MainerAgentSettings>();
 
     private func putAgentSettings(settingsEntry : Types.MainerAgentSettings) : Bool {
         agentSettings := List.push<Types.MainerAgentSettings>(settingsEntry, agentSettings);
@@ -592,8 +607,8 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // FIFO queue of challenges: retrieved from GameState; to be processed
-    stable var MAX_CHALLENGES_IN_QUEUE : Nat = 5;
-    stable var challengeQueue : List.List<Types.ChallengeQueueInput> = List.nil<Types.ChallengeQueueInput>();
+    var MAX_CHALLENGES_IN_QUEUE : Nat = 5;
+    var challengeQueue : List.List<Types.ChallengeQueueInput> = List.nil<Types.ChallengeQueueInput>();
 
     private func pushChallengeQueue(challengeQueueInput : Types.ChallengeQueueInput) : Bool {
         challengeQueue := List.push<Types.ChallengeQueueInput>(challengeQueueInput, challengeQueue);
@@ -616,6 +631,9 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getChallengeQueueAdmin() : async Types.ChallengeQueueInputsResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -624,15 +642,18 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared (msg) func resetChallengeQueueAdmin() : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         challengeQueue := List.nil<Types.ChallengeQueueInput>();
         return #Ok({ status_code = 200 });
     };
 
     // Record of generated responses
-    stable var generatedResponses : List.List<Types.ChallengeResponseSubmissionInput> = List.nil<Types.ChallengeResponseSubmissionInput>();
+    var generatedResponses : List.List<Types.ChallengeResponseSubmissionInput> = List.nil<Types.ChallengeResponseSubmissionInput>();
 
     private func putGeneratedResponse(responseEntry : Types.ChallengeResponseSubmissionInput) : Bool {
         generatedResponses := List.push<Types.ChallengeResponseSubmissionInput>(responseEntry, generatedResponses);
@@ -653,7 +674,7 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Record of submitted responses
-    stable var submittedResponses : List.List<Types.ChallengeResponseSubmission> = List.nil<Types.ChallengeResponseSubmission>();
+    var submittedResponses : List.List<Types.ChallengeResponseSubmission> = List.nil<Types.ChallengeResponseSubmission>();
 
     private func putSubmittedResponse(responseEntry : Types.ChallengeResponseSubmission) : Bool {
         submittedResponses := List.push<Types.ChallengeResponseSubmission>(responseEntry, submittedResponses);
@@ -678,6 +699,9 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getSubmittedResponsesAdmin() : async Types.ChallengeResponseSubmissionsResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -686,6 +710,9 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getRecentSubmittedResponsesAdmin() : async Types.ChallengeResponseSubmissionsResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -696,20 +723,20 @@ actor class MainerAgentCtrlbCanister() = this {
     // -------------------------------------------------------------------------------
     // The C++ LLM canisters that can be called
 
-    stable var llmCanistersStable : [Text] = [];
-    private var llmCanisters : Buffer.Buffer<Types.LLMCanister> = Buffer.fromArray([]);
+    var llmCanistersStable : [Text] = [];
+    private transient var llmCanisters : Buffer.Buffer<Types.LLMCanister> = Buffer.fromArray([]);
 
     // Round-robin load balancer for LLM canisters to call
-    private var roundRobinIndex : Nat = 0;
-    private var roundRobinUseAll : Bool = true;
-    private var roundRobinLLMs : Nat = 0; // Only used when roundRobinUseAll is false
+    private transient var roundRobinIndex : Nat = 0;
+    private transient var roundRobinUseAll : Bool = true;
+    private transient var roundRobinLLMs : Nat = 0; // Only used when roundRobinUseAll is false
 
     public shared query (msg) func get_llm_canisters() : async Types.LlmCanistersRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         let llmCanisterIds : [Types.CanisterAddress] = Buffer.toArray(
             Buffer.map<Types.LLMCanister, Text>(llmCanisters, func (llm : Types.LLMCanister) : Text {
@@ -725,10 +752,10 @@ actor class MainerAgentCtrlbCanister() = this {
 
     public shared (msg) func reset_llm_canisters() : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "):  reset_llm_canisters - Resetting all LLM canisters & round-robin state");
         llmCanisters.clear();
@@ -738,10 +765,10 @@ actor class MainerAgentCtrlbCanister() = this {
 
     public shared (msg) func add_llm_canister(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "):  add_llm_canister - Adding llm: " # llmCanisterIdRecord.canister_id);
         let llmCanister = actor (llmCanisterIdRecord.canister_id) : Types.LLMCanister;
@@ -751,10 +778,10 @@ actor class MainerAgentCtrlbCanister() = this {
 
     public shared (msg) func remove_llm_canister(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
 
         let targetCanisterText = llmCanisterIdRecord.canister_id;
@@ -786,10 +813,10 @@ actor class MainerAgentCtrlbCanister() = this {
     // Admin function to reset roundRobinLLMs
     public shared (msg) func resetRoundRobinLLMs() : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         resetRoundRobinLLMs_();
         return #Ok({ status_code = 200 });
@@ -803,10 +830,10 @@ actor class MainerAgentCtrlbCanister() = this {
     // Admin function to set roundRobinLLMs
     public shared (msg) func setRoundRobinLLMs(_roundRobinLLMs : Nat) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         roundRobinUseAll := false;
         roundRobinLLMs := _roundRobinLLMs;
@@ -829,8 +856,11 @@ actor class MainerAgentCtrlbCanister() = this {
 
     // Function to verify that canister is ready for inference
     public shared (msg) func ready() : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         for (llmCanister in llmCanisters.vals()) {
             try {
@@ -851,16 +881,22 @@ actor class MainerAgentCtrlbCanister() = this {
 
     // Admin function to verify that caller is a controller of this canister
     public shared query (msg) func amiController() : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         return #Ok({ status_code = 200 });
     };
 
     // Admin function to verify that mainer_ctrlb_canister is a controller of all the llm canisters
     public shared (msg) func checkAccessToLLMs() : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
 
         // Call all the llm canisters to verify that mainer_ctrlb_canister is a controller
@@ -881,10 +917,13 @@ actor class MainerAgentCtrlbCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
-    // TODO: deprecate this function - use get_llm_canisters instead
+    // Alternative function: get_llm_canisters
     public query (msg) func getLLMCanisterIds() : async Types.CanisterAddressesResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
 
         var llmCanisterIds : List.List<Types.CanisterAddress> = List.nil<Types.CanisterAddress>();
@@ -922,8 +961,11 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared (msg) func canAgentSettingsBeUpdated() : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         switch (areAgentSettingsUpdateable()) {
             case (true) {
@@ -936,8 +978,11 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared (msg) func timeToNextAgentSettingsUpdate() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         switch (getCurrentAgentSettings()) {
             case (null) {
@@ -959,8 +1004,11 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared (msg) func updateAgentSettings(settingsInput : Types.MainerAgentSettingsInput) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         switch (settingsInput.cyclesBurnRate) {
             case (#Low) {
@@ -1034,8 +1082,6 @@ actor class MainerAgentCtrlbCanister() = this {
             case (#Err(error)) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge error" # debug_show (error));
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): WARNING - ShareService is likely broken & admin must call resetChallengeQueueAdmin of the ShareAgent " # debug_show(challengeQueueInput.challengeQueuedBy) # " once the ShareService is fixed");
-                // TODO - Error Handling
-                // TODO - Design: in case of ShareService, do we refund the cycles to the ShareAgent?
                 // NOTE:
                 // - We are NOT sending anything back to the ShareAgent.
                 // - This is the safest approach to avoid sucking all cycles out of the ShareAgent in case the ShareService is not working
@@ -1046,7 +1092,6 @@ actor class MainerAgentCtrlbCanister() = this {
             case (#Ok(respondingOutput : Types.ChallengeResponse)) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - calling putGeneratedResponse");
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondingOutput = " # debug_show (respondingOutput));
-                // TODO - Implementation: adapt cycles burnt stats
                 ignore increaseTotalCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
                 
                 var submittedBy : Principal = Principal.fromActor(this);
@@ -1161,7 +1206,6 @@ actor class MainerAgentCtrlbCanister() = this {
         switch (storeResult) {
             case (false) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - storeResult error");
-                // TODO - Error Handling
             };
             case (true) {
                 // Check if the canister still has enough cycles to submit it
@@ -1203,7 +1247,6 @@ actor class MainerAgentCtrlbCanister() = this {
                     case (#Err(error)) {
                         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - submitMetada error");
                         D.print(debug_show (error));
-                        // TODO - Error Handling
                     };
                     case (#Ok(submitMetada : Types.ChallengeResponseSubmissionMetadata)) {
                         // Successfully submitted to Game State
@@ -1265,10 +1308,8 @@ actor class MainerAgentCtrlbCanister() = this {
                         switch (putResult) {
                             case (false) {
                                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - putResult error");
-                                // TODO - Error Handling
                             };
                             case (true) {
-                                // TODO - Implementation: adapt cycles burnt stats - also, check we're not counting double...
                                 ignore increaseTotalCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
                             };
                         };
@@ -1747,8 +1788,6 @@ actor class MainerAgentCtrlbCanister() = this {
                 
             } catch (e) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): - retryGameStateMainerPromptCacheChunkDownloadWithDelay - gameStateCanisterActor.uploadMainerPromptCacheBytesChunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
-                
-                // TODO - Implementation: introduce a delay using a timer...
                 // Just retry immediately with decremented attempts
                 return await retryGameStateMainerPromptCacheChunkDownloadWithDelay(gameStateCanisterActor, downloadMainerPromptCacheBytesChunkInput, attempts - 1, delay);
             };
@@ -1768,8 +1807,6 @@ actor class MainerAgentCtrlbCanister() = this {
                 
             } catch (e) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): - retryLlmPrompCacheChunkUploadWithDelay - LLM upload_prompt_cache_chunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
-                
-                // TODO - Implementation: introduce a delay using a timer...
                 // Just retry immediately with decremented attempts
                 return await retryLlmPrompCacheChunkUploadWithDelay(llmCanisterActor, uploadChunk, attempts - 1, delay);
             };
@@ -1804,7 +1841,6 @@ actor class MainerAgentCtrlbCanister() = this {
         switch (challengeResult) {
             case (#Err(error)) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - challengeResult error : " # debug_show (error));
-                // TODO - Error Handling
             };
             case (#Ok(challenge : Types.Challenge)) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - challenge = " # debug_show (challenge));
@@ -1903,8 +1939,6 @@ actor class MainerAgentCtrlbCanister() = this {
                 if (challengeQueueInput.challengeQueuedBy != msg.caller) {
                     return #Err(#Unauthorized);
                 };
-
-                // TODO: make sure the cycles are sufficient
                 // Accept required cycles for queue input
                 let cyclesAcceptedForShareServiceQueue = Cycles.accept<system>(challengeQueueInput.cyclesGenerateResponseSactrlSsctrl);
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): addChallengeToShareServiceQueue - cyclesAcceptedForShareServiceQueue = " # Nat.toText(cyclesAcceptedForShareServiceQueue) # " from caller " # Principal.toText(msg.caller));
@@ -1968,8 +2002,14 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared query (msg) func getRoundRobinCanister() : async Types.CanisterIDRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
+        };
+        if (llmCanisters.size() == 0) {
+            return #Err(#Other("No LLM canisters configured"));
         };
         let canisterIDRecord : Types.CanisterIDRecord = {
             canister_id = Principal.toText(Principal.fromActor(_getRoundRobinCanister()));
@@ -2002,6 +2042,9 @@ actor class MainerAgentCtrlbCanister() = this {
 
     // Function for mAIner Agent Creator canister to add new mAIner ShareAgent canister to a mAIner ShareService canister
     public shared (msg) func addMainerShareAgentCanister(canisterEntryToAdd : Types.OfficialMainerAgentCanister) : async Types.MainerAgentCanisterResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -2014,11 +2057,6 @@ actor class MainerAgentCtrlbCanister() = this {
 
         // This check does not apply because the mAIner Creator creates the ShareService canister
         // Just verifying that only a controller can call this is enough, and also all we can do.
-
-        // TODO - Security: Only official mAIner Creator canisters may call this
-        // switch (getMainerCreatorCanister(Principal.toText(msg.caller))) {
-        //     case (null) { return #Err(#Unauthorized); };
-        //     case (?mainerCreatorEntry) {
         let canisterEntry : Types.OfficialMainerAgentCanister = {
             address : Text = canisterEntryToAdd.address;
             subnet : Text = canisterEntryToAdd.subnet;
@@ -2029,12 +2067,10 @@ actor class MainerAgentCtrlbCanister() = this {
             status : Types.CanisterStatus = canisterEntryToAdd.status;
             mainerConfig : Types.MainerConfigurationInput = canisterEntryToAdd.mainerConfig;
         };
-        putShareAgentCanister(canisterEntryToAdd.address, canisterEntry);           
-            // };
-        // };
+        putShareAgentCanister(canisterEntryToAdd.address, canisterEntry);
     };
 
-    // TODO - Testing: remove; admin Function to add new mAIner ShareAgent for testing
+    // Testing: admin Function to add new mAIner ShareAgent for testing
     public shared (msg) func addMainerShareAgentCanisterAdmin(canisterEntryToAdd : Types.OfficialMainerAgentCanister) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -2065,21 +2101,21 @@ actor class MainerAgentCtrlbCanister() = this {
 
     // This variable is just for reporting purposes, so an Admin can quickly check the currently used timer regularity
     // It is recalculated each time the timer is started
-    stable var action1RegularityInSeconds = 0; // Timer is not yet set 
+    var action1RegularityInSeconds = 0; // Timer is not yet set 
 
     // ----------------------------------------------------------
     // How often Own and ShareService mAIners wake up to process the next challenge from the queue
     // TODO: revisit for #Own mAiners...
-    stable var action2RegularityInSeconds = 5; 
+    var action2RegularityInSeconds = 5; 
 
-    stable var cyclesBurnRateFromGameState = CYCLES_BURN_RATE_DEFAULT; // Just set it to some default value. The actual value is retrieved from the GameState in startTimerExecution()
+    var cyclesBurnRateFromGameState = CYCLES_BURN_RATE_DEFAULT; // Just set it to some default value. The actual value is retrieved from the GameState in startTimerExecution()
    
     public shared (msg) func setTimerAction2RegularityInSecondsAdmin(_action2RegularityInSeconds : Nat) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         action2RegularityInSeconds := _action2RegularityInSeconds;
         // Restart the timer with the new regularity
@@ -2088,8 +2124,11 @@ actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared query (msg) func getTimerActionRegularityInSecondsAdmin() : async Types.MainerTimersResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         return #Ok({
             action1RegularityInSeconds = action1RegularityInSeconds;
@@ -2121,7 +2160,7 @@ actor class MainerAgentCtrlbCanister() = this {
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - recurringTimerId2 = " # debug_show(recurringTimerId2) # ", bufferTimerId2 size = " # Nat.toText(bufferTimerId2.size()));
 
         var res = "You started the timers: ";
-        let TIMER_REGULARITY_DEFAULT = 5; // TODO - Implementation: move to common file
+        let TIMER_REGULARITY_DEFAULT = 5;
         var timerRegularity = TIMER_REGULARITY_DEFAULT;
 
         // Calculate timer regularity based on cycles burn rate for user's mAIner
@@ -2328,20 +2367,20 @@ actor class MainerAgentCtrlbCanister() = this {
 
     public shared (msg) func startTimerExecutionAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         await startTimerExecution(msg.caller, "startTimerExecutionAdmin");
     };
 
     public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         await stopTimerExecution();
     };
@@ -2368,10 +2407,10 @@ actor class MainerAgentCtrlbCanister() = this {
 
     public shared (msg) func setTimerBufferMaxSizeAdmin(maxSize: Nat) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
 
         TIMER_BUFFER_MAX_SIZE := maxSize;
@@ -2392,8 +2431,11 @@ actor class MainerAgentCtrlbCanister() = this {
 
     // Testing function for admin for ShareService
     public shared (msg) func triggerChallengeResponseAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         /* if (MAINER_AGENT_CANISTER_TYPE != #ShareService) {
             // execute the timer 1 action
@@ -2412,7 +2454,7 @@ actor class MainerAgentCtrlbCanister() = this {
             let authRecord = { auth = "You triggered the response generation." };
             return #Ok(authRecord);
         } else {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
     };
 

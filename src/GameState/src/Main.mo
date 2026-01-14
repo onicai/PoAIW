@@ -21,7 +21,6 @@ import Timer "mo:base/Timer";
 
 import ICRC7 "mo:icrc7-mo";
 import ICRC37 "mo:icrc37-mo";
-import ICRC3 "mo:icrc3-mo";
 
 import Types "../../common/Types";
 import ICManagementCanister "../../common/ICManagementCanister";
@@ -32,9 +31,9 @@ import CMC "../../common/cycles-minting-canister-interface";
 import Utils "Utils";
 import NFT "NFT";
 
-actor class GameStateCanister() = this {
+persistent actor class GameStateCanister() = this {
 
-    let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
+    transient let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
 
     // Function to verify that canister is up & running
     public shared query func health() : async Types.StatusCodeRecordResult {
@@ -46,7 +45,7 @@ actor class GameStateCanister() = this {
     };
 
     // Flag to pause protocol
-    stable var PAUSE_PROTOCOL : Bool = true;
+    var PAUSE_PROTOCOL : Bool = true;
 
     public shared (msg) func togglePauseProtocolFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -65,7 +64,7 @@ actor class GameStateCanister() = this {
     };
 
     // Receive cycles from other protocol canisters
-    stable var cyclesTransactionsStorage : List.List<Types.CyclesTransaction> = List.nil<Types.CyclesTransaction>();
+    var cyclesTransactionsStorage : List.List<Types.CyclesTransaction> = List.nil<Types.CyclesTransaction>();
     
     public query (msg) func getCyclesTransactionsAdmin() : async Types.CyclesTransactionsResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -109,7 +108,7 @@ actor class GameStateCanister() = this {
     };
 
     // Flag to indicate if whitelist phase is going on
-    stable var WHITELIST_PHASE_ACTIVE : Bool = false;
+    var WHITELIST_PHASE_ACTIVE : Bool = false;
 
     public shared (msg) func toggleWhitelistPhaseActiveFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -128,7 +127,7 @@ actor class GameStateCanister() = this {
     };
 
     // Flag to disable whitelist mAIner creation flow
-    stable var PAUSE_WHITELIST_MAINER_CREATION : Bool = true;
+    var PAUSE_WHITELIST_MAINER_CREATION : Bool = true;
 
     public shared (msg) func togglePauseWhitelistMainerCreationFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -147,20 +146,20 @@ actor class GameStateCanister() = this {
     };
 
     // Limit on how many mAIners may be created
-    stable var LIMIT_SHARED_MAINERS : Nat = 0;
-    stable var LIMIT_OWN_MAINERS : Nat = 0;
+    var LIMIT_SHARED_MAINERS : Nat = 0;
+    var LIMIT_OWN_MAINERS : Nat = 0;
 
     // Counter for generating sequential challenge IDs
-    stable var challengeIdCounter : Nat = 0;
+    var challengeIdCounter : Nat = 0;
 
     // Counter for generating sequential mainer prompt IDs
-    stable var mainerPromptIdCounter : Nat = 0;
+    var mainerPromptIdCounter : Nat = 0;
 
     // Counter for generating sequential judge prompt IDs
-    stable var judgePromptIdCounter : Nat = 0;
+    var judgePromptIdCounter : Nat = 0;
 
     // Counter for generating sequential submission IDs
-    stable var submissionIdCounter : Nat = 0;
+    var submissionIdCounter : Nat = 0;
 
     public shared (msg) func setLimitForCreatingMainerAdmin(newLimitInput : Types.MainerLimitInput) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -202,7 +201,7 @@ actor class GameStateCanister() = this {
         };
     };
 
-    stable var BUFFER_MAINER_CREATION : Nat = 7;
+    var BUFFER_MAINER_CREATION : Nat = 7;
 
     public shared (msg) func setBufferMainerCreation(newBuffer : Nat) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -263,13 +262,12 @@ actor class GameStateCanister() = this {
     };
 
     // Token Ledger
-    stable var TOKEN_LEDGER_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // TODO: update
+    var TOKEN_LEDGER_CANISTER_ID : Text = "vpyot-zqaaa-aaaaa-qavaq-cai";
 
-    let ICP_LEDGER_ACTOR : TokenLedger.TOKEN_LEDGER = Types.IcpLedger_Actor;
+    transient let ICP_LEDGER_ACTOR : TokenLedger.TOKEN_LEDGER = Types.IcpLedger_Actor;
 
-    let CMC_ACTOR : CMC.CYCLES_MINTING_CANISTER = Types.CyclesMintingCanister_Actor;
+    transient let CMC_ACTOR : CMC.CYCLES_MINTING_CANISTER = Types.CyclesMintingCanister_Actor;
 
-    // TODO: remove this function before launching
     public shared (msg) func setTokenLedgerCanisterId(_token_ledger_canister_id : Text) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -282,49 +280,8 @@ actor class GameStateCanister() = this {
         return #Ok(authRecord);
     };
 
-    // TODO: remove this function before launching
-    public shared (msg) func testTokenMintingAdmin() : async Types.AuthRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-
-        let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (TOKEN_LEDGER_CANISTER_ID);
-
-        let args : TokenLedger.TransferArg = {
-            from_subaccount = null;
-            to = {
-                owner = Principal.fromText("be2us-64aaa-aaaaa-qaabq-cai");
-                subaccount = null;
-            };
-            amount = 10;
-            fee = null;
-            memo = null;
-            created_at_time = null;
-        };
-
-        try {
-            // Call the ledger's icrc1_transfer function
-            let result = await TokenLedger_Actor.icrc1_transfer(args);
-
-            switch (result) {
-                case (#Ok(blockIndex)) {
-                    let authRecord = { auth = "Your test was successful. Block index: "  # debug_show(blockIndex)};
-                    return #Ok(authRecord);
-                };
-                case (#Err(err)) {
-                    return #Err(#Other("Transfer error: " # debug_show(err)));
-                };
-            };
-        } catch (e) {
-            return #Err(#Other("Failed to call ledger: " # Error.message(e)));
-        };
-    };
-
     // Treasury Canister
-    stable var TREASURY_CANISTER_ID : Text = "be2us-64aaa-aaaaa-qaabq-cai"; // TODO: update
+    var TREASURY_CANISTER_ID : Text = "qbhxa-ziaaa-aaaaa-qbqza-cai";
 
     public shared (msg) func setTreasuryCanisterId(_treasury_canister_id : Text) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -349,7 +306,7 @@ actor class GameStateCanister() = this {
     };
 
     // Flag to disable disbursements to treasury
-    stable var DISBURSE_FUNDS_TO_TREASURY : Bool = false;
+    var DISBURSE_FUNDS_TO_TREASURY : Bool = false;
 
     public shared (msg) func toggleDisburseFundsToTreasuryFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -374,7 +331,7 @@ actor class GameStateCanister() = this {
     };
 
     // Threshold of minimum ICP balance Game State should keep
-    stable var MINIMUM_ICP_BALANCE : Nat = 30; // in full ICP
+    var MINIMUM_ICP_BALANCE : Nat = 30; // in full ICP
 
     public shared (msg) func setMinimumIcpBalance(newBalance : Nat) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -554,25 +511,14 @@ actor class GameStateCanister() = this {
         };
     };
 
-    /* private func verify_payment(paymentBlockIndex : TokenLedger.BlockIndex) : async Result.Result<Text, Text> {
-        // https://internetcomputer.org/docs/defi/token-ledgers/usage/icp_ledger_usage#receiving-icp
-        let startIndex : Nat64 = paymentBlockIndex;
-        let queryLength : Nat64 = 1;
-        let queryResult = await ICP_LEDGER_ACTOR.get_blocks({
-            start = startIndex;
-            length = queryLength;
-        });
-    }; */
-
     // Code Verification for all mAIner agents
         // Users should not be able to tamper with the mAIner code
 
     // mAIner agent wasm module hash that must match
-        // TODO - Implementation: finalize implementation, ensure it's all stable, and remove any code not needed for production
         // -> For now, do not make it stable, so it can be updated via a canister upgrade
-    var officialMainerAgentCanisterWasmHash : Blob = "\f5\d5\ab\57\f4\be\2d\c1\b2\1e\eb\51\02\1f\95\74\1f\3f\72\39\c5\c9\31\b1\e9\15\7d\73\4c\fc\8e\d8";
-    stable var officialMainerAgentCanisterWasmHashVersion : Nat = 0;
-    stable var officialMainerAgentCanisterWasmHashRecord : Types.CanisterWasmHashRecord = {
+    transient var officialMainerAgentCanisterWasmHash : Blob = "\f5\d5\ab\57\f4\be\2d\c1\b2\1e\eb\51\02\1f\95\74\1f\3f\72\39\c5\c9\31\b1\e9\15\7d\73\4c\fc\8e\d8";
+    var officialMainerAgentCanisterWasmHashVersion : Nat = 0;
+    var officialMainerAgentCanisterWasmHashRecord : Types.CanisterWasmHashRecord = {
         wasmHash : Blob = officialMainerAgentCanisterWasmHash;
         creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
         createdBy : Principal = Principal.fromActor(this);
@@ -580,7 +526,7 @@ actor class GameStateCanister() = this {
         textNote : Text = "initial record";
     };
 
-    stable var previousMainerAgentCanisterWasmHashRecords : List.List<Types.CanisterWasmHashRecord> = List.nil<Types.CanisterWasmHashRecord>();
+    var previousMainerAgentCanisterWasmHashRecords : List.List<Types.CanisterWasmHashRecord> = List.nil<Types.CanisterWasmHashRecord>();
 
     // Update the wasm hash record for the mAIner with the new wasm hash as input
     public shared (msg) func setOfficialMainerAgentCanisterWasmHashAdmin(updateWasmHashInput : Types.UpdateWasmHashInput) : async Types.CanisterWasmHashRecordResult {
@@ -708,11 +654,10 @@ actor class GameStateCanister() = this {
     };
 
     // Game Settings
-    // TODO - Design: determine settings to use
-    stable var THRESHOLD_ARCHIVE_CLOSED_CHALLENGES : Nat = 150;
-    stable var THRESHOLD_MAX_OPEN_CHALLENGES : Nat = 4; // When above, Challengers will not be given a topic able to generate new challenges
-    stable var THRESHOLD_MAX_OPEN_SUBMISSIONS : Nat = 140; // When above, mAIner agents will not be given a challenge to generate new responses
-    stable var THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE : Nat = 27; // When reached, ranking and winner declaration; challenge is closed
+    var THRESHOLD_ARCHIVE_CLOSED_CHALLENGES : Nat = 150;
+    var THRESHOLD_MAX_OPEN_CHALLENGES : Nat = 4; // When above, Challengers will not be given a topic able to generate new challenges
+    var THRESHOLD_MAX_OPEN_SUBMISSIONS : Nat = 140; // When above, mAIner agents will not be given a challenge to generate new responses
+    var THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE : Nat = 27; // When reached, ranking and winner declaration; challenge is closed
     
     public shared (msg) func setGameStateThresholdsAdmin(thresholds : Types.GameStateTresholds) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -745,19 +690,19 @@ actor class GameStateCanister() = this {
     };
 
     // mAIner Burn Rates
-    stable var cyclesBurnRateDefaultLow : Types.CyclesBurnRate = {
+    var cyclesBurnRateDefaultLow : Types.CyclesBurnRate = {
         cycles : Nat = 1 * Constants.CYCLES_TRILLION;
         timeInterval : Types.TimeInterval = #Daily;
     };
-    stable var cyclesBurnRateDefaultMid : Types.CyclesBurnRate = {
+    var cyclesBurnRateDefaultMid : Types.CyclesBurnRate = {
         cycles : Nat = 2 * Constants.CYCLES_TRILLION;
         timeInterval : Types.TimeInterval = #Daily;
     };
-    stable var cyclesBurnRateDefaultHigh : Types.CyclesBurnRate = {
+    var cyclesBurnRateDefaultHigh : Types.CyclesBurnRate = {
         cycles : Nat = 4 * Constants.CYCLES_TRILLION;
         timeInterval : Types.TimeInterval = #Daily;
     };
-    stable var cyclesBurnRateDefaultVeryHigh : Types.CyclesBurnRate = {
+    var cyclesBurnRateDefaultVeryHigh : Types.CyclesBurnRate = {
         cycles : Nat = 6 * Constants.CYCLES_TRILLION;
         timeInterval : Types.TimeInterval = #Daily;
     };
@@ -789,7 +734,7 @@ actor class GameStateCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
-    public shared (msg) func getCyclesBurnRate(cyclesBurnRateDefault : Types.CyclesBurnRateDefault) : async Types.CyclesBurnRateResult {
+    public shared query (msg) func getCyclesBurnRate(cyclesBurnRateDefault : Types.CyclesBurnRateDefault) : async Types.CyclesBurnRateResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -829,9 +774,9 @@ actor class GameStateCanister() = this {
     };
 
     // Admin is responsible for setting the subnet IDs via the setSubnetsAdmin function
-    stable var SUBNET_SHARE_AGENT_CTRL   : Text = "qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe";
-    stable var SUBNET_SHARE_SERVICE_CTRL : Text = "qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe";
-    stable var SUBNET_SHARE_SERVICE_LLM  : Text = "qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe";
+    var SUBNET_SHARE_AGENT_CTRL   : Text = "qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe";
+    var SUBNET_SHARE_SERVICE_CTRL : Text = "qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe";
+    var SUBNET_SHARE_SERVICE_LLM  : Text = "qdvhd-os4o2-zzrdw-xrcv4-gljou-eztdp-bj326-e6jgr-tkhuc-ql6v2-yqe";
 
     public shared (msg) func setSubnetsAdmin(subnets : Types.SubnetIds) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -903,15 +848,15 @@ actor class GameStateCanister() = this {
     };
 
     // Statistics 
-    stable var TOTAL_PROTOCOL_CYCLES_BURNT : Nat = 0; // TODO - Implementation: ensure all relevant events for cycle buring are captured and adjust cycle burning numbers below to actual values
-    // TODO: Update to actual values
-    let CYCLES_BURNT_CHALLENGE_CREATION : Nat = 110 * Constants.CYCLES_BILLION;
-    let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * Constants.CYCLES_BILLION;
-    let CYCLES_BURNT_JUDGE_SCORING : Nat = 300 * Constants.CYCLES_BILLION;
-    let CYCLES_BURNT_CANISTER_CREATION : Nat = 300 * Constants.CYCLES_BILLION;
-    let CYCLES_BURNT_MAINER_CREATION : Nat = 300 * Constants.CYCLES_BILLION;
-    let CYCLES_BURNT_LLM_CREATION : Nat = 1300 * Constants.CYCLES_BILLION;
-    let CYCLES_BURNT_WINNER_DECLARATION : Nat = 100 * Constants.CYCLES_BILLION;
+    var TOTAL_PROTOCOL_CYCLES_BURNT : Nat = 0;
+
+    transient let CYCLES_BURNT_CHALLENGE_CREATION : Nat = 110 * Constants.CYCLES_BILLION;
+    transient let CYCLES_BURNT_RESPONSE_GENERATION : Nat = 200 * Constants.CYCLES_BILLION;
+    transient let CYCLES_BURNT_JUDGE_SCORING : Nat = 300 * Constants.CYCLES_BILLION;
+    transient let CYCLES_BURNT_CANISTER_CREATION : Nat = 300 * Constants.CYCLES_BILLION;
+    transient let CYCLES_BURNT_MAINER_CREATION : Nat = 300 * Constants.CYCLES_BILLION;
+    transient let CYCLES_BURNT_LLM_CREATION : Nat = 1300 * Constants.CYCLES_BILLION;
+    transient let CYCLES_BURNT_WINNER_DECLARATION : Nat = 100 * Constants.CYCLES_BILLION;
 
     // TODO: once a day, add the dailyIdleBurnRate using getDailyIdleBurnRate()
     private func increaseTotalProtocolCyclesBurnt(cyclesBurntToAdd : Nat) : Bool {
@@ -920,7 +865,7 @@ actor class GameStateCanister() = this {
     };
 
     // Price to create a mAIner
-    stable var PRICE_FOR_SHARE_AGENT_ICP : Nat64 = 10; // Cost of a ShareAgent, in ICP
+    var PRICE_FOR_SHARE_AGENT_ICP : Nat64 = 10; // Cost of a ShareAgent, in ICP
 
     public shared (msg) func setIcpForShareAgentAdmin(icpForShareAgent : Nat64) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -934,7 +879,7 @@ actor class GameStateCanister() = this {
         return #Ok({ price = PRICE_FOR_SHARE_AGENT_ICP });
     };
 
-    stable var WHITELIST_PRICE_FOR_SHARE_AGENT_ICP : Nat64 = PRICE_FOR_SHARE_AGENT_ICP / 2; // Set to cost of a ShareAgent, in ICP
+    var WHITELIST_PRICE_FOR_SHARE_AGENT_ICP : Nat64 = PRICE_FOR_SHARE_AGENT_ICP / 2; // Set to cost of a ShareAgent, in ICP
 
     public shared (msg) func setIcpForWhitelistShareAgentAdmin(icpForShareAgent : Nat64) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -950,7 +895,7 @@ actor class GameStateCanister() = this {
 
     // Cycles for Own mAIner Creation 
     // Note: the ShareService mAIner will also use these values
-    stable var PRICE_FOR_OWN_MAINER_ICP : Nat64 = 1000; // TODO: Set to cost of a Own mAIner, in ICP
+    var PRICE_FOR_OWN_MAINER_ICP : Nat64 = 1000; // Set to cost of a Own mAIner, in ICP
     public shared (msg) func setIcpForOwnMainerAdmin(icpForOwnMainer : Nat64) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -964,7 +909,6 @@ actor class GameStateCanister() = this {
     };
 
     // Function to set the price for creating a mAIner
-        // TODO - Implementation: Set timer for once a day that calculates the creation price based on the ICP/cycles conversion rate
     private func setPriceForCreatingMainer(newPrice : Nat64, mainerType : Types.MainerAgentCanisterType) : Bool {
         switch (mainerType) {
             case (#Own) {
@@ -978,7 +922,7 @@ actor class GameStateCanister() = this {
         return true;
     };
 
-    stable var WHITELIST_PRICE_FOR_OWN_MAINER_ICP : Nat64 = PRICE_FOR_OWN_MAINER_ICP / 2; // TODO: Set to cost of a Own mAIner, in ICP
+    var WHITELIST_PRICE_FOR_OWN_MAINER_ICP : Nat64 = PRICE_FOR_OWN_MAINER_ICP / 2; // Set to cost of a whitelisted Own mAIner, in ICP
     public shared (msg) func setIcpForWhitelistOwnMainerAdmin(icpForOwnMainer : Nat64) : async Types.StatusCodeRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -992,19 +936,19 @@ actor class GameStateCanister() = this {
     };
 
 // Auction to sell mAIners
-    stable var MAINER_AUCTION_ACTIVE : Bool = false;
+    var MAINER_AUCTION_ACTIVE : Bool = false;
 
     // Prices (in ICP) are consumed head-first; we store as a List so we can pop easily.
-    stable var pendingAuctionPrices : List.List<Nat64> = List.nil<Nat64>();
+    var pendingAuctionPrices : List.List<Nat64> = List.nil<Nat64>();
 
     // Cadence between price updates (seconds)
-    stable var auctionIntervalSeconds : Nat = 60;
+    var auctionIntervalSeconds : Nat = 60;
 
     // Timestamp of last price change (in nanoseconds)
-    stable var lastAuctionPriceUpdateTimestampNs : Nat = 0;
+    var lastAuctionPriceUpdateTimestampNs : Nat = 0;
 
     // Timer handle
-    stable var auctionTimerId : ?Timer.TimerId = null;
+    var auctionTimerId : ?Timer.TimerId = null;
 
     private func setAuctionTimerRecurring() : async () {
         // cancel previous if any
@@ -1207,7 +1151,7 @@ actor class GameStateCanister() = this {
     };
 
     // Price at which users can buy cycles with FUNNAI from Game State
-    stable var FUNNAI_CYCLES_PRICE : Nat = 400 * Constants.CYCLES_BILLION; // How many cycles one gets for 1 FUNNAI
+    var FUNNAI_CYCLES_PRICE : Nat = 400 * Constants.CYCLES_BILLION; // How many cycles one gets for 1 FUNNAI
 
     public shared (msg) func setFunnaiCyclesPrice(newPrice : Nat) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -1243,7 +1187,7 @@ actor class GameStateCanister() = this {
     };
 
     // Maximum amount of cycles users can buy with FUNNAI from Game State
-    stable var MAX_FUNNAI_TOPUP_CYCLES_AMOUNT : Nat = 1 * Constants.CYCLES_TRILLION; // Max cycles per topup with FUNNAI
+    var MAX_FUNNAI_TOPUP_CYCLES_AMOUNT : Nat = 1 * Constants.CYCLES_TRILLION; // Max cycles per topup with FUNNAI
 
     public shared (msg) func setMaxFunnaiTopupCyclesAmount(newAmount : Nat) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -1278,22 +1222,22 @@ actor class GameStateCanister() = this {
         return #Ok(MAX_FUNNAI_TOPUP_CYCLES_AMOUNT);
     };
 
-    // Protocol parameters used in the mAIner Creation Cycles Flow calculations      
-    let DEFAULT_CYCLES_CREATE_MAINER_MARGIN_GS          : Nat  =    25 * Constants.CYCLES_BILLION ; // Margin kept in GameState canister (includes actual costs)
-    let DEFAULT_CYCLES_CREATE_MAINER_MARGIN_MC          : Nat  =   300 * Constants.CYCLES_BILLION ; // Margin kept in mAIner Creator canister (excludes actual costs)
-    let DEFAULT_CYCLES_CREATE_MAINER_LLM_TARGET_BALANCE : Nat  =     2 * Constants.CYCLES_TRILLION; // Target balance for the Own LLM canister after creation
-    let DEFAULT_COST_CREATE_MAINER_CTRL                 : Nat  =     1 * Constants.CYCLES_TRILLION; // Cost of a Mainer Controller canister for it's creation
-    let DEFAULT_COST_CREATE_MAINER_LLM                  : Nat  =     1 * Constants.CYCLES_TRILLION; // Cost of a LLM canister for it's creation
-    let DEFAULT_COST_MC_CREATE_MAINER_CTRL              : Nat  =     1 * Constants.CYCLES_BILLION ; // Cost for the MC to create a Mainer Controller canister
-    let DEFAULT_COST_MC_CREATE_MAINER_LLM               : Nat  =   835 * Constants.CYCLES_BILLION ; // Cost for the MC to create a LLM canister
+    // Protocol parameters used in the mAIner Creation Cycles Flow calculations
+    transient let DEFAULT_CYCLES_CREATE_MAINER_MARGIN_GS          : Nat  =    25 * Constants.CYCLES_BILLION ; // Margin kept in GameState canister (includes actual costs)
+    transient let DEFAULT_CYCLES_CREATE_MAINER_MARGIN_MC          : Nat  =   300 * Constants.CYCLES_BILLION ; // Margin kept in mAIner Creator canister (excludes actual costs)
+    transient let DEFAULT_CYCLES_CREATE_MAINER_LLM_TARGET_BALANCE : Nat  =     2 * Constants.CYCLES_TRILLION; // Target balance for the Own LLM canister after creation
+    transient let DEFAULT_COST_CREATE_MAINER_CTRL                 : Nat  =     1 * Constants.CYCLES_TRILLION; // Cost of a Mainer Controller canister for it's creation
+    transient let DEFAULT_COST_CREATE_MAINER_LLM                  : Nat  =     1 * Constants.CYCLES_TRILLION; // Cost of a LLM canister for it's creation
+    transient let DEFAULT_COST_MC_CREATE_MAINER_CTRL              : Nat  =     1 * Constants.CYCLES_BILLION ; // Cost for the MC to create a Mainer Controller canister
+    transient let DEFAULT_COST_MC_CREATE_MAINER_LLM               : Nat  =   835 * Constants.CYCLES_BILLION ; // Cost for the MC to create a LLM canister
 
-    stable var cyclesCreateMainerMarginGs         : Nat  = DEFAULT_CYCLES_CREATE_MAINER_MARGIN_GS;
-    stable var cyclesCreatemMainerMarginMc        : Nat  = DEFAULT_CYCLES_CREATE_MAINER_MARGIN_MC;
-    stable var cyclesCreateMainerLlmTargetBalance : Nat  = DEFAULT_CYCLES_CREATE_MAINER_LLM_TARGET_BALANCE;
-    stable var costCreateMainerCtrl               : Nat  = DEFAULT_COST_CREATE_MAINER_CTRL;
-    stable var costCreateMainerLlm                : Nat  = DEFAULT_COST_CREATE_MAINER_LLM;
-    stable var costCreateMcMainerCtrl             : Nat  = DEFAULT_COST_MC_CREATE_MAINER_CTRL; 
-    stable var costCreateMcMainerLlm              : Nat  = DEFAULT_COST_MC_CREATE_MAINER_LLM; 
+    var cyclesCreateMainerMarginGs         : Nat  = DEFAULT_CYCLES_CREATE_MAINER_MARGIN_GS;
+    var cyclesCreatemMainerMarginMc        : Nat  = DEFAULT_CYCLES_CREATE_MAINER_MARGIN_MC;
+    var cyclesCreateMainerLlmTargetBalance : Nat  = DEFAULT_CYCLES_CREATE_MAINER_LLM_TARGET_BALANCE;
+    var costCreateMainerCtrl               : Nat  = DEFAULT_COST_CREATE_MAINER_CTRL;
+    var costCreateMainerLlm                : Nat  = DEFAULT_COST_CREATE_MAINER_LLM;
+    var costCreateMcMainerCtrl             : Nat  = DEFAULT_COST_MC_CREATE_MAINER_CTRL; 
+    var costCreateMcMainerLlm              : Nat  = DEFAULT_COST_MC_CREATE_MAINER_LLM; 
     
 
     // Calculate the cycles that will be sent to the mAIner Creator once we know the user payment
@@ -1345,20 +1289,20 @@ actor class GameStateCanister() = this {
     };
 
     // Mainer Upgrade Cycles Flows are independent of user payments, so we can just set them - Note that upgrade costs are variable. If it fails, first topup the mAIner with more cycles.
-    let DEFAULT_COST_UPGRADE_MAINER_CTRL          : Nat  = 10 * Constants.CYCLES_BILLION; // Cost of a Mainer Controller canister for it's upgrade
-    let DEFAULT_COST_UPGRADE_MAINER_LLM           : Nat  = 10 * Constants.CYCLES_BILLION; // Cost of a LLM canister for it's upgrade
-    let DEFAULT_COST_MC_UPGRADE_MAINER_CTRL       : Nat  =  1 * Constants.CYCLES_BILLION ; // Cost for the MC to upgrade a Mainer Controller canister
-    let DEFAULT_COST_MC_UPGRADE_MAINER_LLM        : Nat  =  1 * Constants.CYCLES_BILLION ; // Cost for the MC to upgrade a LLM canister
+    transient let DEFAULT_COST_UPGRADE_MAINER_CTRL          : Nat  = 10 * Constants.CYCLES_BILLION; // Cost of a Mainer Controller canister for it's upgrade
+    transient let DEFAULT_COST_UPGRADE_MAINER_LLM           : Nat  = 10 * Constants.CYCLES_BILLION; // Cost of a LLM canister for it's upgrade
+    transient let DEFAULT_COST_MC_UPGRADE_MAINER_CTRL       : Nat  =  1 * Constants.CYCLES_BILLION ; // Cost for the MC to upgrade a Mainer Controller canister
+    transient let DEFAULT_COST_MC_UPGRADE_MAINER_LLM        : Nat  =  1 * Constants.CYCLES_BILLION ; // Cost for the MC to upgrade a LLM canister
                                                                                                     // -> Note: we are NOT re-uploading the LLM model, only installing the new wasm
-    stable var costUpgradeMainerCtrl              : Nat  = DEFAULT_COST_UPGRADE_MAINER_CTRL;
-    stable var costUpgradeMainerLlm               : Nat  = DEFAULT_COST_UPGRADE_MAINER_LLM;
-    stable var costUpgradeMcMainerCtrl            : Nat  = DEFAULT_COST_MC_UPGRADE_MAINER_CTRL;
-    stable var costUpgradeMcMainerLlm             : Nat  = DEFAULT_COST_MC_UPGRADE_MAINER_LLM;
+    var costUpgradeMainerCtrl              : Nat  = DEFAULT_COST_UPGRADE_MAINER_CTRL;
+    var costUpgradeMainerLlm               : Nat  = DEFAULT_COST_UPGRADE_MAINER_LLM;
+    var costUpgradeMcMainerCtrl            : Nat  = DEFAULT_COST_MC_UPGRADE_MAINER_CTRL;
+    var costUpgradeMcMainerLlm             : Nat  = DEFAULT_COST_MC_UPGRADE_MAINER_LLM;
 
-    stable var cyclesUpgradeMainerctrlGsMc         : Nat  = 0;
-    stable var cyclesUpgradeMainerllmGsMc          : Nat  = 0;
-    stable var cyclesUpgradeMainerctrlMcMainerctrl : Nat  = 0;
-    stable var cyclesUpgradeMainerllmMcMainerllm   : Nat  = 0;
+    var cyclesUpgradeMainerctrlGsMc         : Nat  = 0;
+    var cyclesUpgradeMainerllmGsMc          : Nat  = 0;
+    var cyclesUpgradeMainerctrlMcMainerctrl : Nat  = 0;
+    var cyclesUpgradeMainerllmMcMainerllm   : Nat  = 0;
 
     private func setCyclesUpgradeMainer() {
         // To be called each time a variable is updated by Admin or by the protocol itself
@@ -1380,20 +1324,20 @@ actor class GameStateCanister() = this {
     };
 
     // Mainer Reinstall Cycles Flows are independent of user payments, so we can just set them.  Note that reinstall costs are variable. If it fails, first topup the mAIner with more cycles.
-    let DEFAULT_COST_REINSTALL_MAINER_CTRL          : Nat  = 10 * Constants.CYCLES_BILLION; // Cost of a Mainer Controller canister for it's reinstall
-    let DEFAULT_COST_REINSTALL_MAINER_LLM           : Nat  = 10 * Constants.CYCLES_BILLION; // Cost of a LLM canister for it's reinstall
-    let DEFAULT_COST_MC_REINSTALL_MAINER_CTRL       : Nat  =  1 * Constants.CYCLES_BILLION ; // Cost for the MC to reinstall a Mainer Controller canister
-    let DEFAULT_COST_MC_REINSTALL_MAINER_LLM        : Nat  =  1 * Constants.CYCLES_BILLION ; // Cost for the MC to reinstall a LLM canister
+    transient let DEFAULT_COST_REINSTALL_MAINER_CTRL          : Nat  = 10 * Constants.CYCLES_BILLION; // Cost of a Mainer Controller canister for it's reinstall
+    transient let DEFAULT_COST_REINSTALL_MAINER_LLM           : Nat  = 10 * Constants.CYCLES_BILLION; // Cost of a LLM canister for it's reinstall
+    transient let DEFAULT_COST_MC_REINSTALL_MAINER_CTRL       : Nat  =  1 * Constants.CYCLES_BILLION ; // Cost for the MC to reinstall a Mainer Controller canister
+    transient let DEFAULT_COST_MC_REINSTALL_MAINER_LLM        : Nat  =  1 * Constants.CYCLES_BILLION ; // Cost for the MC to reinstall a LLM canister
                                                                                                     // -> Note: we are NOT re-uploading the LLM model, only installing the new wasm
-    stable var costReinstallMainerCtrl              : Nat  = DEFAULT_COST_REINSTALL_MAINER_CTRL;
-    stable var costReinstallMainerLlm               : Nat  = DEFAULT_COST_REINSTALL_MAINER_LLM;
-    stable var costReinstallMcMainerCtrl            : Nat  = DEFAULT_COST_MC_REINSTALL_MAINER_CTRL;
-    stable var costReinstallMcMainerLlm             : Nat  = DEFAULT_COST_MC_REINSTALL_MAINER_LLM;
+    var costReinstallMainerCtrl              : Nat  = DEFAULT_COST_REINSTALL_MAINER_CTRL;
+    var costReinstallMainerLlm               : Nat  = DEFAULT_COST_REINSTALL_MAINER_LLM;
+    var costReinstallMcMainerCtrl            : Nat  = DEFAULT_COST_MC_REINSTALL_MAINER_CTRL;
+    var costReinstallMcMainerLlm             : Nat  = DEFAULT_COST_MC_REINSTALL_MAINER_LLM;
 
-    stable var cyclesReinstallMainerctrlGsMc         : Nat  = 0;
-    stable var cyclesReinstallMainerllmGsMc          : Nat  = 0;
-    stable var cyclesReinstallMainerctrlMcMainerctrl : Nat  = 0;
-    stable var cyclesReinstallMainerllmMcMainerllm   : Nat  = 0;
+    var cyclesReinstallMainerctrlGsMc         : Nat  = 0;
+    var cyclesReinstallMainerllmGsMc          : Nat  = 0;
+    var cyclesReinstallMainerctrlMcMainerctrl : Nat  = 0;
+    var cyclesReinstallMainerllmMcMainerllm   : Nat  = 0;
 
     private func setCyclesReinstallMainer() {
         // To be called each time a variable is updated by Admin or by the protocol itself
@@ -1415,112 +1359,112 @@ actor class GameStateCanister() = this {
     };
 
     // Protocol parameters used in the Generation Cycles Flow calculations
-    let DEFAULT_DAILY_CHALLENGES                : Nat = 6*24;                      // TODO: set the actual value or let the GameState automatically update this on a daily basis
-    stable var dailyChallenges                  : Nat = DEFAULT_DAILY_CHALLENGES; // The lower the value, the more cycles are send with each challenge to the Challenger
+    transient let DEFAULT_DAILY_CHALLENGES                : Nat = 6*24;
+    var dailyChallenges                  : Nat = DEFAULT_DAILY_CHALLENGES; // The lower the value, the more cycles are send with each challenge to the Challenger
 
     // -----------
     // TODO -- REMOVE THIS LOGIC. IT IS NOT USED...
-    let DEFAULT_DAILY_SUBMISSIONS_PER_OWN_LOW      : Nat =  24; // TODO: set the actual value 
-    stable var dailySubmissionsPerOwnLOW           : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_OWN_LOW;
-    let DEFAULT_DAILY_SUBMISSIONS_PER_OWN_MEDIUM   : Nat =  48; // TODO: set the actual value
-    stable var dailySubmissionsPerOwnMEDIUM        : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_OWN_MEDIUM;
-    let DEFAULT_DAILY_SUBMISSIONS_PER_OWN_HIGH     : Nat =  72; // TODO: set the actual value
-    stable var dailySubmissionsPerOwnHIGH          : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_OWN_HIGH;
+    transient let DEFAULT_DAILY_SUBMISSIONS_PER_OWN_LOW      : Nat =  24;
+    var dailySubmissionsPerOwnLOW           : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_OWN_LOW;
+    transient let DEFAULT_DAILY_SUBMISSIONS_PER_OWN_MEDIUM   : Nat =  48;
+    var dailySubmissionsPerOwnMEDIUM        : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_OWN_MEDIUM;
+    transient let DEFAULT_DAILY_SUBMISSIONS_PER_OWN_HIGH     : Nat =  72;
+    var dailySubmissionsPerOwnHIGH          : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_OWN_HIGH;
 
-    let DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_LOW    : Nat =   1; // TODO: set the actual value 
-    stable var dailySubmissionsPerShareLOW         : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_LOW;
-    let DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_MEDIUM : Nat =   2; // TODO: set the actual value
-    stable var dailySubmissionsPerShareMEDIUM      : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_MEDIUM;
-    let DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_HIGH   : Nat =   3; // TODO: set the actual value
-    stable var dailySubmissionsPerShareHIGH        : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_HIGH;
+    transient let DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_LOW    : Nat =   1;
+    var dailySubmissionsPerShareLOW         : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_LOW;
+    transient let DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_MEDIUM : Nat =   2;
+    var dailySubmissionsPerShareMEDIUM      : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_MEDIUM;
+    transient let DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_HIGH   : Nat =   3;
+    var dailySubmissionsPerShareHIGH        : Nat = DEFAULT_DAILY_SUBMISSIONS_PER_SHARE_HIGH;
     // -----------
-    
-    let DEFAULT_DAILY_SUBMISSIONS_ALL_OWN          : Nat =   0; // TODO = GameState automatically updates this on a daily basis
-    stable var dailySubmissionsAllOwn              : Nat = DEFAULT_DAILY_SUBMISSIONS_ALL_OWN;
-    let DEFAULT_DAILY_SUBMISSIONS_ALL_SHARE        : Nat = 100; // TODO = GameState automatically updates this on a daily basis
-    stable var dailySubmissionsAllShare            : Nat = DEFAULT_DAILY_SUBMISSIONS_ALL_SHARE;
 
-    let DEFAULT_PROTOCOL_OPERATION_FEES_CUT        : Nat =  10; // % added to unofficial mAIner agent's cycle topups to cover protocol operation fees  
-    stable var protocolOperationFeesCut            : Nat = DEFAULT_PROTOCOL_OPERATION_FEES_CUT;
-    let DEFAULT_MARGIN_FAILED_SUBMISSION_CUT       : Nat =  20; // % Margin for a Failed Submission Cut
-    stable var marginFailedSubmissionCut           : Nat = DEFAULT_MARGIN_FAILED_SUBMISSION_CUT;
-    let DEFAULT_MARGIN_COST                        : Nat =  10; // % Margin for all the cycles send to cover costs
-    stable var marginCost                          : Nat = DEFAULT_MARGIN_COST;
-    let DEFAULT_SUBMISSION_FEE                     : Nat =  75 * Constants.CYCLES_BILLION; // $0.10 Fee for the submission of a response to GameState
-    stable var submissionFee                       : Nat = DEFAULT_SUBMISSION_FEE;
+    transient let DEFAULT_DAILY_SUBMISSIONS_ALL_OWN          : Nat =   0;
+    var dailySubmissionsAllOwn              : Nat = DEFAULT_DAILY_SUBMISSIONS_ALL_OWN;
+    transient let DEFAULT_DAILY_SUBMISSIONS_ALL_SHARE        : Nat = 100;
+    var dailySubmissionsAllShare            : Nat = DEFAULT_DAILY_SUBMISSIONS_ALL_SHARE;
+
+    transient let DEFAULT_PROTOCOL_OPERATION_FEES_CUT        : Nat =  10; // % added to unofficial mAIner agent's cycle topups to cover protocol operation fees
+    var protocolOperationFeesCut            : Nat = DEFAULT_PROTOCOL_OPERATION_FEES_CUT;
+    transient let DEFAULT_MARGIN_FAILED_SUBMISSION_CUT       : Nat =  20; // % Margin for a Failed Submission Cut
+    var marginFailedSubmissionCut           : Nat = DEFAULT_MARGIN_FAILED_SUBMISSION_CUT;
+    transient let DEFAULT_MARGIN_COST                        : Nat =  10; // % Margin for all the cycles send to cover costs
+    var marginCost                          : Nat = DEFAULT_MARGIN_COST;
+    transient let DEFAULT_SUBMISSION_FEE                     : Nat =  75 * Constants.CYCLES_BILLION; // $0.10 Fee for the submission of a response to GameState
+    var submissionFee                       : Nat = DEFAULT_SUBMISSION_FEE;
 
     // Number of protocol LLMs
-    let DEFAULT_NUM_CHALLENGER_LLMS                : Nat =   1; // Number of Challenger   LLMs     - TODO: update to actual value
-    stable var numChallengerLlms                   : Nat = DEFAULT_NUM_CHALLENGER_LLMS;
-    let DEFAULT_NUM_JUDGE_LLMS                     : Nat =  24; // Number of Judge        LLMs     - TODO: update to actual value
-    stable var numJudgeLlms                        : Nat = DEFAULT_NUM_JUDGE_LLMS;
-    let DEFAULT_NUM_SHARE_SERVICE_LLMS             : Nat =  16; // Number of ShareService LLMs     - TODO: update to actual value
-    stable var numShareServiceLlms                 : Nat = DEFAULT_NUM_SHARE_SERVICE_LLMS;
-    
+    transient let DEFAULT_NUM_CHALLENGER_LLMS                : Nat =   1; // Number of Challenger   LLMs     - update value if there are changes
+    var numChallengerLlms                   : Nat = DEFAULT_NUM_CHALLENGER_LLMS;
+    transient let DEFAULT_NUM_JUDGE_LLMS                     : Nat =  24; // Number of Judge        LLMs     - update value if there are changes
+    var numJudgeLlms                        : Nat = DEFAULT_NUM_JUDGE_LLMS;
+    transient let DEFAULT_NUM_SHARE_SERVICE_LLMS             : Nat =  16; // Number of ShareService LLMs     - update value if there are changes
+    var numShareServiceLlms                 : Nat = DEFAULT_NUM_SHARE_SERVICE_LLMS;
+
     // Cost of the idle burn rates for protocol canisters
-    let DEFAULT_COST_IDLE_BURN_RATE_GS             : Nat = 201 * Constants.CYCLES_MILLION; // GameState                cost for idle burn rate
-    stable var costIdleBurnRateGs                  : Nat = DEFAULT_COST_IDLE_BURN_RATE_GS;
-    let DEFAULT_COST_IDLE_BURN_RATE_MC             : Nat =  28 * Constants.CYCLES_BILLION; // mAIner Creator           cost for idle burn rate
-    stable var costIdleBurnRateMc                  : Nat = DEFAULT_COST_IDLE_BURN_RATE_MC;
-    let DEFAULT_COST_IDLE_BURN_RATE_CHCTRL         : Nat = 115 * Constants.CYCLES_MILLION; // Challenger Controller    cost for idle burn rate
-    stable var costIdleBurnRateChctrl              : Nat = DEFAULT_COST_IDLE_BURN_RATE_CHCTRL;
-    let DEFAULT_COST_IDLE_BURN_RATE_CHLLM          : Nat =  24 * Constants.CYCLES_BILLION; // One Challenger LLM       cost for idle burn rate
-    stable var costIdleBurnRateChllm               : Nat = DEFAULT_COST_IDLE_BURN_RATE_CHLLM;
-    let DEFAULT_COST_IDLE_BURN_RATE_JUCTRL         : Nat = 115 * Constants.CYCLES_MILLION; // Judge Controller         cost for idle burn rate
-    stable var costIdleBurnRateJuctrl              : Nat = DEFAULT_COST_IDLE_BURN_RATE_JUCTRL;
-    let DEFAULT_COST_IDLE_BURN_RATE_JULLM          : Nat =  24 * Constants.CYCLES_BILLION; // One Judge LLM            cost for idle burn rate
-    stable var costIdleBurnRateJullm               : Nat = DEFAULT_COST_IDLE_BURN_RATE_JULLM;
-    let DEFAULT_COST_IDLE_BURN_RATE_SSCTRL         : Nat = 157 * Constants.CYCLES_MILLION; // ShareService Controller  cost for idle burn rate
-    stable var costIdleBurnRateSsctrl              : Nat = DEFAULT_COST_IDLE_BURN_RATE_SSCTRL;
-    let DEFAULT_COST_IDLE_BURN_RATE_SSLLM          : Nat =  24 * Constants.CYCLES_BILLION; // One ShareService LLM     cost for idle burn rate
-    stable var costIdleBurnRateSsllm               : Nat = DEFAULT_COST_IDLE_BURN_RATE_SSLLM;
+    transient let DEFAULT_COST_IDLE_BURN_RATE_GS             : Nat = 201 * Constants.CYCLES_MILLION; // GameState                cost for idle burn rate
+    var costIdleBurnRateGs                  : Nat = DEFAULT_COST_IDLE_BURN_RATE_GS;
+    transient let DEFAULT_COST_IDLE_BURN_RATE_MC             : Nat =  28 * Constants.CYCLES_BILLION; // mAIner Creator           cost for idle burn rate
+    var costIdleBurnRateMc                  : Nat = DEFAULT_COST_IDLE_BURN_RATE_MC;
+    transient let DEFAULT_COST_IDLE_BURN_RATE_CHCTRL         : Nat = 115 * Constants.CYCLES_MILLION; // Challenger Controller    cost for idle burn rate
+    var costIdleBurnRateChctrl              : Nat = DEFAULT_COST_IDLE_BURN_RATE_CHCTRL;
+    transient let DEFAULT_COST_IDLE_BURN_RATE_CHLLM          : Nat =  24 * Constants.CYCLES_BILLION; // One Challenger LLM       cost for idle burn rate
+    var costIdleBurnRateChllm               : Nat = DEFAULT_COST_IDLE_BURN_RATE_CHLLM;
+    transient let DEFAULT_COST_IDLE_BURN_RATE_JUCTRL         : Nat = 115 * Constants.CYCLES_MILLION; // Judge Controller         cost for idle burn rate
+    var costIdleBurnRateJuctrl              : Nat = DEFAULT_COST_IDLE_BURN_RATE_JUCTRL;
+    transient let DEFAULT_COST_IDLE_BURN_RATE_JULLM          : Nat =  24 * Constants.CYCLES_BILLION; // One Judge LLM            cost for idle burn rate
+    var costIdleBurnRateJullm               : Nat = DEFAULT_COST_IDLE_BURN_RATE_JULLM;
+    transient let DEFAULT_COST_IDLE_BURN_RATE_SSCTRL         : Nat = 157 * Constants.CYCLES_MILLION; // ShareService Controller  cost for idle burn rate
+    var costIdleBurnRateSsctrl              : Nat = DEFAULT_COST_IDLE_BURN_RATE_SSCTRL;
+    transient let DEFAULT_COST_IDLE_BURN_RATE_SSLLM          : Nat =  24 * Constants.CYCLES_BILLION; // One ShareService LLM     cost for idle burn rate
+    var costIdleBurnRateSsllm               : Nat = DEFAULT_COST_IDLE_BURN_RATE_SSLLM;
 
-    
+
     // Cost of the idle burn rates for user canisters
-    let DEFAULT_COST_IDLE_BURN_RATE_SACTRL         : Nat = 157 * Constants.CYCLES_MILLION; // ShareAgent Controller    cost for idle burn rate
-    stable var costIdleBurnRateSactrl              : Nat = DEFAULT_COST_IDLE_BURN_RATE_SACTRL;
-    let DEFAULT_COST_IDLE_BURN_RATE_SALLM          : Nat =  24 * Constants.CYCLES_BILLION; // One Share Service LLM    cost for idle burn rate
-    stable var costIdleBurnRateSallm               : Nat = DEFAULT_COST_IDLE_BURN_RATE_SALLM;
-    let DEFAULT_COST_IDLE_BURN_RATE_OWNCTRL        : Nat = 157 * Constants.CYCLES_MILLION; // Own Controller           cost for idle burn rate
-    stable var costIdleBurnRateOwnctrl             : Nat = DEFAULT_COST_IDLE_BURN_RATE_OWNCTRL;
-    let DEFAULT_COST_IDLE_BURN_RATE_OWNLLM         : Nat =  24 * Constants.CYCLES_BILLION; // Own LLM                  cost for idle burn rate
-    stable var costIdleBurnRateOwnllm              : Nat = DEFAULT_COST_IDLE_BURN_RATE_OWNLLM;
-    
+    transient let DEFAULT_COST_IDLE_BURN_RATE_SACTRL         : Nat = 157 * Constants.CYCLES_MILLION; // ShareAgent Controller    cost for idle burn rate
+    var costIdleBurnRateSactrl              : Nat = DEFAULT_COST_IDLE_BURN_RATE_SACTRL;
+    transient let DEFAULT_COST_IDLE_BURN_RATE_SALLM          : Nat =  24 * Constants.CYCLES_BILLION; // One Share Service LLM    cost for idle burn rate
+    var costIdleBurnRateSallm               : Nat = DEFAULT_COST_IDLE_BURN_RATE_SALLM;
+    transient let DEFAULT_COST_IDLE_BURN_RATE_OWNCTRL        : Nat = 157 * Constants.CYCLES_MILLION; // Own Controller           cost for idle burn rate
+    var costIdleBurnRateOwnctrl             : Nat = DEFAULT_COST_IDLE_BURN_RATE_OWNCTRL;
+    transient let DEFAULT_COST_IDLE_BURN_RATE_OWNLLM         : Nat =  24 * Constants.CYCLES_BILLION; // Own LLM                  cost for idle burn rate
+    var costIdleBurnRateOwnllm              : Nat = DEFAULT_COST_IDLE_BURN_RATE_OWNLLM;
+
     // Cost of the generations
-    let DEFAULT_COST_GENERATE_CHALLENGE_GS         : Nat = 221 * Constants.CYCLES_MILLION; // GameState                cost for challenge generation
-    stable var costGenerateChallengeGs             : Nat = DEFAULT_COST_GENERATE_CHALLENGE_GS;
-    let DEFAULT_COST_GENERATE_CHALLENGE_CHCTRL     : Nat =  12 * Constants.CYCLES_BILLION; // Challenge Controller     cost for challenge generation
-    stable var costGenerateChallengeChctrl         : Nat = DEFAULT_COST_GENERATE_CHALLENGE_CHCTRL;
-    let DEFAULT_COST_GENERATE_CHALLENGE_CHLLM      : Nat = 305 * Constants.CYCLES_BILLION; // Challenge LLM            cost for challenge creation
-    stable var costGenerateChallengeChllm          : Nat = DEFAULT_COST_GENERATE_CHALLENGE_CHLLM;
+    transient let DEFAULT_COST_GENERATE_CHALLENGE_GS         : Nat = 221 * Constants.CYCLES_MILLION; // GameState                cost for challenge generation
+    var costGenerateChallengeGs             : Nat = DEFAULT_COST_GENERATE_CHALLENGE_GS;
+    transient let DEFAULT_COST_GENERATE_CHALLENGE_CHCTRL     : Nat =  12 * Constants.CYCLES_BILLION; // Challenge Controller     cost for challenge generation
+    var costGenerateChallengeChctrl         : Nat = DEFAULT_COST_GENERATE_CHALLENGE_CHCTRL;
+    transient let DEFAULT_COST_GENERATE_CHALLENGE_CHLLM      : Nat = 305 * Constants.CYCLES_BILLION; // Challenge LLM            cost for challenge creation
+    var costGenerateChallengeChllm          : Nat = DEFAULT_COST_GENERATE_CHALLENGE_CHLLM;
 
-    let DEFAULT_COST_GENERATE_SCORE_GS             : Nat = 111 * Constants.CYCLES_MILLION; // GameState                cost for Score generation
-    stable var costGenerateScoreGs                 : Nat = DEFAULT_COST_GENERATE_SCORE_GS;
-    let DEFAULT_COST_GENERATE_SCORE_JUCTRL         : Nat =   6 * Constants.CYCLES_BILLION; // Judge Controller         cost for Score generation
-    stable var costGenerateScoreJuctrl             : Nat = DEFAULT_COST_GENERATE_SCORE_JUCTRL;
-    let DEFAULT_COST_GENERATE_SCORE_JULLM          : Nat = 125 * Constants.CYCLES_BILLION; // Judge LLM                cost for Score generation
-    stable var costGenerateScoreJullm              : Nat = DEFAULT_COST_GENERATE_SCORE_JULLM;
+    transient let DEFAULT_COST_GENERATE_SCORE_GS             : Nat = 111 * Constants.CYCLES_MILLION; // GameState                cost for Score generation
+    var costGenerateScoreGs                 : Nat = DEFAULT_COST_GENERATE_SCORE_GS;
+    transient let DEFAULT_COST_GENERATE_SCORE_JUCTRL         : Nat =   6 * Constants.CYCLES_BILLION; // Judge Controller         cost for Score generation
+    var costGenerateScoreJuctrl             : Nat = DEFAULT_COST_GENERATE_SCORE_JUCTRL;
+    transient let DEFAULT_COST_GENERATE_SCORE_JULLM          : Nat = 125 * Constants.CYCLES_BILLION; // Judge LLM                cost for Score generation
+    var costGenerateScoreJullm              : Nat = DEFAULT_COST_GENERATE_SCORE_JULLM;
 
-    let DEFAULT_COST_GENERATE_RESPONSE_OWN_GS      : Nat = 150 * Constants.CYCLES_MILLION; // GameState                cost for Own response generation
-    stable var costGenerateResponseOwnGs           : Nat = DEFAULT_COST_GENERATE_RESPONSE_OWN_GS;
-    let DEFAULT_COST_GENERATE_RESPONSE_OWNCTRL     : Nat =   4 * Constants.CYCLES_BILLION; // Own Controller           cost for Own response generation
-    stable var costGenerateResponseOwnctrl         : Nat = DEFAULT_COST_GENERATE_RESPONSE_OWNCTRL;
-    let DEFAULT_COST_GENERATE_RESPONSE_OWNLLM      : Nat = 125 * Constants.CYCLES_BILLION; // Own LLM                  cost for Own response generation
-    stable var costGenerateResponseOwnllm          : Nat = DEFAULT_COST_GENERATE_RESPONSE_OWNLLM;
+    transient let DEFAULT_COST_GENERATE_RESPONSE_OWN_GS      : Nat = 150 * Constants.CYCLES_MILLION; // GameState                cost for Own response generation
+    var costGenerateResponseOwnGs           : Nat = DEFAULT_COST_GENERATE_RESPONSE_OWN_GS;
+    transient let DEFAULT_COST_GENERATE_RESPONSE_OWNCTRL     : Nat =   4 * Constants.CYCLES_BILLION; // Own Controller           cost for Own response generation
+    var costGenerateResponseOwnctrl         : Nat = DEFAULT_COST_GENERATE_RESPONSE_OWNCTRL;
+    transient let DEFAULT_COST_GENERATE_RESPONSE_OWNLLM      : Nat = 125 * Constants.CYCLES_BILLION; // Own LLM                  cost for Own response generation
+    var costGenerateResponseOwnllm          : Nat = DEFAULT_COST_GENERATE_RESPONSE_OWNLLM;
 
-    let DEFAULT_COST_GENERATE_RESPONSE_SHARE_GS    : Nat = 150 * Constants.CYCLES_MILLION; // GameState                cost for Share response generation
-    stable var costGenerateResponseShareGs         : Nat = DEFAULT_COST_GENERATE_RESPONSE_SHARE_GS;
-    let DEFAULT_COST_GENERATE_RESPONSE_SACTRL      : Nat = 100 * Constants.CYCLES_MILLION; // Share Agent   Controller cost for Share response generation
-    stable var costGenerateResponseSactrl          : Nat = DEFAULT_COST_GENERATE_RESPONSE_SACTRL;
-    let DEFAULT_COST_GENERATE_RESPONSE_SSCTRL      : Nat =   4 * Constants.CYCLES_BILLION; // Share Service Controller cost for Share response generation
-    stable var costGenerateResponseSsctrl          : Nat = DEFAULT_COST_GENERATE_RESPONSE_SSCTRL;
-    let DEFAULT_COST_GENERATE_RESPONSE_SSLLM       : Nat = 116 * Constants.CYCLES_BILLION; // Share Service LLM        cost for Share response generation
-    stable var costGenerateResponseSsllm           : Nat = DEFAULT_COST_GENERATE_RESPONSE_SSLLM;
+    transient let DEFAULT_COST_GENERATE_RESPONSE_SHARE_GS    : Nat = 150 * Constants.CYCLES_MILLION; // GameState                cost for Share response generation
+    var costGenerateResponseShareGs         : Nat = DEFAULT_COST_GENERATE_RESPONSE_SHARE_GS;
+    transient let DEFAULT_COST_GENERATE_RESPONSE_SACTRL      : Nat = 100 * Constants.CYCLES_MILLION; // Share Agent   Controller cost for Share response generation
+    var costGenerateResponseSactrl          : Nat = DEFAULT_COST_GENERATE_RESPONSE_SACTRL;
+    transient let DEFAULT_COST_GENERATE_RESPONSE_SSCTRL      : Nat =   4 * Constants.CYCLES_BILLION; // Share Service Controller cost for Share response generation
+    var costGenerateResponseSsctrl          : Nat = DEFAULT_COST_GENERATE_RESPONSE_SSCTRL;
+    transient let DEFAULT_COST_GENERATE_RESPONSE_SSLLM       : Nat = 116 * Constants.CYCLES_BILLION; // Share Service LLM        cost for Share response generation
+    var costGenerateResponseSsllm           : Nat = DEFAULT_COST_GENERATE_RESPONSE_SSLLM;
 
     // Calculate Cycles Flows for Challenge generation by Challenger
-    stable var cyclesGenerateChallengeGsChctrl     : Nat = 0;
-    stable var cyclesGenerateChallengeChctrlChllm  : Nat = 0;
-    stable var cyclesBurntChallengeGeneration      : Nat = 0;
+    var cyclesGenerateChallengeGsChctrl     : Nat = 0;
+    var cyclesGenerateChallengeChctrlChllm  : Nat = 0;
+    var cyclesBurntChallengeGeneration      : Nat = 0;
     private func setCyclesGenerateChallenge() {
         // To be called each time a variable is updated by Admin or by the protocol itself
         var cost : Nat = 0;
@@ -1539,9 +1483,9 @@ actor class GameStateCanister() = this {
     };
 
     // Calculate Cycles Flows for Score generation by Judge
-    stable var cyclesGenerateScoreGsJuctrl         : Nat = 0;
-    stable var cyclesGenerateScoreJuctrlJullm      : Nat = 0;
-    stable var cyclesBurntJudgeScoring             : Nat = 0;
+    var cyclesGenerateScoreGsJuctrl         : Nat = 0;
+    var cyclesGenerateScoreJuctrlJullm      : Nat = 0;
+    var cyclesBurntJudgeScoring             : Nat = 0;
     private func setCyclesGenerateScore() {
         // To be called each time a variable is updated by Admin or by the protocol itself
         var cost : Nat = 0;
@@ -1563,19 +1507,19 @@ actor class GameStateCanister() = this {
     };
 
     // Calculate Cycles Flows for Response generation by mAIners
-    stable var cyclesGenerateResponseOwnctrlGs           : Nat = 0; // Gs incurs cost for download of the prompt.cache
-    stable var cyclesGenerateResponseOwnctrlOwnllmLOW    : Nat = 0;
-    stable var cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = 0;
-    stable var cyclesGenerateResponseOwnctrlOwnllmHIGH   : Nat = 0;
-    stable var cyclesBurntResponseGenerationOwn          : Nat = 0; 
+    var cyclesGenerateResponseOwnctrlGs           : Nat = 0; // Gs incurs cost for download of the prompt.cache
+    var cyclesGenerateResponseOwnctrlOwnllmLOW    : Nat = 0;
+    var cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = 0;
+    var cyclesGenerateResponseOwnctrlOwnllmHIGH   : Nat = 0;
+    var cyclesBurntResponseGenerationOwn          : Nat = 0; 
 
-    stable var cyclesGenerateResponseSactrlSsctrl  : Nat = 0;
-    stable var cyclesGenerateResponseSsctrlGs      : Nat = 0; // Gs incurs cost for download of the prompt.cache
-    stable var cyclesGenerateResponseSsctrlSsllm   : Nat = 0;
-    stable var cyclesBurntResponseGenerationShare  : Nat = 0; 
+    var cyclesGenerateResponseSactrlSsctrl  : Nat = 0;
+    var cyclesGenerateResponseSsctrlGs      : Nat = 0; // Gs incurs cost for download of the prompt.cache
+    var cyclesGenerateResponseSsctrlSsllm   : Nat = 0;
+    var cyclesBurntResponseGenerationShare  : Nat = 0; 
 
-    stable var cyclesSubmitResponse                : Nat = 0;
-    stable var cyclesFailedSubmissionCut           : Nat = 0; 
+    var cyclesSubmitResponse                : Nat = 0;
+    var cyclesFailedSubmissionCut           : Nat = 0; 
 
     private func setCyclesGenerateResponse() {
         // To be called each time a variable is updated by Admin or by the protocol itself
@@ -1972,7 +1916,7 @@ actor class GameStateCanister() = this {
     //-------------------------------------------------------------------------
     // Admin RBAC Storage
     //-------------------------------------------------------------------------
-    stable var adminRoleAssignmentsStable : [(Text, Types.AdminRoleAssignment)] = [];
+    var adminRoleAssignmentsStable : [(Text, Types.AdminRoleAssignment)] = [];
     transient var adminRoleAssignmentsStorage : HashMap.HashMap<Text, Types.AdminRoleAssignment> = HashMap.HashMap(0, Text.equal, Text.hash);
 
     private func putAdminRole(principal : Text, assignment : Types.AdminRoleAssignment) : Bool {
@@ -2073,8 +2017,8 @@ actor class GameStateCanister() = this {
     //-------------------------------------------------------------------------
 
     // Official Challenger canisters
-    stable var challengerCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
-    var challengerCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
+    var challengerCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
+    transient var challengerCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
     
     private func putChallengerCanister(canisterAddress : Text, canisterEntry : Types.OfficialProtocolCanister) : Bool {
         challengerCanistersStorage.put(canisterAddress, canisterEntry);
@@ -2099,8 +2043,8 @@ actor class GameStateCanister() = this {
     };
 
     // Official Judge canisters
-    stable var judgeCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
-    var judgeCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
+    var judgeCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
+    transient var judgeCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
     
     private func putJudgeCanister(canisterAddress : Text, canisterEntry : Types.OfficialProtocolCanister) : Bool {
         judgeCanistersStorage.put(canisterAddress, canisterEntry);
@@ -2125,7 +2069,7 @@ actor class GameStateCanister() = this {
     };
 
     private func getRandomJudgeCanister() : ?Types.OfficialProtocolCanister {
-        // TODO: this function isn't random but always returns the first entry
+        // For now, this function isn't random but always returns the first entry
         let canisterIds : Iter.Iter<Types.OfficialProtocolCanister> = judgeCanistersStorage.vals();
         switch (canisterIds.next()) {
             case (null) { return null; };
@@ -2134,8 +2078,8 @@ actor class GameStateCanister() = this {
     };
 
     // Official mAIner Creator canisters
-    stable var mainerCreatorCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
-    var mainerCreatorCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
+    var mainerCreatorCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
+    transient var mainerCreatorCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
     
     private func putMainerCreatorCanister(canisterAddress : Text, canisterEntry : Types.OfficialProtocolCanister) : Bool {
         mainerCreatorCanistersStorage.put(canisterAddress, canisterEntry);
@@ -2144,7 +2088,6 @@ actor class GameStateCanister() = this {
 
     private func getMainerCreatorCanister(canisterAddress : Text) : ?Types.OfficialProtocolCanister {
         D.print("GameState: getMainerCreatorCanister - canisterAddress: " # debug_show(canisterAddress));
-        // TODO - Testing: remove (as just for debugging) 
         let mainerCreatorCanistersEntries = Iter.toArray(mainerCreatorCanistersStorage.entries());
         D.print("GameState: getMainerCreatorCanister - mainerCreatorCanistersStorage: " # debug_show(mainerCreatorCanistersEntries));
         switch (mainerCreatorCanistersStorage.get(canisterAddress)) {
@@ -2164,13 +2107,13 @@ actor class GameStateCanister() = this {
     };
 
     private func getNextMainerCreatorCanisterEntry() : ?Types.OfficialProtocolCanister {
-        // TODO - Implementation: if this should be used for load balancing, then a different implementation is needed (likely by keeping an index of last used canister)
+        // Note: if this should be used for load balancing, then a different implementation is needed (likely by keeping an index of last used canister)
         return mainerCreatorCanistersStorage.vals().next();
     };
 
     // Official Shared mAIning Service canisters
-    stable var sharedServiceCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
-    var sharedServiceCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
+    var sharedServiceCanistersStorageStable : [(Text, Types.OfficialProtocolCanister)] = [];
+    transient var sharedServiceCanistersStorage : HashMap.HashMap<Text, Types.OfficialProtocolCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
     
     private func putSharedServiceCanister(canisterAddress : Text, canisterEntry : Types.OfficialProtocolCanister) : Bool {
         sharedServiceCanistersStorage.put(canisterAddress, canisterEntry);
@@ -2179,7 +2122,6 @@ actor class GameStateCanister() = this {
 
     private func getSharedServiceCanister(canisterAddress : Text) : ?Types.OfficialProtocolCanister {
         D.print("GameState: getSharedServiceCanister - canisterAddress: " # debug_show(canisterAddress));
-        // TODO - Testing: remove (as just for debugging) 
         let canistersEntries = Iter.toArray(sharedServiceCanistersStorage.entries());
         D.print("GameState: getSharedServiceCanister - canistersEntries: " # debug_show(canistersEntries));
         switch (sharedServiceCanistersStorage.get(canisterAddress)) {
@@ -2199,18 +2141,17 @@ actor class GameStateCanister() = this {
     };
 
     private func getNextSharedServiceCanisterEntry() : ?Types.OfficialProtocolCanister {
-        // TODO - Implementation: if this should be used for load balancing, then a different implementation is needed (likely by keeping an index of last used canister)
+        // Note: If this should be used for load balancing, then a different implementation is needed (likely by keeping an index of last used canister)
         return sharedServiceCanistersStorage.vals().next();
     };
 
     // mAIner Registry: Official mAIner agent canisters (owned by users)
-    stable var mainerAgentCanistersStorageStable : [(Text, Types.OfficialMainerAgentCanister)] = [];
-    var mainerAgentCanistersStorage : HashMap.HashMap<Text, Types.OfficialMainerAgentCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
-    stable var userToMainerAgentsStorageStable : [(Principal, List.List<Types.OfficialMainerAgentCanister>)] = [];
-    var userToMainerAgentsStorage : HashMap.HashMap<Principal, List.List<Types.OfficialMainerAgentCanister>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+    var mainerAgentCanistersStorageStable : [(Text, Types.OfficialMainerAgentCanister)] = [];
+    transient var mainerAgentCanistersStorage : HashMap.HashMap<Text, Types.OfficialMainerAgentCanister> = HashMap.HashMap(0, Text.equal, Text.hash);
+    var userToMainerAgentsStorageStable : [(Principal, List.List<Types.OfficialMainerAgentCanister>)] = [];
+    transient var userToMainerAgentsStorage : HashMap.HashMap<Principal, List.List<Types.OfficialMainerAgentCanister>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
 
     private func putMainerAgentCanister(canisterAddress : Text, canisterEntry : Types.OfficialMainerAgentCanister) : Types.MainerAgentCanisterResult {
-        // TODO - Security: for security reasons, include checks here for an entry that already exists i.e. that immutable fields aren't changed
         mainerAgentCanistersStorage.put(canisterAddress, canisterEntry);
         return #Ok(canisterEntry);
     };
@@ -2342,7 +2283,7 @@ actor class GameStateCanister() = this {
     };
     */
 
-    // Caution: function that returns all mAIner agents (TODO: decide if needed)
+    // Caution: function that returns all mAIner agents
     private func getMainerAgents() : [Types.OfficialMainerAgentCanister] {
         var mainerAgents : List.List<Types.OfficialMainerAgentCanister> = List.nil<Types.OfficialMainerAgentCanister>();
         for (userMainerAgentsList in userToMainerAgentsStorage.vals()) {
@@ -2433,14 +2374,14 @@ actor class GameStateCanister() = this {
     };
 
     // Open topics for Challenges to be generated
-    stable var openChallengeTopicsStorageStable : [(Text, Types.ChallengeTopic)] = [];
-    var openChallengeTopicsStorage : HashMap.HashMap<Text, Types.ChallengeTopic> = HashMap.HashMap(0, Text.equal, Text.hash);
+    var openChallengeTopicsStorageStable : [(Text, Types.ChallengeTopic)] = [];
+    transient var openChallengeTopicsStorage : HashMap.HashMap<Text, Types.ChallengeTopic> = HashMap.HashMap(0, Text.equal, Text.hash);
     
     // Round-robin counter for challenge topic selection
-    stable var roundRobinTopicIndex : Nat = 0;
+    var roundRobinTopicIndex : Nat = 0;
 
     // Round-robin counter for challenge selection
-    stable var roundRobinChallengeIndex : Nat = 0;
+    var roundRobinChallengeIndex : Nat = 0;
 
     private func putOpenChallengeTopic(challengeTopicId : Text, challengeTopicEntry : Types.ChallengeTopic) : Bool {
         openChallengeTopicsStorage.put(challengeTopicId, challengeTopicEntry);
@@ -2503,8 +2444,8 @@ actor class GameStateCanister() = this {
     };
 
     // Open challenges
-    stable var openChallengesStorageStable : [(Text, Types.Challenge)] = [];
-    var openChallengesStorage : HashMap.HashMap<Text, Types.Challenge> = HashMap.HashMap(0, Text.equal, Text.hash);
+    var openChallengesStorageStable : [(Text, Types.Challenge)] = [];
+    transient var openChallengesStorage : HashMap.HashMap<Text, Types.Challenge> = HashMap.HashMap(0, Text.equal, Text.hash);
 
     private func putOpenChallenge(challengeId : Text, challengeEntry : Types.Challenge) : Bool {
         openChallengesStorage.put(challengeId, challengeEntry);
@@ -2560,7 +2501,7 @@ actor class GameStateCanister() = this {
     };
 
     // Recently closed challenges
-    stable var closedChallenges : List.List<Types.Challenge> = List.nil<Types.Challenge>();
+    var closedChallenges : List.List<Types.Challenge> = List.nil<Types.Challenge>();
 
     private func putClosedChallenge(challengeEntry : Types.Challenge) : Bool {
         closedChallenges := List.push<Types.Challenge>(challengeEntry, closedChallenges);
@@ -2636,7 +2577,7 @@ actor class GameStateCanister() = this {
     };
 
     // Challenges archive
-    stable var archivedChallenges : List.List<Types.Challenge> = List.nil<Types.Challenge>();
+    var archivedChallenges : List.List<Types.Challenge> = List.nil<Types.Challenge>();
 
     private func putArchivedChallenge(challengeEntry : Types.Challenge) : Bool {
         archivedChallenges := List.push<Types.Challenge>(challengeEntry, archivedChallenges);
@@ -2682,7 +2623,7 @@ actor class GameStateCanister() = this {
         return #Ok(archivedChallengesArray.size());
     };
 
-    stable var ARCHIVE_CHALLENGES_CANISTER_ID : Text = "474n2-qiaaa-aaaaf-qasoq-cai";
+    var ARCHIVE_CHALLENGES_CANISTER_ID : Text = "474n2-qiaaa-aaaaf-qasoq-cai";
 
     public shared (msg) func setArchiveCanisterId(archive_canister_id : Text) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -2696,7 +2637,7 @@ actor class GameStateCanister() = this {
         return #Ok(authRecord);
     };
 
-    stable var API_CANISTER_ID : Text = "bgm6p-5aaaa-aaaaf-qbzda-cai";
+    var API_CANISTER_ID : Text = "bgm6p-5aaaa-aaaaf-qbzda-cai";
 
     public shared (msg) func setApiCanisterId(api_canister_id : Text) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -2711,7 +2652,7 @@ actor class GameStateCanister() = this {
     };
 
     // Flag to coordinate migration (only one at a time)
-    var IS_MIGRATING_CHALLENGES : Bool = false;
+    transient var IS_MIGRATING_CHALLENGES : Bool = false;
 
     public shared (msg) func resetIsMigratingChallengesFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -2989,11 +2930,11 @@ actor class GameStateCanister() = this {
     };
 
     // Hashmap for mAIner prompt & prompt cache storage, key=mainerPromptId
-    stable var mainerPromptsStable : [(Text, Types.MainerPrompt)] = [];
-    var mainerPrompts : HashMap.HashMap<Text, Types.MainerPrompt> = HashMap.HashMap(0, Text.equal, Text.hash);
+    var mainerPromptsStable : [(Text, Types.MainerPrompt)] = [];
+    transient var mainerPrompts : HashMap.HashMap<Text, Types.MainerPrompt> = HashMap.HashMap(0, Text.equal, Text.hash);
 
     // Emepheral Hashmap for mAIner prompt cache upload buffers for chunked uploads, key=mainerPromptId
-    var mainerPromptCacheUploadBuffers : HashMap.HashMap<Text, Buffer.Buffer<Blob>> = HashMap.HashMap(0, Text.equal, Text.hash);
+    transient var mainerPromptCacheUploadBuffers : HashMap.HashMap<Text, Buffer.Buffer<Blob>> = HashMap.HashMap(0, Text.equal, Text.hash);
 
     private func removeMainerPromptCacheForChallenge(challenge : Types.Challenge) : Bool {
         D.print("GameState: removeMainerPromptCacheForChallenge - challenge.mainerPromptId: "# debug_show(challenge.mainerPromptId));
@@ -3201,11 +3142,11 @@ actor class GameStateCanister() = this {
     };
 
     // Hashmap for Judge prompt & prompt cache storage, key=judgePromptId
-    stable var judgePromptsStable : [(Text, Types.JudgePrompt)] = [];
-    var judgePrompts : HashMap.HashMap<Text, Types.JudgePrompt> = HashMap.HashMap(0, Text.equal, Text.hash);
+    var judgePromptsStable : [(Text, Types.JudgePrompt)] = [];
+    transient var judgePrompts : HashMap.HashMap<Text, Types.JudgePrompt> = HashMap.HashMap(0, Text.equal, Text.hash);
 
     // Emepheral Hashmap for Judge prompt cache upload buffers for chunked uploads, key=judgePromptId
-    var judgePromptCacheUploadBuffers : HashMap.HashMap<Text, Buffer.Buffer<Blob>> = HashMap.HashMap(0, Text.equal, Text.hash);
+    transient var judgePromptCacheUploadBuffers : HashMap.HashMap<Text, Buffer.Buffer<Blob>> = HashMap.HashMap(0, Text.equal, Text.hash);
 
     private func removeJudgePromptCacheForChallenge(challenge : Types.Challenge) : Bool {
         D.print("GameState: removeJudgePromptCacheForChallenge - challenge.judgePromptId: "# debug_show(challenge.judgePromptId));
@@ -3412,12 +3353,12 @@ actor class GameStateCanister() = this {
     };
 
     // Submissions to challenges
-    stable var submissionsStorageStable : [(Text, Types.ChallengeResponseSubmission)] = [];
-    var submissionsStorage : HashMap.HashMap<Text, Types.ChallengeResponseSubmission> = HashMap.HashMap(0, Text.equal, Text.hash);
-    
+    var submissionsStorageStable : [(Text, Types.ChallengeResponseSubmission)] = [];
+    transient var submissionsStorage : HashMap.HashMap<Text, Types.ChallengeResponseSubmission> = HashMap.HashMap(0, Text.equal, Text.hash);
+
     // Queue for open submissions (status = #Submitted) for efficient retrieval by Judge
-    stable var openSubmissionsQueueStable : [Text] = [];
-    var openSubmissionsQueue : Buffer.Buffer<Text> = Buffer.Buffer<Text>(0);
+    var openSubmissionsQueueStable : [Text] = [];
+    transient var openSubmissionsQueue : Buffer.Buffer<Text> = Buffer.Buffer<Text>(0);
 
     private func putSubmission(submissionId : Text, submissionEntry : Types.ChallengeResponseSubmission) : Bool {
         if (submissionEntry.submissionId != submissionId) {
@@ -3532,7 +3473,7 @@ actor class GameStateCanister() = this {
         return #Ok(authRecord);
     };
 
-    stable var archivedSubmissions : [Types.ChallengeResponseSubmission] = [];
+    var archivedSubmissions : [Types.ChallengeResponseSubmission] = [];
 
     public shared (msg) func archiveSubmissionsAdmin() : async Types.NatResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -3580,7 +3521,7 @@ actor class GameStateCanister() = this {
         return #Ok(archivedSubmissions.size());
     };
 
-    stable var NUM_SUBMISSIONS_TO_MIGRATE : Nat = 100;
+    var NUM_SUBMISSIONS_TO_MIGRATE : Nat = 100;
     
     public shared (msg) func setNumSubmissionsToMigrateAdmin(newNum : Nat) : async Types.NatResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -3729,8 +3670,8 @@ actor class GameStateCanister() = this {
     };
 
     // Winner declaration per challenge id
-    stable var winnerDeclarationForChallengeStable : [(Text, Types.ChallengeWinnerDeclaration)] = [];
-    var winnerDeclarationForChallenge : HashMap.HashMap<Text, Types.ChallengeWinnerDeclaration> = HashMap.HashMap(0, Text.equal, Text.hash);
+    var winnerDeclarationForChallengeStable : [(Text, Types.ChallengeWinnerDeclaration)] = [];
+    transient var winnerDeclarationForChallenge : HashMap.HashMap<Text, Types.ChallengeWinnerDeclaration> = HashMap.HashMap(0, Text.equal, Text.hash);
   
     private func putWinnerDeclarationForChallenge(challengeId : Text, challengeWinnerDeclaration : Types.ChallengeWinnerDeclaration) : Bool {
         winnerDeclarationForChallenge.put(challengeId, challengeWinnerDeclaration);
@@ -3807,8 +3748,8 @@ actor class GameStateCanister() = this {
     };
 
     // Scored responses mapped to challenge id
-    stable var scoredResponsesPerChallengeStable : [(Text, List.List<Types.ScoredResponse>)] = [];
-    var scoredResponsesPerChallenge : HashMap.HashMap<Text, List.List<Types.ScoredResponse>> = HashMap.HashMap(0, Text.equal, Text.hash);
+    var scoredResponsesPerChallengeStable : [(Text, List.List<Types.ScoredResponse>)] = [];
+    transient var scoredResponsesPerChallenge : HashMap.HashMap<Text, List.List<Types.ScoredResponse>> = HashMap.HashMap(0, Text.equal, Text.hash);
   
     private func putScoredResponseForChallenge(scoredResponseEntry : Types.ScoredResponse) : Nat {
         let currentScoredResponses : List.List<Types.ScoredResponse> = getScoredResponsesForChallenge(scoredResponseEntry.challengeId);
@@ -3902,9 +3843,9 @@ actor class GameStateCanister() = this {
         return #Ok(authRecord);
     };
 
-    // TODO - Design: determine exact reward
+    // mAIning rewards
         // TODO - Design: define details of sponsored challenges and then add reward per challenge
-    let DEFAULT_REWARD_PER_CHALLENGE : Types.RewardPerChallenge = {
+    transient let DEFAULT_REWARD_PER_CHALLENGE : Types.RewardPerChallenge = {
         rewardType : Types.RewardType = #MainerToken;
         totalAmount : Nat = 18190327330;
         winnerAmount : Nat = 6366614570; // 35% of totalAmount
@@ -3913,7 +3854,7 @@ actor class GameStateCanister() = this {
         amountForAllParticipants : Nat = 8185647290; // 45% of totalAmount
     };
 
-    stable var rewardPerChallenge : Types.RewardPerChallenge = DEFAULT_REWARD_PER_CHALLENGE;
+    var rewardPerChallenge : Types.RewardPerChallenge = DEFAULT_REWARD_PER_CHALLENGE;
 
     public shared (msg) func getRewardPerChallengeAdmin() : async Types.RewardPerChallengeResult {
         if (not Principal.isController(msg.caller)) {
@@ -3922,7 +3863,6 @@ actor class GameStateCanister() = this {
         return #Ok(rewardPerChallenge);
     };
 
-    // TODO - Implementation: keep a history of the reward changes
     public shared (msg) func setRewardPerChallengeAdmin(totalReward : Nat) : async Types.RewardPerChallengeResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -3939,8 +3879,7 @@ actor class GameStateCanister() = this {
         return #Ok(rewardPerChallenge);
     };
 
-    private func getRewardAmountForResult(achievedResult : Types.ChallengeParticipationResult, totalNumberParticipants : Nat) : Nat { 
-        // TODO - Implementation: is this safe? i.e. what could happen with rounding errors?
+    private func getRewardAmountForResult(achievedResult : Types.ChallengeParticipationResult, totalNumberParticipants : Nat) : Nat {
         let participationReward = rewardPerChallenge.amountForAllParticipants / totalNumberParticipants; 
         switch (achievedResult) {
             case (#Winner) { return rewardPerChallenge.winnerAmount + participationReward; };
@@ -4069,11 +4008,7 @@ actor class GameStateCanister() = this {
             };
         };
 
-    };
-    
-
-    // TODO - Implementation: settings
-    
+    };    
 
     // -------------------------------------------------------------------------------
     // Canister Endpoints
@@ -4449,7 +4384,7 @@ actor class GameStateCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
-    // TODO - Implementation:: Function to unlock a mAIner (and thus gain the right to create one and follow the creation flow below)
+    // Function to unlock a mAIner (and thus gain the right to create one and follow the whitelist creation flow below)
         // (called by admin e.g. when lottery is won with user as mAIner owner, potentially later on called by users directly too)
     public shared (msg) func unlockUserMainerAgent(mainerCreationInput : Types.MainerCreationInput) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -4517,8 +4452,8 @@ actor class GameStateCanister() = this {
     };
 
     // Helpers for payments
-    stable var redeemedTransactionBlocksStorageStable : [(Nat, Types.RedeemedTransactionBlock)] = [];
-    var redeemedTransactionBlocksStorage : HashMap.HashMap<Nat, Types.RedeemedTransactionBlock> = HashMap.HashMap(0, Nat.equal, Hash.hash);
+    var redeemedTransactionBlocksStorageStable : [(Nat, Types.RedeemedTransactionBlock)] = [];
+    transient var redeemedTransactionBlocksStorage : HashMap.HashMap<Nat, Types.RedeemedTransactionBlock> = HashMap.HashMap(0, Nat.equal, Hash.hash);
 
     private func checkExistingTransactionBlock(transactionBlock : Nat64) : Bool {
         switch (redeemedTransactionBlocksStorage.get(Nat64.toNat(transactionBlock))) {
@@ -4594,8 +4529,8 @@ actor class GameStateCanister() = this {
     };
 
     // Helpers for FUNNAI payments
-    stable var redeemedFunnaiTransactionBlocksStorageStable : [(Nat, Types.RedeemedTransactionBlock)] = [];
-    var redeemedFunnaiTransactionBlocksStorage : HashMap.HashMap<Nat, Types.RedeemedTransactionBlock> = HashMap.HashMap(0, Nat.equal, Hash.hash);
+    var redeemedFunnaiTransactionBlocksStorageStable : [(Nat, Types.RedeemedTransactionBlock)] = [];
+    transient var redeemedFunnaiTransactionBlocksStorage : HashMap.HashMap<Nat, Types.RedeemedTransactionBlock> = HashMap.HashMap(0, Nat.equal, Hash.hash);
 
     private func checkExistingFunnaiTransactionBlock(transactionBlock : Nat64) : Bool {
         switch (redeemedFunnaiTransactionBlocksStorage.get(Nat64.toNat(transactionBlock))) {
@@ -4671,8 +4606,8 @@ actor class GameStateCanister() = this {
     };
 
     // Payment memo to specify in transaction to Protocol
-    stable let MEMO_PAYMENT : Nat64 = 173; // TODO - Security: double check value can be used
-    let PROTOCOL_PRINCIPAL_BLOB : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null);
+    let MEMO_PAYMENT : Nat64 = 173;
+    transient let PROTOCOL_PRINCIPAL_BLOB : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null);
     // Construct subaccount for the canister principal
     private func principalToSubaccount(principal : Principal) : Blob {
         let sub = Buffer.Buffer<Nat8>(32);
@@ -4686,11 +4621,11 @@ actor class GameStateCanister() = this {
 
         Blob.fromArray(Buffer.toArray(sub));
     };
-    let PROTOCOL_SUBACCOUNT : Blob = principalToSubaccount(Principal.fromActor(this));
+    transient let PROTOCOL_SUBACCOUNT : Blob = principalToSubaccount(Principal.fromActor(this));
     // e.g. this is for dev stage, verify with: https://dashboard.internetcomputer.org/account/c88ef9865df034927487e4178da1f80a1648ec5a764e4959cba513c372ceb520
     //let PROTOCOL_PRINCIPAL_BLOB : Blob = "\C8\8E\F9\86\5D\F0\34\92\74\87\E4\17\8D\A1\F8\0A\16\48\EC\5A\76\4E\49\59\CB\A5\13\C3\72\CE\B5\20";
 
-    stable var PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * Constants.CYCLES_TRILLION;
+    var PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * Constants.CYCLES_TRILLION;
 
     public shared (msg) func setProtocolCyclesBalanceBuffer(newBufferInTrillionCycles : Nat) : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
@@ -4708,7 +4643,7 @@ actor class GameStateCanister() = this {
         return #Ok(PROTOCOL_CYCLES_BALANCE_BUFFER);
     };
 
-    stable var CYCLES_BALANCE_THRESHOLD_FUNNAI_TOPUPS : Nat = 600 * Constants.CYCLES_TRILLION;
+    var CYCLES_BALANCE_THRESHOLD_FUNNAI_TOPUPS : Nat = 600 * Constants.CYCLES_TRILLION;
 
     public shared (msg) func setCyclesBalanceThresholdFunnaiTopups(newThresholdInTrillionCycles : Nat) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -4735,15 +4670,14 @@ actor class GameStateCanister() = this {
     // Decide on usage of incoming funds (e.g. for mAIner creation or top ups)
     private func handleIncomingFunds(transactionEntry : Types.RedeemedTransactionBlock) : async Types.HandleIncomingFundsResult {
         D.print("GameState: handleIncomingFunds - transactionEntry: "# debug_show(transactionEntry));
-        // TODO - Implementation: Calculate cut for Protocol's operational expenses (in ICP)
+        // Calculate cut for Protocol's operational expenses (in ICP)
         D.print("GameState: handleIncomingFunds - protocolOperationFeesCut: "# debug_show(protocolOperationFeesCut));
         D.print("GameState: handleIncomingFunds - protocolOperationFeesCut / 100: "# debug_show(protocolOperationFeesCut / 100));
-        var amountToKeep : Nat = transactionEntry.amount * protocolOperationFeesCut / 100; // TODO - Implementation: ensure this math operation works
+        var amountToKeep : Nat = transactionEntry.amount * protocolOperationFeesCut / 100;
         let amountForMainer : Nat = transactionEntry.amount - amountToKeep;
         var amountToConvert : Nat = 0;
         D.print("GameState: handleIncomingFunds - amountToKeep: "# debug_show(amountToKeep));
-        D.print("GameState: handleIncomingFunds - amountForMainer: "# debug_show(amountForMainer));       
-        // TODO - Implementation: if cycle balance > security buffer: take cycles from cycle balance
+        D.print("GameState: handleIncomingFunds - amountForMainer: "# debug_show(amountForMainer));
         switch (transactionEntry.redeemedFor) {
             case (#MainerCreation(#Own)) {
                 D.print("GameState: handleIncomingFunds - #MainerCreation(#Own) PROTOCOL_CYCLES_BALANCE_BUFFER: "# debug_show(PROTOCOL_CYCLES_BALANCE_BUFFER)); 
@@ -4774,7 +4708,6 @@ actor class GameStateCanister() = this {
             case (_) { return #Err(#Other("Unsupported")); }
         };
         D.print("GameState: handleIncomingFunds - amountToKeep: "# debug_show(amountToKeep));
-        // TODO - Implementation: Convert amountToKeep to FUNNAI
 
         D.print("GameState: handleIncomingFunds - amountToConvert: "# debug_show(amountToConvert));
         if (amountToConvert > 0) {
@@ -4785,14 +4718,14 @@ actor class GameStateCanister() = this {
                 owner : Principal = Principal.fromActor(CMC_ACTOR);
                 subaccount : ?Blob = ?PROTOCOL_SUBACCOUNT; // needs to match canister to credit cycles to in notify_top_up call, thus this canister
             };
-            let notifyTopUpMemo : ?Blob = ?"\54\50\55\50\00\00\00\00"; // TODO - Implementation: double check
+            let notifyTopUpMemo : ?Blob = ?"\54\50\55\50\00\00\00\00";
             let transferArg : TokenLedger.TransferArg = {
                 to : TokenLedger.Account = cmcAccount;
                 fee : ?Nat = null;
                 memo : ?Blob = notifyTopUpMemo; // needed for CMC to accept top up
                 from_subaccount : ?Blob = null;
                 created_at_time : ?Nat64 = null;
-                amount : Nat = amountToConvert; // TODO: deduct transfer fee
+                amount : Nat = amountToConvert;
             };
             let transferResult : TokenLedger.Result = await ICP_LEDGER_ACTOR.icrc1_transfer(transferArg);
             D.print("GameState: handleIncomingFunds - transferResult: "# debug_show(transferResult));
@@ -4848,7 +4781,7 @@ actor class GameStateCanister() = this {
                 case (_) { return #Err(#FailedOperation); }
             };
         } else {
-            // TODO - Implementation: calculate the amount of cycles that the mAIner will get based on the payment
+            // Calculate the amount of cycles that the mAIner will get based on the payment
             D.print("GameState: handleIncomingFunds - no conversion necessary, calculate mAIner's cycles");
             // Call Cycles Minting Canister for cycles/ICP exchange rate            
             // First, get the ICP amount for the mAIner
@@ -4888,8 +4821,7 @@ actor class GameStateCanister() = this {
         let amountForMainer : Nat = transactionEntry.amount - amountToKeep;
         var amountToConvert : Nat = 0;
         D.print("GameState: whitelistHandleIncomingFunds - amountToKeep: "# debug_show(amountToKeep));
-        D.print("GameState: whitelistHandleIncomingFunds - amountForMainer: "# debug_show(amountForMainer));       
-        // TODO - Implementation: if cycle balance > security buffer: take cycles from cycle balance
+        D.print("GameState: whitelistHandleIncomingFunds - amountForMainer: "# debug_show(amountForMainer));
         switch (transactionEntry.redeemedFor) {
             case (#MainerCreation(#Own)) {
                 D.print("GameState: whitelistHandleIncomingFunds - #MainerCreation(#Own) PROTOCOL_CYCLES_BALANCE_BUFFER: "# debug_show(PROTOCOL_CYCLES_BALANCE_BUFFER)); 
@@ -4928,14 +4860,14 @@ actor class GameStateCanister() = this {
                 owner : Principal = Principal.fromActor(CMC_ACTOR);
                 subaccount : ?Blob = ?PROTOCOL_SUBACCOUNT; // needs to match canister to credit cycles to in notify_top_up call, thus this canister
             };
-            let notifyTopUpMemo : ?Blob = ?"\54\50\55\50\00\00\00\00"; // TODO - Implementation: double check
+            let notifyTopUpMemo : ?Blob = ?"\54\50\55\50\00\00\00\00";
             let transferArg : TokenLedger.TransferArg = {
                 to : TokenLedger.Account = cmcAccount;
                 fee : ?Nat = null;
                 memo : ?Blob = notifyTopUpMemo; // needed for CMC to accept top up
                 from_subaccount : ?Blob = null;
                 created_at_time : ?Nat64 = null;
-                amount : Nat = amountToConvert; // TODO: deduct transfer fee
+                amount : Nat = amountToConvert;
             };
             let transferResult : TokenLedger.Result = await ICP_LEDGER_ACTOR.icrc1_transfer(transferArg);
             D.print("GameState: whitelistHandleIncomingFunds - transferResult: "# debug_show(transferResult));
@@ -4983,8 +4915,7 @@ actor class GameStateCanister() = this {
                 case (_) { return #Err(#FailedOperation); }
             };
         } else {
-            // TODO - Implementation: calculate the amount of cycles that the mAIner will get based on the payment
-                // TODO: this part is untested so far
+            // Calculate the amount of cycles that the mAIner will get based on the payment
             D.print("GameState: whitelistHandleIncomingFunds - no conversion necessary, calculate mAIner's cycles");
             // Call Cycles Minting Canister for cycles/ICP exchange rate            
             // First, get the ICP amount for the mAIner
@@ -5068,7 +4999,6 @@ actor class GameStateCanister() = this {
 
     // Verify an incoming payment to the Protocol (e.g. for mAIner creation or top ups)
     private func verifyIncomingPayment(transactionEntry : Types.RedeemedTransactionBlock) : async Types.VerifyPaymentResult {
-        // Memo to add to transaction?
         // Retrieve transaction from Ledger
             // https://dashboard.internetcomputer.org/canister/ryjl3-tyaaa-aaaaa-aaaba-cai
         let getBlocksArgs : TokenLedger.GetBlocksArgs = {
@@ -5090,7 +5020,7 @@ actor class GameStateCanister() = this {
         D.print("GameState: verifyIncomingPayment - MEMO_PAYMENT: "# debug_show(MEMO_PAYMENT));
         /* if (Nat64.notEqual(retrievedTransaction.memo, MEMO_PAYMENT)) {
             return #Err(#Other("Unsupported Memo"));
-        }; */ // TODO - Implementation: check if needed
+        }; */
         // Verify transaction went to Protocol's account
         D.print("GameState: verifyIncomingPayment - retrievedTransaction.operation: "# debug_show(retrievedTransaction.operation));
         switch (retrievedTransaction.operation) {
@@ -5109,7 +5039,7 @@ actor class GameStateCanister() = this {
                         if (Blob.notEqual(transferDetails.to, PROTOCOL_PRINCIPAL_BLOB)) {
                             return #Err(#Other("Transaction didn't go to Protocol's address")); 
                         };
-                        // TODO - Implementation: ensure that paid amount equals price
+                        // Ensure that paid amount equals price
                         D.print("GameState: verifyIncomingPayment - transactionEntry.redeemedFor: "# debug_show(transactionEntry.redeemedFor));
                         switch (transactionEntry.redeemedFor) {
                             case (#MainerCreation(mainerAgentCanisterType)) {
@@ -5177,7 +5107,7 @@ actor class GameStateCanister() = this {
         D.print("GameState: whitelistVerifyIncomingPayment - MEMO_PAYMENT: "# debug_show(MEMO_PAYMENT));
         /* if (Nat64.notEqual(retrievedTransaction.memo, MEMO_PAYMENT)) {
             return #Err(#Other("Unsupported Memo"));
-        }; */ // TODO - Implementation: check if needed
+        }; */
         // Verify transaction went to Protocol's account
         D.print("GameState: whitelistVerifyIncomingPayment - retrievedTransaction.operation: "# debug_show(retrievedTransaction.operation));
         switch (retrievedTransaction.operation) {
@@ -5196,7 +5126,7 @@ actor class GameStateCanister() = this {
                         if (Blob.notEqual(transferDetails.to, PROTOCOL_PRINCIPAL_BLOB)) {
                             return #Err(#Other("Transaction didn't go to Protocol's address")); 
                         };
-                        // TODO - Implementation: ensure that paid amount equals price
+                        // Ensure that paid amount equals price
                         D.print("GameState: whitelistVerifyIncomingPayment - transactionEntry.redeemedFor: "# debug_show(transactionEntry.redeemedFor));
                         switch (transactionEntry.redeemedFor) {
                             case (#MainerCreation(mainerAgentCanisterType)) {
@@ -5313,7 +5243,7 @@ actor class GameStateCanister() = this {
         };
         switch (mainerConfig.mainerAgentCanisterType) {
             case (#Own) {
-                // TODO - Implementation: ensure this transaction block hasn't been redeemed yet (no double spending)
+                // Ensure this transaction block hasn't been redeemed yet (no double spending)
                 switch (checkExistingTransactionBlock(transactionToVerify)) {
                     case (false) {
                         // new transaction, continue
@@ -5354,13 +5284,13 @@ actor class GameStateCanister() = this {
 
         D.print("GameState: createUserMainerAgent - mainerConfig: "# debug_show(mainerConfig));
 
-        // TODO - Implementation: verify user's payment for this agent via the TransactionBlockId
+        // Verify user's payment for this agent via the TransactionBlockId
         var verifiedPayment : Bool = false;
         var amountPaid : Nat = 0;
         let redeemedFor : Types.RedeemedForOptions = #MainerCreation(mainerConfig.mainerAgentCanisterType);
         let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
         var continueForAdminWithoutPaymentVerification : Bool = false;
-        // TODO - Testing: comment out this switch statement for testing locally
+        // Testing: comment out this switch statement for testing locally
         switch (mainerConfig.mainerAgentCanisterType) {
             case (#ShareService) {
                 // Skip payment verification in case of ShareService, which is created by an Admin (Controller)
@@ -5387,7 +5317,7 @@ actor class GameStateCanister() = this {
                         amountPaid := verificationResult.amountPaid;
                     };
                     case (_) {
-                        // TODO - Outcomment this for testing without actual ICP payment
+                        // Outcomment this for testing without actual ICP payment
                         if (Principal.isController(msg.caller)) {
                             verifiedPayment := true; 
                             amountPaid := 6 * Constants.CYCLES_TRILLION; // #own needs this much... TODO: amount is in ICP, not cycles
@@ -5403,7 +5333,7 @@ actor class GameStateCanister() = this {
 
         if (not verifiedPayment) {
             return #Err(#Other("Payment couldn't be verified"));
-        }; // TODO - Testing: comment out this check for testing locally
+        }; // Testing: comment out this check for testing locally
 
         var handleResponse : Types.HandleIncomingFundsResult = #Err(#FailedOperation);
         switch (mainerConfig.mainerAgentCanisterType) {
@@ -5458,7 +5388,7 @@ actor class GameStateCanister() = this {
                     creationTimestamp : Nat64 = creationTimestamp;
                     createdBy : Principal = msg.caller; // User (Admin (controller) in case of ShareService)
                     ownedBy : Principal = msg.caller; // User (Admin (controller) in case of ShareService)
-                    status : Types.CanisterStatus = #Paid; // TODO - Implementation: add transaction id to status #Paid or introduce new field
+                    status : Types.CanisterStatus = #Paid;
                     mainerConfig : Types.MainerConfigurationInput = updatedMainerConfig;
                 };
                 let newTransactionEntry : Types.RedeemedTransactionBlock = {
@@ -5472,10 +5402,9 @@ actor class GameStateCanister() = this {
                 switch (putUserMainerAgent(canisterEntry)) {
                     case (true) {
                         D.print("GameState: createUserMainerAgent - putUserMainerAgent: true");
-                        // TODO - Implementation: track redeemed transaction blocks to ensure no double spending
+                        // Track redeemed transaction blocks to ensure no double spending
                         switch (putRedeemedTransactionBlock(newTransactionEntry)) {
                             case (false) {
-                                // TODO - Error Handling: likely retry
                                 D.print("GameState: createUserMainerAgent - putRedeemedTransactionBlock: false");
                             };
                             case (true) {
@@ -5487,7 +5416,6 @@ actor class GameStateCanister() = this {
                     };
                     case (false) {
                         D.print("GameState: createUserMainerAgent - putUserMainerAgent: false");
-                        // TODO - Error Handling: likely retry
                         return #Err(#FailedOperation);
                     }
                 };
@@ -5523,7 +5451,7 @@ actor class GameStateCanister() = this {
         };
         switch (mainerConfig.mainerAgentCanisterType) {
             case (#Own) {
-                // TODO - Implementation: ensure this transaction block hasn't been redeemed yet (no double spending)
+                // Ensure this transaction block hasn't been redeemed yet (no double spending)
                 switch (checkExistingTransactionBlock(transactionToVerify)) {
                     case (false) {
                         // new transaction, continue
@@ -5605,13 +5533,13 @@ actor class GameStateCanister() = this {
             };
         };
 
-        // TODO - Implementation: verify user's payment for this agent via the TransactionBlockId
+        // Verify user's payment for this agent via the TransactionBlockId
         var verifiedPayment : Bool = false;
         var amountPaid : Nat = 0;
         let redeemedFor : Types.RedeemedForOptions = #MainerCreation(mainerConfig.mainerAgentCanisterType);
         let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
         var continueForAdminWithoutPaymentVerification : Bool = false;
-        // TODO - Testing: comment out this switch statement for testing locally
+        // Testing: comment out this switch statement for testing locally
         switch (mainerConfig.mainerAgentCanisterType) {
             case (#ShareService) {
                 // Skip payment verification in case of ShareService, which is created by an Admin (Controller)
@@ -5638,7 +5566,7 @@ actor class GameStateCanister() = this {
                         amountPaid := verificationResult.amountPaid;
                     };
                     case (_) {
-                        // TODO - Outcomment this for testing without actual ICP payment
+                        // Outcomment this for testing without actual ICP payment
                         if (Principal.isController(msg.caller)) {
                             verifiedPayment := true; 
                             amountPaid := 6 * Constants.CYCLES_TRILLION; // #own needs this much... TODO: amount is in ICP, not cycles
@@ -5654,7 +5582,7 @@ actor class GameStateCanister() = this {
 
         if (not verifiedPayment) {
             return #Err(#Other("Payment couldn't be verified"));
-        }; // TODO - Testing: comment out this check for testing locally
+        }; // Testing: comment out this check for testing locally
 
         var handleResponse : Types.HandleIncomingFundsResult = #Err(#FailedOperation);
         switch (mainerConfig.mainerAgentCanisterType) {
@@ -5709,7 +5637,7 @@ actor class GameStateCanister() = this {
                     creationTimestamp : Nat64 = mainerCreationInput.creationTimestamp; // Original timestamp (from Unlocked mAIner entry)
                     createdBy : Principal = mainerCreationInput.createdBy; // Original creator (usually admin)
                     ownedBy : Principal = msg.caller; // User (Admin (controller) in case of ShareService)
-                    status : Types.CanisterStatus = #Paid; // TODO - Implementation: add transaction id to status #Paid or introduce new field
+                    status : Types.CanisterStatus = #Paid;
                     mainerConfig : Types.MainerConfigurationInput = updatedMainerConfig;
                 };
                 let newTransactionEntry : Types.RedeemedTransactionBlock = {
@@ -5723,10 +5651,9 @@ actor class GameStateCanister() = this {
                 switch (putUserMainerAgent(canisterEntry)) {
                     case (true) {
                         D.print("GameState: whitelistCreateUserMainerAgent - putUserMainerAgent: true");
-                        // TODO - Implementation: track redeemed transaction blocks to ensure no double spending
+                        // Track redeemed transaction blocks to ensure no double spending
                         switch (putRedeemedTransactionBlock(newTransactionEntry)) {
                             case (false) {
-                                // TODO - Error Handling: likely retry
                                 D.print("GameState: whitelistCreateUserMainerAgent - putRedeemedTransactionBlock: false");
                             };
                             case (true) {
@@ -5738,7 +5665,6 @@ actor class GameStateCanister() = this {
                     };
                     case (false) {
                         D.print("GameState: whitelistCreateUserMainerAgent - putUserMainerAgent: false");
-                        // TODO - Error Handling: likely retry
                         return #Err(#FailedOperation);
                     }
                 };
@@ -6433,7 +6359,7 @@ actor class GameStateCanister() = this {
                             mainerConfig : Types.MainerConfigurationInput = mainerAgentEntry.mainerConfig;
                         };
                         D.print("GameState: upgradeMainerControllerAdmin - canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );
-                        // ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_MAINER_CREATION); // TODO
+                        // ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_MAINER_CREATION);
                         addMainerAgentCanister_(canisterEntryToAdd);            
                     };
                 };
@@ -6541,7 +6467,7 @@ actor class GameStateCanister() = this {
                             mainerConfig : Types.MainerConfigurationInput = mainerAgentEntry.mainerConfig;
                         };
                         D.print("GameState: reinstallMainerControllerAdmin - canisterEntryToAdd: " # debug_show(canisterEntryToAdd) );
-                        // ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_MAINER_CREATION); // TODO
+                        // ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_MAINER_CREATION);
                         addMainerAgentCanister_(canisterEntryToAdd);            
                     };
                 };
@@ -6629,7 +6555,7 @@ actor class GameStateCanister() = this {
                                 return #Err(#Other("Unsupported")); 
                             }
                         };
-                        // TODO: These checks are dangerous.
+                        // These checks are dangerous.
                         // for example, if something went wrong with setup of LLM before, the status may be set to #LlmSetupInProgress(#CanisterCreated)
                         // and we are not able to add an LLM canister -> the controller is stuck
                         switch (userMainerEntry.status) {
@@ -6841,7 +6767,7 @@ actor class GameStateCanister() = this {
                                 D.print("GameState: addLlmCanisterToMainer - Unsupported mAIner type: " # debug_show(userMainerEntry.canisterType) );   
                                 return #Err(#Other("Unsupported mAIner type: " # debug_show(userMainerEntry.canisterType))); }
                         };
-                        // TODO: These checks are dangerous.
+                        // These checks are dangerous.
                         // for example, if something went wrong with setup of LLM before, the status may be set to #LlmSetupInProgress(#CanisterCreated)
                         // and we are not able to add an LLM canister -> the controller is stuck
                         switch (userMainerEntry.status) {
@@ -7020,7 +6946,7 @@ actor class GameStateCanister() = this {
         return #Ok(canisterEntry);
     };
 
-    // TODO - Testing: remove; admin Function to add new mAIner agent for testing
+    // Testing: admin Function to add new mAIner agent for testing
     public shared (msg) func addMainerAgentCanisterAdmin(canisterEntryToAdd : Types.OfficialMainerAgentCanister) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -7057,7 +6983,7 @@ actor class GameStateCanister() = this {
         };
         D.print("GameState: topUpCyclesForMainerAgent - mainerTopUpInfo: "# debug_show(mainerTopUpInfo));
 
-        // TODO - Implementation: ensure this transaction block hasn't been redeemed yet (no double spending)     
+        // Ensure this transaction block hasn't been redeemed yet (no double spending)     
         let transactionToVerify = mainerTopUpInfo.paymentTransactionBlockId;
         switch (checkExistingTransactionBlock(transactionToVerify)) {
             case (false) {
@@ -7105,7 +7031,7 @@ actor class GameStateCanister() = this {
                             case (_) { return #Err(#Other("Unsupported")); }
                         };
 
-                        // TODO - Implementation: verify user's payment for this agent via the TransactionBlockId
+                        // Verify user's payment for this agent via the TransactionBlockId
                         var verifiedPayment : Bool = false;
                         var amountPaid : Nat = 0;
                         let redeemedFor : Types.RedeemedForOptions = #MainerTopUp(userMainerEntry.address);
@@ -7198,12 +7124,9 @@ actor class GameStateCanister() = this {
                                         };
                                         case (#Ok(addCyclesResult)) {
                                             D.print("GameState: topUpCyclesForMainerAgent - addCyclesResult: " # debug_show(addCyclesResult));
-                                            //TODO - Design: decide whether a top up history should be kept
                                             // Track redeemed transaction blocks to ensure no double spending
                                             switch (putRedeemedTransactionBlock(newTransactionEntry)) {
-                                                case (false) {
-                                                    // TODO - Error Handling: likely retry
-                                                };
+                                                case (false) { };
                                                 case (true) {
                                                     // continue
                                                 };
@@ -7233,10 +7156,9 @@ actor class GameStateCanister() = this {
         };
         D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - mainerTopUpInfo: "# debug_show(mainerTopUpInfo));
 
-        // TODO: put this check back in place
         // Ensure this transaction block hasn't been redeemed yet (no double spending)     
         let transactionToVerify = mainerTopUpInfo.paymentTransactionBlockId;
-        /* switch (checkExistingTransactionBlock(transactionToVerify)) {
+        switch (checkExistingTransactionBlock(transactionToVerify)) {
             case (false) {
                 // new transaction, continue
             };
@@ -7244,7 +7166,7 @@ actor class GameStateCanister() = this {
                 // already redeem transaction
                 return #Err(#Other("Already redeemd this transaction block")); // no double spending
             };
-        }; */
+        };
 
         // Sanity checks on provided mAIner info
         let mainerInfo : Types.OfficialMainerAgentCanister = mainerTopUpInfo.mainerAgent;
@@ -7378,12 +7300,9 @@ actor class GameStateCanister() = this {
                                         };
                                         case (#Ok(addCyclesResult)) {
                                             D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - addCyclesResult: " # debug_show(addCyclesResult));
-                                            //TODO - Design: decide whether a top up history should be kept
                                             // Track redeemed transaction blocks to ensure no double spending
                                             switch (putRedeemedTransactionBlock(newTransactionEntry)) {
-                                                case (false) {
-                                                    // TODO - Error Handling: likely retry
-                                                };
+                                                case (false) {};
                                                 case (true) {
                                                     // continue
                                                 };
@@ -7525,12 +7444,9 @@ actor class GameStateCanister() = this {
                                         };
                                         case (#Ok(addCyclesResult)) {
                                             D.print("GameState: topUpCyclesForMainerAgentWithFunnai - addCyclesResult: " # debug_show(addCyclesResult));
-                                            //TODO - Design: decide whether a top up history should be kept
                                             // Track redeemed FUNNAI transaction blocks to ensure no double spending
                                             switch (putRedeemedFunnaiTransactionBlock(newTransactionEntry)) {
-                                                case (false) {
-                                                    // TODO - Error Handling: likely retry
-                                                };
+                                                case (false) {};
                                                 case (true) {
                                                     // continue
                                                 };
@@ -7831,7 +7747,6 @@ actor class GameStateCanister() = this {
                             cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
                         };
                         D.print("GameState: submitChallengeResponse - submitted! response for challengeId: " # challengeResponseSubmissionInput.challengeId # " for caller " # Principal.toText(msg.caller)) ;
-                        // TODO - Implementation: adapt cycles burnt stats
                         ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
                         return #Ok(submissionMetada);       
                     };
@@ -8006,13 +7921,11 @@ actor class GameStateCanister() = this {
                 };
                 case (#Err(err)) {
                     D.print("GameState: mintRewardOnTokenLedger - Transfer error: " # debug_show(err));
-                    // TODO - Error Handling (e.g. put into queue and try again later)
                     return false;
                 };
             };
         } catch (e) {
             D.print("GameState: mintRewardOnTokenLedger - Failed to call ledger: " # Error.message(e));
-            // TTODO - Error Handling (e.g. put into queue and try again later)
             return false;
         };
     };
@@ -8060,7 +7973,6 @@ actor class GameStateCanister() = this {
         // Close the challenge
         switch (closeChallenge(challengeId)) {
             case (false) {
-                // TODO - Error Handling (e.g. put into queue and try ranking again later)
                 return false;
             };
             case (true) {
@@ -8068,7 +7980,6 @@ actor class GameStateCanister() = this {
                 let rankResult : ?Types.ChallengeWinnerDeclaration = rankScoredResponsesForChallenge(challengeId);
                 switch (rankResult) {
                     case (null) {
-                        // TODO - Error Handling (e.g. put into queue and try ranking again later)
                         return false;
                     };
                     case (?challengeWinnerDeclaration) {
@@ -8076,11 +7987,9 @@ actor class GameStateCanister() = this {
                         // Distribute reward to winners and participants
                         switch (await distributeRewardForChallenge(challengeWinnerDeclaration)) {
                             case (false) {
-                                // TODO - Error Handling (e.g. put into queue and try ranking again later)
                                 return false;
                             };
                             case (true) {
-                                // TODO - Implementation: adapt cycles burnt stats
                                 ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_WINNER_DECLARATION);
                                 if (List.size<Types.Challenge>(archivedChallenges) >= THRESHOLD_ARCHIVE_CLOSED_CHALLENGES / 10) {
                                     // If the archived challenges storage is getting too big, migrate them to another canister and remove related data
@@ -8113,16 +8022,12 @@ actor class GameStateCanister() = this {
                     D.print("GameState: addScoredResponse - 02");
                     return #Err(#Unauthorized);
                 };
-                // TODO - Design: likely we want to store the submissions from the mAIners and check here that it was an actual submission and that the data matches up
-
                 // Verify that challenge is open
                 if (not verifyChallenge(#Open, scoredResponseInput.challengeId)) {
-                    // TODO - Design: likely we want to store the scored response nevertheless for the closed challenge
                     D.print("GameState: addScoredResponse - 03");
                     return #Err(#InvalidId);
                 };
 
-                // TODO - Design: do we really need a separate storage for submissions & scored submissions?
                 // Change submissionStatus of the submission in submissionsStorage to #Judged
                 let submissionId : Text = scoredResponseInput.submissionId;
                 let submission : Types.ChallengeResponseSubmission = {
@@ -8221,7 +8126,6 @@ actor class GameStateCanister() = this {
                 };
                 D.print("GameState: addScoredResponse - All Good - calling putScoredResponseForChallenge");
                 D.print("GameState: addScoredResponse - scoredResponseEntry = " # debug_show(scoredResponseEntry));
-                // TODO - Implementation: adapt cycles burnt stats
                 ignore increaseTotalProtocolCyclesBurnt(CYCLES_BURNT_JUDGE_SCORING);
                 let numberOfScoredResponsesForChallenge : Nat = putScoredResponseForChallenge(scoredResponseEntry);
                 D.print("GameState: addScoredResponse - numberOfScoredResponsesForChallenge = " # debug_show(numberOfScoredResponsesForChallenge));
@@ -8229,16 +8133,14 @@ actor class GameStateCanister() = this {
 
                 // Determine if ranking of scored responses can be triggered
                 if (numberOfScoredResponsesForChallenge >= THRESHOLD_SCORED_RESPONSES_PER_CHALLENGE) {
-                    // TODO - Design: we should close the challenge for handing out to mAIners, but we need to:
+                    // Design: we should close the challenge for handing out to mAIners, but we need to:
                     //       (-) accept mAIner submissions that have already received this challenge
                     //       (-) score those submissions
                     //       FOR NOW - JUST CLOSE IT AND RANK IT...
                     // Close challenge
                     D.print("GameState: addScoredResponse - reached threshold & closing the challenge: " # debug_show(scoredResponseInput.challengeQuestion));
                     switch (await finalizeOpenChallenge(scoredResponseInput.challengeId)) {
-                        case (false) {
-                            // TODO - Error Handling: error handling (e.g. put into queue and try again later)
-                        };
+                        case (false) {};
                         case (true) {
                             // continue
                         };
@@ -8262,7 +8164,7 @@ actor class GameStateCanister() = this {
         return #Ok(getWinnersForRecentChallenges());
     };
 
-    // Function to get recent protocol activity (TODO - Security: decide if access should remain public)
+    // Function to get recent protocol activity
     public query func getRecentProtocolActivity() : async Types.ProtocolActivityResult {
         let winnersForRecentChallenges : [Types.ChallengeWinnerDeclaration] = getWinnersForRecentChallenges();
         let openChallenges : [Types.Challenge] = getOpenChallenges();
@@ -8310,7 +8212,6 @@ actor class GameStateCanister() = this {
         return #Ok(TOTAL_PROTOCOL_CYCLES_BURNT);
     };
 
-    // TODO - Security: decide if kept in production
     public shared query (msg) func getOfficialCanistersAdmin() : async [Types.OfficialProtocolCanister] {
         if (not Principal.isController(msg.caller)) {
             return [];
@@ -8330,249 +8231,6 @@ actor class GameStateCanister() = this {
         };
         return List.toArray(officialCanisters);        
     };
-
-/* // Mockup functions (TODO - Testing: remove)
-    // Function for frontend integration testing that returns mockup data
-    public query (msg) func getScoreForSubmission_mockup(submissionInput : Types.SubmissionRetrievalInput) : async Types.ScoredResponseRetrievalResult {
-        switch (getOpenChallenge(submissionInput.challengeId)) {
-            case (?openChallenge) {
-                let scoredResponseEntry : Types.ScoredResponse = {
-                    challengeTopic : Text = openChallenge.challengeTopic;
-                    challengeTopicId : Text = openChallenge.challengeTopicId;
-                    challengeTopicCreationTimestamp : Nat64 = openChallenge.challengeTopicCreationTimestamp;
-                    challengeTopicStatus : Types.ChallengeTopicStatus = openChallenge.challengeTopicStatus;
-                    cyclesGenerateChallengeGsChctrl : Nat = openChallenge.cyclesGenerateChallengeGsChctrl;
-                    cyclesGenerateChallengeChctrlChllm : Nat = openChallenge.cyclesGenerateChallengeChctrlChllm;
-                    challengeQuestion : Text = openChallenge.challengeQuestion;
-                    challengeQuestionSeed : Nat32 = openChallenge.challengeQuestionSeed;
-                    mainerPromptId : Text = openChallenge.mainerPromptId;
-                    mainerMaxContinueLoopCount : Nat = openChallenge.mainerMaxContinueLoopCount;
-                    mainerNumTokens : Nat64 = openChallenge.mainerNumTokens;
-                    mainerTemp : Float = openChallenge.mainerTemp;
-                    judgePromptId : Text = openChallenge.judgePromptId;
-                    challengeId : Text = openChallenge.challengeId;
-                    challengeCreationTimestamp : Nat64 = openChallenge.challengeCreationTimestamp;
-                    challengeCreatedBy : Types.CanisterAddress = openChallenge.challengeCreatedBy;
-                    challengeStatus : Types.ChallengeStatus = openChallenge.challengeStatus;
-                    challengeClosedTimestamp : ?Nat64 = openChallenge.challengeClosedTimestamp;
-                    cyclesSubmitResponse : Nat = openChallenge.cyclesSubmitResponse;
-                    protocolOperationFeesCut : Nat = openChallenge.protocolOperationFeesCut;
-                    cyclesGenerateResponseSactrlSsctrl : Nat = openChallenge.cyclesGenerateResponseSactrlSsctrl;
-                    cyclesGenerateResponseSsctrlGs : Nat = openChallenge.cyclesGenerateResponseSsctrlGs;
-                    cyclesGenerateResponseSsctrlSsllm : Nat = openChallenge.cyclesGenerateResponseSsctrlSsllm;
-                    cyclesGenerateResponseOwnctrlGs : Nat = openChallenge.cyclesGenerateResponseOwnctrlGs;
-                    cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = openChallenge.cyclesGenerateResponseOwnctrlOwnllmLOW;
-                    cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = openChallenge.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
-                    cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = openChallenge.cyclesGenerateResponseOwnctrlOwnllmHIGH;
-                    challengeQueuedId : Text = submissionInput.submissionId;
-                    challengeQueuedBy : Principal = msg.caller;
-                    challengeQueuedTo : Principal = msg.caller;
-                    challengeQueuedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                    challengeAnswer : Text = "";
-                    challengeAnswerSeed : Nat32 = 0;
-                    submittedBy : Principal = msg.caller;
-                    submissionId : Text = submissionInput.submissionId;
-                    submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                    submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
-                    cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
-                    cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
-                    judgedBy: Principal = msg.caller;
-                    score: Nat = 5;
-                    scoreSeed: Nat32 = 0;
-                    judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                };
-                return #Ok(scoredResponseEntry);              
-            };
-            case (null) {
-                switch (getClosedChallenge(submissionInput.challengeId)) {
-                    case (?closedChallenge) {
-                        let scoredResponseEntry : Types.ScoredResponse = {
-                            challengeTopic : Text = closedChallenge.challengeTopic;
-                            challengeTopicId : Text = closedChallenge.challengeTopicId;
-                            challengeTopicCreationTimestamp : Nat64 = closedChallenge.challengeTopicCreationTimestamp;
-                            challengeTopicStatus : Types.ChallengeTopicStatus = closedChallenge.challengeTopicStatus;
-                            cyclesGenerateChallengeGsChctrl : Nat = closedChallenge.cyclesGenerateChallengeGsChctrl;
-                            cyclesGenerateChallengeChctrlChllm : Nat = closedChallenge.cyclesGenerateChallengeChctrlChllm;
-                            challengeQuestion : Text = closedChallenge.challengeQuestion;
-                            challengeQuestionSeed : Nat32 = closedChallenge.challengeQuestionSeed;
-                            mainerPromptId : Text = closedChallenge.mainerPromptId;
-                            mainerMaxContinueLoopCount : Nat = closedChallenge.mainerMaxContinueLoopCount;
-                            mainerNumTokens : Nat64 = closedChallenge.mainerNumTokens;
-                            mainerTemp : Float = closedChallenge.mainerTemp;
-                            judgePromptId : Text = closedChallenge.judgePromptId;
-                            challengeId : Text = closedChallenge.challengeId;
-                            challengeCreationTimestamp : Nat64 = closedChallenge.challengeCreationTimestamp;
-                            challengeCreatedBy : Types.CanisterAddress = closedChallenge.challengeCreatedBy;
-                            challengeStatus : Types.ChallengeStatus = closedChallenge.challengeStatus;
-                            challengeClosedTimestamp : ?Nat64 = closedChallenge.challengeClosedTimestamp;
-                            cyclesSubmitResponse : Nat = closedChallenge.cyclesSubmitResponse;
-                            protocolOperationFeesCut : Nat = closedChallenge.protocolOperationFeesCut;
-                            cyclesGenerateResponseSactrlSsctrl : Nat = closedChallenge.cyclesGenerateResponseSactrlSsctrl;
-                            cyclesGenerateResponseSsctrlGs : Nat = closedChallenge.cyclesGenerateResponseSsctrlGs;
-                            cyclesGenerateResponseSsctrlSsllm : Nat = closedChallenge.cyclesGenerateResponseSsctrlSsllm;
-                            cyclesGenerateResponseOwnctrlGs : Nat = closedChallenge.cyclesGenerateResponseOwnctrlGs;
-                            cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = closedChallenge.cyclesGenerateResponseOwnctrlOwnllmLOW;
-                            cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = closedChallenge.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
-                            cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = closedChallenge.cyclesGenerateResponseOwnctrlOwnllmHIGH;
-                            challengeQueuedId : Text = submissionInput.submissionId;
-                            challengeQueuedBy : Principal = msg.caller;
-                            challengeQueuedTo : Principal = msg.caller;
-                            challengeQueuedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                            challengeAnswer : Text = "";
-                            challengeAnswerSeed : Nat32 = 0;
-                            submittedBy : Principal = msg.caller;
-                            submissionId : Text = submissionInput.submissionId;
-                            submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                            submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
-                            cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
-                            cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
-                            judgedBy: Principal = msg.caller;
-                            score: Nat = 5;
-                            scoreSeed: Nat32 = 0;
-                            judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                        };
-                        return #Ok(scoredResponseEntry);                       
-                    };
-                    case (null) {
-                        let scoredResponseEntry : Types.ScoredResponse = {
-                            challengeTopic : Text = "";
-                            challengeTopicId : Text = "";
-                            challengeTopicCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                            challengeTopicStatus : Types.ChallengeTopicStatus = #Archived;
-                            cyclesGenerateChallengeGsChctrl : Nat = cyclesGenerateChallengeGsChctrl;
-                            cyclesGenerateChallengeChctrlChllm : Nat = cyclesGenerateChallengeChctrlChllm;
-                            challengeQuestion : Text = "";
-                            challengeQuestionSeed : Nat32 = 0;
-                            mainerPromptId : Text = "submissionInput.mainerPromptId";
-                            mainerMaxContinueLoopCount : Nat = 3;
-                            mainerNumTokens : Nat64 = 1024;
-                            mainerTemp : Float = 0.8;
-                            judgePromptId : Text = "submissionInput.judgePromptId";
-                            challengeId : Text = submissionInput.challengeId;
-                            challengeCreationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                            challengeCreatedBy : Types.CanisterAddress = "";
-                            challengeStatus : Types.ChallengeStatus = #Archived;
-                            challengeClosedTimestamp : ?Nat64 = ?Nat64.fromNat(Int.abs(Time.now()));
-                            cyclesSubmitResponse : Nat = cyclesSubmitResponse;
-                            protocolOperationFeesCut : Nat = protocolOperationFeesCut;
-                            cyclesGenerateResponseSactrlSsctrl : Nat = cyclesGenerateResponseSactrlSsctrl;
-                            cyclesGenerateResponseSsctrlGs : Nat = cyclesGenerateResponseSsctrlGs;
-                            cyclesGenerateResponseSsctrlSsllm : Nat = cyclesGenerateResponseSsctrlSsllm;
-                            cyclesGenerateResponseOwnctrlGs : Nat = cyclesGenerateResponseOwnctrlGs;
-                            cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = cyclesGenerateResponseOwnctrlOwnllmLOW;
-                            cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
-                            cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = cyclesGenerateResponseOwnctrlOwnllmHIGH;
-                            challengeQueuedId : Text = submissionInput.submissionId;
-                            challengeQueuedBy : Principal = msg.caller;
-                            challengeQueuedTo : Principal = msg.caller;
-                            challengeQueuedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                            challengeAnswer : Text = "";
-                            challengeAnswerSeed : Nat32 = 0;
-                            submittedBy : Principal = msg.caller;
-                            submissionId : Text = submissionInput.submissionId;
-                            submittedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                            submissionStatus: Types.ChallengeResponseSubmissionStatus = #Judged;
-                            cyclesGenerateScoreGsJuctrl : Nat = cyclesGenerateScoreGsJuctrl;
-                            cyclesGenerateScoreJuctrlJullm : Nat = cyclesGenerateScoreJuctrlJullm;
-                            judgedBy: Principal = msg.caller;
-                            score: Nat = 5;
-                            scoreSeed: Nat32 = 0;
-                            judgedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                        };
-                        return #Ok(scoredResponseEntry);                        
-                    };
-                };  
-            };
-        };
-    };
-
-    public query func getRecentProtocolActivity_mockup() : async Types.ProtocolActivityResult {
-        let mainerAgents : [Types.OfficialProtocolCanister] = getMainerAgents();
-
-        if (mainerAgents.size() > 0) {
-            var winnerAgent = mainerAgents[0];
-            var secondPlaceAgent = mainerAgents[0];
-            var thirdPlaceAgent = mainerAgents[0];
-            if (mainerAgents.size() > 1) {
-                secondPlaceAgent := mainerAgents[1];
-            } else if (mainerAgents.size() > 2) {
-                secondPlaceAgent := mainerAgents[1];
-                thirdPlaceAgent := mainerAgents[2];
-            };
-            var participantsList : List.List<Types.ChallengeParticipantEntry> = List.nil<Types.ChallengeParticipantEntry>();
-            // Winner
-            var rewardAmount : Nat = getRewardAmountForResult(#Winner, 3);
-            let winnerReward : Types.ChallengeWinnerReward = {
-                rewardType : Types.RewardType = rewardPerChallenge.rewardType;
-                amount : Nat = rewardAmount;
-                rewardDetails : Text = "";
-                distributed : Bool = false;
-                distributedTimestamp : ?Nat64 = null;
-            };
-            let winnerParticipant : Types.ChallengeParticipantEntry = {
-                submissionId : Text = "";
-                submittedBy : Principal = Principal.fromText(winnerAgent.address);
-                ownedBy: Principal = winnerAgent.ownedBy;
-                result : Types.ChallengeParticipationResult = #Winner;
-                reward : Types.ChallengeWinnerReward = winnerReward;
-            };
-            participantsList := List.push<Types.ChallengeParticipantEntry>(winnerParticipant, participantsList);
-            
-            // Second Place
-            rewardAmount := getRewardAmountForResult(#SecondPlace, 3);
-            let secondPlaceReward : Types.ChallengeWinnerReward = {
-                rewardType : Types.RewardType = rewardPerChallenge.rewardType;
-                amount : Nat = rewardAmount;
-                rewardDetails : Text = "";
-                distributed : Bool = false;
-                distributedTimestamp : ?Nat64 = null;
-            };
-            let secondPlaceParticipant : Types.ChallengeParticipantEntry = {
-                submissionId : Text = "";
-                submittedBy : Principal = Principal.fromText(secondPlaceAgent.address);
-                ownedBy: Principal = secondPlaceAgent.ownedBy;
-                result : Types.ChallengeParticipationResult = #SecondPlace;
-                reward : Types.ChallengeWinnerReward = secondPlaceReward;
-            };
-            participantsList := List.push<Types.ChallengeParticipantEntry>(secondPlaceParticipant, participantsList);
-            
-            // Third Place
-            rewardAmount := getRewardAmountForResult(#ThirdPlace, 3);
-            let thirdPlaceReward : Types.ChallengeWinnerReward = {
-                rewardType : Types.RewardType = rewardPerChallenge.rewardType;
-                amount : Nat = rewardAmount;
-                rewardDetails : Text = "";
-                distributed : Bool = false;
-                distributedTimestamp : ?Nat64 = null;
-            };
-            let thirdPlaceParticipant : Types.ChallengeParticipantEntry = {
-                submissionId : Text = "";
-                submittedBy : Principal = Principal.fromText(thirdPlaceAgent.address);
-                ownedBy: Principal = thirdPlaceAgent.ownedBy;
-                result : Types.ChallengeParticipationResult = #ThirdPlace;
-                reward : Types.ChallengeWinnerReward = thirdPlaceReward;
-            };
-            participantsList := List.push<Types.ChallengeParticipantEntry>(thirdPlaceParticipant, participantsList);
-            
-            let challengeWinnerDeclaration : Types.ChallengeWinnerDeclaration = {
-                challengeId : Text = "";
-                finalizedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                winner : Types.ChallengeParticipantEntry = winnerParticipant;
-                secondPlace : Types.ChallengeParticipantEntry = secondPlaceParticipant;
-                thirdPlace : Types.ChallengeParticipantEntry = thirdPlaceParticipant;
-                participants : List.List<Types.ChallengeParticipantEntry> = participantsList;
-            };
-            let winnersForRecentChallenges : [Types.ChallengeWinnerDeclaration] = [challengeWinnerDeclaration];
-            let openChallenges : [Types.Challenge] = getOpenChallenges();
-            let result : Types.ProtocolActivityRecord = {
-                winners = winnersForRecentChallenges;
-                challenges = openChallenges;
-            };
-            return #Ok(result);
-        } else {
-            return #Err(#InvalidId);
-        };
-    }; */
 
 // ============================================================================
     // NFT COMPATIBILITY FUNCTIONS (ICRC-7 and ICRC-37)
@@ -8859,10 +8517,10 @@ actor class GameStateCanister() = this {
     };
 
     // Record mAIner transfer failures an admin must check on
-    stable var marketplaceMainerTransferFailuresStorageStable : [(Nat, Types.MainerTransferFailure)] = [];
-    var marketplaceMainerTransferFailuresStorage : HashMap.HashMap<Nat, Types.MainerTransferFailure> = HashMap.HashMap(0, Nat.equal, Hash.hash); 
+    var marketplaceMainerTransferFailuresStorageStable : [(Nat, Types.MainerTransferFailure)] = [];
+    transient var marketplaceMainerTransferFailuresStorage : HashMap.HashMap<Nat, Types.MainerTransferFailure> = HashMap.HashMap(0, Nat.equal, Hash.hash); 
 
-    stable var resolvedMarketplaceMainerTransferFailures : List.List<Types.MainerTransferFailure> = List.nil<Types.MainerTransferFailure>();
+    var resolvedMarketplaceMainerTransferFailures : List.List<Types.MainerTransferFailure> = List.nil<Types.MainerTransferFailure>();
 
     private func putMainerTransferFailure(entry : Types.MainerTransferFailure) : Types.MainerTransferFailure {
         marketplaceMainerTransferFailuresStorage.put(entry.transactionId, entry);
@@ -9254,31 +8912,31 @@ actor class GameStateCanister() = this {
     };
 
     // Marketplace functionality to sell and buy mAIners
-    stable var mainerMarketplaceTransactionsCounter : Nat = 0;
+    var mainerMarketplaceTransactionsCounter : Nat = 0;
     private func getNextMainerMarketplaceTransactionId() : Nat {
         mainerMarketplaceTransactionsCounter := mainerMarketplaceTransactionsCounter + 1;
         return mainerMarketplaceTransactionsCounter;
     };
 
     // When a mAIner owner lists a mAIner on the marketplace for selling, the mAIner is approved for the sale and added to the listings data structures
-    stable var marketplaceListedMainerAgentsStorageStable : [(Text, Types.MainerMarketplaceListing)] = [];
-    var marketplaceListedMainerAgentsStorage : HashMap.HashMap<Text, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Text.equal, Text.hash);
-    stable var userToMarketplaceListedMainersStorageStable : [(Principal, List.List<Types.MainerMarketplaceListing>)] = [];
-    var userToMarketplaceListedMainersStorage : HashMap.HashMap<Principal, List.List<Types.MainerMarketplaceListing>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+    var marketplaceListedMainerAgentsStorageStable : [(Text, Types.MainerMarketplaceListing)] = [];
+    transient var marketplaceListedMainerAgentsStorage : HashMap.HashMap<Text, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Text.equal, Text.hash);
+    var userToMarketplaceListedMainersStorageStable : [(Principal, List.List<Types.MainerMarketplaceListing>)] = [];
+    transient var userToMarketplaceListedMainersStorage : HashMap.HashMap<Principal, List.List<Types.MainerMarketplaceListing>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
 
     // When a buyer starts the buying process of a listed mAIner, the mAIner is reserved (thus added to the data structures) and while reserved removed from the listings
-    stable var marketplaceReservedMainerAgentsStorageStable : [(Text, Types.MainerMarketplaceListing)] = [];
-    var marketplaceReservedMainerAgentsStorage : HashMap.HashMap<Text, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Text.equal, Text.hash);
-    stable var userToMarketplaceReservedMainerStorageStable : [(Principal, Types.MainerMarketplaceListing)] = [];
-    var userToMarketplaceReservedMainerStorage : HashMap.HashMap<Principal, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+    var marketplaceReservedMainerAgentsStorageStable : [(Text, Types.MainerMarketplaceListing)] = [];
+    transient var marketplaceReservedMainerAgentsStorage : HashMap.HashMap<Text, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Text.equal, Text.hash);
+    var userToMarketplaceReservedMainerStorageStable : [(Principal, Types.MainerMarketplaceListing)] = [];
+    transient var userToMarketplaceReservedMainerStorage : HashMap.HashMap<Principal, Types.MainerMarketplaceListing> = HashMap.HashMap(0, Principal.equal, Principal.hash);
     
     // Non-stable: Timer IDs for marketplace reservations (2 minute expiry)
-    var marketplaceReservationTimers : HashMap.HashMap<Text, Timer.TimerId> = HashMap.HashMap(0, Text.equal, Text.hash);
+    transient var marketplaceReservationTimers : HashMap.HashMap<Text, Timer.TimerId> = HashMap.HashMap(0, Text.equal, Text.hash);
     let MARKETPLACE_RESERVATION_TIMEOUT_SECONDS : Nat = 120; // 2 minutes
 
     // Marketplace sales history for statistics
-    stable var marketplaceSalesHistoryStable : [Types.MarketplaceSale] = [];
-    var marketplaceSalesHistory : Buffer.Buffer<Types.MarketplaceSale> = Buffer.Buffer<Types.MarketplaceSale>(0);
+    var marketplaceSalesHistoryStable : [Types.MarketplaceSale] = [];
+    transient var marketplaceSalesHistory : Buffer.Buffer<Types.MarketplaceSale> = Buffer.Buffer<Types.MarketplaceSale>(0);
 
     // CRUD helper functions for listings
     private func putMarketplaceListedMainer(entry : Types.MainerMarketplaceListing) : Types.MainerMarketplaceListing {
@@ -9610,6 +9268,18 @@ actor class GameStateCanister() = this {
             uniqueSellers = sellersSet.size();
             uniqueTraders = tradersSet.size(); // True unique count (buyers OR sellers)
         };
+    };
+
+    // Admin function to get all marketplace transactions
+    public query (msg) func getMarketplaceSalesAdmin() : async Types.MarketplaceTransactionsResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        return #Ok(Buffer.toArray(marketplaceSalesHistory));
     };
 
     // Get user's marketplace transaction history (buys and sells)

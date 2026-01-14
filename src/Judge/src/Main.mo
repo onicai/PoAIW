@@ -23,9 +23,9 @@ import Constants "../../common/Constants";
 import ICManagementCanister "../../common/ICManagementCanister";
 import Utils "Utils";
 
-actor class JudgeCtrlbCanister() = this {
+persistent actor class JudgeCtrlbCanister() = this {
 
-    let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
+    private transient let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
 
     public shared query (msg) func whoami() : async Principal {
         return msg.caller;
@@ -39,31 +39,31 @@ actor class JudgeCtrlbCanister() = this {
     // Admin function to verify that caller is a controller of this canister
     public shared query (msg) func amiController() : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         return #Ok({ status_code = 200 });
     };
 
     // Orthogonal Persisted Data storage
 
-    stable var GAME_STATE_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
+    var GAME_STATE_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
 
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         GAME_STATE_CANISTER_ID := _game_state_canister_id;
         return #Ok({ status_code = 200 });
     };
 
     // Flag to decide whether cycles should be sent to LLMs automatically as part of flow
-    stable var SEND_CYCLES_TO_LLM : Bool = true;
+    var SEND_CYCLES_TO_LLM : Bool = true;
 
     public shared (msg) func toggleSendCyclesToLlmFlagAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -89,7 +89,7 @@ actor class JudgeCtrlbCanister() = this {
     };
 
     // Move cycles to Game State canister
-    stable var cyclesTransactionsStorage : List.List<Types.CyclesTransaction> = List.nil<Types.CyclesTransaction>();
+    var cyclesTransactionsStorage : List.List<Types.CyclesTransaction> = List.nil<Types.CyclesTransaction>();
 
     public query (msg) func getCyclesTransactionsAdmin() : async Types.CyclesTransactionsResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -101,8 +101,8 @@ actor class JudgeCtrlbCanister() = this {
         return #Ok(List.toArray(cyclesTransactionsStorage));
     };
     
-    stable var MIN_CYCLES_BALANCE : Nat = 30 * Constants.CYCLES_TRILLION;
-    stable var CYCLES_AMOUNT_TO_GAME_STATE_CANISTER : Nat = 10 * Constants.CYCLES_TRILLION;
+    var MIN_CYCLES_BALANCE : Nat = 30 * Constants.CYCLES_TRILLION;
+    var CYCLES_AMOUNT_TO_GAME_STATE_CANISTER : Nat = 10 * Constants.CYCLES_TRILLION;
 
     public shared (msg) func sendCyclesToGameStateCanister() : async Types.AddCyclesResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -174,17 +174,23 @@ actor class JudgeCtrlbCanister() = this {
     };
 
     public shared (msg) func setMinCyclesBalanceAdmin(newCyclesBalance : Nat) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (newCyclesBalance < 20 * Constants.CYCLES_TRILLION) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         MIN_CYCLES_BALANCE := newCyclesBalance;
         return #Ok({ status_code = 200 });
     };
 
     public query (msg) func getMinCyclesBalanceAdmin() : async Nat {
+        if (Principal.isAnonymous(msg.caller)) {
+            return 0;
+        };
         if (not Principal.isController(msg.caller)) {
             return 0;
         };
@@ -193,17 +199,23 @@ actor class JudgeCtrlbCanister() = this {
     };
 
     public shared (msg) func setCyclesToSendToGameStateAdmin(newValue : Nat) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (newValue > 100 * Constants.CYCLES_TRILLION) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         CYCLES_AMOUNT_TO_GAME_STATE_CANISTER := newValue;
         return #Ok({ status_code = 200 });
     };
 
     public query (msg) func getCyclesToSendToGameStateAdmin() : async Nat {
+        if (Principal.isAnonymous(msg.caller)) {
+            return 0;
+        };
         if (not Principal.isController(msg.caller)) {
             return 0;
         };
@@ -212,13 +224,13 @@ actor class JudgeCtrlbCanister() = this {
     };
 
     // timer ID, so we can stop it after starting
-    stable var recurringTimerId : ?Timer.TimerId = null;
+    var recurringTimerId : ?Timer.TimerId = null;
     
     // Flag to track if we're currently processing submissions
-    private var isProcessingSubmissions : Bool = false;
+    private transient var isProcessingSubmissions : Bool = false;
 
     // Record of recently score responses
-    stable var scoredResponses : List.List<Types.ScoredResponseByJudge> = List.nil<Types.ScoredResponseByJudge>();
+    var scoredResponses : List.List<Types.ScoredResponseByJudge> = List.nil<Types.ScoredResponseByJudge>();
 
     private func putScoredResponse(scoredResponseEntry : Types.ScoredResponseByJudge) : Bool {
         scoredResponses := List.push<Types.ScoredResponseByJudge>(scoredResponseEntry, scoredResponses);
@@ -240,20 +252,20 @@ actor class JudgeCtrlbCanister() = this {
 
     // -------------------------------------------------------------------------------
     // The C++ LLM canisters that can be called
-    stable var llmCanistersStable : [Text] = [];
-    private var llmCanisters : Buffer.Buffer<Types.LLMCanister> = Buffer.fromArray([]);
+    var llmCanistersStable : [Text] = [];
+    private transient var llmCanisters : Buffer.Buffer<Types.LLMCanister> = Buffer.fromArray([]);
 
     // Round-robin load balancer for LLM canisters to call
-    private var roundRobinIndex : Nat = 0;
-    private var roundRobinUseAll : Bool = true;
-    private var roundRobinLLMs : Nat = 0; // Only used when roundRobinUseAll is false
+    private transient var roundRobinIndex : Nat = 0;
+    private transient var roundRobinUseAll : Bool = true;
+    private transient var roundRobinLLMs : Nat = 0; // Only used when roundRobinUseAll is false
 
     public shared query (msg) func get_llm_canisters() : async Types.LlmCanistersRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         let llmCanisterIds : [Types.CanisterAddress] = Buffer.toArray(
             Buffer.map<Types.LLMCanister, Text>(llmCanisters, func (llm : Types.LLMCanister) : Text {
@@ -269,10 +281,10 @@ actor class JudgeCtrlbCanister() = this {
 
     public shared (msg) func reset_llm_canisters() : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         D.print("Judge: reset_llm_canisters - Resetting all LLM canisters & round-robin state");
         llmCanisters.clear();
@@ -282,10 +294,10 @@ actor class JudgeCtrlbCanister() = this {
 
     public shared (msg) func add_llm_canister(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         D.print("Judge: add_llm_canister - Adding llm: " # llmCanisterIdRecord.canister_id);
         let llmCanister = actor (llmCanisterIdRecord.canister_id) : Types.LLMCanister;
@@ -295,10 +307,10 @@ actor class JudgeCtrlbCanister() = this {
 
     public shared (msg) func remove_llm_canister(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
 
         let targetCanisterText = llmCanisterIdRecord.canister_id;
@@ -330,10 +342,10 @@ actor class JudgeCtrlbCanister() = this {
     // Admin function to reset roundRobinLLMs
     public shared (msg) func resetRoundRobinLLMs() : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         resetRoundRobinLLMs_();
         return #Ok({ status_code = 200 });
@@ -347,10 +359,10 @@ actor class JudgeCtrlbCanister() = this {
     // Admin function to set roundRobinLLMs
     public shared (msg) func setRoundRobinLLMs(_roundRobinLLMs : Nat) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         roundRobinUseAll := false;
         roundRobinLLMs := _roundRobinLLMs;
@@ -362,10 +374,10 @@ actor class JudgeCtrlbCanister() = this {
     // Function to verify that canister is ready for inference
     public shared (msg) func ready() : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         for (llmCanister in llmCanisters.vals()) {
             try {
@@ -387,10 +399,10 @@ actor class JudgeCtrlbCanister() = this {
     // Admin function to verify that judge_ctrlb_canister is a controller of all the llm canisters
     public shared (msg) func checkAccessToLLMs() : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
 
         // Call all the llm canisters to verify that judge_ctrlb_canister is a controller
@@ -482,7 +494,6 @@ actor class JudgeCtrlbCanister() = this {
             case (#Err(error)) {
                 D.print("Judge: processSubmission - processSubmission error");
                 D.print(debug_show (error));
-                // TODO - Error Handling
             };
             case (#Ok(scoringOutput)) {
                 // Store record of scoring the response
@@ -537,7 +548,6 @@ actor class JudgeCtrlbCanister() = this {
                 switch (pushResult) {
                     case (false) {
                         D.print("Judge: processSubmission - pushResult error");
-                        // TODO - Error Handling
                     };
                     case (true) {
                         // Send scored response to Game State canister
@@ -591,7 +601,6 @@ actor class JudgeCtrlbCanister() = this {
                             case (#Err(error)) {
                                 D.print("Judge: processSubmission - sendResult error");
                                 D.print(debug_show (error));
-                                // TODO - Error Handling
                             };
                             case (_) {
                                 // Successfully processed and sent to Game State
@@ -1095,8 +1104,6 @@ actor class JudgeCtrlbCanister() = this {
                 
             } catch (e) {
                 D.print("Judge: retryGameStateJudgePromptCacheChunkDownloadWithDelay - gameStateCanisterActor.uploadJudgePromptCacheBytesChunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
-                
-                // TODO - Implementation: introduce a delay using a timer...
                 // Just retry immediately with decremented attempts
                 return await retryGameStateJudgePromptCacheChunkDownloadWithDelay(gameStateCanisterActor, downloadJudgePromptCacheBytesChunkInput, attempts - 1, delay);
             };
@@ -1116,8 +1123,6 @@ actor class JudgeCtrlbCanister() = this {
                 
             } catch (e) {
                 D.print("Judge: retryLlmPrompCacheChunkUploadWithDelay - LLM upload_prompt_cache_chunk failed with catch error " # Error.message(e) # ", retrying in " # debug_show(delay) # " nanoseconds");
-                
-                // TODO - Implementation: introduce a delay using a timer...
                 // Just retry immediately with decremented attempts
                 return await retryLlmPrompCacheChunkUploadWithDelay(llmCanisterActor, uploadChunk, attempts - 1, delay);
             };
@@ -1151,7 +1156,6 @@ actor class JudgeCtrlbCanister() = this {
                 // Sanity checks on submitted response
                 if (submissionEntry.submissionStatus != #Judging or submissionEntry.submissionId == "" or submissionEntry.judgePromptId == "" or submissionEntry.challengeId == "" or submissionEntry.challengeQuestion == "" or submissionEntry.challengeAnswer == "") {
                     D.print("Judge: scoreNextSubmission - 02 - submissionEntry error - submissionEntry: " # debug_show (submissionEntry));
-                    // TODO - Error Handling: If this happens, we need to call the Game State canister to update the submissionStatus of the submission to #Error
                     return;
                 };
 
@@ -1173,10 +1177,13 @@ actor class JudgeCtrlbCanister() = this {
 
     public shared query (msg) func getRoundRobinCanister() : async Types.CanisterIDRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
+        };
+        if (llmCanisters.size() == 0) {
+            return #Err(#Other("No LLM canisters configured"));
         };
         let canisterIDRecord : Types.CanisterIDRecord = {
             canister_id = Principal.toText(Principal.fromActor(_getRoundRobinCanister()));
@@ -1208,14 +1215,14 @@ actor class JudgeCtrlbCanister() = this {
     };
 
 // Timer
-    stable var actionRegularityInSeconds = 5;
+    var actionRegularityInSeconds = 5;
 
     public shared (msg) func setTimerActionRegularityInSecondsAdmin(_actionRegularityInSeconds : Nat) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         actionRegularityInSeconds := _actionRegularityInSeconds;
         // Restart the timer with the new regularity
@@ -1225,10 +1232,10 @@ actor class JudgeCtrlbCanister() = this {
 
     public shared query (msg) func getTimerActionRegularityInSecondsAdmin() : async Types.NatResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         return #Ok(actionRegularityInSeconds);
     };
@@ -1259,10 +1266,10 @@ actor class JudgeCtrlbCanister() = this {
 
     public shared (msg) func startTimerExecutionAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         await startTimerExecution();
     };
@@ -1302,21 +1309,21 @@ actor class JudgeCtrlbCanister() = this {
 
     public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         await stopTimerExecution();
     };
 
-    // TODO - Testing: remove; testing function for admin
+    // Testing: testing function for admin
     public shared (msg) func triggerScoreSubmissionAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         let result = await scoreNextSubmission();
         let authRecord = { auth = "You triggered the score generation." };
@@ -1326,10 +1333,10 @@ actor class JudgeCtrlbCanister() = this {
     // Admin function to reset the isProcessingSubmissions flag if it gets stuck
     public shared (msg) func resetIsProcessingSubmissionsAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         
         isProcessingSubmissions := false;
@@ -1342,10 +1349,10 @@ actor class JudgeCtrlbCanister() = this {
     // Query function to check if submissions are currently being processed
     public shared query (msg) func getIsProcessingSubmissionsAdmin() : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         if (not Principal.isController(msg.caller)) {
-            return #Err(#StatusCode(401));
+            return #Err(#Unauthorized);
         };
         
         let authRecord = { auth = "isProcessingSubmissions: " # Bool.toText(isProcessingSubmissions) };

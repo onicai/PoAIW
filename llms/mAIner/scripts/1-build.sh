@@ -5,7 +5,7 @@
 # scripts/1-build.sh
 #######################################################################
 
-LLAMA_CPP_CANISTER_PATH="../../../../llama_cpp_canister"
+../llama_cpp_canister
 cd $LLAMA_CPP_CANISTER_PATH
 
 echo " "
