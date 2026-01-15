@@ -5,6 +5,10 @@
       "main": "src/Main.mo",
       "type": "motoko",
       "args": "--enhanced-orthogonal-persistence"
+    },
+    "archive_challenges_canister_orig": {
+      "main": "src/Main.mo",
+      "type": "motoko"
     }
   },
   "output_env_file": ".env",

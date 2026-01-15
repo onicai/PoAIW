@@ -1,3 +1,15 @@
+During upgrade on Jan 14, 2026 the archive_challenges_canister could no longer be upgraded
+due to the list data being to large for serialization.
+
+We decided to deploy a new canister using the enhanced orthogonal persistence (EOP), and 
+keep the old one running as is.
+
+- archive_challenges_canister = new canister
+- archive_challenges_canister_orig = the orginal canister that can not be upgraded anymore
+
+The protocol was configured to archive to the new canister.
+We hope to be able to extract the data from the original archive canister in the future.
+
 ```bash
 dfx deploy archive_challenges_canister --network $NETWORK
 
@@ -28,12 +40,12 @@ dfx canister call archive_challenges_canister getScoredResponsesAdmin --network 
 dfx canister call archive_challenges_canister getNumScoredResponsesAdmin --network $NETWORK
 
 ### prd:
-dfx deploy archive_challenges_canister --network prd --with-cycles 1000000000000 --subnet csyj4-zmann-ys6ge-3kzi6-onexi-obayx-2fvak-zersm-euci4-6pslt-lae
+dfx deploy archive_challenges_canister --network prd --with-cycles 5000000000000 --subnet csyj4-zmann-ys6ge-3kzi6-onexi-obayx-2fvak-zersm-euci4-6pslt-lae
 
 dfx canister call archive_challenges_canister setMasterCanisterId '("r5m5y-diaaa-aaaaa-qanaa-cai")' --network prd
 
 dfx canister call archive_challenges_canister getMasterCanisterId --network prd
 
 ### Set archive canister in Game State (funnAI folder):
-dfx canister call game_state_canister setArchiveCanisterId '("474n2-qiaaa-aaaaf-qasoq-cai")' --network prd
+dfx canister call game_state_canister setArchiveCanisterId '("yiobo-hyaaa-aaaaf-qdjnq-cai")' --network prd
 ```
