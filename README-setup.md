@@ -1,8 +1,4 @@
-# PoAIW
-
-Clone this repo into funnAI
-
-# Setup
+# PoAIW setup instructions
 
 ## Clone
 
@@ -10,7 +6,7 @@ Clone the following repos to your local disk using this folder structure:
 
 ```
 |-funnAI       (https://github.com/onicai/funnAI)
-  |-PoAIW                   (https://github.com/onicai/PoAIW)
+  |-PoAIW      (https://github.com/onicai/PoAIW)
 ```
 
 Note: The folder structure is important, because the scripts use relative paths.

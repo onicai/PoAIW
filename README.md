@@ -1,3 +1,5 @@
+[![PoAIW](https://github.com/onicai/PoAIW/actions/workflows/cicd-mac.yml/badge.svg)](https://github.com/onicai/PoAIW/actions/workflows/cicd-mac.yml)
+
 # PoAIW
 
 The Proof-of-AI-Work (PoAIW) code for https://funnai.onicai.com/
