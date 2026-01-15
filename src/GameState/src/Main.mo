@@ -2187,8 +2187,16 @@ persistent actor class GameStateCanister() = this {
             };
             case (?userCanistersList) { 
                 //existing list, add entry to it
-                // Deduplicate (based on creationTimestamp)
-                let filteredUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.filter(userCanistersList, func(listEntry: Types.OfficialMainerAgentCanister) : Bool { listEntry.creationTimestamp != canisterEntry.creationTimestamp });
+                // Deduplicate (based on address or creationTimestamp)
+                let filteredUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.filter(userCanistersList, func(listEntry: Types.OfficialMainerAgentCanister) : Bool {
+                    if (canisterEntry.address == "" or listEntry.address == "") {
+                        // Use creationTimestamp when either address is empty
+                        listEntry.creationTimestamp != canisterEntry.creationTimestamp
+                    } else {
+                        // Use address when both have addresses
+                        listEntry.address != canisterEntry.address
+                    }
+                });
                 let updatedUserCanistersList : List.List<Types.OfficialMainerAgentCanister> = List.push<Types.OfficialMainerAgentCanister>(canisterEntry, filteredUserCanistersList);
                 userToMainerAgentsStorage.put(canisterEntry.ownedBy, updatedUserCanistersList);
                 return true;
