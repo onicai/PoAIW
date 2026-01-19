@@ -5197,38 +5197,82 @@ persistent actor class GameStateCanister() = this {
         let getTransactionsResponse : TokenLedger.GetTransactionsResponse = await TokenLedger_Actor.get_transactions(getBlocksArgs);
         D.print("GameState: verifyIncomingFunnaiPayment - getTransactionsResponse: ");
         D.print("GameState: verifyIncomingFunnaiPayment - getTransactionsResponse.transactions: "# debug_show(getTransactionsResponse.transactions));
-        // Verify transaction exists
-        if (getTransactionsResponse.transactions.size() < 1) {
-            return #Err(#InvalidId);
-        };
-        D.print("GameState: verifyIncomingFunnaiPayment - getTransactionsResponse.transactions.size(): "# debug_show(getTransactionsResponse.transactions.size()));
-        let retrievedTransaction : TokenLedger.Transaction = getTransactionsResponse.transactions[0];
-        D.print("GameState: verifyIncomingFunnaiPayment - retrievedTransaction: "# debug_show(retrievedTransaction));
-        // Verify transaction went to Protocol's account (i.e. is burn operation)
-        D.print("GameState: verifyIncomingFunnaiPayment - retrievedTransaction.burn: "# debug_show(retrievedTransaction.burn));
-        switch (retrievedTransaction.burn) {
-            case (null) {
-                D.print("GameState: verifyIncomingFunnaiPayment - retrievedTransaction.burn: null");
-                return #Err(#Other("Couldn't verify transaction operation details"));  
-            };
-            case (?burnOperation) {
-                D.print("GameState: verifyIncomingFunnaiPayment - burnOperation: "# debug_show(burnOperation));
-                D.print("GameState: verifyIncomingFunnaiPayment - burnOperation.from: "# debug_show(burnOperation.from));
-                D.print("GameState: verifyIncomingFunnaiPayment - transactionEntry.redeemedFor: "# debug_show(transactionEntry.redeemedFor));
-                switch (transactionEntry.redeemedFor) {
-                    case (#MainerTopUp(_)) {
-                        D.print("GameState: verifyIncomingFunnaiPayment - #MainerTopUp ");
-                        // continue as there is no fixed price                             
-                    };
-                    case (_) { return #Err(#Other("Unsupported")); }
+        D.print("GameState: verifyIncomingFunnaiPayment - archived_transactions count: "# debug_show(getTransactionsResponse.archived_transactions.size()));
+        
+        // Try to get transaction from main ledger first
+        var retrievedTransaction : ?TokenLedger.Transaction = null;
+        
+        if (getTransactionsResponse.transactions.size() >= 1) {
+            retrievedTransaction := ?getTransactionsResponse.transactions[0];
+        } else if (getTransactionsResponse.archived_transactions.size() >= 1) {
+            // Transaction is in archive, need to fetch from archive canister
+            D.print("GameState: verifyIncomingFunnaiPayment - fetching from archive");
+            let archivedRange = getTransactionsResponse.archived_transactions[0];
+            D.print("GameState: verifyIncomingFunnaiPayment - archive callback start: "# debug_show(archivedRange.start) # " length: "# debug_show(archivedRange.length));
+            try {
+                let archiveResponse : TokenLedger.TransactionRange = await archivedRange.callback(getBlocksArgs);
+                D.print("GameState: verifyIncomingFunnaiPayment - archiveResponse transactions: "# debug_show(archiveResponse.transactions.size()));
+                if (archiveResponse.transactions.size() >= 1) {
+                    retrievedTransaction := ?archiveResponse.transactions[0];
                 };
-                D.print("GameState: verifyIncomingFunnaiPayment - verified: ");
-                let amountPaid = burnOperation.amount;
-                D.print("GameState: verifyIncomingFunnaiPayment - amountPaid: "# debug_show(amountPaid));
-                return #Ok({
-                    amountPaid : Nat = amountPaid;
-                    verified : Bool = true;
-                });
+            } catch (e) {
+                D.print("GameState: verifyIncomingFunnaiPayment - archive fetch error: "# Error.message(e));
+            };
+        };
+        
+        // Verify transaction was found
+        switch (retrievedTransaction) {
+            case (null) {
+                D.print("GameState: verifyIncomingFunnaiPayment - no transaction found");
+                return #Err(#InvalidId);
+            };
+            case (?tx) {
+                D.print("GameState: verifyIncomingFunnaiPayment - retrievedTransaction: "# debug_show(tx));
+                
+                // Check for burn operation first (original behavior)
+                D.print("GameState: verifyIncomingFunnaiPayment - tx.burn: "# debug_show(tx.burn));
+                switch (tx.burn) {
+                    case (?burnOperation) {
+                        D.print("GameState: verifyIncomingFunnaiPayment - burnOperation: "# debug_show(burnOperation));
+                        switch (transactionEntry.redeemedFor) {
+                            case (#MainerTopUp(_)) {
+                                D.print("GameState: verifyIncomingFunnaiPayment - #MainerTopUp via burn");
+                            };
+                            case (_) { return #Err(#Other("Unsupported")); }
+                        };
+                        let amountPaid = burnOperation.amount;
+                        D.print("GameState: verifyIncomingFunnaiPayment - amountPaid (burn): "# debug_show(amountPaid));
+                        return #Ok({
+                            amountPaid : Nat = amountPaid;
+                            verified : Bool = true;
+                        });
+                    };
+                    case (null) {
+                        // Check for transfer operation (for non-burn payments)
+                        D.print("GameState: verifyIncomingFunnaiPayment - tx.transfer: "# debug_show(tx.transfer));
+                        switch (tx.transfer) {
+                            case (?transferOperation) {
+                                D.print("GameState: verifyIncomingFunnaiPayment - transferOperation: "# debug_show(transferOperation));
+                                switch (transactionEntry.redeemedFor) {
+                                    case (#MainerTopUp(_)) {
+                                        D.print("GameState: verifyIncomingFunnaiPayment - #MainerTopUp via transfer");
+                                    };
+                                    case (_) { return #Err(#Other("Unsupported")); }
+                                };
+                                let amountPaid = transferOperation.amount;
+                                D.print("GameState: verifyIncomingFunnaiPayment - amountPaid (transfer): "# debug_show(amountPaid));
+                                return #Ok({
+                                    amountPaid : Nat = amountPaid;
+                                    verified : Bool = true;
+                                });
+                            };
+                            case (null) {
+                                D.print("GameState: verifyIncomingFunnaiPayment - no burn or transfer found");
+                                return #Err(#Other("Couldn't verify transaction operation details"));
+                            };
+                        };
+                    };
+                };
             };
         };
     };
@@ -9438,6 +9482,285 @@ persistent actor class GameStateCanister() = this {
         };
     };
 
+//-------------------------------------------------------------------------
+    // WHEEL OF FORTUNE IMPLEMENTATION
+    //-------------------------------------------------------------------------
+    
+    // Wheel of Fortune configuration
+    var WHEEL_ENABLED : Bool = true;
+    var WHEEL_FUNNAI_COST : Nat = 10_000_000; // 0.1 FUNNAI (8 decimals)
+    var WHEEL_COOLDOWN_NS : Nat64 = 86400000000000; // 24 hours in nanoseconds
+    
+    // Store last spin times for users (Principal -> timestamp in nanoseconds)
+    var wheelLastSpinStorageStable : [(Principal, Nat64)] = [];
+    transient var wheelLastSpinStorage : HashMap.HashMap<Principal, Nat64> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+    
+    // Wheel prizes configuration with weights in basis points (total = 10000 = 100%)
+    // Default prizes:
+    // - Cycles: 1T (5%), 10T (1%), 100T (0.1%)
+    // - FUNNAI: 10 (10%), 100 (2%), 1000 (0.5%)
+    // - Nothing: 81.4%
+    let WHEEL_PRIZES : [Types.WheelPrize] = [
+        { outcome = #Cycles({ amount = 1_000_000_000_000; mainerAddress = "" }); weight = 500 },   // 1T cycles - 5%
+        { outcome = #Cycles({ amount = 10_000_000_000_000; mainerAddress = "" }); weight = 100 },  // 10T cycles - 1%
+        { outcome = #Cycles({ amount = 100_000_000_000_000; mainerAddress = "" }); weight = 10 },  // 100T cycles - 0.1%
+        { outcome = #Funnai({ amount = 10_00000000 }); weight = 1000 },   // 10 FUNNAI - 10%
+        { outcome = #Funnai({ amount = 100_00000000 }); weight = 200 },   // 100 FUNNAI - 2%
+        { outcome = #Funnai({ amount = 1000_00000000 }); weight = 50 },   // 1000 FUNNAI - 0.5%
+        { outcome = #Nothing; weight = 8140 }  // Nothing - 81.4%
+    ];
+
+    // Query function to check if user can spin the wheel
+    public shared query (msg) func canUserSpinWheel() : async Types.CanUserSpinResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        
+        // Check if wheel is enabled
+        if (not WHEEL_ENABLED) {
+            return #Ok({
+                canSpin = false;
+                reason = ?"Wheel of Fortune is currently disabled";
+                requiredFunnai = WHEEL_FUNNAI_COST;
+                nextSpinAvailableAt = null;
+            });
+        };
+        
+        // Check last spin time
+        let currentTime : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+        switch (wheelLastSpinStorage.get(msg.caller)) {
+            case (null) {
+                // Never spun before
+                return #Ok({
+                    canSpin = true;
+                    reason = null;
+                    requiredFunnai = WHEEL_FUNNAI_COST;
+                    nextSpinAvailableAt = null;
+                });
+            };
+            case (?lastSpinTime) {
+                let timeSinceLastSpin = currentTime - lastSpinTime;
+                if (timeSinceLastSpin < WHEEL_COOLDOWN_NS) {
+                    let nextSpinTime = lastSpinTime + WHEEL_COOLDOWN_NS;
+                    return #Ok({
+                        canSpin = false;
+                        reason = ?"You can only spin once every 24 hours";
+                        requiredFunnai = WHEEL_FUNNAI_COST;
+                        nextSpinAvailableAt = ?nextSpinTime;
+                    });
+                } else {
+                    return #Ok({
+                        canSpin = true;
+                        reason = null;
+                        requiredFunnai = WHEEL_FUNNAI_COST;
+                        nextSpinAvailableAt = null;
+                    });
+                };
+            };
+        };
+    };
+
+    // Main spin function
+    public shared (msg) func spinWheel(spinInput : Types.WheelSpinInput) : async Types.WheelSpinResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        
+        // Check if wheel is enabled
+        if (not WHEEL_ENABLED) {
+            return #Err(#Other("Wheel of Fortune is currently disabled"));
+        };
+        
+        // Check 24h cooldown
+        let currentTime : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+        switch (wheelLastSpinStorage.get(msg.caller)) {
+            case (?lastSpinTime) {
+                let timeSinceLastSpin = currentTime - lastSpinTime;
+                if (timeSinceLastSpin < WHEEL_COOLDOWN_NS) {
+                    return #Err(#Other("You can only spin once every 24 hours"));
+                };
+            };
+            case (null) {
+                // First spin, continue
+            };
+        };
+        
+        // Verify the FUNNAI burn transaction
+        let transactionEntryToVerify : Types.RedeemedTransactionBlock = {
+            paymentTransactionBlockId = spinInput.paymentTransactionBlockId;
+            creationTimestamp = currentTime;
+            redeemedBy = msg.caller;
+            redeemedFor = #MainerTopUp("wheel_spin"); // Using MainerTopUp as a placeholder
+            amount = 0; // Will be verified
+        };
+        
+        // Check if this transaction was already redeemed
+        if (checkExistingFunnaiTransactionBlock(spinInput.paymentTransactionBlockId)) {
+            return #Err(#Other("Transaction already used"));
+        };
+        
+        // Verify the FUNNAI payment
+        let verificationResponse = await verifyIncomingFunnaiPayment(transactionEntryToVerify);
+        D.print("GameState: spinWheel - verificationResponse: "# debug_show(verificationResponse));
+        
+        var amountPaid : Nat = 0;
+        switch (verificationResponse) {
+            case (#Ok(verificationResult)) {
+                if (not verificationResult.verified) {
+                    return #Err(#Other("Payment couldn't be verified"));
+                };
+                amountPaid := verificationResult.amountPaid;
+            };
+            case (#Err(error)) {
+                return #Err(#Other("Payment verification failed"));                      
+            };
+        };
+        
+        // Check if enough FUNNAI was paid
+        if (amountPaid < WHEEL_FUNNAI_COST) {
+            return #Err(#Other("Insufficient FUNNAI paid. Required: " # Nat.toText(WHEEL_FUNNAI_COST) # ", paid: " # Nat.toText(amountPaid)));
+        };
+        
+        // Mark transaction as redeemed
+        let redeemedEntry : Types.RedeemedTransactionBlock = {
+            paymentTransactionBlockId = spinInput.paymentTransactionBlockId;
+            creationTimestamp = currentTime;
+            redeemedBy = msg.caller;
+            redeemedFor = #MainerTopUp("wheel_spin");
+            amount = amountPaid;
+        };
+        ignore putRedeemedFunnaiTransactionBlock(redeemedEntry);
+        
+        // Generate random outcome
+        let outcome = await generateWheelOutcome(msg.caller);
+        
+        // Record spin time
+        wheelLastSpinStorage.put(msg.caller, currentTime);
+        
+        // Handle outcome distribution
+        switch (outcome) {
+            case (#Cycles(cyclesPrize)) {
+                // For cycles prize, find a random user mainer and send cycles
+                switch (getUserMainerAgents(msg.caller)) {
+                    case (null) {
+                        // User has no mainers, convert to FUNNAI equivalent or skip
+                        D.print("GameState: spinWheel - User has no mainers for cycles prize, awarding nothing");
+                    };
+                    case (?userMainers) {
+                        let mainersList = List.toArray(userMainers);
+                        if (mainersList.size() > 0) {
+                            // Pick a random mainer
+                            let randomIndex = await Utils.nextRandomInt(0, mainersList.size() - 1);
+                            switch (randomIndex) {
+                                case (?idx) {
+                                    let selectedMainer = mainersList[Int.abs(idx)];
+                                    D.print("GameState: spinWheel - Sending " # Nat.toText(cyclesPrize.amount) # " cycles to mainer " # selectedMainer.address);
+                                    // Send cycles to the mainer
+                                    try {
+                                        let MainerAgent_Actor : Types.MainerAgentCtrlbCanister = actor (selectedMainer.address);
+                                        Cycles.add<system>(cyclesPrize.amount);
+                                        let addCyclesResult = await MainerAgent_Actor.addCycles();
+                                        D.print("GameState: spinWheel - addCycles result: " # debug_show(addCyclesResult));
+                                    } catch (e) {
+                                        D.print("GameState: spinWheel - Error sending cycles: " # Error.message(e));
+                                    };
+                                };
+                                case (null) {
+                                    D.print("GameState: spinWheel - Could not select random mainer");
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+            case (#Funnai(funnaiPrize)) {
+                // For FUNNAI prize, send FUNNAI to user
+                D.print("GameState: spinWheel - Awarding " # Nat.toText(funnaiPrize.amount) # " FUNNAI to user");
+                // Note: Actual FUNNAI transfer would need to be implemented
+                // This requires the canister to hold FUNNAI tokens as a reserve
+            };
+            case (#Nothing) {
+                D.print("GameState: spinWheel - User won nothing");
+            };
+        };
+        
+        return #Ok({
+            outcome = outcome;
+            timestamp = currentTime;
+        });
+    };
+
+    // Generate random wheel outcome based on prize weights
+    private func generateWheelOutcome(caller : Principal) : async Types.WheelOutcome {
+        // Calculate total weight
+        var totalWeight : Nat = 0;
+        for (prize in WHEEL_PRIZES.vals()) {
+            totalWeight += prize.weight;
+        };
+        
+        // Generate random number between 0 and totalWeight-1
+        let randomResult = await Utils.nextRandomInt(0, totalWeight - 1);
+        var randomValue : Nat = 0;
+        switch (randomResult) {
+            case (?val) { randomValue := Int.abs(val); };
+            case (null) { return #Nothing; }; // Fallback to nothing if random fails
+        };
+        
+        // Find the outcome based on the random value
+        var cumulative : Nat = 0;
+        for (prize in WHEEL_PRIZES.vals()) {
+            cumulative += prize.weight;
+            if (randomValue < cumulative) {
+                // For cycles prize, we'll set the mainer address later
+                switch (prize.outcome) {
+                    case (#Cycles(c)) {
+                        return #Cycles({ amount = c.amount; mainerAddress = "" });
+                    };
+                    case (other) { return other; };
+                };
+            };
+        };
+        
+        return #Nothing; // Fallback
+    };
+
+    // Admin function to enable/disable the wheel
+    public shared (msg) func setWheelEnabledAdmin(enabled : Bool) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        WHEEL_ENABLED := enabled;
+        let authRecord = { auth = "Wheel enabled set to " # debug_show(enabled) };
+        return #Ok(authRecord);
+    };
+
+    // Admin function to set the FUNNAI cost for spinning
+    public shared (msg) func setWheelFunnaiCostAdmin(cost : Nat) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        WHEEL_FUNNAI_COST := cost;
+        let authRecord = { auth = "Wheel FUNNAI cost set to " # Nat.toText(cost) };
+        return #Ok(authRecord);
+    };
+
+    // Query function to get the current wheel FUNNAI cost
+    public query func getWheelFunnaiCost() : async Types.NatResult {
+        return #Ok(WHEEL_FUNNAI_COST);
+    };
+
+    // Query function to check if the wheel is enabled
+    public query func getWheelEnabled() : async Types.FlagResult {
+        return #Ok({ flag = WHEEL_ENABLED });
+    };
+
+//-------------------------------------------------------------------------
 // Upgrade Hooks (TODO - Implementation: upgrade Motoko to use enhanced orthogonal persistence)
     system func preupgrade() {
         challengerCanistersStorageStable := Iter.toArray(challengerCanistersStorage.entries());
@@ -9463,6 +9786,7 @@ persistent actor class GameStateCanister() = this {
         userToMarketplaceReservedMainerStorageStable := Iter.toArray(userToMarketplaceReservedMainerStorage.entries());
         marketplaceSalesHistoryStable := Buffer.toArray(marketplaceSalesHistory);
         marketplaceMainerTransferFailuresStorageStable := Iter.toArray(marketplaceMainerTransferFailuresStorage.entries());
+        wheelLastSpinStorageStable := Iter.toArray(wheelLastSpinStorage.entries());
     };
 
     system func postupgrade() {
@@ -9512,5 +9836,7 @@ persistent actor class GameStateCanister() = this {
         marketplaceSalesHistoryStable := [];
         marketplaceMainerTransferFailuresStorage := HashMap.fromIter(Iter.fromArray(marketplaceMainerTransferFailuresStorageStable), marketplaceMainerTransferFailuresStorageStable.size(), Nat.equal, Hash.hash);
         marketplaceMainerTransferFailuresStorageStable := [];
+        wheelLastSpinStorage := HashMap.fromIter(Iter.fromArray(wheelLastSpinStorageStable), wheelLastSpinStorageStable.size(), Principal.equal, Principal.hash);
+        wheelLastSpinStorageStable := [];
     };
 };
