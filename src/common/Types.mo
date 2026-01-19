@@ -1635,4 +1635,44 @@ module Types {
     };
 
     public type Sha256HashesResult = Result<Sha256HashesRecord, ApiError>;
+
+    //-------------------------------------------------------------------------
+    // Wheel of Fortune Types
+    
+    public type WheelSpinInput = {
+        paymentTransactionBlockId : Nat64;
+    };
+
+    public type WheelOutcome = {
+        #Cycles : { amount : Nat; mainerAddress : Text };
+        #Funnai : { amount : Nat };
+        #Nothing;
+    };
+
+    public type WheelSpinRecord = {
+        outcome : WheelOutcome;
+        timestamp : Nat64;
+    };
+
+    public type WheelSpinResult = Result<WheelSpinRecord, ApiError>;
+
+    public type CanUserSpinRecord = {
+        canSpin : Bool;
+        reason : ?Text;
+        requiredFunnai : Nat;
+        nextSpinAvailableAt : ?Nat64;
+    };
+
+    public type CanUserSpinResult = Result<CanUserSpinRecord, ApiError>;
+
+    // Wheel prize configuration - weight is in basis points (100 = 1%)
+    public type WheelPrize = {
+        outcome : WheelOutcome;
+        weight : Nat; // Weight in basis points (total should be 10000)
+    };
+
+    public type WheelLastSpin = {
+        principal : Principal;
+        timestamp : Nat64;
+    };
 };
