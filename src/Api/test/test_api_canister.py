@@ -742,6 +742,163 @@ def test__getNumDailyMetrics_after_delete(network: str) -> None:
 
 
 # =============================================================================
+# Total Cycles Tests (new optional field)
+# =============================================================================
+
+def test__createDailyMetricAdmin_without_total_cycles(network: str) -> None:
+    """Test backward compatibility: creating metric without total_cycles fields.
+
+    The existing test__createDailyMetricAdmin already covers this, but this test
+    explicitly verifies that old-style calls still work after adding the new fields.
+    """
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="createDailyMetricAdmin",
+        canister_argument='(record { date = "2025-02-01"; funnai_index = 0.23; daily_burn_rate_cycles = 1163 : nat; daily_burn_rate_usd = 1587.06; total_mainers_created = 742 : nat; total_active_mainers = 362 : nat; total_paused_mainers = 380 : nat; total_cycles_all_mainers = 7899 : nat; active_low_burn_rate_mainers = 131 : nat; active_medium_burn_rate_mainers = 50 : nat; active_high_burn_rate_mainers = 77 : nat; active_very_high_burn_rate_mainers = 104 : nat; active_custom_burn_rate_mainers = 0 : nat; paused_low_burn_rate_mainers = 107 : nat; paused_medium_burn_rate_mainers = 47 : nat; paused_high_burn_rate_mainers = 104 : nat; paused_very_high_burn_rate_mainers = 113 : nat; paused_custom_burn_rate_mainers = 0 : nat })',
+        network=network,
+    )
+    assert response.startswith('(variant { Ok = record {')
+    assert 'date = "2025-02-01"' in response
+    # Verify total_cycles is null (not present or explicitly null)
+    assert 'total_cycles = null' in response or 'total_cycles' not in response
+
+
+def test__createDailyMetricAdmin_with_total_cycles(network: str) -> None:
+    """Test new interface: creating metric with total_cycles fields."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="createDailyMetricAdmin",
+        canister_argument='(record { date = "2025-02-02"; funnai_index = 0.25; daily_burn_rate_cycles = 1200 : nat; daily_burn_rate_usd = 1600.0; total_mainers_created = 800 : nat; total_active_mainers = 400 : nat; total_paused_mainers = 400 : nat; total_cycles_all_mainers = 8000 : nat; active_low_burn_rate_mainers = 100 : nat; active_medium_burn_rate_mainers = 100 : nat; active_high_burn_rate_mainers = 100 : nat; active_very_high_burn_rate_mainers = 100 : nat; active_custom_burn_rate_mainers = 0 : nat; paused_low_burn_rate_mainers = 100 : nat; paused_medium_burn_rate_mainers = 100 : nat; paused_high_burn_rate_mainers = 100 : nat; paused_very_high_burn_rate_mainers = 100 : nat; paused_custom_burn_rate_mainers = 0 : nat; total_cycles_all = opt (18000 : nat); total_cycles_protocol = opt (10000 : nat) })',
+        network=network,
+    )
+    assert response.startswith('(variant { Ok = record {')
+    assert 'date = "2025-02-02"' in response
+    # Verify total_cycles is present with correct values
+    assert 'total_cycles = opt record' in response
+    assert 'all = 18_000' in response
+    assert 'mainers = 8_000' in response
+    assert 'protocol = 10_000' in response
+
+
+def test__getLatestDailyMetric_with_total_cycles(network: str) -> None:
+    """Test getLatestDailyMetric returns total_cycles when present."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getLatestDailyMetric",
+        canister_argument="()",
+        network=network,
+    )
+    assert response.startswith('(variant { Ok = record {')
+    # Latest metric should be 2025-02-02 which has total_cycles
+    assert 'date = "2025-02-02"' in response
+    assert 'total_cycles = opt record' in response
+
+
+def test__getDailyMetricByDate_with_total_cycles(network: str) -> None:
+    """Test getDailyMetricByDate returns total_cycles when present."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getDailyMetricByDate",
+        canister_argument='("2025-02-02")',
+        network=network,
+    )
+    assert response.startswith('(variant { Ok = record {')
+    assert 'total_cycles = opt record' in response
+    assert 'all = 18_000' in response
+
+
+def test__getDailyMetricByDate_without_total_cycles(network: str) -> None:
+    """Test getDailyMetricByDate returns null total_cycles for old records."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getDailyMetricByDate",
+        canister_argument='("2025-02-01")',
+        network=network,
+    )
+    assert response.startswith('(variant { Ok = record {')
+    # Old record should have null total_cycles
+    assert 'total_cycles = null' in response
+
+
+def test__getDailyMetrics_mixed_total_cycles(network: str) -> None:
+    """Test getDailyMetrics returns both records with and without total_cycles."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getDailyMetrics",
+        canister_argument="(null)",
+        network=network,
+    )
+    assert response.startswith('(variant { Ok = record {')
+    # Should have records with both null and present total_cycles
+    assert 'total_cycles = null' in response
+    assert 'total_cycles = opt record' in response
+
+
+def test__updateDailyMetricAdmin_add_total_cycles(network: str) -> None:
+    """Test updating an existing metric to add total_cycles."""
+    # Update the 2025-02-01 record (which has null total_cycles) to add total_cycles
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="updateDailyMetricAdmin",
+        canister_argument='(record { date = "2025-02-01"; input = record { total_cycles_all = opt (20000 : nat); total_cycles_protocol = opt (12101 : nat) } })',
+        network=network,
+    )
+    assert response.startswith('(variant { Ok = record {')
+    # Verify total_cycles was added
+    assert 'total_cycles = opt record' in response
+    assert 'all = 20_000' in response
+    assert 'protocol = 12_101' in response
+    # mainers should be 7899 (from original total_cycles_all_mainers)
+    assert 'mainers = 7_899' in response
+
+
+def test__updateDailyMetricAdmin_update_total_cycles(network: str) -> None:
+    """Test updating an existing metric's total_cycles values."""
+    # Update the 2025-02-02 record to change total_cycles values
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="updateDailyMetricAdmin",
+        canister_argument='(record { date = "2025-02-02"; input = record { total_cycles_all = opt (25000 : nat) } })',
+        network=network,
+    )
+    assert response.startswith('(variant { Ok = record {')
+    # Verify total_cycles_all was updated but protocol kept existing value
+    assert 'all = 25_000' in response
+    assert 'protocol = 10_000' in response  # Unchanged
+
+
+def test__cleanup_total_cycles_tests(network: str) -> None:
+    """Cleanup: Delete the test metrics created for total_cycles tests."""
+    # Delete 2025-02-01
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="deleteDailyMetricAdmin",
+        canister_argument='("2025-02-01")',
+        network=network,
+    )
+    assert response == '(variant { Ok = 1 : nat })'
+
+    # Delete 2025-02-02
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="deleteDailyMetricAdmin",
+        canister_argument='("2025-02-02")',
+        network=network,
+    )
+    assert response == '(variant { Ok = 1 : nat })'
+
+
+# =============================================================================
 # Cleanup - Reset for next test run
 # =============================================================================
 

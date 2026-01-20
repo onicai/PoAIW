@@ -1469,10 +1469,18 @@ module Types {
         usd: Float;
     };
 
+    // Total cycles breakdown across all canisters
+    public type TotalCyclesBreakdown = {
+        all: Nat;       // Total cycles across everything
+        mainers: Nat;   // Cycles from mainers (equals mainers.totals.total_cycles)
+        protocol: Nat;  // Cycles from protocol/non-mainer canisters
+    };
+
     // System metrics for a specific day
     public type SystemMetrics = {
         funnai_index: Float;
         daily_burn_rate: DailyBurnRate;
+        total_cycles: ?TotalCyclesBreakdown;  // Optional for forward compatibility
     };
 
     // Mainers statistics for a specific day
@@ -1539,6 +1547,9 @@ module Types {
         paused_high_burn_rate_mainers: Nat;
         paused_very_high_burn_rate_mainers: Nat;
         paused_custom_burn_rate_mainers: Nat;
+        // Optional total_cycles fields (for forward compatibility)
+        total_cycles_all: ?Nat;       // Total cycles across all canisters
+        total_cycles_protocol: ?Nat;  // Cycles from protocol/non-mainer canisters
     };
 
     // Input type for partial updates (admin use)
@@ -1560,6 +1571,9 @@ module Types {
         paused_high_burn_rate_mainers: ?Nat;
         paused_very_high_burn_rate_mainers: ?Nat;
         paused_custom_burn_rate_mainers: ?Nat;
+        // Optional total_cycles fields
+        total_cycles_all: ?Nat;       // Total cycles across all canisters
+        total_cycles_protocol: ?Nat;  // Cycles from protocol/non-mainer canisters
     };
 
     // Input type for update endpoint with date and update data

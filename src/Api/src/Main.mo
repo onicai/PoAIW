@@ -502,6 +502,16 @@ persistent actor class ApiCanister() = this {
                     cycles = input.daily_burn_rate_cycles;
                     usd = input.daily_burn_rate_usd;
                 };
+                total_cycles = switch (input.total_cycles_all, input.total_cycles_protocol) {
+                    case (?all, ?protocol) {
+                        ?{
+                            all = all;
+                            mainers = input.total_cycles_all_mainers;
+                            protocol = protocol;
+                        }
+                    };
+                    case (_, _) { null };
+                };
             };
             mainers = {
                 totals = {
@@ -620,6 +630,26 @@ persistent actor class ApiCanister() = this {
                 return #Err(#Other("Metric for date " # params.date # " not found"));
             };
             case (?existing) {
+                // Extract existing total_cycles values (if present)
+                let existingTotalCyclesAll : ?Nat = switch (existing.system_metrics.total_cycles) {
+                    case (?tc) { ?tc.all };
+                    case null { null };
+                };
+                let existingTotalCyclesProtocol : ?Nat = switch (existing.system_metrics.total_cycles) {
+                    case (?tc) { ?tc.protocol };
+                    case null { null };
+                };
+
+                // Merge input with existing: prefer input if provided, else keep existing
+                let mergedTotalCyclesAll : ?Nat = switch (params.input.total_cycles_all) {
+                    case (?val) { ?val };
+                    case null { existingTotalCyclesAll };
+                };
+                let mergedTotalCyclesProtocol : ?Nat = switch (params.input.total_cycles_protocol) {
+                    case (?val) { ?val };
+                    case null { existingTotalCyclesProtocol };
+                };
+
                 // Create full input from partial update
                 let fullInput : Types.DailyMetricInput = {
                     date = params.date;
@@ -640,6 +670,8 @@ persistent actor class ApiCanister() = this {
                     paused_high_burn_rate_mainers = Option.get(params.input.paused_high_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.high);
                     paused_very_high_burn_rate_mainers = Option.get(params.input.paused_very_high_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.very_high);
                     paused_custom_burn_rate_mainers = Option.get(params.input.paused_custom_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.custom);
+                    total_cycles_all = mergedTotalCyclesAll;
+                    total_cycles_protocol = mergedTotalCyclesProtocol;
                 };
                 
                 let updatedMetric = inputToDailyMetric(fullInput, true);
