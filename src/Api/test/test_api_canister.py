@@ -827,11 +827,12 @@ def test__getDailyMetricByDate_without_total_cycles(network: str) -> None:
 
 def test__getDailyMetrics_mixed_total_cycles(network: str) -> None:
     """Test getDailyMetrics returns both records with and without total_cycles."""
+    # Query with explicit date range to get both 2025-02-01 and 2025-02-02
     response = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getDailyMetrics",
-        canister_argument="(null)",
+        canister_argument='(opt record { start_date = opt "2025-02-01"; end_date = opt "2025-02-02"; limit = null })',
         network=network,
     )
     assert response.startswith('(variant { Ok = record {')

@@ -10,7 +10,9 @@ import Option "mo:base/Option";
 import Nat64 "mo:base/Nat64";
 
 import Types "../../common/Types";
+import { migration } "Migration";
 
+(with migration)
 persistent actor class ApiCanister() = this {
 
     var MASTER_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // Corresponds to prd Game State canister
