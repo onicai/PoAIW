@@ -9742,6 +9742,24 @@ persistent actor class GameStateCanister() = this {
         return #Ok(WHEEL_FUNNAI_COST);
     };
 
+    // Admin function to set the wheel cooldown (in nanoseconds)
+    public shared (msg) func setWheelCooldownAdmin(cooldownNs : Nat64) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        WHEEL_COOLDOWN_NS := cooldownNs;
+        let authRecord = { auth = "Wheel cooldown set to " # Nat64.toText(cooldownNs) # " nanoseconds" };
+        return #Ok(authRecord);
+    };
+
+    // Query function to get the current wheel cooldown
+    public query func getWheelCooldown() : async Types.Nat64Result {
+        return #Ok(WHEEL_COOLDOWN_NS);
+    };
+
     // Query function to check if the wheel is enabled
     public query func getWheelEnabled() : async Types.FlagResult {
         return #Ok({ flag = WHEEL_ENABLED });
