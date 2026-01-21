@@ -496,6 +496,7 @@ module Types {
     public type RedeemedForOptions = {
         #MainerCreation : MainerAgentCanisterType;
         #MainerTopUp : CanisterAddress;
+        #Other : Text;
     };
 
     public type HandleIncomingFundsRecord = {
