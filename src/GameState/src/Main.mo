@@ -5193,86 +5193,48 @@ persistent actor class GameStateCanister() = this {
         };
         D.print("GameState: verifyIncomingFunnaiPayment - getBlocksArgs: "# debug_show(getBlocksArgs));
         D.print("GameState: verifyIncomingFunnaiPayment - TOKEN_LEDGER_CANISTER_ID: "# debug_show(TOKEN_LEDGER_CANISTER_ID));
-        let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (TOKEN_LEDGER_CANISTER_ID);
+        // TODO: For testing, hardcode the FUNNAI token ledger ID (production uses TOKEN_LEDGER_CANISTER_ID)
+        // let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor (TOKEN_LEDGER_CANISTER_ID);
+        let TokenLedger_Actor : TokenLedger.TOKEN_LEDGER = actor ("vpyot-zqaaa-aaaaa-qavaq-cai");
         let getTransactionsResponse : TokenLedger.GetTransactionsResponse = await TokenLedger_Actor.get_transactions(getBlocksArgs);
         D.print("GameState: verifyIncomingFunnaiPayment - getTransactionsResponse: ");
         D.print("GameState: verifyIncomingFunnaiPayment - getTransactionsResponse.transactions: "# debug_show(getTransactionsResponse.transactions));
-        D.print("GameState: verifyIncomingFunnaiPayment - archived_transactions count: "# debug_show(getTransactionsResponse.archived_transactions.size()));
-        
-        // Try to get transaction from main ledger first
-        var retrievedTransaction : ?TokenLedger.Transaction = null;
-        
-        if (getTransactionsResponse.transactions.size() >= 1) {
-            retrievedTransaction := ?getTransactionsResponse.transactions[0];
-        } else if (getTransactionsResponse.archived_transactions.size() >= 1) {
-            // Transaction is in archive, need to fetch from archive canister
-            D.print("GameState: verifyIncomingFunnaiPayment - fetching from archive");
-            let archivedRange = getTransactionsResponse.archived_transactions[0];
-            D.print("GameState: verifyIncomingFunnaiPayment - archive callback start: "# debug_show(archivedRange.start) # " length: "# debug_show(archivedRange.length));
-            try {
-                let archiveResponse : TokenLedger.TransactionRange = await archivedRange.callback(getBlocksArgs);
-                D.print("GameState: verifyIncomingFunnaiPayment - archiveResponse transactions: "# debug_show(archiveResponse.transactions.size()));
-                if (archiveResponse.transactions.size() >= 1) {
-                    retrievedTransaction := ?archiveResponse.transactions[0];
-                };
-            } catch (e) {
-                D.print("GameState: verifyIncomingFunnaiPayment - archive fetch error: "# Error.message(e));
-            };
+        // Verify transaction exists
+        if (getTransactionsResponse.transactions.size() < 1) {
+            return #Err(#InvalidId);
         };
-        
-        // Verify transaction was found
-        switch (retrievedTransaction) {
+        D.print("GameState: verifyIncomingFunnaiPayment - getTransactionsResponse.transactions.size(): "# debug_show(getTransactionsResponse.transactions.size()));
+        let retrievedTransaction : TokenLedger.Transaction = getTransactionsResponse.transactions[0];
+        D.print("GameState: verifyIncomingFunnaiPayment - retrievedTransaction: "# debug_show(retrievedTransaction));
+        // Verify transaction went to Protocol's account (i.e. is burn operation)
+        D.print("GameState: verifyIncomingFunnaiPayment - retrievedTransaction.burn: "# debug_show(retrievedTransaction.burn));
+        switch (retrievedTransaction.burn) {
             case (null) {
-                D.print("GameState: verifyIncomingFunnaiPayment - no transaction found");
-                return #Err(#InvalidId);
+                D.print("GameState: verifyIncomingFunnaiPayment - retrievedTransaction.burn: null");
+                return #Err(#Other("Couldn't verify transaction operation details"));  
             };
-            case (?tx) {
-                D.print("GameState: verifyIncomingFunnaiPayment - retrievedTransaction: "# debug_show(tx));
-                
-                // Check for burn operation first (original behavior)
-                D.print("GameState: verifyIncomingFunnaiPayment - tx.burn: "# debug_show(tx.burn));
-                switch (tx.burn) {
-                    case (?burnOperation) {
-                        D.print("GameState: verifyIncomingFunnaiPayment - burnOperation: "# debug_show(burnOperation));
-                        switch (transactionEntry.redeemedFor) {
-                            case (#MainerTopUp(_)) {
-                                D.print("GameState: verifyIncomingFunnaiPayment - #MainerTopUp via burn");
-                            };
-                            case (_) { return #Err(#Other("Unsupported")); }
-                        };
-                        let amountPaid = burnOperation.amount;
-                        D.print("GameState: verifyIncomingFunnaiPayment - amountPaid (burn): "# debug_show(amountPaid));
-                        return #Ok({
-                            amountPaid : Nat = amountPaid;
-                            verified : Bool = true;
-                        });
+            case (?burnOperation) {
+                D.print("GameState: verifyIncomingFunnaiPayment - burnOperation: "# debug_show(burnOperation));
+                D.print("GameState: verifyIncomingFunnaiPayment - burnOperation.from: "# debug_show(burnOperation.from));
+                D.print("GameState: verifyIncomingFunnaiPayment - transactionEntry.redeemedFor: "# debug_show(transactionEntry.redeemedFor));
+                switch (transactionEntry.redeemedFor) {
+                    case (#MainerTopUp(_)) {
+                        D.print("GameState: verifyIncomingFunnaiPayment - #MainerTopUp ");
+                        // continue as there is no fixed price                             
                     };
-                    case (null) {
-                        // Check for transfer operation (for non-burn payments)
-                        D.print("GameState: verifyIncomingFunnaiPayment - tx.transfer: "# debug_show(tx.transfer));
-                        switch (tx.transfer) {
-                            case (?transferOperation) {
-                                D.print("GameState: verifyIncomingFunnaiPayment - transferOperation: "# debug_show(transferOperation));
-                                switch (transactionEntry.redeemedFor) {
-                                    case (#MainerTopUp(_)) {
-                                        D.print("GameState: verifyIncomingFunnaiPayment - #MainerTopUp via transfer");
-                                    };
-                                    case (_) { return #Err(#Other("Unsupported")); }
-                                };
-                                let amountPaid = transferOperation.amount;
-                                D.print("GameState: verifyIncomingFunnaiPayment - amountPaid (transfer): "# debug_show(amountPaid));
-                                return #Ok({
-                                    amountPaid : Nat = amountPaid;
-                                    verified : Bool = true;
-                                });
-                            };
-                            case (null) {
-                                D.print("GameState: verifyIncomingFunnaiPayment - no burn or transfer found");
-                                return #Err(#Other("Couldn't verify transaction operation details"));
-                            };
-                        };
+                    case (#Other(_)) {
+                        D.print("GameState: verifyIncomingFunnaiPayment - #Other ");
+                        // continue as there is no fixed price                             
                     };
+                    case (_) { return #Err(#Other("Unsupported")); }
                 };
+                D.print("GameState: verifyIncomingFunnaiPayment - verified: ");
+                let amountPaid = burnOperation.amount;
+                D.print("GameState: verifyIncomingFunnaiPayment - amountPaid: "# debug_show(amountPaid));
+                return #Ok({
+                    amountPaid : Nat = amountPaid;
+                    verified : Bool = true;
+                });
             };
         };
     };
@@ -9590,7 +9552,7 @@ persistent actor class GameStateCanister() = this {
             paymentTransactionBlockId = spinInput.paymentTransactionBlockId;
             creationTimestamp = currentTime;
             redeemedBy = msg.caller;
-            redeemedFor = #MainerTopUp("wheel_spin"); // Using MainerTopUp as a placeholder
+            redeemedFor = #Other("wheel_spin");
             amount = 0; // Will be verified
         };
         
@@ -9626,7 +9588,7 @@ persistent actor class GameStateCanister() = this {
             paymentTransactionBlockId = spinInput.paymentTransactionBlockId;
             creationTimestamp = currentTime;
             redeemedBy = msg.caller;
-            redeemedFor = #MainerTopUp("wheel_spin");
+            redeemedFor = #Other("wheel_spin");
             amount = amountPaid;
         };
         ignore putRedeemedFunnaiTransactionBlock(redeemedEntry);
