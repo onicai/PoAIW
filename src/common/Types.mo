@@ -1374,6 +1374,7 @@ module Types {
         getMainerCyclesUsedPerResponse : () -> async NatResult;
         getCyclesBurnRate : (Types.CyclesBurnRateDefault) -> async Types.CyclesBurnRateResult;
         addCycles: () -> async AddCyclesResult;
+        topUpCyclesForMainerAgent: (MainerAgentTopUpInput) -> async MainerAgentCanisterResult;
     };
 
     public type MainerCreator_Actor = actor {
@@ -1398,6 +1399,7 @@ module Types {
         addMainerShareAgentCanister: (OfficialMainerAgentCanister) -> async MainerAgentCanisterResult;
         startTimerExecutionAdmin: () -> async AuthRecordResult;
         addCycles: () -> async AddCyclesResult;
+        updateAgentSettings: (MainerAgentSettingsInput) -> async StatusCodeRecordResult;
     };
 
     public type LLMCanister = actor {
