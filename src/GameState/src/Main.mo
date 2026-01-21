@@ -5206,35 +5206,59 @@ persistent actor class GameStateCanister() = this {
         D.print("GameState: verifyIncomingFunnaiPayment - getTransactionsResponse.transactions.size(): "# debug_show(getTransactionsResponse.transactions.size()));
         let retrievedTransaction : TokenLedger.Transaction = getTransactionsResponse.transactions[0];
         D.print("GameState: verifyIncomingFunnaiPayment - retrievedTransaction: "# debug_show(retrievedTransaction));
-        // Verify transaction went to Protocol's account (i.e. is burn operation)
+        // Verify transaction - check for burn operation first, then transfer
         D.print("GameState: verifyIncomingFunnaiPayment - retrievedTransaction.burn: "# debug_show(retrievedTransaction.burn));
-        switch (retrievedTransaction.burn) {
-            case (null) {
-                D.print("GameState: verifyIncomingFunnaiPayment - retrievedTransaction.burn: null");
-                return #Err(#Other("Couldn't verify transaction operation details"));  
+        D.print("GameState: verifyIncomingFunnaiPayment - retrievedTransaction.transfer: "# debug_show(retrievedTransaction.transfer));
+        
+        // Helper to validate redeemedFor
+        func validateRedeemedFor() : Bool {
+            switch (transactionEntry.redeemedFor) {
+                case (#MainerTopUp(_)) {
+                    D.print("GameState: verifyIncomingFunnaiPayment - #MainerTopUp ");
+                    return true;
+                };
+                case (#Other(_)) {
+                    D.print("GameState: verifyIncomingFunnaiPayment - #Other ");
+                    return true;
+                };
+                case (_) { return false; }
             };
+        };
+        
+        // Try burn operation first
+        switch (retrievedTransaction.burn) {
             case (?burnOperation) {
                 D.print("GameState: verifyIncomingFunnaiPayment - burnOperation: "# debug_show(burnOperation));
-                D.print("GameState: verifyIncomingFunnaiPayment - burnOperation.from: "# debug_show(burnOperation.from));
-                D.print("GameState: verifyIncomingFunnaiPayment - transactionEntry.redeemedFor: "# debug_show(transactionEntry.redeemedFor));
-                switch (transactionEntry.redeemedFor) {
-                    case (#MainerTopUp(_)) {
-                        D.print("GameState: verifyIncomingFunnaiPayment - #MainerTopUp ");
-                        // continue as there is no fixed price                             
-                    };
-                    case (#Other(_)) {
-                        D.print("GameState: verifyIncomingFunnaiPayment - #Other ");
-                        // continue as there is no fixed price                             
-                    };
-                    case (_) { return #Err(#Other("Unsupported")); }
+                if (not validateRedeemedFor()) {
+                    return #Err(#Other("Unsupported redeemedFor"));
                 };
-                D.print("GameState: verifyIncomingFunnaiPayment - verified: ");
                 let amountPaid = burnOperation.amount;
-                D.print("GameState: verifyIncomingFunnaiPayment - amountPaid: "# debug_show(amountPaid));
+                D.print("GameState: verifyIncomingFunnaiPayment - amountPaid (burn): "# debug_show(amountPaid));
                 return #Ok({
                     amountPaid : Nat = amountPaid;
                     verified : Bool = true;
                 });
+            };
+            case (null) {
+                // Try transfer operation (for FUNNAI payments that aren't burns)
+                switch (retrievedTransaction.transfer) {
+                    case (?transferOperation) {
+                        D.print("GameState: verifyIncomingFunnaiPayment - transferOperation: "# debug_show(transferOperation));
+                        if (not validateRedeemedFor()) {
+                            return #Err(#Other("Unsupported redeemedFor"));
+                        };
+                        let amountPaid = transferOperation.amount;
+                        D.print("GameState: verifyIncomingFunnaiPayment - amountPaid (transfer): "# debug_show(amountPaid));
+                        return #Ok({
+                            amountPaid : Nat = amountPaid;
+                            verified : Bool = true;
+                        });
+                    };
+                    case (null) {
+                        D.print("GameState: verifyIncomingFunnaiPayment - no burn or transfer found");
+                        return #Err(#Other("Couldn't verify transaction operation details"));
+                    };
+                };
             };
         };
     };
