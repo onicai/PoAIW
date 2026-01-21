@@ -9475,7 +9475,8 @@ persistent actor class GameStateCanister() = this {
     // Wheel of Fortune configuration
     var WHEEL_ENABLED : Bool = true;
     var WHEEL_FUNNAI_COST : Nat = 10_000_000; // 0.1 FUNNAI (8 decimals)
-    var WHEEL_COOLDOWN_NS : Nat64 = 86400000000000; // 24 hours in nanoseconds
+    // TODO: Set back to 86400000000000 (24 hours) for production
+    var WHEEL_COOLDOWN_NS : Nat64 = 0; // Disabled for testing
     
     // Store last spin times for users (Principal -> timestamp in nanoseconds)
     var wheelLastSpinStorageStable : [(Principal, Nat64)] = [];
