@@ -9666,6 +9666,18 @@ persistent actor class GameStateCanister() = this {
                 // For FUNNAI prize, send FUNNAI to user
                 D.print("GameState: spinWheel - Awarding " # Nat.toText(funnaiPrize.amount) # " FUNNAI to user");
                 // Actual FUNNAI transfer needs to happen via the Treasury canister (which holds the protocol's FUNNAI)
+                let Treasury_Actor : Types.TreasuryCanister_Actor = actor (TREASURY_CANISTER_ID);
+                try {
+                    let disburseResult = await Treasury_Actor.disburseAdditionalFunnaiReward({
+                        rewardedTo : Text = Principal.toText(msg.caller);
+                        amount : Nat = funnaiPrize.amount;
+                        note : Text = "Wheel of Fortune prize";
+                    });
+                    D.print("GameState: spinWheel - disburseResult: " # debug_show(disburseResult)); 
+                } catch (e) {
+                    D.print("GameState: spinWheel - Failed to call treasury canister: " # Error.message(e));      
+                    return #Err(#Other("GameState: spinWheel - Failed to call treasury canister: " # Error.message(e)));
+                };
                 
             };
             case (#Nothing) {

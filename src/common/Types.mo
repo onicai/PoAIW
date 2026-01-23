@@ -1438,6 +1438,7 @@ module Types {
     // Treasury canister
     public type TreasuryCanister_Actor = actor {
         notifyDisbursement : (NotifyDisbursementInput) -> async NotifyDisbursementResult;
+        disburseAdditionalFunnaiReward : (RewardEntryInput) -> async NotifyDisbursementResult;
     };
 
     // Liquidity Pool FUNNAI/ICP on ICPSwap
