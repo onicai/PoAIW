@@ -9638,23 +9638,25 @@ persistent actor class GameStateCanister() = this {
                         if (mainersList.size() > 0) {
                             // Pick a random mainer
                             let randomIndex = await Utils.nextRandomInt(0, mainersList.size() - 1);
+                            var mAInerIndex : Int = 0; // first mAIner as default
                             switch (randomIndex) {
                                 case (?idx) {
-                                    let selectedMainer = mainersList[Int.abs(idx)];
-                                    D.print("GameState: spinWheel - Sending " # Nat.toText(cyclesPrize.amount) # " cycles to mainer " # selectedMainer.address);
-                                    // Send cycles to the mainer
-                                    try {
-                                        let MainerAgent_Actor : Types.MainerAgentCtrlbCanister = actor (selectedMainer.address);
-                                        Cycles.add<system>(cyclesPrize.amount);
-                                        let addCyclesResult = await MainerAgent_Actor.addCycles();
-                                        D.print("GameState: spinWheel - addCycles result: " # debug_show(addCyclesResult));
-                                    } catch (e) {
-                                        D.print("GameState: spinWheel - Error sending cycles: " # Error.message(e));
-                                    };
+                                    mAInerIndex := Int.abs(idx);
                                 };
                                 case (null) {
-                                    D.print("GameState: spinWheel - Could not select random mainer");
+                                    D.print("GameState: spinWheel - Could not generate random mAIner. Using default.");
                                 };
+                            };
+                            // Send cycles to the mainer
+                            try {
+                                let selectedMainer = mainersList[Int.abs(mAInerIndex)];
+                                D.print("GameState: spinWheel - Sending " # Nat.toText(cyclesPrize.amount) # " cycles to mAIner " # selectedMainer.address);
+                                let MainerAgent_Actor : Types.MainerAgentCtrlbCanister = actor (selectedMainer.address);
+                                Cycles.add<system>(cyclesPrize.amount);
+                                let addCyclesResult = await MainerAgent_Actor.addCycles();
+                                D.print("GameState: spinWheel - addCycles result: " # debug_show(addCyclesResult));
+                            } catch (e) {
+                                D.print("GameState: spinWheel - Error sending cycles: " # Error.message(e));
                             };
                         };
                     };
@@ -9663,8 +9665,8 @@ persistent actor class GameStateCanister() = this {
             case (#Funnai(funnaiPrize)) {
                 // For FUNNAI prize, send FUNNAI to user
                 D.print("GameState: spinWheel - Awarding " # Nat.toText(funnaiPrize.amount) # " FUNNAI to user");
-                // Note: Actual FUNNAI transfer would need to be implemented
-                // This requires the canister to hold FUNNAI tokens as a reserve
+                // Actual FUNNAI transfer needs to happen via the Treasury canister (which holds the protocol's FUNNAI)
+                
             };
             case (#Nothing) {
                 D.print("GameState: spinWheel - User won nothing");
