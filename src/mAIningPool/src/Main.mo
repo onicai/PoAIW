@@ -222,19 +222,6 @@ persistent actor class MainingPoolCanister() = this {
         timeInterval : Types.TimeInterval = #Daily;
     };
 
-    private func calculateBurnRatePerMainer(cyclesForWeek : Nat) : Nat {
-        // Calculate burn rate setting based on cycles for week
-        if (cyclesForWeek <= 7 * cyclesBurnRateDefaultLow.cycles) {
-            return cyclesBurnRateDefaultLow.cycles;
-        } else if (cyclesForWeek <= 7 * cyclesBurnRateDefaultMid.cycles) {
-            return cyclesBurnRateDefaultMid.cycles;
-        } else if (cyclesForWeek <= 7 * cyclesBurnRateDefaultHigh.cycles) {
-            return cyclesBurnRateDefaultHigh.cycles;
-        } else {
-            return cyclesBurnRateDefaultVeryHigh.cycles;
-        };
-    };
-
     // Determine the CyclesBurnRateDefault tier based on cycles allocated for the week
     private func determineBurnRateTier(cyclesForWeek : Nat) : Types.CyclesBurnRateDefault {
         if (cyclesForWeek <= 7 * cyclesBurnRateDefaultLow.cycles) {
@@ -371,19 +358,23 @@ persistent actor class MainingPoolCanister() = this {
             created_at_time = null;
             spender_subaccount = null;
         };
-        
-        let icpTransferResult : TokenLedger.Result_3 = await ICP_LEDGER_ACTOR.icrc2_transfer_from(transferFromArgs);
-        D.print("MiningPool: icrc2_transfer_from - icpTransferResult: " # debug_show(icpTransferResult));
-        
-        switch (icpTransferResult) {
-            case (#Err(transferError)) {
-                D.print("MiningPool: icrc2_transfer_from - ICP transfer failed: " # debug_show(transferError));
-                return #Err(#Other("ICP payment transfer failed: " # debug_show(transferError)));
+
+        try {
+            let icpTransferResult : TokenLedger.Result_3 = await ICP_LEDGER_ACTOR.icrc2_transfer_from(transferFromArgs);
+            D.print("MiningPool: contributeToNextPool - icpTransferResult: " # debug_show(icpTransferResult));
+            switch (icpTransferResult) {
+                case (#Err(transferError)) {
+                    D.print("MiningPool: contributeToNextPool - ICP transfer failed: " # debug_show(transferError));
+                    return #Err(#Other("ICP payment transfer failed: " # debug_show(transferError)));
+                };
+                case (#Ok(icpBlockIndex)) {
+                    D.print("MiningPool: contributeToNextPool - ICP transferred successfully, block: " # debug_show(icpBlockIndex));
+                    // Continue with contribution processing
+                };
             };
-            case (#Ok(icpBlockIndex)) {
-                D.print("MiningPool: icrc2_transfer_from - ICP transferred successfully, block: " # debug_show(icpBlockIndex));
-                // Continue with contribution processing
-            };
+        } catch (e) {
+            D.print("MiningPool: contributeToNextPool - Failed icrc2_transfer_from: " # Error.message(e));
+            return #Err(#Other("Failed icrc2_transfer_from: " # Error.message(e)));
         };
         
         // Check if user already has an entry for next pool
@@ -541,7 +532,14 @@ persistent actor class MainingPoolCanister() = this {
         };
         
         // Get actual FUNNAI balance from ledger
-        let totalFunnaiToDistribute = await getFunnaiBalance();
+        var totalFunnaiToDistribute = poolFunnaiBalanceE8S;
+        try {
+            totalFunnaiToDistribute := await getFunnaiBalance();
+            D.print("MiningPool: startNextPoolCycle - updated FUNNAI balance: " # debug_show(totalFunnaiToDistribute));
+        } catch (e) {
+            D.print("MiningPool: startNextPoolCycle - Failed to update FUNNAI balance: " # Error.message(e));
+            return #Err(#Other("Failed to get FUNNAI balance: " # Error.message(e)));
+        };
         
         // Calculate and update distributions for each participant
         let distributionTime = getCurrentTimestamp();
@@ -651,8 +649,16 @@ persistent actor class MainingPoolCanister() = this {
         for ((_, entry) in currentPoolParticipants.entries()) {
             totalNextIcp := totalNextIcp + entry.icpContributionE8S;
         };
+
+        var totalCyclesForWeek = 0;
+        try {
+            totalCyclesForWeek := await calculateCyclesFromIcp(totalNextIcp);
+            D.print("MiningPool: startNextPoolCycle - calculated cycles from ICP: " # debug_show(totalCyclesForWeek));
+        } catch (e) {
+            D.print("MiningPool: startNextPoolCycle - Failed to calculate cycles from ICP: " # Error.message(e));
+            return #Err(#Other("Failed to calculate cycles from ICP: " # Error.message(e)));
+        };
         
-        let totalCyclesForWeek = await calculateCyclesFromIcp(totalNextIcp);
         let mainerCount = poolMainersStorage.size();
         
         if (mainerCount > 0) {
@@ -670,8 +676,12 @@ persistent actor class MainingPoolCanister() = this {
                 let settingInput : Types.MainerAgentSettingsInput = {
                     cyclesBurnRate : Types.CyclesBurnRateDefault = burnRatePerMainer;
                 };
-                let updateResult = await mainerCanisterActor.updateAgentSettings(settingInput);
-                D.print("MiningPool: startNextPoolCycle - updateSettings result for " # address # ": " # debug_show(updateResult));
+                try {
+                    let updateResult = await mainerCanisterActor.updateAgentSettings(settingInput);
+                    D.print("MiningPool: startNextPoolCycle - updateSettings result for " # address # ": " # debug_show(updateResult));
+                } catch (e) {
+                    D.print("MiningPool: startNextPoolCycle - Error calling updateAgentSettings for " # address # ": " # Error.message(e));
+                };
             };
         };
         
