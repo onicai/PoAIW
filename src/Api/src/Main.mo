@@ -504,15 +504,17 @@ persistent actor class ApiCanister() = this {
                     cycles = input.daily_burn_rate_cycles;
                     usd = input.daily_burn_rate_usd;
                 };
-                total_cycles = switch (input.total_cycles_all, input.total_cycles_protocol) {
-                    case (?all, ?protocol) {
+                total_cycles = switch (input.total_cycles_all, input.total_cycles_all_usd,
+                                       input.total_cycles_protocol, input.total_cycles_protocol_usd,
+                                       input.total_cycles_mainers_usd) {
+                    case (?all, ?allUsd, ?protocol, ?protocolUsd, ?mainersUsd) {
                         ?{
-                            all = all;
-                            mainers = input.total_cycles_all_mainers;
-                            protocol = protocol;
+                            all = { cycles = all; usd = allUsd };
+                            protocol = { cycles = protocol; usd = protocolUsd };
+                            mainers = { cycles = input.total_cycles_all_mainers; usd = mainersUsd };
                         }
                     };
-                    case (_, _) { null };
+                    case (_, _, _, _, _) { null };
                 };
             };
             mainers = {
@@ -633,12 +635,25 @@ persistent actor class ApiCanister() = this {
             };
             case (?existing) {
                 // Extract existing total_cycles values (if present)
+                // Now TotalCycles contains CycleAmount records with .cycles and .usd fields
                 let existingTotalCyclesAll : ?Nat = switch (existing.system_metrics.total_cycles) {
-                    case (?tc) { ?tc.all };
+                    case (?tc) { ?tc.all.cycles };
+                    case null { null };
+                };
+                let existingTotalCyclesAllUsd : ?Float = switch (existing.system_metrics.total_cycles) {
+                    case (?tc) { ?tc.all.usd };
                     case null { null };
                 };
                 let existingTotalCyclesProtocol : ?Nat = switch (existing.system_metrics.total_cycles) {
-                    case (?tc) { ?tc.protocol };
+                    case (?tc) { ?tc.protocol.cycles };
+                    case null { null };
+                };
+                let existingTotalCyclesProtocolUsd : ?Float = switch (existing.system_metrics.total_cycles) {
+                    case (?tc) { ?tc.protocol.usd };
+                    case null { null };
+                };
+                let existingTotalCyclesMainersUsd : ?Float = switch (existing.system_metrics.total_cycles) {
+                    case (?tc) { ?tc.mainers.usd };
                     case null { null };
                 };
 
@@ -647,9 +662,21 @@ persistent actor class ApiCanister() = this {
                     case (?val) { ?val };
                     case null { existingTotalCyclesAll };
                 };
+                let mergedTotalCyclesAllUsd : ?Float = switch (params.input.total_cycles_all_usd) {
+                    case (?val) { ?val };
+                    case null { existingTotalCyclesAllUsd };
+                };
                 let mergedTotalCyclesProtocol : ?Nat = switch (params.input.total_cycles_protocol) {
                     case (?val) { ?val };
                     case null { existingTotalCyclesProtocol };
+                };
+                let mergedTotalCyclesProtocolUsd : ?Float = switch (params.input.total_cycles_protocol_usd) {
+                    case (?val) { ?val };
+                    case null { existingTotalCyclesProtocolUsd };
+                };
+                let mergedTotalCyclesMainersUsd : ?Float = switch (params.input.total_cycles_mainers_usd) {
+                    case (?val) { ?val };
+                    case null { existingTotalCyclesMainersUsd };
                 };
 
                 // Create full input from partial update
@@ -673,7 +700,10 @@ persistent actor class ApiCanister() = this {
                     paused_very_high_burn_rate_mainers = Option.get(params.input.paused_very_high_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.very_high);
                     paused_custom_burn_rate_mainers = Option.get(params.input.paused_custom_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.custom);
                     total_cycles_all = mergedTotalCyclesAll;
+                    total_cycles_all_usd = mergedTotalCyclesAllUsd;
                     total_cycles_protocol = mergedTotalCyclesProtocol;
+                    total_cycles_protocol_usd = mergedTotalCyclesProtocolUsd;
+                    total_cycles_mainers_usd = mergedTotalCyclesMainersUsd;
                 };
                 
                 let updatedMetric = inputToDailyMetric(fullInput, true);

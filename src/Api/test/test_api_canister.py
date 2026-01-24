@@ -765,21 +765,21 @@ def test__createDailyMetricAdmin_without_total_cycles(network: str) -> None:
 
 
 def test__createDailyMetricAdmin_with_total_cycles(network: str) -> None:
-    """Test new interface: creating metric with total_cycles fields."""
+    """Test new interface: creating metric with total_cycles fields (all 5 required)."""
     response = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
         canister_method="createDailyMetricAdmin",
-        canister_argument='(record { date = "2025-02-02"; funnai_index = 0.25; daily_burn_rate_cycles = 1200 : nat; daily_burn_rate_usd = 1600.0; total_mainers_created = 800 : nat; total_active_mainers = 400 : nat; total_paused_mainers = 400 : nat; total_cycles_all_mainers = 8000 : nat; active_low_burn_rate_mainers = 100 : nat; active_medium_burn_rate_mainers = 100 : nat; active_high_burn_rate_mainers = 100 : nat; active_very_high_burn_rate_mainers = 100 : nat; active_custom_burn_rate_mainers = 0 : nat; paused_low_burn_rate_mainers = 100 : nat; paused_medium_burn_rate_mainers = 100 : nat; paused_high_burn_rate_mainers = 100 : nat; paused_very_high_burn_rate_mainers = 100 : nat; paused_custom_burn_rate_mainers = 0 : nat; total_cycles_all = opt (18000 : nat); total_cycles_protocol = opt (10000 : nat) })',
+        canister_argument='(record { date = "2025-02-02"; funnai_index = 0.25; daily_burn_rate_cycles = 1200 : nat; daily_burn_rate_usd = 1600.0; total_mainers_created = 800 : nat; total_active_mainers = 400 : nat; total_paused_mainers = 400 : nat; total_cycles_all_mainers = 8000 : nat; active_low_burn_rate_mainers = 100 : nat; active_medium_burn_rate_mainers = 100 : nat; active_high_burn_rate_mainers = 100 : nat; active_very_high_burn_rate_mainers = 100 : nat; active_custom_burn_rate_mainers = 0 : nat; paused_low_burn_rate_mainers = 100 : nat; paused_medium_burn_rate_mainers = 100 : nat; paused_high_burn_rate_mainers = 100 : nat; paused_very_high_burn_rate_mainers = 100 : nat; paused_custom_burn_rate_mainers = 0 : nat; total_cycles_all = opt (18000 : nat); total_cycles_all_usd = opt (0.018 : float64); total_cycles_protocol = opt (10000 : nat); total_cycles_protocol_usd = opt (0.01 : float64); total_cycles_mainers_usd = opt (0.008 : float64) })',
         network=network,
     )
     assert response.startswith('(variant { Ok = record {')
     assert 'date = "2025-02-02"' in response
-    # Verify total_cycles is present with correct values
+    # Verify total_cycles is present with CycleAmount structure (cycles and usd)
     assert 'total_cycles = opt record' in response
-    assert 'all = 18_000' in response
-    assert 'mainers = 8_000' in response
-    assert 'protocol = 10_000' in response
+    assert 'cycles = 18_000' in response  # all.cycles
+    assert 'cycles = 10_000' in response  # protocol.cycles
+    assert 'cycles = 8_000' in response   # mainers.cycles
 
 
 def test__getLatestDailyMetric_with_total_cycles(network: str) -> None:
@@ -808,7 +808,7 @@ def test__getDailyMetricByDate_with_total_cycles(network: str) -> None:
     )
     assert response.startswith('(variant { Ok = record {')
     assert 'total_cycles = opt record' in response
-    assert 'all = 18_000' in response
+    assert 'cycles = 18_000' in response  # all.cycles
 
 
 def test__getDailyMetricByDate_without_total_cycles(network: str) -> None:
@@ -842,27 +842,28 @@ def test__getDailyMetrics_mixed_total_cycles(network: str) -> None:
 
 
 def test__updateDailyMetricAdmin_add_total_cycles(network: str) -> None:
-    """Test updating an existing metric to add total_cycles."""
+    """Test updating an existing metric to add total_cycles (all 5 fields required)."""
     # Update the 2025-02-01 record (which has null total_cycles) to add total_cycles
     response = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
         canister_method="updateDailyMetricAdmin",
-        canister_argument='(record { date = "2025-02-01"; input = record { total_cycles_all = opt (20000 : nat); total_cycles_protocol = opt (12101 : nat) } })',
+        canister_argument='(record { date = "2025-02-01"; input = record { total_cycles_all = opt (20000 : nat); total_cycles_all_usd = opt (0.02 : float64); total_cycles_protocol = opt (12101 : nat); total_cycles_protocol_usd = opt (0.012101 : float64); total_cycles_mainers_usd = opt (0.007899 : float64) } })',
         network=network,
     )
     assert response.startswith('(variant { Ok = record {')
-    # Verify total_cycles was added
+    # Verify total_cycles was added with CycleAmount structure
     assert 'total_cycles = opt record' in response
-    assert 'all = 20_000' in response
-    assert 'protocol = 12_101' in response
-    # mainers should be 7899 (from original total_cycles_all_mainers)
-    assert 'mainers = 7_899' in response
+    assert 'cycles = 20_000' in response  # all.cycles
+    assert 'cycles = 12_101' in response  # protocol.cycles
+    # mainers.cycles should be 7899 (from original total_cycles_all_mainers)
+    assert 'cycles = 7_899' in response
 
 
 def test__updateDailyMetricAdmin_update_total_cycles(network: str) -> None:
-    """Test updating an existing metric's total_cycles values."""
-    # Update the 2025-02-02 record to change total_cycles values
+    """Test updating an existing metric's total_cycles values (partial update merges with existing)."""
+    # Update the 2025-02-02 record to change only total_cycles_all
+    # The merge logic should preserve existing USD values from the record
     response = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
@@ -871,9 +872,12 @@ def test__updateDailyMetricAdmin_update_total_cycles(network: str) -> None:
         network=network,
     )
     assert response.startswith('(variant { Ok = record {')
-    # Verify total_cycles_all was updated but protocol kept existing value
-    assert 'all = 25_000' in response
-    assert 'protocol = 10_000' in response  # Unchanged
+    # Verify total_cycles is still present (merged with existing values)
+    assert 'total_cycles = opt record' in response
+    # all.cycles should be updated to 25000
+    assert 'cycles = 25_000' in response
+    # protocol.cycles should be unchanged at 10000
+    assert 'cycles = 10_000' in response
 
 
 def test__cleanup_total_cycles_tests(network: str) -> None:
