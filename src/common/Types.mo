@@ -1469,10 +1469,25 @@ module Types {
         usd: Float;
     };
 
+    // Reusable type for cycle amounts with USD value
+    // Matches the existing pattern in DailyBurnRate: { cycles: Nat; usd: Float }
+    public type CycleAmount = {
+        cycles: Nat;  // Cycle count (in trillion cycles)
+        usd: Float;   // USD value at current exchange rate
+    };
+
+    // Total cycles breakdown across all canisters
+    public type TotalCycles = {
+        all: CycleAmount;       // Total cycles across everything
+        protocol: CycleAmount;  // Cycles from protocol/non-mainer canisters
+        mainers: CycleAmount;   // Cycles from mainers (equals mainers.totals.total_cycles)
+    };
+
     // System metrics for a specific day
     public type SystemMetrics = {
         funnai_index: Float;
         daily_burn_rate: DailyBurnRate;
+        total_cycles: ?TotalCycles;  // Optional for forward compatibility
     };
 
     // Mainers statistics for a specific day
@@ -1539,6 +1554,13 @@ module Types {
         paused_high_burn_rate_mainers: Nat;
         paused_very_high_burn_rate_mainers: Nat;
         paused_custom_burn_rate_mainers: Nat;
+        // Optional total_cycles fields (for forward compatibility)
+        // All 5 fields must be provided together to construct TotalCycles
+        total_cycles_all: ?Nat;            // Total cycles across all canisters
+        total_cycles_all_usd: ?Float;      // USD value of total cycles
+        total_cycles_protocol: ?Nat;       // Cycles from protocol/non-mainer canisters
+        total_cycles_protocol_usd: ?Float; // USD value of protocol cycles
+        total_cycles_mainers_usd: ?Float;  // USD value of mainer cycles (cycles from total_cycles_all_mainers)
     };
 
     // Input type for partial updates (admin use)
@@ -1560,6 +1582,13 @@ module Types {
         paused_high_burn_rate_mainers: ?Nat;
         paused_very_high_burn_rate_mainers: ?Nat;
         paused_custom_burn_rate_mainers: ?Nat;
+        // Optional total_cycles fields
+        // All 5 fields must be provided together to construct TotalCycles
+        total_cycles_all: ?Nat;            // Total cycles across all canisters
+        total_cycles_all_usd: ?Float;      // USD value of total cycles
+        total_cycles_protocol: ?Nat;       // Cycles from protocol/non-mainer canisters
+        total_cycles_protocol_usd: ?Float; // USD value of protocol cycles
+        total_cycles_mainers_usd: ?Float;  // USD value of mainer cycles
     };
 
     // Input type for update endpoint with date and update data

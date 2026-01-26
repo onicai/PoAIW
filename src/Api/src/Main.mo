@@ -10,7 +10,9 @@ import Option "mo:base/Option";
 import Nat64 "mo:base/Nat64";
 
 import Types "../../common/Types";
+import { migration } "Migration";
 
+(with migration)
 persistent actor class ApiCanister() = this {
 
     var MASTER_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // Corresponds to prd Game State canister
@@ -502,6 +504,18 @@ persistent actor class ApiCanister() = this {
                     cycles = input.daily_burn_rate_cycles;
                     usd = input.daily_burn_rate_usd;
                 };
+                total_cycles = switch (input.total_cycles_all, input.total_cycles_all_usd,
+                                       input.total_cycles_protocol, input.total_cycles_protocol_usd,
+                                       input.total_cycles_mainers_usd) {
+                    case (?all, ?allUsd, ?protocol, ?protocolUsd, ?mainersUsd) {
+                        ?{
+                            all = { cycles = all; usd = allUsd };
+                            protocol = { cycles = protocol; usd = protocolUsd };
+                            mainers = { cycles = input.total_cycles_all_mainers; usd = mainersUsd };
+                        }
+                    };
+                    case (_, _, _, _, _) { null };
+                };
             };
             mainers = {
                 totals = {
@@ -620,6 +634,51 @@ persistent actor class ApiCanister() = this {
                 return #Err(#Other("Metric for date " # params.date # " not found"));
             };
             case (?existing) {
+                // Extract existing total_cycles values (if present)
+                // Now TotalCycles contains CycleAmount records with .cycles and .usd fields
+                let existingTotalCyclesAll : ?Nat = switch (existing.system_metrics.total_cycles) {
+                    case (?tc) { ?tc.all.cycles };
+                    case null { null };
+                };
+                let existingTotalCyclesAllUsd : ?Float = switch (existing.system_metrics.total_cycles) {
+                    case (?tc) { ?tc.all.usd };
+                    case null { null };
+                };
+                let existingTotalCyclesProtocol : ?Nat = switch (existing.system_metrics.total_cycles) {
+                    case (?tc) { ?tc.protocol.cycles };
+                    case null { null };
+                };
+                let existingTotalCyclesProtocolUsd : ?Float = switch (existing.system_metrics.total_cycles) {
+                    case (?tc) { ?tc.protocol.usd };
+                    case null { null };
+                };
+                let existingTotalCyclesMainersUsd : ?Float = switch (existing.system_metrics.total_cycles) {
+                    case (?tc) { ?tc.mainers.usd };
+                    case null { null };
+                };
+
+                // Merge input with existing: prefer input if provided, else keep existing
+                let mergedTotalCyclesAll : ?Nat = switch (params.input.total_cycles_all) {
+                    case (?val) { ?val };
+                    case null { existingTotalCyclesAll };
+                };
+                let mergedTotalCyclesAllUsd : ?Float = switch (params.input.total_cycles_all_usd) {
+                    case (?val) { ?val };
+                    case null { existingTotalCyclesAllUsd };
+                };
+                let mergedTotalCyclesProtocol : ?Nat = switch (params.input.total_cycles_protocol) {
+                    case (?val) { ?val };
+                    case null { existingTotalCyclesProtocol };
+                };
+                let mergedTotalCyclesProtocolUsd : ?Float = switch (params.input.total_cycles_protocol_usd) {
+                    case (?val) { ?val };
+                    case null { existingTotalCyclesProtocolUsd };
+                };
+                let mergedTotalCyclesMainersUsd : ?Float = switch (params.input.total_cycles_mainers_usd) {
+                    case (?val) { ?val };
+                    case null { existingTotalCyclesMainersUsd };
+                };
+
                 // Create full input from partial update
                 let fullInput : Types.DailyMetricInput = {
                     date = params.date;
@@ -640,6 +699,11 @@ persistent actor class ApiCanister() = this {
                     paused_high_burn_rate_mainers = Option.get(params.input.paused_high_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.high);
                     paused_very_high_burn_rate_mainers = Option.get(params.input.paused_very_high_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.very_high);
                     paused_custom_burn_rate_mainers = Option.get(params.input.paused_custom_burn_rate_mainers, existing.mainers.breakdown_by_tier.paused.custom);
+                    total_cycles_all = mergedTotalCyclesAll;
+                    total_cycles_all_usd = mergedTotalCyclesAllUsd;
+                    total_cycles_protocol = mergedTotalCyclesProtocol;
+                    total_cycles_protocol_usd = mergedTotalCyclesProtocolUsd;
+                    total_cycles_mainers_usd = mergedTotalCyclesMainersUsd;
                 };
                 
                 let updatedMetric = inputToDailyMetric(fullInput, true);
