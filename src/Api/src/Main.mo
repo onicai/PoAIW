@@ -8,8 +8,12 @@ import Float "mo:base/Float";
 import Iter "mo:base/Iter";
 import Option "mo:base/Option";
 import Nat64 "mo:base/Nat64";
+import Timer "mo:base/Timer";
+import List "mo:base/List";
+import D "mo:base/Debug";
 
 import Types "../../common/Types";
+import Util "Utils";
 import { migration } "Migration";
 
 (with migration)
@@ -970,6 +974,255 @@ persistent actor class ApiCanister() = this {
         return #Ok(getTokenRewardsDataInternal());
     };
 
+    // -------------------------------------------------------------------------------
+    // Activity Feed Cache Storage
+    // -------------------------------------------------------------------------------
+
+    // Cache stores array-optimized types for efficient queries
+    // INVARIANT: Arrays are always sorted by timestamp DESC (newest first)
+    transient var cachedWinnerDeclarations : [Types.ChallengeWinnerDeclarationArray] = [];
+    transient var cachedChallenges : [Types.Challenge] = [];
+
+    // Cache metadata
+    transient var activityFeedLastSyncTimestamp : Nat64 = 0;
+
+    // Timer state
+    transient var recurringTimerId : ?Timer.TimerId = null;
+    var syncIntervalInSeconds : Nat = 300;
+    transient var IS_SYNCING : Bool = false;
+
+    // Configuration
+    let MAX_CACHED_WINNERS : Nat = 500;
+    let MAX_CACHED_CHALLENGES : Nat = 100;
+
+    // -------------------------------------------------------------------------------
+    // Activity Feed Sorting Functions
+    // -------------------------------------------------------------------------------
+
+    // Sort winners by finalizedTimestamp DESC (newest first)
+    func sortWinnersDesc(arr : [Types.ChallengeWinnerDeclarationArray]) : [Types.ChallengeWinnerDeclarationArray] {
+        Array.sort<Types.ChallengeWinnerDeclarationArray>(arr, func(a, b) {
+            if (a.finalizedTimestamp > b.finalizedTimestamp) { #less }
+            else if (a.finalizedTimestamp < b.finalizedTimestamp) { #greater }
+            else { #equal }
+        })
+    };
+
+    // Sort challenges by challengeCreationTimestamp DESC (newest first)
+    func sortChallengesDesc(arr : [Types.Challenge]) : [Types.Challenge] {
+        Array.sort<Types.Challenge>(arr, func(a, b) {
+            if (a.challengeCreationTimestamp > b.challengeCreationTimestamp) { #less }
+            else if (a.challengeCreationTimestamp < b.challengeCreationTimestamp) { #greater }
+            else { #equal }
+        })
+    };
+
+    // Cache eviction helper
+    func trimToMaxSize<T>(arr : [T], maxSize : Nat) : [T] {
+        if (arr.size() <= maxSize) { arr }
+        else { Util.sliceArray(arr, 0, maxSize) }
+    };
+
+    // -------------------------------------------------------------------------------
+    // Activity Feed Timer Admin Endpoints
+    // -------------------------------------------------------------------------------
+
+    public shared query (msg) func getActivityFeedSyncIntervalAdmin() : async Types.NatResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
+        return #Ok(syncIntervalInSeconds);
+    };
+
+    public shared (msg) func setActivityFeedSyncIntervalAdmin(_syncIntervalInSeconds : Nat) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
+        D.print("API: setActivityFeedSyncIntervalAdmin - Setting interval from " # debug_show(syncIntervalInSeconds) # " to " # debug_show(_syncIntervalInSeconds) # " seconds");
+        syncIntervalInSeconds := _syncIntervalInSeconds;
+        let _ = await startActivityFeedTimer();
+        return #Ok({ status_code = 200 });
+    };
+
+    public shared (msg) func startActivityFeedTimerAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
+        D.print("API: startActivityFeedTimerAdmin - Called by controller");
+        return await startActivityFeedTimer();
+    };
+
+    public shared (msg) func stopActivityFeedTimerAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
+        D.print("API: stopActivityFeedTimerAdmin - Called by controller");
+        return await stopActivityFeedTimer();
+    };
+
+    // -------------------------------------------------------------------------------
+    // Activity Feed Private Timer Functions
+    // -------------------------------------------------------------------------------
+
+    private func startActivityFeedTimer() : async Types.AuthRecordResult {
+        D.print("API: startActivityFeedTimer - Stopping any existing timer first");
+        let _ = await stopActivityFeedTimer();
+        IS_SYNCING := false;
+        D.print("API: startActivityFeedTimer - Scheduling initial sync in 5 seconds, then recurring every " # debug_show(syncIntervalInSeconds) # " seconds");
+        ignore Timer.setTimer<system>(#seconds 5,
+            func () : async () {
+                D.print("API: startActivityFeedTimer - Initial timer fired, setting up recurring timer");
+                let id = Timer.recurringTimer<system>(#seconds syncIntervalInSeconds, triggerActivityFeedSync);
+                recurringTimerId := ?id;
+                D.print("API: startActivityFeedTimer - Recurring timer ID: " # debug_show(id) # ", triggering first sync now");
+                await triggerActivityFeedSync();
+        });
+        return #Ok({ auth = "Activity feed sync timer started." });
+    };
+
+    private func stopActivityFeedTimer() : async Types.AuthRecordResult {
+        switch (recurringTimerId) {
+            case (?id) {
+                D.print("API: stopActivityFeedTimer - Cancelling timer ID: " # debug_show(id));
+                Timer.cancelTimer(id);
+                recurringTimerId := null;
+                return #Ok({ auth = "Activity feed sync timer stopped." });
+            };
+            case null {
+                D.print("API: stopActivityFeedTimer - No active timer to stop");
+                return #Ok({ auth = "No active activity feed sync timer." });
+            };
+        };
+    };
+
+    // -------------------------------------------------------------------------------
+    // Activity Feed Sync Logic
+    // -------------------------------------------------------------------------------
+
+    func toArrayDeclaration(decl : Types.ChallengeWinnerDeclaration) : Types.ChallengeWinnerDeclarationArray {
+        {
+            challengeId = decl.challengeId;
+            finalizedTimestamp = decl.finalizedTimestamp;
+            winner = decl.winner;
+            secondPlace = decl.secondPlace;
+            thirdPlace = decl.thirdPlace;
+            participants = List.toArray(decl.participants);
+        }
+    };
+
+    func triggerActivityFeedSync() : async () {
+        if (IS_SYNCING) {
+            D.print("API: triggerActivityFeedSync - Already syncing, skipping");
+            return;
+        };
+        IS_SYNCING := true;
+        D.print("API: triggerActivityFeedSync - Starting sync from GameState canister: " # MASTER_CANISTER_ID);
+
+        try {
+            let gameStateActor : Types.GameStateCanister_Actor = actor(MASTER_CANISTER_ID);
+
+            D.print("API: triggerActivityFeedSync - Calling getRecentProtocolActivity");
+            let activityResult = await gameStateActor.getRecentProtocolActivity();
+            switch (activityResult) {
+                case (#Ok(activity)) {
+                    D.print("API: triggerActivityFeedSync - Received " # debug_show(activity.winners.size()) # " winners, " # debug_show(activity.challenges.size()) # " challenges from GameState");
+
+                    // Transform winners: List → Array, then sort DESC by finalizedTimestamp
+                    let transformedWinners = Array.map<
+                        Types.ChallengeWinnerDeclaration,
+                        Types.ChallengeWinnerDeclarationArray
+                    >(activity.winners, toArrayDeclaration);
+                    let sortedWinners = sortWinnersDesc(transformedWinners);
+
+                    // Sort challenges (HashMap order is unpredictable)
+                    let sortedChallenges = sortChallengesDesc(activity.challenges);
+
+                    // Apply cache eviction
+                    cachedWinnerDeclarations := trimToMaxSize(sortedWinners, MAX_CACHED_WINNERS);
+                    cachedChallenges := trimToMaxSize(sortedChallenges, MAX_CACHED_CHALLENGES);
+
+                    D.print("API: triggerActivityFeedSync - Sync completed - cached " # debug_show(cachedWinnerDeclarations.size()) # " winners, " # debug_show(cachedChallenges.size()) # " challenges");
+                };
+                case (#Err(e)) {
+                    D.print("API: triggerActivityFeedSync - Sync failed with error: " # debug_show(e));
+                };
+            };
+
+            activityFeedLastSyncTimestamp := Nat64.fromNat(Int.abs(Time.now()));
+            D.print("API: triggerActivityFeedSync - Updated lastSyncTimestamp to " # debug_show(activityFeedLastSyncTimestamp));
+        } catch (e) {
+            D.print("API: triggerActivityFeedSync - Exception caught - will retry on next timer tick");
+        };
+
+        IS_SYNCING := false;
+        D.print("API: triggerActivityFeedSync - Sync cycle complete");
+    };
+
+    // -------------------------------------------------------------------------------
+    // Activity Feed Public Endpoints
+    // -------------------------------------------------------------------------------
+
+    /// Get recent protocol activity with independent pagination
+    public shared query func getActivityFeed(input : Types.ActivityFeedQuery) : async Types.ActivityFeedResult {
+        let winnersLimit = switch (input.winnersLimit) {
+            case (?l) { if (l > 100) 100 else l };
+            case null { 20 };
+        };
+        let winnersOffset = switch (input.winnersOffset) { case (?o) { o }; case null { 0 }; };
+        let challengesLimit = switch (input.challengesLimit) {
+            case (?l) { if (l > 100) 100 else l };
+            case null { 20 };
+        };
+        let challengesOffset = switch (input.challengesOffset) { case (?o) { o }; case null { 0 }; };
+
+        // Apply timestamp filter + pagination
+        let (filteredWinners, totalWinners) = switch (input.sinceTimestamp) {
+            case (?since) {
+                Util.collectWithEarlyStop<Types.ChallengeWinnerDeclarationArray>(
+                    cachedWinnerDeclarations,
+                    func(w) { w.finalizedTimestamp > since },
+                    winnersOffset, winnersLimit
+                );
+            };
+            case null {
+                (Util.sliceArray(cachedWinnerDeclarations, winnersOffset, winnersLimit),
+                 cachedWinnerDeclarations.size());
+            };
+        };
+
+        let (filteredChallenges, totalChallenges) = switch (input.sinceTimestamp) {
+            case (?since) {
+                Util.collectWithEarlyStop<Types.Challenge>(
+                    cachedChallenges,
+                    func(c) { c.challengeCreationTimestamp > since },
+                    challengesOffset, challengesLimit
+                );
+            };
+            case null {
+                (Util.sliceArray(cachedChallenges, challengesOffset, challengesLimit),
+                 cachedChallenges.size());
+            };
+        };
+
+        return #Ok({
+            winners = filteredWinners;
+            challenges = filteredChallenges;
+            totalWinners = totalWinners;
+            totalChallenges = totalChallenges;
+            cacheTimestamp = activityFeedLastSyncTimestamp;
+        });
+    };
+
+    /// Get current open challenges from cache
+    public shared query func getOpenChallengesFromCache() : async Types.ChallengesResult {
+        return #Ok(cachedChallenges);
+    };
+
+    /// Get cache status for monitoring
+    public shared query func getActivityFeedCacheStatus() : async Types.CacheStatusResult {
+        return #Ok({
+            lastSyncTimestamp = activityFeedLastSyncTimestamp;
+            cachedWinnersCount = cachedWinnerDeclarations.size();
+            cachedChallengesCount = cachedChallenges.size();
+            syncIntervalSeconds = syncIntervalInSeconds;
+        });
+    };
 
     // System upgrade hooks
     system func preupgrade() {

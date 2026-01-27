@@ -46,6 +46,19 @@ dfx canister call api_canister bulkCreateDailyMetricsAdmin '(vec {record {date="
 # Bulk create with total_cycles:
 dfx canister call api_canister bulkCreateDailyMetricsAdmin '(vec {record {date="2025-09-06"; funnai_index=0.25; daily_burn_rate_cycles=1204; daily_burn_rate_usd=1651.28; total_mainers_created=689; total_active_mainers=442; total_paused_mainers=247; total_cycles_all_mainers=7923; active_low_burn_rate_mainers=115; active_medium_burn_rate_mainers=79; active_high_burn_rate_mainers=248; active_very_high_burn_rate_mainers=0; active_custom_burn_rate_mainers=0; paused_low_burn_rate_mainers=61; paused_medium_burn_rate_mainers=42; paused_high_burn_rate_mainers=144; paused_very_high_burn_rate_mainers=0; paused_custom_burn_rate_mainers=0; total_cycles_all=opt 17923; total_cycles_protocol=opt 10000}})' --network $NETWORK
 
+# Activity Feed - public queries (cached data from GameState):
+dfx canister call api_canister getActivityFeed '(record {})' --network $NETWORK --output json
+dfx canister call api_canister getActivityFeed '(record {winnersLimit=opt 10; winnersOffset=opt 0; challengesLimit=opt 5; challengesOffset=opt 0})' --network $NETWORK --output json
+dfx canister call api_canister getActivityFeed '(record {sinceTimestamp=opt 1700000000000000000})' --network $NETWORK --output json
+dfx canister call api_canister getOpenChallengesFromCache --network $NETWORK --output json
+dfx canister call api_canister getActivityFeedCacheStatus --network $NETWORK --output json
+
+# Activity Feed - Admin endpoints (timer control):
+dfx canister call api_canister getActivityFeedSyncIntervalAdmin --network $NETWORK
+dfx canister call api_canister setActivityFeedSyncIntervalAdmin '(600)' --network $NETWORK
+dfx canister call api_canister startActivityFeedTimerAdmin --network $NETWORK
+dfx canister call api_canister stopActivityFeedTimerAdmin --network $NETWORK
+
 # To starts fresh:
 dfx canister call api_canister resetDailyMetricsAdmin --network $NETWORK
 

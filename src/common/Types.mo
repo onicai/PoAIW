@@ -1374,6 +1374,7 @@ module Types {
         getMainerCyclesUsedPerResponse : () -> async NatResult;
         getCyclesBurnRate : (Types.CyclesBurnRateDefault) -> async Types.CyclesBurnRateResult;
         addCycles: () -> async AddCyclesResult;
+        getRecentProtocolActivity : () -> async ProtocolActivityResult;
     };
 
     public type MainerCreator_Actor = actor {
@@ -1664,4 +1665,50 @@ module Types {
     };
 
     public type Sha256HashesResult = Result<Sha256HashesRecord, ApiError>;
+
+    //-------------------------------------------------------------------------
+    // Activity Feed Types
+
+    /// ChallengeWinnerDeclaration with participants as Array (optimized for reads)
+    /// Used in API canister cache instead of the List-based version in GameState
+    public type ChallengeWinnerDeclarationArray = {
+        challengeId : Text;
+        finalizedTimestamp : Nat64;
+        winner : ChallengeParticipantEntry;
+        secondPlace : ChallengeParticipantEntry;
+        thirdPlace : ChallengeParticipantEntry;
+        participants : [ChallengeParticipantEntry];
+    };
+
+    /// Query input for activity feed with independent pagination for winners and challenges
+    public type ActivityFeedQuery = {
+        winnersLimit : ?Nat;
+        winnersOffset : ?Nat;
+        challengesLimit : ?Nat;
+        challengesOffset : ?Nat;
+        sinceTimestamp : ?Nat64;
+    };
+
+    /// Paginated response with array-optimized types
+    public type ActivityFeedResponse = {
+        winners : [ChallengeWinnerDeclarationArray];
+        challenges : [Challenge];
+        totalWinners : Nat;
+        totalChallenges : Nat;
+        cacheTimestamp : Nat64;
+    };
+
+    public type ActivityFeedResult = Result<ActivityFeedResponse, ApiError>;
+
+    //-------------------------------------------------------------------------
+    // Cache Status Types
+
+    public type CacheStatus = {
+        lastSyncTimestamp : Nat64;
+        cachedWinnersCount : Nat;
+        cachedChallengesCount : Nat;
+        syncIntervalSeconds : Nat;
+    };
+
+    public type CacheStatusResult = Result<CacheStatus, ApiError>;
 };
