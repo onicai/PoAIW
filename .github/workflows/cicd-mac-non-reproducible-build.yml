@@ -1,13 +1,14 @@
-name: cicd-mac
+name: cicd-mac-non-reproducible-build
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - ".github/workflows/cicd-mac.yml"
+      - ".github/workflows/cicd-mac-non-reproducible-build.yml"
       - ".github/workflows/trigger.txt"
       # Keep in sync with matrix.canister below
-      - "src/Api/**"
+      # Moved to cicd-ubuntu.yml (reproducible build):
+      #- "src/Api/**"
       - "src/mAIner/**"
       - "src/ArchiveChallenges/**"
       - "src/Challenger/**"
@@ -27,7 +28,8 @@ jobs:
     strategy:
       matrix:
         # Keep in sync with on.push.paths above
-        canister: [Api, mAIner, ArchiveChallenges, Challenger, Judge, mAInerCreator, GameState, Treasury]
+        # Moved to cicd-ubuntu.yml (reproducible build): Api
+        canister: [mAIner, ArchiveChallenges, Challenger, Judge, mAInerCreator, GameState, Treasury]
 
     steps:
       - name: checkout

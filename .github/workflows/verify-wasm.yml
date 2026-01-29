@@ -1,0 +1,87 @@
+name: verify-wasm
+
+on:
+  workflow_dispatch:
+    inputs:
+      network:
+        description: "Network to verify against"
+        type: choice
+        options:
+          - prd
+          - testing
+          - development
+        default: prd
+
+env:
+  DFX_VERSION: "0.29.2"
+  DFX_WARNING: "-mainnet_plaintext_identity"
+
+jobs:
+  verify-wasm:
+    name: verify-wasm ${{ matrix.canister }} (${{ inputs.network }})
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - canister: Api
+            canister_name: api_canister
+            canister_id: bgm6p-5aaaa-aaaaf-qbzda-cai
+        #   - canister: mAIner
+        #     canister_name: mainer_service_canister
+        #     canister_id: TBD
+        #   - canister: ArchiveChallenges
+        #     canister_name: archive_challenges_canister
+        #     canister_id: TBD
+        #   - canister: Challenger
+        #     canister_name: challenger_ctrlb_canister
+        #     canister_id: TBD
+        #   - canister: Judge
+        #     canister_name: judge_ctrlb_canister
+        #     canister_id: TBD
+        #   - canister: mAInerCreator
+        #     canister_name: mainer_creator_canister
+        #     canister_id: TBD
+        #   - canister: GameState
+        #     canister_name: game_state_canister
+        #     canister_id: TBD
+        #   - canister: Treasury
+        #     canister_name: funnai_treasury_canister
+        #     canister_id: TBD
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: install dfx
+        run: |
+          set -euo pipefail
+          DFXVM_INIT_YES=true sh -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
+          source "$HOME/.local/share/dfx/env"
+          echo "$HOME/.local/share/dfx/bin" >> $GITHUB_PATH
+          dfxvm default $DFX_VERSION
+
+      - name: create default identity
+        run: dfx identity get-principal > /dev/null 2>&1
+
+      - name: versions
+        run: |
+          echo "Runner OS   : $RUNNER_OS"
+          echo "Architecture: $(uname -m)"
+          echo "OS version  : $(lsb_release -d 2>/dev/null | cut -f2)"
+          echo "dfx version : $(dfx --version)"
+          echo "Docker      : $(docker --version)"
+
+      - name: build Docker base image
+        working-directory: src/${{ matrix.canister }}
+        run: make docker-build-base
+
+      - name: build wasm with Docker
+        working-directory: src/${{ matrix.canister }}
+        run: make docker-build-wasm
+
+      - name: verify wasm hash matches deployed canister
+        working-directory: src/${{ matrix.canister }}
+        run: make docker-verify-wasm VERIFY_NETWORK=${{ inputs.network }}
