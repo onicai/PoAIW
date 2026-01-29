@@ -931,3 +931,172 @@ def test__cleanup_verify_empty(network: str) -> None:
     )
     expected_response = '(variant { Ok = 0 : nat })'
     assert response == expected_response
+
+
+# =============================================================================
+# Activity Feed Public Endpoints
+# =============================================================================
+
+def test__getActivityFeed_empty(network: str) -> None:
+    """Test getActivityFeed returns empty cache initially"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getActivityFeed",
+        canister_argument='(record { winnersLimit = null; winnersOffset = null; challengesLimit = null; challengesOffset = null; sinceTimestamp = null })',
+        network=network,
+    )
+    assert response.startswith('(variant { Ok = record {')
+    assert 'winners = vec {}' in response
+    assert 'challenges = vec {}' in response
+    assert 'totalWinners = 0' in response
+    assert 'totalChallenges = 0' in response
+
+
+def test__getActivityFeed_with_pagination(network: str) -> None:
+    """Test getActivityFeed with pagination parameters"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getActivityFeed",
+        canister_argument='(record { winnersLimit = opt 10; winnersOffset = opt 0; challengesLimit = opt 5; challengesOffset = opt 0; sinceTimestamp = null })',
+        network=network,
+    )
+    assert response.startswith('(variant { Ok = record {')
+    assert 'winners = vec {}' in response
+    assert 'challenges = vec {}' in response
+
+
+def test__getActivityFeed_with_timestamp_filter(network: str) -> None:
+    """Test getActivityFeed with sinceTimestamp filter"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getActivityFeed",
+        canister_argument='(record { winnersLimit = opt 20; winnersOffset = opt 0; challengesLimit = opt 20; challengesOffset = opt 0; sinceTimestamp = opt (1700000000000000000 : nat64) })',
+        network=network,
+    )
+    assert response.startswith('(variant { Ok = record {')
+
+
+def test__getOpenChallengesFromCache_empty(network: str) -> None:
+    """Test getOpenChallengesFromCache returns empty initially"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getOpenChallengesFromCache",
+        canister_argument='()',
+        network=network,
+    )
+    expected_response = '(variant { Ok = vec {} })'
+    assert response == expected_response
+
+
+def test__getActivityFeedCacheStatus(network: str) -> None:
+    """Test getActivityFeedCacheStatus returns cache metadata"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getActivityFeedCacheStatus",
+        canister_argument='()',
+        network=network,
+    )
+    assert response.startswith('(variant { Ok = record {')
+    assert 'lastSyncTimestamp = 0' in response
+    assert 'cachedWinnersCount = 0' in response
+    assert 'cachedChallengesCount = 0' in response
+    assert 'syncIntervalSeconds = 300' in response
+
+
+# =============================================================================
+# Activity Feed Admin Endpoints - Anonymous Access Denial Tests
+# =============================================================================
+
+def test__getActivityFeedSyncIntervalAdmin_anonymous(identity_anonymous: Dict[str, str], network: str) -> None:
+    """Test getActivityFeedSyncIntervalAdmin rejects anonymous caller"""
+    assert identity_anonymous["identity"] == "anonymous"
+
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getActivityFeedSyncIntervalAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    expected_response = '(variant { Err = variant { Unauthorized } })'
+    assert response == expected_response
+
+
+def test__setActivityFeedSyncIntervalAdmin_anonymous(identity_anonymous: Dict[str, str], network: str) -> None:
+    """Test setActivityFeedSyncIntervalAdmin rejects anonymous caller"""
+    assert identity_anonymous["identity"] == "anonymous"
+
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="setActivityFeedSyncIntervalAdmin",
+        canister_argument="(120 : nat)",
+        network=network,
+    )
+    expected_response = '(variant { Err = variant { Unauthorized } })'
+    assert response == expected_response
+
+
+def test__startActivityFeedTimerAdmin_anonymous(identity_anonymous: Dict[str, str], network: str) -> None:
+    """Test startActivityFeedTimerAdmin rejects anonymous caller"""
+    assert identity_anonymous["identity"] == "anonymous"
+
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="startActivityFeedTimerAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    expected_response = '(variant { Err = variant { Unauthorized } })'
+    assert response == expected_response
+
+
+def test__stopActivityFeedTimerAdmin_anonymous(identity_anonymous: Dict[str, str], network: str) -> None:
+    """Test stopActivityFeedTimerAdmin rejects anonymous caller"""
+    assert identity_anonymous["identity"] == "anonymous"
+
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="stopActivityFeedTimerAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    expected_response = '(variant { Err = variant { Unauthorized } })'
+    assert response == expected_response
+
+
+# =============================================================================
+# Activity Feed Admin Endpoints - Success Tests (controller)
+# =============================================================================
+
+def test__getActivityFeedSyncIntervalAdmin(network: str) -> None:
+    """Test getActivityFeedSyncIntervalAdmin returns current interval"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getActivityFeedSyncIntervalAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    expected_response = '(variant { Ok = 300 : nat })'
+    assert response == expected_response
+
+
+def test__stopActivityFeedTimerAdmin_no_active(network: str) -> None:
+    """Test stopActivityFeedTimerAdmin when no timer is active"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="stopActivityFeedTimerAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    expected_response = '(variant { Ok = record { auth = "No active activity feed sync timer.";} })'
+    assert response == expected_response
