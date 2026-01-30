@@ -1,4 +1,4 @@
-[![PoAIW](https://github.com/onicai/PoAIW/actions/workflows/cicd-mac.yml/badge.svg)](https://github.com/onicai/PoAIW/actions/workflows/cicd-mac.yml)
+[![PoAIW](https://github.com/onicai/PoAIW/actions/workflows/cicd-ubuntu.yml/badge.svg)](https://github.com/onicai/PoAIW/actions/workflows/cicd-ubuntu.yml)
 
 # PoAIW
 
