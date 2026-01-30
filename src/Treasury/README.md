@@ -1,5 +1,32 @@
 # Treasury Canister
 
+# Build, Deploy and Verify
+
+```bash
+# Build wasm with Docker (reproducible build)
+# The base image is shared across all canisters. Once built, it can be reused.
+make docker-build-base
+make docker-build-wasm
+
+# Deploy the pre-built wasm
+# Note: Post-SNS, this step is replaced with SNS governed deployment.
+dfx canister --network $NETWORK stop funnai_treasury_canister
+dfx canister --network $NETWORK snapshot create funnai_treasury_canister
+dfx canister install --wasm out/funnai_treasury_canister.wasm \
+    --network $NETWORK --mode upgrade --wasm-memory-persistence keep \
+    funnai_treasury_canister
+dfx canister --network $NETWORK start funnai_treasury_canister
+
+# Verify the deployed wasm matches the Docker build
+make docker-verify-wasm VERIFY_NETWORK=$NETWORK
+```
+
+# Available Makefile targets
+
+```bash
+make help
+```
+
 # Setup
 
 ## Motoko

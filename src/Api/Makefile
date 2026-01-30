@@ -28,7 +28,10 @@ help:
 smoketest:
 	dfx stop
 	dfx start --clean --background
-	dfx deploy
+	$(MAKE) docker-build-wasm
+	dfx canister create $(CANISTER_NAME)
+	dfx canister install --wasm out/$(CANISTER_NAME).wasm \
+		--mode install $(CANISTER_NAME)
 	pytest -vv --exitfirst test/test_api_canister.py
 	dfx stop
 

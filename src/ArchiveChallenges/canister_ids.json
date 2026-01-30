@@ -1,6 +1,8 @@
 {
   "archive_challenges_canister": {
-    "prd": "yiobo-hyaaa-aaaaf-qdjnq-cai"
+    "development": "fth5j-wqaaa-aaaap-qrutq-cai",
+    "prd": "yiobo-hyaaa-aaaaf-qdjnq-cai",
+    "testing": "fug35-3iaaa-aaaap-qruta-cai"
   },
   "archive_challenges_canister_orig": {
     "demo": "ga256-riaaa-aaaap-qp4fa-cai",
