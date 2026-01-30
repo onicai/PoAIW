@@ -1,9 +1,34 @@
+# Build, Deploy and Verify
+
+```bash
+# Build wasm with Docker (reproducible build)
+# The base image is shared across all canisters. Once built, it can be reused.
+make docker-build-base
+make docker-build-wasm
+
+# Deploy the pre-built wasm
+# Note: Post-SNS, this step is replaced with SNS governed deployment.
+dfx canister --network $NETWORK stop api_canister
+dfx canister --network $NETWORK snapshot create api_canister
+dfx canister install --wasm out/api_canister.wasm \
+    --network $NETWORK --mode upgrade --wasm-memory-persistence keep \
+    api_canister
+dfx canister --network $NETWORK start api_canister
+
+# Verify the deployed wasm matches the Docker build
+make docker-verify-wasm VERIFY_NETWORK=$NETWORK
+```
+
+# Available Makefile targets
+
+```bash
+make help
+```
+
+# API Usage
+
 ```bash
 # When deploying local, no need to append `--network $NETWORK`
-
-dfx deploy api_canister --network $NETWORK
-# to upgrade
-dfx deploy api_canister --mode upgrade --wasm-memory-persistence keep --network $NETWORK
 
 dfx canister call api_canister setMasterCanisterId '("...-cai")' --network $NETWORK
 
@@ -78,13 +103,7 @@ dfx canister call api_canister getMasterCanisterId --network prd
 # Set api canister in Game State (funnAI folder):
 dfx canister call game_state_canister setApiCanisterId '("bgm6p-5aaaa-aaaaf-qbzda-cai")' --network prd
 #
-# Upgrade
-dfx canister --network prd stop api_canister
-dfx canister --network prd snapshot create api_canister
-dfx deploy   --network prd api_canister --mode upgrade
-dfx canister --network prd start api_canister
-dfx canister --network prd snapshot list api_canister
-dfx canister --network prd snapshot delete api_canister <snapshot-id>
+# Upgrade (see "Build, Deploy and Verify" section above)
 
 
 # demo:
