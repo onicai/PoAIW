@@ -1,6 +1,7 @@
 {
   "funnAI_ledger_canister": {
     "demo": "z6s3y-4aaaa-aaaaj-a2bjq-cai",
+    "testing": "z6s3y-4aaaa-aaaaj-a2bjq-cai",
     "development": "4uuff-dyaaa-aaaaj-qnoeq-cai",
     "ic": "",
     "local": "",

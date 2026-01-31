@@ -1,0 +1,32 @@
+# Reproducible build configuration for mAIner canister
+# Tool versions - update these when upgrading
+x-versions:
+  dfx: &dfx 0.29.2
+  mops: &mops 2.0.0
+
+x-base-image:
+  # Base image naming convention: {repo}-build:dfx-{version} (repo=PoAIW, lowercase for Docker)
+  name: &base_name "poaiw-build:dfx-0.29.2"
+
+services:
+  base:
+    build:
+      context: ../../docker
+      dockerfile: Dockerfile.base
+      args:
+        DFX_VERSION: *dfx
+        MOPS_VERSION: *mops
+    image: *base_name
+  # Image naming convention: {repo}-{canister_name}-wasm:latest (repo=PoAIW, lowercase for Docker)
+  wasm:
+    image: poaiw-mainer-service-canister-wasm:latest
+    build:
+      context: ../..
+      dockerfile: mAIner/docker/Dockerfile
+      args:
+        IMAGE: *base_name
+    volumes:
+      - ../out:/app/mAIner/out
+    environment:
+      DFX_WARNING: "-mainnet_plaintext_identity"
+    command: bash scripts/build.sh

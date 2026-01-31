@@ -26,28 +26,20 @@ jobs:
         include:
           - canister: Api
             canister_name: api_canister
-            canister_id: bgm6p-5aaaa-aaaaf-qbzda-cai
-        #   - canister: mAIner
-        #     canister_name: mainer_service_canister
-        #     canister_id: TBD
-        #   - canister: ArchiveChallenges
-        #     canister_name: archive_challenges_canister
-        #     canister_id: TBD
-        #   - canister: Challenger
-        #     canister_name: challenger_ctrlb_canister
-        #     canister_id: TBD
-        #   - canister: Judge
-        #     canister_name: judge_ctrlb_canister
-        #     canister_id: TBD
-        #   - canister: mAInerCreator
-        #     canister_name: mainer_creator_canister
-        #     canister_id: TBD
-        #   - canister: GameState
-        #     canister_name: game_state_canister
-        #     canister_id: TBD
-        #   - canister: Treasury
-        #     canister_name: funnai_treasury_canister
-        #     canister_id: TBD
+          - canister: mAInerCreator
+            canister_name: mainer_creator_canister
+          - canister: ArchiveChallenges
+            canister_name: archive_challenges_canister
+          - canister: Challenger
+            canister_name: challenger_ctrlb_canister
+          - canister: Judge
+            canister_name: judge_ctrlb_canister
+          - canister: mAIner
+            canister_name: mainer_service_canister
+          - canister: Treasury
+            canister_name: funnai_treasury_canister
+          - canister: GameState
+            canister_name: game_state_canister
 
     steps:
       - name: checkout

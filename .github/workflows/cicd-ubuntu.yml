@@ -7,15 +7,14 @@ on:
       - ".github/workflows/cicd-ubuntu.yml"
       - ".github/workflows/trigger.txt"
       # Keep in sync with matrix.canister below
-      # Canisters are moved here from cicd-mac-non-reproducible-build.yml (to be removed once all canisters are migrated) as they are migrated
       - "src/Api/**"
-      #- "src/mAIner/**"
-      #- "src/ArchiveChallenges/**"
-      #- "src/Challenger/**"
-      #- "src/Judge/**"
-      #- "src/mAInerCreator/**"
-      #- "src/GameState/**"
-      #- "src/Treasury/**"
+      - "src/mAIner/**"
+      - "src/ArchiveChallenges/**"
+      - "src/Challenger/**"
+      - "src/GameState/**"
+      - "src/Judge/**"
+      - "src/mAInerCreator/**"
+      - "src/Treasury/**"
       - "src/common/**"
       - "src/docker/**"
 
@@ -31,24 +30,23 @@ jobs:
       fail-fast: false
       matrix:
         # Keep in sync with on.push.paths above
-        # Canisters are moved here from cicd-mac-non-reproducible-build.yml (to be removed once all canisters are migrated) as they are migrated
         include:
           - canister: Api
             canister_name: api_canister
-        #   - canister: mAIner
-        #     canister_name: mainer_service_canister
-        #   - canister: ArchiveChallenges
-        #     canister_name: archive_challenges_canister
-        #   - canister: Challenger
-        #     canister_name: challenger_ctrlb_canister
-        #   - canister: Judge
-        #     canister_name: judge_ctrlb_canister
-        #   - canister: mAInerCreator
-        #     canister_name: mainer_creator_canister
-        #   - canister: GameState
-        #     canister_name: game_state_canister
-        #   - canister: Treasury
-        #     canister_name: funnai_treasury_canister
+          - canister: ArchiveChallenges
+            canister_name: archive_challenges_canister
+          - canister: Challenger
+            canister_name: challenger_ctrlb_canister
+          - canister: GameState
+            canister_name: game_state_canister
+          - canister: Judge
+            canister_name: judge_ctrlb_canister
+          - canister: mAIner
+            canister_name: mainer_service_canister
+          - canister: mAInerCreator
+            canister_name: mainer_creator_canister
+          - canister: Treasury
+            canister_name: funnai_treasury_canister
 
     steps:
       - name: checkout

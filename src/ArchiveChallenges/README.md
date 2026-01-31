@@ -1,7 +1,38 @@
+# Archive Challenges Canister
+
+# Build, Deploy and Verify
+
+```bash
+# Build wasm with Docker (reproducible build)
+# The base image is shared across all canisters. Once built, it can be reused.
+make docker-build-base
+make docker-build-wasm
+
+# Deploy the pre-built wasm
+# Note: Post-SNS, this step is replaced with SNS governed deployment.
+dfx canister --network $NETWORK stop archive_challenges_canister
+dfx canister --network $NETWORK snapshot create archive_challenges_canister
+dfx canister install --wasm out/archive_challenges_canister.wasm \
+    --network $NETWORK --mode upgrade --wasm-memory-persistence keep \
+    archive_challenges_canister
+dfx canister --network $NETWORK start archive_challenges_canister
+
+# Verify the deployed wasm matches the Docker build
+make docker-verify-wasm VERIFY_NETWORK=$NETWORK
+```
+
+# Available Makefile targets
+
+```bash
+make help
+```
+
+# Background
+
 During upgrade on Jan 14, 2026 the archive_challenges_canister could no longer be upgraded
 due to the list data being to large for serialization.
 
-We decided to deploy a new canister using the enhanced orthogonal persistence (EOP), and 
+We decided to deploy a new canister using the enhanced orthogonal persistence (EOP), and
 keep the old one running as is.
 
 - archive_challenges_canister = new canister
@@ -10,8 +41,9 @@ keep the old one running as is.
 The protocol was configured to archive to the new canister.
 We hope to be able to extract the data from the original archive canister in the future.
 
+# Useful commands
+
 ```bash
-dfx deploy archive_challenges_canister --network $NETWORK
 
 ### e.g. demo:
 dfx canister call archive_challenges_canister setMasterCanisterId '("4tr6r-mqaaa-aaaae-qfcta-cai")' --network $NETWORK
