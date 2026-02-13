@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "canisters": {
+    "ck_signer_canister": {
+      "main": "src/Main.mo",
+      "args": "--enhanced-orthogonal-persistence"
+    }
+  },
+  "defaults": {
+    "build": {
+      "packtool": "mops sources"
+    }
+  },
+  "output_env_file": ".env",
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:8080",
+      "type": "ephemeral",
+      "replica": {
+        "subnet_type": "system"
+      }
+    },
+    "testing": {
+      "providers": [
+        "https://icp0.io"
+      ],
+      "type": "persistent"
+    },
+    "development": {
+      "providers": [
+        "https://icp0.io"
+      ],
+      "type": "persistent"
+    },
+    "prd": {
+      "providers": [
+        "https://icp0.io"
+      ],
+      "type": "persistent"
+    }
+  }
+}

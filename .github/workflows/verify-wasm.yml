@@ -40,6 +40,8 @@ jobs:
             canister_name: funnai_treasury_canister
           - canister: GameState
             canister_name: game_state_canister
+          - canister: ckSigner
+            canister_name: ck_signer_canister
 
     steps:
       - name: checkout

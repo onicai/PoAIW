@@ -213,6 +213,7 @@ module {
   public type raw_rand_result = Blob;
   public type satoshi = Nat64;
   public type schnorr_algorithm = { #ed25519; #bip340secp256k1 };
+  public type schnorr_aux = { #bip341 : { merkle_root_hash : Blob } };
   public type schnorr_public_key_args = {
     key_id : { algorithm : schnorr_algorithm; name : Text };
     canister_id : ?canister_id;
@@ -232,6 +233,7 @@ module {
     key_id : { algorithm : schnorr_algorithm; name : Text };
     derivation_path : [Blob];
     message : Blob;
+    aux : ?schnorr_aux;
   };
   public type sign_with_schnorr_result = { signature : Blob };
   public type start_canister_args = { canister_id : canister_id };

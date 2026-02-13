@@ -1711,4 +1711,116 @@ module Types {
     };
 
     public type CacheStatusResult = Result<CacheStatus, ApiError>;
+
+    //-------------------------------------------------------------------------
+    // ckSigner Types — Threshold Schnorr Signing & Fee Collection
+
+    // Payment info provided by caller for fee sanity check before transfer_from
+    public type Payment = {
+        tokenName : Text;        // Must match configured fee token name
+        tokenLedger : Principal; // Must match a configured fee token ledger
+        amount : Nat;            // Must be >= configured fee amount
+    };
+
+    // Input for getPublicKey
+    public type GetPublicKeyInput = {
+        botName : Text;
+    };
+
+    // Input for sign
+    public type SignInput = {
+        botName : Text;
+        message : Blob;
+        payment : ?Payment; // null = no fee payment
+    };
+
+    // Public key result for a named bot
+    public type PublicKeyRecord = {
+        botName : Text;       // The bot name (used as derivation path)
+        publicKeyHex : Text;  // 64-char hex (32 bytes x-only)
+        address : Text;       // Bitcoin P2TR address (bc1p...) with BIP341 Taproot tweak
+    };
+    public type PublicKeyResult = Result<PublicKeyRecord, ApiError>;
+
+    // Signature result for a named bot
+    public type SignRecord = {
+        botName : Text;       // The bot name
+        signatureHex : Text;  // 128-char hex (64 bytes)
+    };
+    public type SignResult = Result<SignRecord, ApiError>;
+
+    // ----- ICRC-2 types (for ICRC fee collection - ckBTC and others) -----
+
+    public type Account = {
+        owner : Principal;
+        subaccount : ?Blob;
+    };
+
+    public type TransferFromArgs = {
+        spender_subaccount : ?Blob;
+        from : Account;
+        to : Account;
+        amount : Nat;
+        fee : ?Nat;
+        memo : ?Blob;
+        created_at_time : ?Nat64;
+    };
+
+    public type TransferFromError = {
+        #BadFee : { expected_fee : Nat };
+        #BadBurn : { min_burn_amount : Nat };
+        #InsufficientFunds : { balance : Nat };
+        #InsufficientAllowance : { allowance : Nat };
+        #TooOld;
+        #CreatedInFuture : { ledger_time : Nat64 };
+        #Duplicate : { duplicate_of : Nat };
+        #TemporarilyUnavailable;
+        #GenericError : { error_code : Nat; message : Text };
+    };
+
+    public type TransferFromResult = {
+        #Ok : Nat;
+        #Err : TransferFromError;
+    };
+
+    // ----- Canister Actors -----
+
+    public type ICRC2Ledger_Actor = actor {
+        icrc2_transfer_from : (TransferFromArgs) -> async TransferFromResult;
+    };
+
+    // ----- Fee token configuration -----
+
+    public type FeeToken = {
+        tokenName : Text;        // Human-readable token name (e.g., "ckBTC")
+        tokenLedger : Principal; // ICRC-2 ledger canister
+        fee : Nat;               // Fee amount in smallest token unit
+    };
+
+    // Treasury — the account that receives all signing fees
+    public type Treasury = {
+        treasuryName : Text;          // Human-readable name (e.g., "funnAI Treasury Canister")
+        treasuryPrincipal : Principal; // Principal that receives fees
+    };
+    public type TreasuryResult = Result<Treasury, ApiError>;
+
+    public type FeeTokensRecord = {
+        canisterId : Principal;  // This canister's principal (spender for icrc2_approve)
+        treasury : Treasury;     // Treasury that receives all fees
+        feeTokens : [FeeToken];
+        usage : Text;            // Human-readable instructions for callers
+    };
+    public type FeeTokensResult = Result<FeeTokensRecord, ApiError>;
+
+    // ----- Fee token management inputs -----
+
+    public type AddFeeTokenInput = {
+        tokenName : Text;
+        tokenLedger : Principal;
+        fee : Nat;
+    };
+
+    public type RemoveFeeTokenInput = {
+        tokenLedger : Principal;
+    };
 };

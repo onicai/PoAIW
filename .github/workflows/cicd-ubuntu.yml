@@ -15,6 +15,7 @@ on:
       - "src/Judge/**"
       - "src/mAInerCreator/**"
       - "src/Treasury/**"
+      - "src/ckSigner/**"
       - "src/common/**"
       - "src/docker/**"
 
@@ -47,6 +48,8 @@ jobs:
             canister_name: mainer_creator_canister
           - canister: Treasury
             canister_name: funnai_treasury_canister
+          - canister: ckSigner
+            canister_name: ck_signer_canister
 
     steps:
       - name: checkout
@@ -90,7 +93,7 @@ jobs:
         run: |
           set -euo pipefail
           pip install --upgrade pip
-          pip install icpp-pro
+          pip install -r requirements.txt
 
       - name: install mops to manage motoko dependencies
         run: npm install -g ic-mops
