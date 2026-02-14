@@ -68,6 +68,9 @@ jobs:
           echo "dfx version : $(dfx --version)"
           echo "Docker      : $(docker --version)"
 
+      - name: clean docker build cache
+        run: docker builder prune --all --force
+
       - name: build Docker base image
         working-directory: src/${{ matrix.canister }}
         run: make docker-build-base

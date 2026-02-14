@@ -64,6 +64,9 @@ jobs:
           echo "OS version  : $(lsb_release -d 2>/dev/null | cut -f2)"
           echo "Docker      : $(docker --version)"
 
+      - name: clean docker build cache
+        run: docker builder prune --all --force
+
       - name: build Docker base image
         working-directory: src/${{ matrix.canister }}
         run: make docker-build-base
