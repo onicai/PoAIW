@@ -40,6 +40,8 @@ jobs:
             canister_name: funnai_treasury_canister
           - canister: GameState
             canister_name: game_state_canister
+          - canister: ckSigner
+            canister_name: ck_signer_canister
 
     steps:
       - name: checkout
@@ -65,6 +67,9 @@ jobs:
           echo "OS version  : $(lsb_release -d 2>/dev/null | cut -f2)"
           echo "dfx version : $(dfx --version)"
           echo "Docker      : $(docker --version)"
+
+      - name: clean docker build cache
+        run: docker builder prune --all --force
 
       - name: build Docker base image
         working-directory: src/${{ matrix.canister }}
