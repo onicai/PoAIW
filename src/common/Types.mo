@@ -1749,46 +1749,6 @@ module Types {
     };
     public type SignResult = Result<SignRecord, ApiError>;
 
-    // ----- ICRC-2 types (for ICRC fee collection - ckBTC and others) -----
-
-    public type Account = {
-        owner : Principal;
-        subaccount : ?Blob;
-    };
-
-    public type TransferFromArgs = {
-        spender_subaccount : ?Blob;
-        from : Account;
-        to : Account;
-        amount : Nat;
-        fee : ?Nat;
-        memo : ?Blob;
-        created_at_time : ?Nat64;
-    };
-
-    public type TransferFromError = {
-        #BadFee : { expected_fee : Nat };
-        #BadBurn : { min_burn_amount : Nat };
-        #InsufficientFunds : { balance : Nat };
-        #InsufficientAllowance : { allowance : Nat };
-        #TooOld;
-        #CreatedInFuture : { ledger_time : Nat64 };
-        #Duplicate : { duplicate_of : Nat };
-        #TemporarilyUnavailable;
-        #GenericError : { error_code : Nat; message : Text };
-    };
-
-    public type TransferFromResult = {
-        #Ok : Nat;
-        #Err : TransferFromError;
-    };
-
-    // ----- Canister Actors -----
-
-    public type ICRC2Ledger_Actor = actor {
-        icrc2_transfer_from : (TransferFromArgs) -> async TransferFromResult;
-    };
-
     // ----- Fee token configuration -----
 
     public type FeeToken = {

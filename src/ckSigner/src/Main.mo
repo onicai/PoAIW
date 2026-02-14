@@ -19,6 +19,7 @@ import Segwit "mo:bitcoin/Segwit";
 
 import Types "../../common/Types";
 import ICManagement "../../common/ICManagementCanister";
+import TokenLedger "../../common/icp-ledger-interface";
 
 persistent actor class CkSigner(initSchnorrKeyName : Text) = self {
 
@@ -225,44 +226,82 @@ persistent actor class CkSigner(initSchnorrKeyName : Text) = self {
     };
 
     // ---------------------------------------------------------------
-    // getPublicKey - Get public key for a named bot
+    // validateGetPublicKeyInput - Validate caller and botName
+    // Returns null if valid, or the ApiError to return
+    // ---------------------------------------------------------------
+    private func validateGetPublicKeyInput(caller : Principal, botName : Text) : ?Types.ApiError {
+        if (Principal.isAnonymous(caller)) { return ?#Unauthorized };
+        if (Text.size(botName) == 0) { return ?#Other("botName cannot be empty") };
+        null;
+    };
+
+    // ---------------------------------------------------------------
+    // buildPublicKeyRecord - Build PublicKeyRecord from cached key bytes
+    // ---------------------------------------------------------------
+    private func buildPublicKeyRecord(botName : Text, keyBytes : [Nat8]) : Types.PublicKeyResult {
+        let address = switch (deriveP2TRAddress(keyBytes)) {
+            case (#ok addr) addr;
+            case (#err e) return #Err(#Other("P2TR address derivation failed: " # e));
+        };
+        #Ok({
+            botName = botName;
+            publicKeyHex = bytesToHex(keyBytes);
+            address = address;
+        });
+    };
+
+    // ---------------------------------------------------------------
+    // getPublicKeyQuery - Get public key from cache (query call)
+    // Clients should call this first. On cache miss, call getPublicKey.
+    // ---------------------------------------------------------------
+    public shared query (msg) func getPublicKeyQuery(
+        input : Types.GetPublicKeyInput,
+    ) : async Types.PublicKeyResult {
+        D.print("ckSigner:getPublicKeyQuery - entered with botName=" # input.botName # ", caller=" # Principal.toText(msg.caller));
+        switch (validateGetPublicKeyInput(msg.caller, input.botName)) {
+            case (?err) { return #Err(err) };
+            case null {};
+        };
+
+        let ck = buildCacheKey(msg.caller, input.botName);
+        switch (publicKeyCache.get(ck)) {
+            case (?cachedKey) {
+                D.print("ckSigner:getPublicKeyQuery - cache hit for " # ck);
+                buildPublicKeyRecord(input.botName, Blob.toArray(cachedKey));
+            };
+            case null {
+                D.print("ckSigner:getPublicKeyQuery - cache miss for " # ck);
+                #Err(#Other("Not Found - call getPublicKey to populate cache."));
+            };
+        };
+    };
+
+    // ---------------------------------------------------------------
+    // getPublicKey - Get public key for a named bot (update call)
+    // Fetches from management canister on cache miss, populates cache.
     // ---------------------------------------------------------------
     public shared (msg) func getPublicKey(
         input : Types.GetPublicKeyInput,
     ) : async Types.PublicKeyResult {
         D.print("ckSigner:getPublicKey - entered with botName=" # input.botName # ", caller=" # Principal.toText(msg.caller));
-        if (Principal.isAnonymous(msg.caller)) {
-            D.print("ckSigner:getPublicKey - rejected anonymous caller");
-            return #Err(#Unauthorized);
+        switch (validateGetPublicKeyInput(msg.caller, input.botName)) {
+            case (?err) { return #Err(err) };
+            case null {};
         };
-        // Validate bot name is not empty
-        if (Text.size(input.botName) == 0) {
-            D.print("ckSigner:getPublicKey - empty botName");
-            return #Err(#Other("botName cannot be empty"));
-        };
-
-        D.print("ckSigner:getPublicKey - derivation path: [" # Principal.toText(msg.caller) # ", " # input.botName # "]");
 
         // Check cache first
         let ck = buildCacheKey(msg.caller, input.botName);
         switch (publicKeyCache.get(ck)) {
             case (?cachedKey) {
                 D.print("ckSigner:getPublicKey - cache hit for " # ck);
-                let keyBytes = Blob.toArray(cachedKey);
-                let address = switch (deriveP2TRAddress(keyBytes)) {
-                    case (#ok addr) addr;
-                    case (#err e) return #Err(#Other("P2TR address derivation failed: " # e));
-                };
-                return #Ok({
-                    botName = input.botName;
-                    publicKeyHex = bytesToHex(keyBytes);
-                    address = address;
-                });
+                return buildPublicKeyRecord(input.botName, Blob.toArray(cachedKey));
             };
             case null {
                 D.print("ckSigner:getPublicKey - cache miss for " # ck # ", calling management canister");
             };
         };
+
+        D.print("ckSigner:getPublicKey - derivation path: [" # Principal.toText(msg.caller) # ", " # input.botName # "]");
 
         // Call management canister
         try {
@@ -278,27 +317,15 @@ persistent actor class CkSigner(initSchnorrKeyName : Text) = self {
             });
 
             D.print("ckSigner:getPublicKey - schnorr_public_key returned, key size=" # Nat.toText(Blob.toArray(result.public_key).size()) # " bytes");
-            // result.public_key is 33 bytes SEC1 compressed
             let xOnlyKey = extractXOnly(result.public_key);
             let xOnlyBytes = Blob.toArray(xOnlyKey);
             D.print("ckSigner:getPublicKey - x-only key: " # bytesToHex(xOnlyBytes));
-
-            // Derive BIP341 P2TR address (with Taproot tweak)
-            let address = switch (deriveP2TRAddress(xOnlyBytes)) {
-                case (#ok addr) addr;
-                case (#err e) return #Err(#Other("P2TR address derivation failed: " # e));
-            };
-            D.print("ckSigner:getPublicKey - P2TR address: " # address);
 
             // Cache the result
             publicKeyCache.put(ck, xOnlyKey);
             D.print("ckSigner:getPublicKey - cached key for " # ck);
 
-            #Ok({
-                botName = input.botName;
-                publicKeyHex = bytesToHex(xOnlyBytes);
-                address = address;
-            });
+            buildPublicKeyRecord(input.botName, xOnlyBytes);
         } catch (e : Error) {
             D.print("ckSigner:getPublicKey - schnorr_public_key FAILED: " # Error.message(e));
             #Err(#Other("schnorr_public_key failed: " # Error.message(e)));
@@ -351,7 +378,7 @@ persistent actor class CkSigner(initSchnorrKeyName : Text) = self {
                         D.print("ckSigner:sign - payment sanity check passed for caller " # Principal.toText(msg.caller) # ", token " # payment.tokenName # " (" # Nat.toText(payment.amount) # ")");
 
                         // Collect fee via ICRC-2 transfer_from
-                        let ledger : Types.ICRC2Ledger_Actor = actor (Principal.toText(payment.tokenLedger));
+                        let ledger : TokenLedger.TOKEN_LEDGER = actor (Principal.toText(payment.tokenLedger));
                         try {
                             let transferResult = await ledger.icrc2_transfer_from({
                                 spender_subaccount = null;

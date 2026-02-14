@@ -531,6 +531,50 @@ def test__sign_no_fee_with_payment(network: str) -> None:
 
 
 # =============================================================================
+# getPublicKeyQuery Endpoint
+# =============================================================================
+
+def test__getPublicKeyQuery_cache_miss(network: str) -> None:
+    """Test getPublicKeyQuery returns cache miss error for uncached bot"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getPublicKeyQuery",
+        canister_argument='(record { botName = "query_test_bot" })',
+        network=network,
+    )
+    assert 'variant { Err = variant { Other = "Not Found' in response
+
+
+def test__getPublicKeyQuery_anonymous(identity_anonymous: Dict[str, str], network: str) -> None:
+    """Test getPublicKeyQuery rejects anonymous caller"""
+    assert identity_anonymous["identity"] == "anonymous"
+
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getPublicKeyQuery",
+        canister_argument='(record { botName = "testbot" })',
+        network=network,
+    )
+    expected_response = '(variant { Err = variant { Unauthorized } })'
+    assert response == expected_response
+
+
+def test__getPublicKeyQuery_empty_botName(network: str) -> None:
+    """Test getPublicKeyQuery rejects empty botName"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getPublicKeyQuery",
+        canister_argument='(record { botName = "" })',
+        network=network,
+    )
+    expected_response = '(variant { Err = variant { Other = "botName cannot be empty" } })'
+    assert response == expected_response
+
+
+# =============================================================================
 # getPublicKey & sign - Success Tests (requires Schnorr signing on replica)
 # =============================================================================
 
@@ -606,6 +650,22 @@ def test__getPublicKey_cache_hit(network: str) -> None:
     )
     assert response1 == response2
     assert response1.startswith('(variant { Ok = record {')
+
+
+def test__getPublicKeyQuery_cache_hit(network: str) -> None:
+    """Test getPublicKeyQuery returns cached result after getPublicKey populated it"""
+    # getPublicKey for "testbot" was called in earlier tests, so cache is populated
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getPublicKeyQuery",
+        canister_argument='(record { botName = "testbot" })',
+        network=network,
+    )
+    assert response.startswith('(variant { Ok = record {')
+    assert 'botName = "testbot"' in response
+    assert 'publicKeyHex' in response
+    assert 'address = "bc1p' in response
 
 
 def test__getPublicKey_different_botNames(network: str) -> None:
