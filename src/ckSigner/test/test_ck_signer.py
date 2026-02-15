@@ -177,7 +177,7 @@ def test__getFeeTokens_empty(network: str) -> None:
     assert f'treasuryName = "{DEFAULT_TREASURY_NAME}"' in response
     assert f'treasuryPrincipal = principal "{DEFAULT_TREASURY_PRINCIPAL}"' in response
     assert 'feeTokens = vec {};' in response
-    assert 'usage = "To pay for sign():' in response
+    assert 'usage = "To pay for getPublicKey() or sign():' in response
 
 
 # =============================================================================
@@ -211,7 +211,8 @@ def test__addFeeToken_verify(network: str) -> None:
     assert f'treasuryName = "{DEFAULT_TREASURY_NAME}"' in response
     assert '"ckBTC"' in response
     assert FAKE_LEDGER in response
-    assert 'usage = "To pay for sign():' in response
+    assert 'usage = "To pay for getPublicKey() or sign():' in response
+    assert 'getPublicKeyQuery()' in response
 
 
 def test__addFeeToken_idempotent(network: str) -> None:
@@ -414,11 +415,85 @@ def test__sign_fee_sanity_check_passes_transfer_fails(network: str) -> None:
 
 
 # =============================================================================
+# getPublicKey with fees configured - Payment Sanity Check Tests
+# Note: At this point, ckBTC fee token (fee=200) is still configured from above
+# =============================================================================
+
+def test__getPublicKey_fee_required_no_payment(network: str) -> None:
+    """Test getPublicKey rejects when fees configured but no payment provided"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getPublicKey",
+        canister_argument='(record { botName = "testbot"; payment = null })',
+        network=network,
+    )
+    assert 'variant { Err = variant { Other = "Fee payment required.' in response
+    assert 'canisterId=' in response
+    assert DEFAULT_TREASURY_NAME in response
+    assert 'Accepted tokens:' in response
+    assert 'ckBTC' in response
+
+
+def test__getPublicKey_fee_wrong_ledger(network: str) -> None:
+    """Test getPublicKey rejects payment with unsupported ledger"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getPublicKey",
+        canister_argument=f'(record {{ botName = "testbot"; payment = opt record {{ tokenName = "ckBTC"; tokenLedger = principal "{FAKE_LEDGER_2}"; amount = 200 : nat }} }})',
+        network=network,
+    )
+    assert 'Unsupported fee token ledger:' in response
+    assert 'canisterId=' in response
+
+
+def test__getPublicKey_fee_wrong_token_name(network: str) -> None:
+    """Test getPublicKey rejects payment with wrong token name"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getPublicKey",
+        canister_argument=f'(record {{ botName = "testbot"; payment = opt record {{ tokenName = "WRONG"; tokenLedger = principal "{FAKE_LEDGER}"; amount = 200 : nat }} }})',
+        network=network,
+    )
+    assert 'Token name mismatch: expected ckBTC, got WRONG' in response
+    assert 'canisterId=' in response
+
+
+def test__getPublicKey_fee_insufficient_amount(network: str) -> None:
+    """Test getPublicKey rejects payment with insufficient amount"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getPublicKey",
+        canister_argument=f'(record {{ botName = "testbot"; payment = opt record {{ tokenName = "ckBTC"; tokenLedger = principal "{FAKE_LEDGER}"; amount = 50 : nat }} }})',
+        network=network,
+    )
+    assert 'Insufficient payment amount: expected >= 200, got 50' in response
+    assert 'canisterId=' in response
+
+
+def test__getPublicKey_fee_sanity_check_passes_transfer_fails(network: str) -> None:
+    """Test getPublicKey with correct payment: sanity check passes but transfer_from
+    fails because there is no real ICRC-2 ledger on local replica."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getPublicKey",
+        canister_argument=f'(record {{ botName = "testbot"; payment = opt record {{ tokenName = "ckBTC"; tokenLedger = principal "{FAKE_LEDGER}"; amount = 200 : nat }} }})',
+        network=network,
+    )
+    assert 'Fee payment failed:' in response
+    assert 'canisterId=' in response
+
+
+# =============================================================================
 # Clean up fee tokens - Remove all so subsequent tests run without fees
 # =============================================================================
 
 def test__removeFeeToken_cleanup(network: str) -> None:
-    """Remove all fee tokens to restore free signing for remaining tests"""
+    """Remove all fee tokens to restore free access for remaining tests"""
     response = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
@@ -442,7 +517,7 @@ def test__removeFeeToken_cleanup(network: str) -> None:
 
 
 # =============================================================================
-# getPublicKey Endpoint - Auth & Validation Tests
+# getPublicKey Endpoint - Auth & Validation Tests (no fees configured)
 # =============================================================================
 
 def test__getPublicKey_anonymous(identity_anonymous: Dict[str, str], network: str) -> None:
@@ -453,7 +528,7 @@ def test__getPublicKey_anonymous(identity_anonymous: Dict[str, str], network: st
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
-        canister_argument='(record { botName = "testbot" })',
+        canister_argument='(record { botName = "testbot"; payment = null })',
         network=network,
     )
     expected_response = '(variant { Err = variant { Unauthorized } })'
@@ -466,11 +541,23 @@ def test__getPublicKey_empty_botName(network: str) -> None:
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
-        canister_argument='(record { botName = "" })',
+        canister_argument='(record { botName = ""; payment = null })',
         network=network,
     )
     expected_response = '(variant { Err = variant { Other = "botName cannot be empty" } })'
     assert response == expected_response
+
+
+def test__getPublicKey_no_fee_with_payment(network: str) -> None:
+    """Test getPublicKey with payment provided but no fees configured — rejects unsupported ledger"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getPublicKey",
+        canister_argument=f'(record {{ botName = "testbot"; payment = opt record {{ tokenName = "ckBTC"; tokenLedger = principal "{FAKE_LEDGER}"; amount = 100 : nat }} }})',
+        network=network,
+    )
+    assert 'variant { Err = variant { Other = "Unsupported fee token ledger:' in response
 
 
 # =============================================================================
@@ -531,7 +618,7 @@ def test__sign_no_fee_with_payment(network: str) -> None:
 
 
 # =============================================================================
-# getPublicKeyQuery Endpoint
+# getPublicKeyQuery Endpoint - Auth & Validation Tests
 # =============================================================================
 
 def test__getPublicKeyQuery_cache_miss(network: str) -> None:
@@ -579,12 +666,12 @@ def test__getPublicKeyQuery_empty_botName(network: str) -> None:
 # =============================================================================
 
 def test__getPublicKey(network: str) -> None:
-    """Test getPublicKey returns public key and P2TR address"""
+    """Test getPublicKey returns public key and P2TR address (no fees configured)"""
     response = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
-        canister_argument='(record { botName = "testbot" })',
+        canister_argument='(record { botName = "testbot"; payment = null })',
         network=network,
     )
     assert response.startswith('(variant { Ok = record {')
@@ -608,7 +695,7 @@ def test__getPublicKey_p2tr_address_matches_local(network: str) -> None:
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
-        canister_argument='(record { botName = "testbot" })',
+        canister_argument='(record { botName = "testbot"; payment = null })',
         network=network,
     )
     # Parse publicKeyHex and address from candid response
@@ -638,14 +725,14 @@ def test__getPublicKey_cache_hit(network: str) -> None:
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
-        canister_argument='(record { botName = "testbot" })',
+        canister_argument='(record { botName = "testbot"; payment = null })',
         network=network,
     )
     response2 = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
-        canister_argument='(record { botName = "testbot" })',
+        canister_argument='(record { botName = "testbot"; payment = null })',
         network=network,
     )
     assert response1 == response2
@@ -668,25 +755,65 @@ def test__getPublicKeyQuery_cache_hit(network: str) -> None:
     assert 'address = "bc1p' in response
 
 
+def test__getPublicKeyQuery_matches_getPublicKey(network: str) -> None:
+    """Test getPublicKeyQuery returns identical result to getPublicKey for same bot"""
+    update_response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getPublicKey",
+        canister_argument='(record { botName = "testbot"; payment = null })',
+        network=network,
+    )
+    query_response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getPublicKeyQuery",
+        canister_argument='(record { botName = "testbot" })',
+        network=network,
+    )
+    assert update_response == query_response
+
+
 def test__getPublicKey_different_botNames(network: str) -> None:
     """Test getPublicKey returns different keys for different bot names"""
     response1 = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
-        canister_argument='(record { botName = "bot_alpha" })',
+        canister_argument='(record { botName = "bot_alpha"; payment = null })',
         network=network,
     )
     response2 = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
-        canister_argument='(record { botName = "bot_beta" })',
+        canister_argument='(record { botName = "bot_beta"; payment = null })',
         network=network,
     )
     assert response1.startswith('(variant { Ok = record {')
     assert response2.startswith('(variant { Ok = record {')
     assert response1 != response2
+
+
+def test__getPublicKeyQuery_different_bots_cached(network: str) -> None:
+    """Test getPublicKeyQuery returns different cached keys for different bots"""
+    query1 = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getPublicKeyQuery",
+        canister_argument='(record { botName = "bot_alpha" })',
+        network=network,
+    )
+    query2 = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getPublicKeyQuery",
+        canister_argument='(record { botName = "bot_beta" })',
+        network=network,
+    )
+    assert query1.startswith('(variant { Ok = record {')
+    assert query2.startswith('(variant { Ok = record {')
+    assert query1 != query2
 
 
 def test__sign(network: str) -> None:
@@ -789,7 +916,7 @@ def test__sign_verify_signature(network: str) -> None:
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
-        canister_argument='(record { botName = "testbot" })',
+        canister_argument='(record { botName = "testbot"; payment = null })',
         network=network,
     )
     pubkey_match = re.search(r'publicKeyHex = "([0-9a-f]{64})"', pk_response)

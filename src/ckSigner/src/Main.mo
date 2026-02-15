@@ -42,7 +42,7 @@ persistent actor class CkSigner(initSchnorrKeyName : Text) = self {
     // ---------------------------------------------------------------
     // Fee collection
     // ---------------------------------------------------------------
-    // Accepted fee tokens for sign(). Supports any ICRC-2 compatible ledger.
+    // Accepted fee tokens for getPublicKey() and sign(). Supports any ICRC-2 compatible ledger.
     // Empty map = free signing. Controller configures via addFeeToken /
     // removeFeeToken. Caller specifies payment in sign() — O(1)
     // lookup, single transfer_from, no looping.
@@ -120,7 +120,7 @@ persistent actor class CkSigner(initSchnorrKeyName : Text) = self {
         Segwit.encode("bc", { version = 1 : Nat8; program = tweakedKey });
     };
 
-    // Build fee info string for self-discovery in sign() error responses
+    // Build fee info string for self-discovery in error responses
     private func buildFeeInfo() : Text {
         let canId = Principal.toText(Principal.fromActor(self));
         var tokenList = "";
@@ -132,8 +132,72 @@ persistent actor class CkSigner(initSchnorrKeyName : Text) = self {
         ". " # treasury.treasuryName # " (" # Principal.toText(treasury.treasuryPrincipal) # ")" #
         ". Accepted tokens: " # tokenList #
         ". Usage: 1) Call icrc2_approve on the token ledger with spender=" # canId # " and amount >= fee (e.g. 100 sats for ckBTC). " #
-        "2) Call sign() with payment = record { tokenName; tokenLedger; amount }. " #
+        "2) Call the endpoint with payment = record { tokenName; tokenLedger; amount }. " #
         "The canister will transfer_from your account to the " # treasury.treasuryName # ". See also: getFeeTokens().";
+    };
+
+    // Collect fee via ICRC-2 transfer_from. Returns null on success, or an ApiError.
+    private func collectFee(caller : Principal, payment : ?Types.Payment, endpoint : Text) : async ?Types.ApiError {
+        switch (payment) {
+            case (?p) {
+                switch (feeTokens.get(p.tokenLedger)) {
+                    case null {
+                        D.print("ckSigner:" # endpoint # " - unknown fee token ledger " # Principal.toText(p.tokenLedger));
+                        return ?#Other("Unsupported fee token ledger: " # Principal.toText(p.tokenLedger) # ". " # buildFeeInfo());
+                    };
+                    case (?configured) {
+                        if (p.tokenName != configured.tokenName) {
+                            D.print("ckSigner:" # endpoint # " - token name mismatch: expected " # configured.tokenName # ", got " # p.tokenName);
+                            return ?#Other("Token name mismatch: expected " # configured.tokenName # ", got " # p.tokenName # ". " # buildFeeInfo());
+                        };
+                        if (p.amount < configured.fee) {
+                            D.print("ckSigner:" # endpoint # " - insufficient payment: expected >= " # Nat.toText(configured.fee) # ", got " # Nat.toText(p.amount));
+                            return ?#Other("Insufficient payment amount: expected >= " # Nat.toText(configured.fee) # ", got " # Nat.toText(p.amount) # ". " # buildFeeInfo());
+                        };
+                        D.print("ckSigner:" # endpoint # " - payment sanity check passed for caller " # Principal.toText(caller) # ", token " # p.tokenName # " (" # Nat.toText(p.amount) # ")");
+
+                        let ledger : TokenLedger.TOKEN_LEDGER = actor (Principal.toText(p.tokenLedger));
+                        try {
+                            let transferResult = await ledger.icrc2_transfer_from({
+                                spender_subaccount = null;
+                                from = { owner = caller; subaccount = null };
+                                to = { owner = treasury.treasuryPrincipal; subaccount = null };
+                                amount = configured.fee;
+                                fee = null;
+                                memo = null;
+                                created_at_time = null;
+                            });
+                            switch (transferResult) {
+                                case (#Ok blockIndex) {
+                                    D.print("ckSigner:" # endpoint # " - fee collected from " # Principal.toText(caller) # ", block index " # Nat.toText(blockIndex));
+                                };
+                                case (#Err transferErr) {
+                                    let errMsg = switch (transferErr) {
+                                        case (#InsufficientFunds _) "Insufficient funds";
+                                        case (#InsufficientAllowance _) "Insufficient allowance. Call icrc2_approve first.";
+                                        case (#BadFee _) "Bad fee";
+                                        case (#TemporarilyUnavailable) "Ledger temporarily unavailable";
+                                        case (_) "Transfer failed";
+                                    };
+                                    D.print("ckSigner:" # endpoint # " - fee transfer failed for " # Principal.toText(caller) # ": " # errMsg);
+                                    return ?#Other("Fee payment failed: " # errMsg # ". " # buildFeeInfo());
+                                };
+                            };
+                        } catch (e : Error) {
+                            D.print("ckSigner:" # endpoint # " - fee transfer call failed: " # Error.message(e));
+                            return ?#Other("Fee payment failed: " # Error.message(e) # ". " # buildFeeInfo());
+                        };
+                    };
+                };
+            };
+            case null {
+                if (feeTokens.size() > 0) {
+                    D.print("ckSigner:" # endpoint # " - fee required but no payment provided");
+                    return ?#Other("Fee payment required. " # buildFeeInfo());
+                };
+            };
+        };
+        null; // success
     };
 
     // ---------------------------------------------------------------
@@ -174,10 +238,11 @@ persistent actor class CkSigner(initSchnorrKeyName : Text) = self {
             canisterId = canId;
             treasury = treasury;
             feeTokens = tokens;
-            usage = "To pay for sign(): " #
+            usage = "To pay for getPublicKey() or sign(): " #
                 "1) Call icrc2_approve on the token ledger with spender=" # Principal.toText(canId) # " and amount >= fee (e.g. 100 sats for ckBTC). " #
-                "2) Call sign() with payment = record { tokenName; tokenLedger; amount }. " #
-                "The canister will transfer_from your account to the " # treasury.treasuryName # " (" # Principal.toText(treasury.treasuryPrincipal) # ").";
+                "2) Call the endpoint with payment = record { tokenName; tokenLedger; amount }. " #
+                "The canister will transfer_from your account to the " # treasury.treasuryName # " (" # Principal.toText(treasury.treasuryPrincipal) # "). " #
+                "Tip: After getPublicKey(), use getPublicKeyQuery() for free cached access.";
         });
     };
 
@@ -279,12 +344,20 @@ persistent actor class CkSigner(initSchnorrKeyName : Text) = self {
     // ---------------------------------------------------------------
     // getPublicKey - Get public key for a named bot (update call)
     // Fetches from management canister on cache miss, populates cache.
+    // May require fee payment when fee tokens are configured.
+    // After first call, use getPublicKeyQuery for free cached access.
     // ---------------------------------------------------------------
     public shared (msg) func getPublicKey(
         input : Types.GetPublicKeyInput,
     ) : async Types.PublicKeyResult {
         D.print("ckSigner:getPublicKey - entered with botName=" # input.botName # ", caller=" # Principal.toText(msg.caller));
         switch (validateGetPublicKeyInput(msg.caller, input.botName)) {
+            case (?err) { return #Err(err) };
+            case null {};
+        };
+
+        // Fee collection (if configured)
+        switch (await collectFee(msg.caller, input.payment, "getPublicKey")) {
             case (?err) { return #Err(err) };
             case null {};
         };
@@ -357,68 +430,10 @@ persistent actor class CkSigner(initSchnorrKeyName : Text) = self {
             return #Err(#Other("message must be exactly 32 bytes (sighash)"));
         };
 
-        // Fee collection: if fee tokens are configured, payment is required
-        switch (input.payment) {
-            case (?payment) {
-                // Sanity check: verify payment matches a configured fee token
-                switch (feeTokens.get(payment.tokenLedger)) {
-                    case null {
-                        D.print("ckSigner:sign - unknown fee token ledger " # Principal.toText(payment.tokenLedger));
-                        return #Err(#Other("Unsupported fee token ledger: " # Principal.toText(payment.tokenLedger) # ". " # buildFeeInfo()));
-                    };
-                    case (?configured) {
-                        if (payment.tokenName != configured.tokenName) {
-                            D.print("ckSigner:sign - token name mismatch: expected " # configured.tokenName # ", got " # payment.tokenName);
-                            return #Err(#Other("Token name mismatch: expected " # configured.tokenName # ", got " # payment.tokenName # ". " # buildFeeInfo()));
-                        };
-                        if (payment.amount < configured.fee) {
-                            D.print("ckSigner:sign - insufficient payment: expected >= " # Nat.toText(configured.fee) # ", got " # Nat.toText(payment.amount));
-                            return #Err(#Other("Insufficient payment amount: expected >= " # Nat.toText(configured.fee) # ", got " # Nat.toText(payment.amount) # ". " # buildFeeInfo()));
-                        };
-                        D.print("ckSigner:sign - payment sanity check passed for caller " # Principal.toText(msg.caller) # ", token " # payment.tokenName # " (" # Nat.toText(payment.amount) # ")");
-
-                        // Collect fee via ICRC-2 transfer_from
-                        let ledger : TokenLedger.TOKEN_LEDGER = actor (Principal.toText(payment.tokenLedger));
-                        try {
-                            let transferResult = await ledger.icrc2_transfer_from({
-                                spender_subaccount = null;
-                                from = { owner = msg.caller; subaccount = null };
-                                to = { owner = treasury.treasuryPrincipal; subaccount = null };
-                                amount = configured.fee;
-                                fee = null;
-                                memo = null;
-                                created_at_time = null;
-                            });
-                            switch (transferResult) {
-                                case (#Ok blockIndex) {
-                                    D.print("ckSigner:sign - fee collected from " # Principal.toText(msg.caller) # ", block index " # Nat.toText(blockIndex));
-                                };
-                                case (#Err transferErr) {
-                                    let errMsg = switch (transferErr) {
-                                        case (#InsufficientFunds _) "Insufficient funds";
-                                        case (#InsufficientAllowance _) "Insufficient allowance. Call icrc2_approve first.";
-                                        case (#BadFee _) "Bad fee";
-                                        case (#TemporarilyUnavailable) "Ledger temporarily unavailable";
-                                        case (_) "Transfer failed";
-                                    };
-                                    D.print("ckSigner:sign - fee transfer failed for " # Principal.toText(msg.caller) # ": " # errMsg);
-                                    return #Err(#Other("Fee payment failed: " # errMsg # ". " # buildFeeInfo()));
-                                };
-                            };
-                        } catch (e : Error) {
-                            D.print("ckSigner:sign - fee transfer call failed: " # Error.message(e));
-                            return #Err(#Other("Fee payment failed: " # Error.message(e) # ". " # buildFeeInfo()));
-                        };
-                    };
-                };
-            };
-            case null {
-                // No payment provided — check if fees are required
-                if (feeTokens.size() > 0) {
-                    D.print("ckSigner:sign - fee required but no payment provided");
-                    return #Err(#Other("Fee payment required. " # buildFeeInfo()));
-                };
-            };
+        // Fee collection (if configured)
+        switch (await collectFee(msg.caller, input.payment, "sign")) {
+            case (?err) { return #Err(err) };
+            case null {};
         };
 
         D.print("ckSigner:sign - derivation path: [" # Principal.toText(msg.caller) # ", " # input.botName # "]");

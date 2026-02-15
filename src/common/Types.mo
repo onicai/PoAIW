@@ -1722,9 +1722,10 @@ module Types {
         amount : Nat;            // Must be >= configured fee amount
     };
 
-    // Input for getPublicKey
+    // Input for getPublicKey (update call — may require payment)
     public type GetPublicKeyInput = {
         botName : Text;
+        payment : ?Payment; // null = no fee payment
     };
 
     // Input for sign
