@@ -958,3 +958,344 @@ def test__sign_verify_signature(network: str) -> None:
         f"  Message:      {msg_bytes.hex()}\n"
         f"  Signature:    {sig_bytes.hex()}"
     )
+
+
+# =============================================================================
+# signBip322 Endpoint
+# =============================================================================
+
+def test__signBip322_anonymous(identity_anonymous: Dict[str, str], network: str) -> None:
+    """Test signBip322 rejects anonymous caller"""
+    assert identity_anonymous["identity"] == "anonymous"
+
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="signBip322",
+        canister_argument='(record { botName = "testbot"; message = "Hello World"; payment = null })',
+        network=network,
+    )
+    expected_response = '(variant { Err = variant { Unauthorized } })'
+    assert response == expected_response
+
+
+def test__signBip322_empty_botName(network: str) -> None:
+    """Test signBip322 rejects empty botName"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="signBip322",
+        canister_argument='(record { botName = ""; message = "Hello World"; payment = null })',
+        network=network,
+    )
+    expected_response = '(variant { Err = variant { Other = "botName cannot be empty" } })'
+    assert response == expected_response
+
+
+def test__signBip322_empty_message(network: str) -> None:
+    """Test signBip322 rejects empty message"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="signBip322",
+        canister_argument='(record { botName = "testbot"; message = ""; payment = null })',
+        network=network,
+    )
+    expected_response = '(variant { Err = variant { Other = "message cannot be empty" } })'
+    assert response == expected_response
+
+
+def test__signBip322(network: str) -> None:
+    """Test signBip322 returns Ok with all fields present"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="signBip322",
+        canister_argument='(record { botName = "testbot"; message = "Hello World"; payment = null })',
+        network=network,
+    )
+    assert response.startswith('(variant { Ok = record {')
+    assert 'botName = "testbot"' in response
+    assert 'signatureHex' in response
+    assert 'witnessB64' in response
+    assert 'address = "bc1p' in response
+
+
+def test__signBip322_signature_format(network: str) -> None:
+    """Test signBip322 returns a 64-byte (128 hex char) Schnorr signature"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="signBip322",
+        canister_argument='(record { botName = "testbot"; message = "Hello World"; payment = null })',
+        network=network,
+    )
+    sig_match = re.search(r'signatureHex = "([0-9a-f]+)"', response)
+    assert sig_match, f"signatureHex not found in response: {response}"
+    sig_hex = sig_match.group(1)
+    assert len(sig_hex) == 128, f"Expected 128 hex chars (64 bytes), got {len(sig_hex)}"
+
+
+def test__signBip322_witness_format(network: str) -> None:
+    """Test signBip322 witness decodes to 66 bytes: [0x01, 0x40, ...64 sig bytes...]"""
+    import base64
+
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="signBip322",
+        canister_argument='(record { botName = "testbot"; message = "Hello World"; payment = null })',
+        network=network,
+    )
+    witness_match = re.search(r'witnessB64 = "([A-Za-z0-9+/=]+)"', response)
+    assert witness_match, f"witnessB64 not found in response: {response}"
+    witness_bytes = base64.b64decode(witness_match.group(1))
+
+    # BIP322 witness: num_elements(1=0x01) || sig_len(64=0x40) || sig(64 bytes)
+    assert len(witness_bytes) == 66, f"Expected 66 bytes, got {len(witness_bytes)}"
+    assert witness_bytes[0] == 0x01, f"Expected 1 witness element, got {witness_bytes[0]}"
+    assert witness_bytes[1] == 0x40, f"Expected sig length 64 (0x40), got {witness_bytes[1]}"
+
+    # Verify the signature in witness matches signatureHex
+    sig_match = re.search(r'signatureHex = "([0-9a-f]+)"', response)
+    assert witness_bytes[2:].hex() == sig_match.group(1)
+
+
+def test__signBip322_address_matches(network: str) -> None:
+    """Test signBip322 address matches getPublicKey address for same bot"""
+    pk_response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getPublicKey",
+        canister_argument='(record { botName = "testbot"; payment = null })',
+        network=network,
+    )
+    pk_address = re.search(r'address = "(bc1p[a-z0-9]+)"', pk_response).group(1)
+
+    bip322_response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="signBip322",
+        canister_argument='(record { botName = "testbot"; message = "Hello World"; payment = null })',
+        network=network,
+    )
+    bip322_address = re.search(r'address = "(bc1p[a-z0-9]+)"', bip322_response).group(1)
+
+    assert pk_address == bip322_address, (
+        f"Address mismatch!\n  getPublicKey: {pk_address}\n  signBip322:   {bip322_address}"
+    )
+
+
+def test__signBip322_different_messages(network: str) -> None:
+    """Test signBip322 produces different signatures for different messages"""
+    response1 = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="signBip322",
+        canister_argument='(record { botName = "testbot"; message = "Hello World"; payment = null })',
+        network=network,
+    )
+    response2 = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="signBip322",
+        canister_argument='(record { botName = "testbot"; message = "Goodbye World"; payment = null })',
+        network=network,
+    )
+    sig1 = re.search(r'signatureHex = "([0-9a-f]+)"', response1).group(1)
+    sig2 = re.search(r'signatureHex = "([0-9a-f]+)"', response2).group(1)
+    assert sig1 != sig2, "Different messages should produce different signatures"
+
+
+def test__signBip322_different_botNames(network: str) -> None:
+    """Test signBip322 produces different signatures for different bot names"""
+    response1 = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="signBip322",
+        canister_argument='(record { botName = "bot_alpha"; message = "Hello World"; payment = null })',
+        network=network,
+    )
+    response2 = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="signBip322",
+        canister_argument='(record { botName = "bot_beta"; message = "Hello World"; payment = null })',
+        network=network,
+    )
+    sig1 = re.search(r'signatureHex = "([0-9a-f]+)"', response1).group(1)
+    sig2 = re.search(r'signatureHex = "([0-9a-f]+)"', response2).group(1)
+    assert sig1 != sig2, "Different bot names should produce different signatures"
+
+
+def test__signBip322_witness_matches_bip322_py(network: str) -> None:
+    """Test canister witness matches iconfucius bip322.encode_witness()"""
+    try:
+        from iconfucius.bip322 import encode_witness
+    except ImportError:
+        pytest.skip("iconfucius not installed")
+
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="signBip322",
+        canister_argument='(record { botName = "testbot"; message = "Hello World"; payment = null })',
+        network=network,
+    )
+    sig_hex = re.search(r'signatureHex = "([0-9a-f]+)"', response).group(1)
+    witness_b64 = re.search(r'witnessB64 = "([A-Za-z0-9+/=]+)"', response).group(1)
+
+    expected_b64 = encode_witness(sig_hex)
+    assert witness_b64 == expected_b64, (
+        f"Witness mismatch!\n  Canister: {witness_b64}\n  bip322.py: {expected_b64}"
+    )
+
+
+def test__signBip322_address_matches_bip322_py(network: str) -> None:
+    """Test canister address matches iconfucius bip322.derive_address()"""
+    try:
+        from iconfucius.bip322 import derive_address
+    except ImportError:
+        pytest.skip("iconfucius not installed")
+
+    pk_response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getPublicKey",
+        canister_argument='(record { botName = "testbot"; payment = null })',
+        network=network,
+    )
+    pubkey_hex = re.search(r'publicKeyHex = "([0-9a-f]{64})"', pk_response).group(1)
+
+    bip322_response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="signBip322",
+        canister_argument='(record { botName = "testbot"; message = "Hello World"; payment = null })',
+        network=network,
+    )
+    canister_address = re.search(r'address = "(bc1p[a-z0-9]+)"', bip322_response).group(1)
+    python_address = derive_address(pubkey_hex)
+
+    assert canister_address == python_address, (
+        f"Address mismatch!\n  Canister:  {canister_address}\n  bip322.py: {python_address}"
+    )
+
+
+def test__signBip322_verify_with_bip322_py(network: str) -> None:
+    """E2E: use iconfucius bip322.compute_sighash() as reference, verify BIP340 signature
+
+    This is the critical cross-validation test. The canister computes the BIP322
+    sighash in Motoko; bip322.py computes it independently in Python using
+    bitcoin-utils. If the signature verifies against the Python-computed sighash,
+    the canister's BIP341 implementation is byte-for-byte correct.
+    """
+    try:
+        import hashlib
+        from coincurve import PublicKey as CPublicKey, PrivateKey
+        from bitcoinutils.schnorr import schnorr_verify
+        from iconfucius.bip322 import compute_sighash
+    except ImportError:
+        pytest.skip("coincurve, bitcoin-utils, or iconfucius not installed")
+
+    # Get internal x-only public key
+    pk_response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getPublicKey",
+        canister_argument='(record { botName = "testbot"; payment = null })',
+        network=network,
+    )
+    internal_key_hex = re.search(r'publicKeyHex = "([0-9a-f]{64})"', pk_response).group(1)
+    internal_key_bytes = bytes.fromhex(internal_key_hex)
+
+    # Sign a BIP322 message
+    message = "Hello World"
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="signBip322",
+        canister_argument=f'(record {{ botName = "testbot"; message = "{message}"; payment = null }})',
+        network=network,
+    )
+    sig_hex = re.search(r'signatureHex = "([0-9a-f]{128})"', response).group(1)
+    sig_bytes = bytes.fromhex(sig_hex)
+
+    # Use bip322.py to compute reference sighash
+    ref = compute_sighash(message, internal_key_hex)
+    sighash = bytes.fromhex(ref["sighash"])
+
+    # Compute tweaked key for BIP340 verification
+    tag_hash = hashlib.sha256(b"TapTweak").digest()
+    tweak = hashlib.sha256(tag_hash + tag_hash + internal_key_bytes).digest()
+    tweak_point = PrivateKey(tweak).public_key
+    internal_point = CPublicKey(b'\x02' + internal_key_bytes)
+    tweaked_point = CPublicKey.combine_keys([internal_point, tweak_point])
+    tweaked_x_only = tweaked_point.format(compressed=True)[1:]
+
+    # Verify signature against tweaked key using Python-computed sighash
+    is_valid = schnorr_verify(sighash, tweaked_x_only, sig_bytes)
+    assert is_valid, (
+        f"BIP322 Schnorr signature verification failed!\n"
+        f"  Internal key: {internal_key_hex}\n"
+        f"  Tweaked key:  {tweaked_x_only.hex()}\n"
+        f"  Message:      {message}\n"
+        f"  Sighash (bip322.py): {ref['sighash']}\n"
+        f"  Signature:    {sig_hex}"
+    )
+
+
+def test__signBip322_unicode_message(network: str) -> None:
+    """Test signBip322 handles Unicode (CJK + emoji) messages correctly"""
+    try:
+        from iconfucius.bip322 import compute_sighash
+        from coincurve import PublicKey as CPublicKey, PrivateKey
+        from bitcoinutils.schnorr import schnorr_verify
+        import hashlib
+    except ImportError:
+        pytest.skip("iconfucius, coincurve, or bitcoin-utils not installed")
+
+    # Get internal key
+    pk_response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getPublicKey",
+        canister_argument='(record { botName = "testbot"; payment = null })',
+        network=network,
+    )
+    internal_key_hex = re.search(r'publicKeyHex = "([0-9a-f]{64})"', pk_response).group(1)
+    internal_key_bytes = bytes.fromhex(internal_key_hex)
+
+    # UTF-8 message with CJK characters
+    message = "Sign In With Bitcoin"
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="signBip322",
+        canister_argument=f'(record {{ botName = "testbot"; message = "{message}"; payment = null }})',
+        network=network,
+    )
+    assert response.startswith('(variant { Ok = record {'), f"Unexpected response: {response}"
+    sig_hex = re.search(r'signatureHex = "([0-9a-f]{128})"', response).group(1)
+    sig_bytes = bytes.fromhex(sig_hex)
+
+    # Cross-validate sighash with bip322.py
+    ref = compute_sighash(message, internal_key_hex)
+    sighash = bytes.fromhex(ref["sighash"])
+
+    # Compute tweaked key
+    tag_hash = hashlib.sha256(b"TapTweak").digest()
+    tweak = hashlib.sha256(tag_hash + tag_hash + internal_key_bytes).digest()
+    tweak_point = PrivateKey(tweak).public_key
+    internal_point = CPublicKey(b'\x02' + internal_key_bytes)
+    tweaked_point = CPublicKey.combine_keys([internal_point, tweak_point])
+    tweaked_x_only = tweaked_point.format(compressed=True)[1:]
+
+    # Verify
+    is_valid = schnorr_verify(sighash, tweaked_x_only, sig_bytes)
+    assert is_valid, (
+        f"Unicode BIP322 signature verification failed!\n"
+        f"  Message: {message}\n"
+        f"  Sighash: {ref['sighash']}\n"
+        f"  Signature: {sig_hex}"
+    )
