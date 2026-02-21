@@ -727,7 +727,6 @@ persistent actor class CkSigner(initSchnorrKeyName : Text) = self {
 
     system func postupgrade() {
         feeTokens := HashMap.fromIter(Iter.fromArray(feeTokensStable), feeTokensStable.size(), Principal.equal, Principal.hash);
-        feeTokensStable := [];
     };
 
 };
