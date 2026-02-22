@@ -16,6 +16,8 @@ import Curves "mo:bitcoin/ec/Curves";
 import Hash "mo:bitcoin/Hash";
 import { tweakPublicKey } "mo:bitcoin/bitcoin/P2tr";
 import Segwit "mo:bitcoin/Segwit";
+import Sha256 "mo:sha2/Sha256";
+import Witness "mo:bitcoin/bitcoin/Witness";
 
 import Types "../../common/Types";
 import ICManagement "../../common/ICManagementCanister";
@@ -102,22 +104,170 @@ persistent actor class CkSigner(initSchnorrKeyName : Text) = self {
         [Principal.toBlob(caller), Text.encodeUtf8(botName)];
     };
 
-    // Derive correct BIP341 P2TR address from x-only public key (with Taproot tweak)
-    // Uses DFINITY's mo:bitcoin library for secp256k1 EC math and Bech32m encoding
-    private func deriveP2TRAddress(xOnlyKeyBytes : [Nat8]) : Result.Result<Text, Text> {
-        // BIP341 key-path-only: tweak = tagged_hash("TapTweak", P)
-        // No merkle root appended (no script tree)
+    // Derive BIP341 tweaked key bytes from x-only public key
+    private func deriveTweakedKeyBytes(xOnlyKeyBytes : [Nat8]) : Result.Result<[Nat8], Text> {
         let tweakBytes = Hash.taggedHash(xOnlyKeyBytes, "TapTweak");
         let tweakNat = Common.readBE256(tweakBytes, 0);
         if (tweakNat >= Curves.secp256k1.r) {
             return #err("tweak exceeds curve order");
         };
         let tweak = Curves.secp256k1.Fp(tweakNat);
-        let tweakedKey = switch (tweakPublicKey(xOnlyKeyBytes, tweak)) {
-            case (#ok pk) pk.bip340_public_key;
+        switch (tweakPublicKey(xOnlyKeyBytes, tweak)) {
+            case (#ok pk) #ok(pk.bip340_public_key);
+            case (#err e) #err(e);
+        };
+    };
+
+    // Derive BIP341 P2TR address from x-only public key (with Taproot tweak)
+    private func deriveP2TRAddress(xOnlyKeyBytes : [Nat8]) : Result.Result<Text, Text> {
+        let tweakedKey = switch (deriveTweakedKeyBytes(xOnlyKeyBytes)) {
+            case (#ok tk) tk;
             case (#err e) return #err(e);
         };
         Segwit.encode("bc", { version = 1 : Nat8; program = tweakedKey });
+    };
+
+    // Plain single SHA256 (not double-SHA256)
+    private func sha256(data : [Nat8]) : [Nat8] {
+        Blob.toArray(Sha256.fromArray(#sha256, data));
+    };
+
+    // RFC 4648 Base64 encoding
+    private func base64Encode(data : [Nat8]) : Text {
+        let alphabet = Iter.toArray("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".chars());
+        let n = data.size();
+        var result = "";
+        var i = 0;
+        while (i + 2 < n) {
+            let b0 = Nat8.toNat(data[i]);
+            let b1 = Nat8.toNat(data[i + 1]);
+            let b2 = Nat8.toNat(data[i + 2]);
+            result := result
+                # Text.fromChar(alphabet[b0 / 4])
+                # Text.fromChar(alphabet[(b0 % 4) * 16 + b1 / 16])
+                # Text.fromChar(alphabet[(b1 % 16) * 4 + b2 / 64])
+                # Text.fromChar(alphabet[b2 % 64]);
+            i += 3;
+        };
+        if (n % 3 == 1) {
+            let b0 = Nat8.toNat(data[i]);
+            result := result # Text.fromChar(alphabet[b0 / 4])
+                # Text.fromChar(alphabet[(b0 % 4) * 16]) # "==";
+        } else if (n % 3 == 2) {
+            let b0 = Nat8.toNat(data[i]);
+            let b1 = Nat8.toNat(data[i + 1]);
+            result := result # Text.fromChar(alphabet[b0 / 4])
+                # Text.fromChar(alphabet[(b0 % 4) * 16 + b1 / 16])
+                # Text.fromChar(alphabet[(b1 % 16) * 4]) # "=";
+        };
+        result;
+    };
+
+    // BIP322 tagged message hash
+    private func bip0322Hash(message : Text) : [Nat8] {
+        Hash.taggedHash(Blob.toArray(Text.encodeUtf8(message)), "BIP0322-signed-message");
+    };
+
+    // Serialize the BIP322 "toSpend" virtual transaction (128 bytes for P2TR)
+    //
+    // Layout:
+    //   version(4) vinCount(1) txid(32) vout(4) scriptSigLen(1) scriptSig(34)
+    //   sequence(4) voutCount(1) amount(8) spkLen(1) scriptPubKey(34) locktime(4)
+    private func serializeToSpend(msgHash : [Nat8], tweakedKeyBytes : [Nat8]) : [Nat8] {
+        let buf : [var Nat8] = Array.init<Nat8>(128, 0);
+        var pos = 0;
+
+        // nVersion = 0 (LE32, already 0)
+        pos += 4;
+
+        // vinCount = 1
+        buf[pos] := 1;
+        pos += 1;
+
+        // txid = 32 zero bytes (already 0)
+        pos += 32;
+
+        // vout = 0xFFFFFFFF
+        buf[pos] := 0xFF; buf[pos + 1] := 0xFF; buf[pos + 2] := 0xFF; buf[pos + 3] := 0xFF;
+        pos += 4;
+
+        // scriptSigLen = 34
+        buf[pos] := 34;
+        pos += 1;
+
+        // scriptSig: OP_0(0x00) PUSH32(0x20) msgHash(32)
+        buf[pos] := 0x00;
+        buf[pos + 1] := 0x20;
+        pos += 2;
+        for (j in msgHash.vals()) { buf[pos] := j; pos += 1 };
+
+        // sequence = 0 (already 0)
+        pos += 4;
+
+        // voutCount = 1
+        buf[pos] := 1;
+        pos += 1;
+
+        // amount = 0 (LE64, already 0)
+        pos += 8;
+
+        // scriptPubKeyLen = 34
+        buf[pos] := 34;
+        pos += 1;
+
+        // scriptPubKey: OP_1(0x51) 0x20 tweakedKeyBytes(32)
+        buf[pos] := 0x51;
+        buf[pos + 1] := 0x20;
+        pos += 2;
+        for (j in tweakedKeyBytes.vals()) { buf[pos] := j; pos += 1 };
+
+        // locktime = 0 (already 0)
+        Array.freeze(buf);
+    };
+
+    // BIP341 sighash for the BIP322 "toSign" virtual transaction
+    // Custom: Transaction.mo hardcodes nVersion=2; BIP322 needs nVersion=0
+    private func computeBip322Sighash(toSpendTxid : [Nat8], tweakedKeyBytes : [Nat8]) : [Nat8] {
+        // sha_prevouts = SHA256(txid || LE32(0))
+        let prevoutsData : [var Nat8] = Array.init<Nat8>(36, 0);
+        var k = 0;
+        for (b in toSpendTxid.vals()) { prevoutsData[k] := b; k += 1 };
+        let shaPrevouts = sha256(Array.freeze(prevoutsData));
+
+        // sha_amounts = SHA256(LE64(0))
+        let shaAmounts = sha256(Array.freeze(Array.init<Nat8>(8, 0)));
+
+        // sha_scriptpubkeys = SHA256(varint(34) || OP_1 || 0x20 || tweakedKey)
+        let spkData : [var Nat8] = Array.init<Nat8>(35, 0);
+        spkData[0] := 34;   // varint(34)
+        spkData[1] := 0x51; // OP_1
+        spkData[2] := 0x20; // PUSH32
+        k := 3;
+        for (b in tweakedKeyBytes.vals()) { spkData[k] := b; k += 1 };
+        let shaScriptpubkeys = sha256(Array.freeze(spkData));
+
+        // sha_sequences = SHA256(LE32(0))
+        let shaSequences = sha256(Array.freeze(Array.init<Nat8>(4, 0)));
+
+        // sha_outputs = SHA256(LE64(0) || varint(1) || OP_RETURN(0x6a))
+        let outputData : [var Nat8] = Array.init<Nat8>(10, 0);
+        outputData[8] := 1;    // varint(1)
+        outputData[9] := 0x6a; // OP_RETURN
+        let shaOutputs = sha256(Array.freeze(outputData));
+
+        // Assemble sighash preimage (175 bytes)
+        let preimage : [var Nat8] = Array.init<Nat8>(175, 0);
+        // epoch(0x00) + sighash_type(0x00) + nVersion(0) + nLockTime(0) — all 0
+        var pos = 10;
+
+        for (b in shaPrevouts.vals()) { preimage[pos] := b; pos += 1 };
+        for (b in shaAmounts.vals()) { preimage[pos] := b; pos += 1 };
+        for (b in shaScriptpubkeys.vals()) { preimage[pos] := b; pos += 1 };
+        for (b in shaSequences.vals()) { preimage[pos] := b; pos += 1 };
+        for (b in shaOutputs.vals()) { preimage[pos] := b; pos += 1 };
+        // spend_type(0x00) + input_index(LE32(0)) — all 0
+
+        Hash.taggedHash(Array.freeze(preimage), "TapSighash");
     };
 
     // Build fee info string for self-discovery in error responses
@@ -468,6 +618,106 @@ persistent actor class CkSigner(initSchnorrKeyName : Text) = self {
     };
 
     // ---------------------------------------------------------------
+    // signBip322 - Produce a BIP322 simple signature for a UTF-8 message
+    // ---------------------------------------------------------------
+    public shared (msg) func signBip322(
+        input : Types.SignBip322Input,
+    ) : async Types.Bip322SignResult {
+        D.print("ckSigner:signBip322 - entered with botName=" # input.botName # ", caller=" # Principal.toText(msg.caller));
+
+        // Validate caller and botName (reuse existing helper)
+        switch (validateGetPublicKeyInput(msg.caller, input.botName)) {
+            case (?err) { return #Err(err) };
+            case null {};
+        };
+        if (Text.size(input.message) == 0) {
+            D.print("ckSigner:signBip322 - empty message");
+            return #Err(#Other("message cannot be empty"));
+        };
+
+        // Fee collection (if configured)
+        switch (await collectFee(msg.caller, input.payment, "signBip322")) {
+            case (?err) { return #Err(err) };
+            case null {};
+        };
+
+        // Get x-only public key (from cache or management canister)
+        let ck = buildCacheKey(msg.caller, input.botName);
+        let xOnlyBytes : [Nat8] = switch (publicKeyCache.get(ck)) {
+            case (?cachedKey) {
+                D.print("ckSigner:signBip322 - cache hit for " # ck);
+                Blob.toArray(cachedKey);
+            };
+            case null {
+                D.print("ckSigner:signBip322 - cache miss for " # ck # ", calling management canister");
+                try {
+                    ExperimentalCycles.add<system>(SCHNORR_CYCLES);
+                    let pkResult = await ic.schnorr_public_key({
+                        key_id = { algorithm = #bip340secp256k1; name = schnorrKeyName };
+                        canister_id = null;
+                        derivation_path = buildDerivationPath(msg.caller, input.botName);
+                    });
+                    let xOnly = extractXOnly(pkResult.public_key);
+                    publicKeyCache.put(ck, xOnly);
+                    D.print("ckSigner:signBip322 - cached key for " # ck);
+                    Blob.toArray(xOnly);
+                } catch (e : Error) {
+                    D.print("ckSigner:signBip322 - schnorr_public_key FAILED: " # Error.message(e));
+                    return #Err(#Other("schnorr_public_key failed: " # Error.message(e)));
+                };
+            };
+        };
+
+        // Compute tweaked key
+        let tweakedKeyBytes = switch (deriveTweakedKeyBytes(xOnlyBytes)) {
+            case (#ok tk) tk;
+            case (#err e) return #Err(#Other("P2TR tweak failed: " # e));
+        };
+
+        // BIP322 sighash computation
+        let msgHash = bip0322Hash(input.message);
+        let toSpendBytes = serializeToSpend(msgHash, tweakedKeyBytes);
+        let toSpendTxid = Hash.doubleSHA256(toSpendBytes);
+        let sighash = computeBip322Sighash(toSpendTxid, tweakedKeyBytes);
+
+        D.print("ckSigner:signBip322 - sighash: " # bytesToHex(sighash));
+
+        // Sign the sighash
+        try {
+            ExperimentalCycles.add<system>(SCHNORR_CYCLES);
+            let signResult = await ic.sign_with_schnorr({
+                key_id = { algorithm = #bip340secp256k1; name = schnorrKeyName };
+                derivation_path = buildDerivationPath(msg.caller, input.botName);
+                message = Blob.fromArray(sighash);
+                aux = ?#bip341({ merkle_root_hash = "" });
+            });
+
+            let sigBytes = Blob.toArray(signResult.signature);
+            D.print("ckSigner:signBip322 - signature: " # bytesToHex(sigBytes));
+
+            // Encode witness: [signature_bytes]
+            let witnessBytes = Witness.toBytes([sigBytes]);
+            let witnessB64 = base64Encode(witnessBytes);
+
+            // Derive address
+            let address = switch (Segwit.encode("bc", { version = 1 : Nat8; program = tweakedKeyBytes })) {
+                case (#ok addr) addr;
+                case (#err e) return #Err(#Other("P2TR address encoding failed: " # e));
+            };
+
+            #Ok({
+                botName = input.botName;
+                signatureHex = bytesToHex(sigBytes);
+                witnessB64 = witnessB64;
+                address = address;
+            });
+        } catch (e : Error) {
+            D.print("ckSigner:signBip322 - sign_with_schnorr FAILED: " # Error.message(e));
+            #Err(#Other("sign_with_schnorr failed: " # Error.message(e)));
+        };
+    };
+
+    // ---------------------------------------------------------------
     // Upgrade hooks
     // ---------------------------------------------------------------
 
@@ -477,7 +727,6 @@ persistent actor class CkSigner(initSchnorrKeyName : Text) = self {
 
     system func postupgrade() {
         feeTokens := HashMap.fromIter(Iter.fromArray(feeTokensStable), feeTokensStable.size(), Principal.equal, Principal.hash);
-        feeTokensStable := [];
     };
 
 };

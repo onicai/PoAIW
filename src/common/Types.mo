@@ -1750,6 +1750,22 @@ module Types {
     };
     public type SignResult = Result<SignRecord, ApiError>;
 
+    // Input for signBip322
+    public type SignBip322Input = {
+        botName : Text;
+        message : Text;        // UTF-8 string (e.g., SIWB challenge)
+        payment : ?Payment;
+    };
+
+    // BIP322 signature result
+    public type Bip322SignRecord = {
+        botName : Text;
+        signatureHex : Text;   // 128-char hex (64 bytes Schnorr)
+        witnessB64 : Text;     // Base64-encoded BIP322 witness
+        address : Text;        // bc1p... P2TR address
+    };
+    public type Bip322SignResult = Result<Bip322SignRecord, ApiError>;
+
     // ----- Fee token configuration -----
 
     public type FeeToken = {
