@@ -15,6 +15,7 @@ on:
       - "src/Judge/**"
       - "src/mAInerCreator/**"
       - "src/Treasury/**"
+      - "src/ckSigner/**"
       - "src/common/**"
       - "src/docker/**"
 
@@ -47,6 +48,8 @@ jobs:
             canister_name: mainer_creator_canister
           - canister: Treasury
             canister_name: funnai_treasury_canister
+          - canister: ckSigner
+            canister_name: ck_signer_canister
 
     steps:
       - name: checkout
@@ -60,6 +63,9 @@ jobs:
           echo "Architecture: $(uname -m)"
           echo "OS version  : $(lsb_release -d 2>/dev/null | cut -f2)"
           echo "Docker      : $(docker --version)"
+
+      - name: clean docker build cache
+        run: docker builder prune --all --force
 
       - name: build Docker base image
         working-directory: src/${{ matrix.canister }}
@@ -90,7 +96,7 @@ jobs:
         run: |
           set -euo pipefail
           pip install --upgrade pip
-          pip install icpp-pro
+          pip install -r requirements.txt
 
       - name: install mops to manage motoko dependencies
         run: npm install -g ic-mops

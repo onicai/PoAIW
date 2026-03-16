@@ -35,6 +35,7 @@ Install mops (https://mops.one/docs/install), and then:
 # - from folder: `PoAIW/src/Challenger`
 # - from folder: `PoAIW/src/Judge`
 # - from folder: `PoAIW/src/mAIner`
+# - from folder: `PoAIW/src/ckSigner`
 mops install
 ```
 
@@ -54,6 +55,16 @@ Store it in:
 ```
 PoAIW/llms/models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q8_0.gguf
 ```
+
+## ckSigner Python test dependencies
+
+The ckSigner canister tests require additional Python packages:
+
+```bash
+pip install -r requirements.txt
+```
+
+This installs `icpp-pro` and `bitcoin-utils` (needed for BIP340 signature verification in tests).
 
 # Deploy ALL canisters:
 

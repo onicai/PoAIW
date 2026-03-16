@@ -1,0 +1,2 @@
+icpp-pro>=5.3.1
+bitcoin-utils>=0.6.8
