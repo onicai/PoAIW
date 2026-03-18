@@ -5,17 +5,10 @@
     "development": "efovi-naaaa-aaaad-qhk4q-cai"
   },
   "llm_1": {
-    "prd": "47vcc-uqaaa-aaaag-auc7q-cai",
-    "testing": "gnztz-lyaaa-aaaab-aakvq-cai"
+    "prd": "47vcc-uqaaa-aaaag-auc7q-cai"
   },
   "llm_10": {
     "prd": "iiulj-6iaaa-aaaan-qz4rq-cai"
-  },
-  "llm_11": {
-    "prd": "i5t2e-7aaaa-aaaan-qz4sa-cai"
-  },
-  "llm_12": {
-    "prd": "xgcwi-caaaa-aaaag-audaq-cai"
   },
   "llm_13": {
     "prd": ""
@@ -37,9 +30,6 @@
   },
   "llm_19": {
     "prd": ""
-  },
-  "llm_2": {
-    "prd": "xbdq4-pyaaa-aaaag-audaa-cai"
   },
   "llm_20": {
     "prd": ""
@@ -65,17 +55,11 @@
   "llm_4": {
     "prd": "6djk7-piaaa-aaaai-q3ynq-cai"
   },
-  "llm_5": {
-    "prd": "6wo3s-oaaaa-aaaai-q3yoa-cai"
-  },
   "llm_6": {
     "prd": "tiw5l-siaaa-aaaac-awb2q-cai"
   },
   "llm_7": {
     "prd": "sl2un-gqaaa-aaaac-awb4a-cai"
-  },
-  "llm_8": {
-    "prd": "sm3sz-liaaa-aaaac-awb4q-cai"
   },
   "llm_9": {
     "prd": "ipvn5-tqaaa-aaaan-qz4ra-cai"
