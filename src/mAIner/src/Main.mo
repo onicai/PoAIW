@@ -634,7 +634,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
         let challengeQueueInputs : [Types.ChallengeQueueInput] = List.toArray<Types.ChallengeQueueInput>(challengeQueue);
@@ -645,7 +645,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
         challengeQueue := List.nil<Types.ChallengeQueueInput>();
