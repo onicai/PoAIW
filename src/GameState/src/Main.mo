@@ -4717,8 +4717,15 @@ persistent actor class GameStateCanister() = this {
                 };
             };
             case (#MainerTopUp(mainerCanisterAddress)) {
-                D.print("GameState: handleIncomingFunds - #MainerTopUp(mainerCanisterAddress): "# debug_show(mainerCanisterAddress)); 
-                amountToConvert := amountForMainer; // Always convert mAIner's share of payment into cycles; TODO: rethink this (if cycle balance is high enough, can the existing cycles be used and thus no conversion)
+                D.print("GameState: handleIncomingFunds - #MainerTopUp(mainerCanisterAddress): "# debug_show(mainerCanisterAddress));
+                D.print("GameState: handleIncomingFunds - #MainerTopUp(mainerCanisterAddress) Cycles.balance(): "# debug_show(Cycles.balance())); 
+                if (PROTOCOL_CYCLES_BALANCE_BUFFER > Cycles.balance()) {
+                    // Cycles balance is lower than security threshold, so convert the payment's share for the mAIner to cycles
+                    amountToConvert := amountForMainer;
+                } else {
+                    // No need to convert to cycles as cycle balance is high enough
+                    amountToConvert := 0;
+                };
             };
             case (_) { return #Err(#Other("Unsupported")); }
         };
