@@ -3715,6 +3715,16 @@
       "main": "src/Main.mo",
       "type": "motoko",
       "args": "--enhanced-orthogonal-persistence"
+    },
+    "mainer_ctrlb_canister_742": {
+      "main": "src/Main.mo",
+      "type": "motoko",
+      "args": "--enhanced-orthogonal-persistence"
+    },
+    "mainer_ctrlb_canister_743": {
+      "main": "src/Main.mo",
+      "type": "motoko",
+      "args": "--enhanced-orthogonal-persistence"
     }
   },
   "defaults": {
