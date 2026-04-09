@@ -330,6 +330,31 @@ persistent actor class GameStateCanister() = this {
         return #Ok({ flag = DISBURSE_FUNDS_TO_TREASURY });
     };
 
+    // Flag to disable disbursements to team
+    var DISBURSE_FUNDS_TO_TEAM : Bool = false;
+
+    public shared (msg) func toggleDisburseFundsToTeamFlagAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        DISBURSE_FUNDS_TO_TEAM := not DISBURSE_FUNDS_TO_TEAM;
+        let authRecord = { auth = "You set the flag to " # debug_show(DISBURSE_FUNDS_TO_TEAM) };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getDisburseFundsToTeamFlag() : async Types.FlagResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok({ flag = DISBURSE_FUNDS_TO_TEAM });
+    };
+
     // Threshold of minimum ICP balance Game State should keep
     var MINIMUM_ICP_BALANCE : Nat = 30; // in full ICP
 
@@ -441,7 +466,7 @@ persistent actor class GameStateCanister() = this {
         let transferResult : Types.IcpTransferResult = await transfer(transferArgs);
         D.print("GameState: disburseIncomingFundsToTreasury - transferResult: " # debug_show(transferResult)); 
 
-        // check if the transfer was successfull
+        // Check if the transfer was successful
         switch (transferResult) {
             case (#Err(transferError)) {
                 D.print("GameState: disburseIncomingFundsToTreasury - transferError: " # debug_show(transferError)); 
@@ -462,6 +487,45 @@ persistent actor class GameStateCanister() = this {
                     return #Err(#Other("GameState: disburseIncomingFundsToTreasury - Failed to notify treasury canister: " # Error.message(e)));
                 };
 
+                let authRecord = { auth = "You disbursed ICP with this block index: " # debug_show (blockIndex) };
+                return #Ok(authRecord);
+            };
+        };
+    };
+
+    private func disburseIncomingFundsToTeam(amountToDisburse : Nat) : async Types.AuthRecordResult {
+        D.print("GameState: disburseIncomingFundsToTeam - DISBURSE_FUNDS_TO_TEAM: " # debug_show(DISBURSE_FUNDS_TO_TEAM)); 
+        if (not DISBURSE_FUNDS_TO_TEAM) {
+            return #Err(#Unauthorized);
+        };
+        D.print("GameState: disburseIncomingFundsToTeam - amountToDisburse: " # debug_show(amountToDisburse)); 
+        // amountToDisburse is in e8s
+        let E8S_PER_ICP : Nat = 100_000_000; // 10^8 e8s per ICP
+        if (amountToDisburse > 100 * E8S_PER_ICP) {
+            // Block big disbursements as a security measurement
+            return #Err(#Unauthorized);
+        };
+        
+        let amountForTransfer : TokenLedger.Tokens = { e8s : Nat64 = Nat64.fromNat(amountToDisburse); };
+        D.print("GameState: disburseIncomingFundsToTeam - amountForTransfer: " # debug_show(amountForTransfer)); 
+        let TEAM_WALLET_ADDRESS : Blob = "5d9bb4f164022de0933d3b45eaf33f1902e9578a2f330a1301d531c42bebf783";
+        let transferArgs : Types.IcpTransferArgsAccount = {
+            amount : TokenLedger.Tokens = amountForTransfer;
+            to = TEAM_WALLET_ADDRESS;     
+        };
+        D.print("GameState: disburseIncomingFundsToTeam - transferArgs: " # debug_show(transferArgs)); 
+
+        let transferResult : Types.IcpTransferResult = await transferToTeam(transferArgs);
+        D.print("GameState: disburseIncomingFundsToTeam - transferResult: " # debug_show(transferResult)); 
+
+        // Check if the transfer was successful
+        switch (transferResult) {
+            case (#Err(transferError)) {
+                D.print("GameState: disburseIncomingFundsToTeam - transferError: " # debug_show(transferError)); 
+                return #Err(#Other("Couldn't transfer funds:\n" # debug_show (transferError)));
+            };
+            case (#Ok(blockIndex)) {
+                D.print("GameState: disburseIncomingFundsToTeam - blockIndex: " # debug_show(blockIndex));
                 let authRecord = { auth = "You disbursed ICP with this block index: " # debug_show (blockIndex) };
                 return #Ok(authRecord);
             };
@@ -498,12 +562,46 @@ persistent actor class GameStateCanister() = this {
         try {           
             let transferResult : TokenLedger.Result = await ICP_LEDGER_ACTOR.icrc1_transfer(transferArg);
 
-            // check if the transfer was successfull
+            // Check if the transfer was successful
             switch (transferResult) {
                 case (#Err(transferError)) {
                     return #Err(#Other("Couldn't transfer funds:\n" # debug_show (transferError)));
                 };
                 case (#Ok(blockIndex)) { return #Ok(Nat64.fromNat(blockIndex)) };
+            };
+        } catch (error : Error) {
+            // catch any errors that might occur during the transfer
+            return #Err(#Other("Reject message: " # Error.message(error)));
+        };
+    };
+
+    private func transferToTeam(args : Types.IcpTransferArgsAccount) : async Types.IcpTransferResult {
+        let TEAM_WALLET_ADDRESS : Blob = "5d9bb4f164022de0933d3b45eaf33f1902e9578a2f330a1301d531c42bebf783";
+        D.print(
+            "Transferring "
+            # debug_show (args.amount)
+            # " tokens to TEAM_WALLET_ADDRESS "
+            # debug_show (TEAM_WALLET_ADDRESS)
+        );
+
+        let transferArgs : TokenLedger.TransferArgs = {
+            to : Blob = TEAM_WALLET_ADDRESS;
+            fee : TokenLedger.Tokens = { e8s : Nat64 = 10_000; };
+            memo : Nat64 = 42;
+            from_subaccount : ?Blob = null;
+            created_at_time = null;
+            amount : TokenLedger.Tokens = args.amount;
+        };
+
+        try {           
+            let transferResult : TokenLedger.Result_6 = await ICP_LEDGER_ACTOR.transfer(transferArgs);
+
+            // Check if the transfer was successful
+            switch (transferResult) {
+                case (#Err(transferError)) {
+                    return #Err(#Other("Couldn't transfer funds:\n" # debug_show (transferError)));
+                };
+                case (#Ok(blockIndex)) { return #Ok(blockIndex) };
             };
         } catch (error : Error) {
             // catch any errors that might occur during the transfer
@@ -4717,8 +4815,16 @@ persistent actor class GameStateCanister() = this {
                 };
             };
             case (#MainerTopUp(mainerCanisterAddress)) {
-                D.print("GameState: handleIncomingFunds - #MainerTopUp(mainerCanisterAddress): "# debug_show(mainerCanisterAddress)); 
-                amountToConvert := amountForMainer; // Always convert mAIner's share of payment into cycles; TODO: rethink this (if cycle balance is high enough, can the existing cycles be used and thus no conversion)
+                D.print("GameState: handleIncomingFunds - #MainerTopUp(mainerCanisterAddress): "# debug_show(mainerCanisterAddress));
+                D.print("GameState: handleIncomingFunds - #MainerTopUp(mainerCanisterAddress) PROTOCOL_CYCLES_BALANCE_BUFFER: "# debug_show(PROTOCOL_CYCLES_BALANCE_BUFFER)); 
+                D.print("GameState: handleIncomingFunds - #MainerTopUp(mainerCanisterAddress) Cycles.balance(): "# debug_show(Cycles.balance())); 
+                if (PROTOCOL_CYCLES_BALANCE_BUFFER > Cycles.balance()) {
+                    // Cycles balance is lower than security threshold, so convert the payment's share for the mAIner to cycles
+                    amountToConvert := amountForMainer;
+                } else {
+                    // No need to convert to cycles as cycle balance is high enough
+                    amountToConvert := 0;
+                };
             };
             case (_) { return #Err(#Other("Unsupported")); }
         };
@@ -4815,11 +4921,33 @@ persistent actor class GameStateCanister() = this {
             // Calculate cycles
             let cycles : Nat = (icpAmount * Nat64.toNat(xdrPermyriadPerIcp) * CYCLES_PER_XDR) / (10_000 * E8S_PER_ICP); // Where 10_000 is to convert from permyriad (1/10000 of a unit)
             D.print("GameState: handleIncomingFunds - no conversion necessary, cycles: "# debug_show(cycles));
+
+            // Bonus for mAIner as existing cycles balance can be used
+            let bonusCycles : Nat = cycles / 10; // 10% bonus for mAIner
+            D.print("GameState: handleIncomingFunds - no conversion necessary, bonusCycles: "# debug_show(bonusCycles));
             
-            let cyclesForMainer : Nat = cycles;
+            let cyclesForMainer : Nat = cycles + bonusCycles;
             let cyclesForProtocol : Nat = 0; // Protocol already took its cut in ICP
             
             D.print("GameState: handleIncomingFunds - no conversion necessary, cyclesForMainer: "# debug_show(cyclesForMainer));
+
+            // Disburse incoming ICP to treasury if applicable
+            try {
+                if (DISBURSE_FUNDS_TO_TREASURY and amountToKeep > 0) {
+                    ignore disburseIncomingFundsToTreasury(amountToKeep);
+                };
+            } catch (error : Error) {
+                D.print("GameState: handleIncomingFunds - no conversion necessary, disburse to treasury error: "# Error.message(error));
+            };
+            // Disburse incoming ICP to team (instead of CMC as no conversion was needed) if applicable
+            try {
+                if (DISBURSE_FUNDS_TO_TEAM and amountForMainer > 0) {
+                    ignore disburseIncomingFundsToTeam(amountForMainer);
+                };
+            } catch (error : Error) {
+                D.print("GameState: handleIncomingFunds - no conversion necessary, disburse to team error: "# Error.message(error));
+            };
+
             let response : Types.HandleIncomingFundsRecord = {
                 cyclesForProtocol: Nat = cyclesForProtocol;
                 cyclesForMainer : Nat = cyclesForMainer;

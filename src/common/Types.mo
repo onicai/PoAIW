@@ -561,6 +561,11 @@ module Types {
         toSubaccount : ?Blob;
     };
 
+    public type IcpTransferArgsAccount = {
+        amount : TokenLedger.Tokens;
+        to : Blob;
+    };
+
     public type IcpTransferResult = Result<Nat64, ApiError>;
 
     public type MainerCreationInput = PaymentTransactionBlockId and {
