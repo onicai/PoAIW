@@ -830,7 +830,15 @@ def test__getSubmittedResponsesAdmin_anonymous(
 
 
 def test__getSubmittedResponsesAdmin(network: str) -> None:
-    """Test getSubmittedResponsesAdmin with controller identity"""
+    """Test getSubmittedResponsesAdmin with controller identity.
+
+    Also verifies the MAX_SUBMITTED_RESPONSES = 5 invariant: getSubmittedResponsesAdmin
+    must never return more than 5 entries. The cap is structural — putSubmittedResponse
+    trims the list after every push. We can't drive >5 entries from a single-canister
+    test (putSubmittedResponse is private, only reached via storeAndSubmitResponse +
+    GameState), so this asserts the empty-state result and the invariant holds for
+    whatever entries ever land here.
+    """
     response = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
@@ -840,6 +848,9 @@ def test__getSubmittedResponsesAdmin(network: str) -> None:
         timeout_seconds=10,
     )
     assert response.startswith("(variant { Ok = vec")
+    # Crude entry count: each entry begins with "record {" inside the vec.
+    entry_count = response.count("record {")
+    assert entry_count <= 5, f"submittedResponses cap broken: got {entry_count} entries (max 5)"
 
 
 def test__getRecentSubmittedResponsesAdmin_anonymous(

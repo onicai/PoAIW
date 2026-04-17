@@ -106,8 +106,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     // Official cycle balance
     var officialCyclesBalance : Nat = Cycles.balance();
-    var officialCycleTopUpsStorage : List.List<Types.OfficialMainerCycleTopUp> = List.nil<Types.OfficialMainerCycleTopUp>();
-    
+
     public shared (msg) func addCycles() : async Types.AddCyclesResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -119,19 +118,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         // Unpause the mAIner if it was paused due to low cycle balance
         PAUSED_DUE_TO_LOW_CYCLE_BALANCE := false;
 
-        // Add to official cycle balance and store all official top ups
+        // Add to official cycle balance
         if (Principal.equal(msg.caller, Principal.fromText(GAME_STATE_CANISTER_ID))) {
             // Game State can make official top ups (via its top up flow)
             officialCyclesBalance := officialCyclesBalance + cyclesAdded;
-            let topUpEntry : Types.OfficialMainerCycleTopUp = {
-                amountAdded : Nat = cyclesAdded;
-                newOfficialCycleBalance : Nat = officialCyclesBalance;
-                creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                sentBy : Principal = msg.caller;
-            };
-            officialCycleTopUpsStorage := List.push<Types.OfficialMainerCycleTopUp>(topUpEntry, officialCycleTopUpsStorage);
         };
-        
+
         return #Ok({
             added : Bool = true;
             amount : Nat = cyclesAdded;
@@ -652,32 +644,13 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
-    // Record of generated responses
-    var generatedResponses : List.List<Types.ChallengeResponseSubmissionInput> = List.nil<Types.ChallengeResponseSubmissionInput>();
-
-    private func putGeneratedResponse(responseEntry : Types.ChallengeResponseSubmissionInput) : Bool {
-        generatedResponses := List.push<Types.ChallengeResponseSubmissionInput>(responseEntry, generatedResponses);
-        return true;
-    };
-
-    private func getGeneratedResponse(challengeId : Text) : ?Types.ChallengeResponseSubmissionInput {
-        return List.find<Types.ChallengeResponseSubmissionInput>(generatedResponses, func(responseEntry : Types.ChallengeResponseSubmissionInput) : Bool { responseEntry.challengeId == challengeId });
-    };
-
-    private func getGeneratedResponses() : [Types.ChallengeResponseSubmissionInput] {
-        return List.toArray<Types.ChallengeResponseSubmissionInput>(generatedResponses);
-    };
-
-    private func removeGeneratedResponse(challengeId : Text) : Bool {
-        generatedResponses := List.filter(generatedResponses, func(responseEntry : Types.ChallengeResponseSubmissionInput) : Bool { responseEntry.challengeId != challengeId });
-        return true;
-    };
-
-    // Record of submitted responses
+    // Record of submitted responses (capped to bound stable memory growth)
+    let MAX_SUBMITTED_RESPONSES : Nat = 5;
     var submittedResponses : List.List<Types.ChallengeResponseSubmission> = List.nil<Types.ChallengeResponseSubmission>();
 
     private func putSubmittedResponse(responseEntry : Types.ChallengeResponseSubmission) : Bool {
         submittedResponses := List.push<Types.ChallengeResponseSubmission>(responseEntry, submittedResponses);
+        submittedResponses := List.take<Types.ChallengeResponseSubmission>(submittedResponses, MAX_SUBMITTED_RESPONSES);
         return true;
     };
 
@@ -1090,7 +1063,6 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                 // -> Admin must run a script to reset the challengeQueue of all the ShareAgent caniseters once the ShareService is fixed
             };
             case (#Ok(respondingOutput : Types.ChallengeResponse)) {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - calling putGeneratedResponse");
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondingOutput = " # debug_show (respondingOutput));
                 ignore increaseTotalCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
                 
@@ -1199,120 +1171,109 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     private func storeAndSubmitResponse(challengeResponseSubmissionInput : Types.ChallengeResponseSubmissionInput) : async () {
-        // Store the generated response
-        let storeResult : Bool = putGeneratedResponse(challengeResponseSubmissionInput);
-            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - returned from putGeneratedResponse");
+        // Check if the canister still has enough cycles to submit it
+        // Check against the number sent by the GameState for this particular Challenge
+        if (not sufficientCyclesToSubmit(challengeResponseSubmissionInput.cyclesSubmitResponse)) {
+            // Note: do not pause, to avoid blocking the canister in case of a single challenge with a really high cycle requirement
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - insufficientCyclesToSubmit");
+            return;
+        };
 
-        switch (storeResult) {
-            case (false) {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - storeResult error");
+        // Check if there were any unofficial cycle top ups and if so pay the appropriate fee for the Protocol's operational expenses
+        var cyclesToSend = challengeResponseSubmissionInput.cyclesSubmitResponse;
+        let currentCyclesBalance = Cycles.balance();
+        if (officialCyclesBalance < currentCyclesBalance) {
+            // Unofficial top ups were made, thus pay the fee for these top ups to Game State now as a share of the balances difference
+            // Use protocolOperationFeesCut that was sent by the GameState canister with the Challenge
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - Unofficial top ups were made");
+            try {
+                let DIRECT_CYCLES_TOPUP_MULTIPLIER : Nat = 9;
+                let cyclesForOperationalExpenses = (currentCyclesBalance - officialCyclesBalance) * (challengeResponseSubmissionInput.protocolOperationFeesCut * DIRECT_CYCLES_TOPUP_MULTIPLIER) / 100;
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - Increasing cycles for operational expenses = " # debug_show(cyclesForOperationalExpenses));
+                cyclesToSend := cyclesToSend + cyclesForOperationalExpenses;
+            } catch (error : Error) {
+                // Continue nevertheless
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - catch error when calculating fee to pay for unofficial top ups : ");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - error: " # Error.message(error));
             };
-            case (true) {
-                // Check if the canister still has enough cycles to submit it
-                // Check against the number sent by the GameState for this particular Challenge
-                if (not sufficientCyclesToSubmit(challengeResponseSubmissionInput.cyclesSubmitResponse)) {
-                    // Note: do not pause, to avoid blocking the canister in case of a single challenge with a really high cycle requirement
-                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - insufficientCyclesToSubmit");
-                    return;
+        };
+
+        // Add the required amount of cycles
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling Cycles.add for = " # debug_show(cyclesToSend) # " Cycles");
+        Cycles.add<system>(cyclesToSend);
+
+        let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling submitChallengeResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
+        let submitMetadaResult : Types.ChallengeResponseSubmissionMetadataResult = await gameStateCanisterActor.submitChallengeResponse(challengeResponseSubmissionInput);
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse  - returned from gameStateCanisterActor.submitChallengeResponse");
+        switch (submitMetadaResult) {
+            case (#Err(error)) {
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - submitMetada error");
+                D.print(debug_show (error));
+            };
+            case (#Ok(submitMetada : Types.ChallengeResponseSubmissionMetadata)) {
+                // Successfully submitted to Game State
+                let challengeResponseSubmission : Types.ChallengeResponseSubmission = {
+                    challengeTopic : Text = challengeResponseSubmissionInput.challengeTopic;
+                    challengeTopicId : Text = challengeResponseSubmissionInput.challengeTopicId;
+                    challengeTopicCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeTopicCreationTimestamp;
+                    challengeTopicStatus : Types.ChallengeTopicStatus = challengeResponseSubmissionInput.challengeTopicStatus;
+                    cyclesGenerateChallengeGsChctrl : Nat = challengeResponseSubmissionInput.cyclesGenerateChallengeGsChctrl;
+                    cyclesGenerateChallengeChctrlChllm : Nat = challengeResponseSubmissionInput.cyclesGenerateChallengeChctrlChllm;
+                    challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
+                    challengeQuestionSeed : Nat32 = challengeResponseSubmissionInput.challengeQuestionSeed;
+                    mainerPromptId : Text = challengeResponseSubmissionInput.mainerPromptId;
+                    mainerMaxContinueLoopCount : Nat = challengeResponseSubmissionInput.mainerMaxContinueLoopCount;
+                    mainerNumTokens : Nat64 = challengeResponseSubmissionInput.mainerNumTokens;
+                    mainerTemp : Float = challengeResponseSubmissionInput.mainerTemp;
+                    judgePromptId : Text = challengeResponseSubmissionInput.judgePromptId;
+                    challengeId : Text = challengeResponseSubmissionInput.challengeId;
+                    challengeCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeCreationTimestamp;
+                    challengeCreatedBy : Types.CanisterAddress = challengeResponseSubmissionInput.challengeCreatedBy;
+                    challengeStatus : Types.ChallengeStatus = challengeResponseSubmissionInput.challengeStatus;
+                    challengeClosedTimestamp : ?Nat64 = challengeResponseSubmissionInput.challengeClosedTimestamp;
+                    cyclesSubmitResponse : Nat = challengeResponseSubmissionInput.cyclesSubmitResponse;
+                    protocolOperationFeesCut : Nat = challengeResponseSubmissionInput.protocolOperationFeesCut;
+                    cyclesGenerateResponseSactrlSsctrl : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSactrlSsctrl;
+                    cyclesGenerateResponseSsctrlGs : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSsctrlGs;
+                    cyclesGenerateResponseSsctrlSsllm : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSsctrlSsllm;
+                    cyclesGenerateResponseOwnctrlGs : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlGs;
+                    cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmLOW;
+                    cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+                    cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmHIGH;
+                    challengeQueuedId : Text = challengeResponseSubmissionInput.challengeQueuedId;
+                    challengeQueuedBy : Principal = challengeResponseSubmissionInput.challengeQueuedBy;
+                    challengeQueuedTo : Principal = challengeResponseSubmissionInput.challengeQueuedTo;
+                    challengeQueuedTimestamp : Nat64 = challengeResponseSubmissionInput.challengeQueuedTimestamp;
+                    challengeAnswer : Text = challengeResponseSubmissionInput.challengeAnswer;
+                    challengeAnswerSeed : Nat32 = challengeResponseSubmissionInput.challengeAnswerSeed;
+                    submittedBy : Principal = challengeResponseSubmissionInput.submittedBy;
+                    submissionId : Text = submitMetada.submissionId;
+                    submittedTimestamp : Nat64 = submitMetada.submittedTimestamp;
+                    submissionStatus : Types.ChallengeResponseSubmissionStatus = submitMetada.submissionStatus;
+                    cyclesGenerateScoreGsJuctrl : Nat = submitMetada.cyclesGenerateScoreGsJuctrl;
+                    cyclesGenerateScoreJuctrlJullm : Nat = submitMetada.cyclesGenerateScoreJuctrlJullm;
+                };
+                // Update official cycles balance after the successful submission
+                // Any outstanding top up fees were paid and it's reflected in cyclesToSend
+                officialCyclesBalance := currentCyclesBalance - cyclesToSend;
+                // Sanity check
+                let newCyclesBalance = Cycles.balance();
+                if (officialCyclesBalance < newCyclesBalance) {
+                    D.print("mAIner storeAndSubmitResponse - after updating the official cycles balance, it is still smaller than the actual balance");
+                    D.print("mAIner storeAndSubmitResponse - officialCyclesBalance: " # debug_show(officialCyclesBalance));
+                    D.print("mAIner storeAndSubmitResponse - newCyclesBalance: " # debug_show(newCyclesBalance));
                 };
 
-                // Check if there were any unofficial cycle top ups and if so pay the appropriate fee for the Protocol's operational expenses
-                var cyclesToSend = challengeResponseSubmissionInput.cyclesSubmitResponse;
-                let currentCyclesBalance = Cycles.balance();
-                if (officialCyclesBalance < currentCyclesBalance) {
-                    // Unofficial top ups were made, thus pay the fee for these top ups to Game State now as a share of the balances difference
-                    // Use protocolOperationFeesCut that was sent by the GameState canister with the Challenge
-                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - Unofficial top ups were made");
-                    try {
-                        let DIRECT_CYCLES_TOPUP_MULTIPLIER : Nat = 9;
-                        let cyclesForOperationalExpenses = (currentCyclesBalance - officialCyclesBalance) * (challengeResponseSubmissionInput.protocolOperationFeesCut * DIRECT_CYCLES_TOPUP_MULTIPLIER) / 100;
-                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - Increasing cycles for operational expenses = " # debug_show(cyclesForOperationalExpenses));
-                        cyclesToSend := cyclesToSend + cyclesForOperationalExpenses;
-                    } catch (error : Error) {
-                        // Continue nevertheless
-                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - catch error when calculating fee to pay for unofficial top ups : ");
-                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - error: " # Error.message(error));
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling putSubmittedResponse");
+                let putResult = putSubmittedResponse(challengeResponseSubmission);
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - return from putSubmittedResponse");
+                switch (putResult) {
+                    case (false) {
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - putResult error");
                     };
-                };
-
-                // Add the required amount of cycles
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling Cycles.add for = " # debug_show(cyclesToSend) # " Cycles");
-                Cycles.add<system>(cyclesToSend);
-
-                let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling submitChallengeResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
-                let submitMetadaResult : Types.ChallengeResponseSubmissionMetadataResult = await gameStateCanisterActor.submitChallengeResponse(challengeResponseSubmissionInput);
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse  - returned from gameStateCanisterActor.submitChallengeResponse");
-                switch (submitMetadaResult) {
-                    case (#Err(error)) {
-                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - submitMetada error");
-                        D.print(debug_show (error));
-                    };
-                    case (#Ok(submitMetada : Types.ChallengeResponseSubmissionMetadata)) {
-                        // Successfully submitted to Game State
-                        let challengeResponseSubmission : Types.ChallengeResponseSubmission = {
-                            challengeTopic : Text = challengeResponseSubmissionInput.challengeTopic;
-                            challengeTopicId : Text = challengeResponseSubmissionInput.challengeTopicId;
-                            challengeTopicCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeTopicCreationTimestamp;
-                            challengeTopicStatus : Types.ChallengeTopicStatus = challengeResponseSubmissionInput.challengeTopicStatus;
-                            cyclesGenerateChallengeGsChctrl : Nat = challengeResponseSubmissionInput.cyclesGenerateChallengeGsChctrl;
-                            cyclesGenerateChallengeChctrlChllm : Nat = challengeResponseSubmissionInput.cyclesGenerateChallengeChctrlChllm;
-                            challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
-                            challengeQuestionSeed : Nat32 = challengeResponseSubmissionInput.challengeQuestionSeed;
-                            mainerPromptId : Text = challengeResponseSubmissionInput.mainerPromptId;
-                            mainerMaxContinueLoopCount : Nat = challengeResponseSubmissionInput.mainerMaxContinueLoopCount;
-                            mainerNumTokens : Nat64 = challengeResponseSubmissionInput.mainerNumTokens;
-                            mainerTemp : Float = challengeResponseSubmissionInput.mainerTemp;
-                            judgePromptId : Text = challengeResponseSubmissionInput.judgePromptId;
-                            challengeId : Text = challengeResponseSubmissionInput.challengeId;
-                            challengeCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeCreationTimestamp;
-                            challengeCreatedBy : Types.CanisterAddress = challengeResponseSubmissionInput.challengeCreatedBy;
-                            challengeStatus : Types.ChallengeStatus = challengeResponseSubmissionInput.challengeStatus;
-                            challengeClosedTimestamp : ?Nat64 = challengeResponseSubmissionInput.challengeClosedTimestamp;
-                            cyclesSubmitResponse : Nat = challengeResponseSubmissionInput.cyclesSubmitResponse;
-                            protocolOperationFeesCut : Nat = challengeResponseSubmissionInput.protocolOperationFeesCut;
-                            cyclesGenerateResponseSactrlSsctrl : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSactrlSsctrl;
-                            cyclesGenerateResponseSsctrlGs : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSsctrlGs;
-                            cyclesGenerateResponseSsctrlSsllm : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSsctrlSsllm;
-                            cyclesGenerateResponseOwnctrlGs : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlGs;
-                            cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmLOW;
-                            cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
-                            cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmHIGH;
-                            challengeQueuedId : Text = challengeResponseSubmissionInput.challengeQueuedId;
-                            challengeQueuedBy : Principal = challengeResponseSubmissionInput.challengeQueuedBy;
-                            challengeQueuedTo : Principal = challengeResponseSubmissionInput.challengeQueuedTo;
-                            challengeQueuedTimestamp : Nat64 = challengeResponseSubmissionInput.challengeQueuedTimestamp;
-                            challengeAnswer : Text = challengeResponseSubmissionInput.challengeAnswer;
-                            challengeAnswerSeed : Nat32 = challengeResponseSubmissionInput.challengeAnswerSeed;
-                            submittedBy : Principal = challengeResponseSubmissionInput.submittedBy;
-                            submissionId : Text = submitMetada.submissionId;
-                            submittedTimestamp : Nat64 = submitMetada.submittedTimestamp;
-                            submissionStatus : Types.ChallengeResponseSubmissionStatus = submitMetada.submissionStatus;
-                            cyclesGenerateScoreGsJuctrl : Nat = submitMetada.cyclesGenerateScoreGsJuctrl;
-                            cyclesGenerateScoreJuctrlJullm : Nat = submitMetada.cyclesGenerateScoreJuctrlJullm;
-                        };
-                        // Update official cycles balance after the successful submission
-                        // Any outstanding top up fees were paid and it's reflected in cyclesToSend
-                        officialCyclesBalance := currentCyclesBalance - cyclesToSend;
-                        // Sanity check
-                        let newCyclesBalance = Cycles.balance();
-                        if (officialCyclesBalance < newCyclesBalance) {
-                            D.print("mAIner storeAndSubmitResponse - after updating the official cycles balance, it is still smaller than the actual balance");
-                            D.print("mAIner storeAndSubmitResponse - officialCyclesBalance: " # debug_show(officialCyclesBalance));
-                            D.print("mAIner storeAndSubmitResponse - newCyclesBalance: " # debug_show(newCyclesBalance));                          
-                        };
-
-                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling putSubmittedResponse");
-                        let putResult = putSubmittedResponse(challengeResponseSubmission);
-                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - return from putSubmittedResponse");
-                        switch (putResult) {
-                            case (false) {
-                                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - putResult error");
-                            };
-                            case (true) {
-                                ignore increaseTotalCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
-                            };
-                        };
+                    case (true) {
+                        ignore increaseTotalCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
                     };
                 };
             };
@@ -1823,6 +1784,20 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         if (MAINER_AGENT_CANISTER_TYPE == #ShareService) {
             // This should never happen, but still protect against it
             D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - Something is wrong. pullNextChallenge should not be called by a ShareService.");
+            return;
+        };
+
+        // -----------------------------------------------------
+        // Skip the GameState call entirely if we already paused ourselves due to
+        // low cycles, or if the balance is below the safety floor. addCycles()
+        // clears the flag once new cycles arrive, so the timer resumes naturally.
+        if (PAUSED_DUE_TO_LOW_CYCLE_BALANCE) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - PAUSED_DUE_TO_LOW_CYCLE_BALANCE is set; skipping");
+            return;
+        };
+        if (Cycles.balance() < CYCLE_BALANCE_MINIMUM) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - cycle balance below CYCLE_BALANCE_MINIMUM; skipping");
+            PAUSED_DUE_TO_LOW_CYCLE_BALANCE := true;
             return;
         };
 
@@ -2495,5 +2470,11 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
         // Reset reporting variable for timer
         action1RegularityInSeconds := 0; // Timer is not yet set (They don't persist across upgrades)
+
+        // Treat the post-upgrade balance as official. Cycles delivered during the
+        // upgrade (e.g. via `dfx wallet send`) bypass the addCycles() flow, so
+        // without this reset the next challenge would trigger the unofficial-topup
+        // penalty against those cycles.
+        officialCyclesBalance := Cycles.balance();
     };
 };
