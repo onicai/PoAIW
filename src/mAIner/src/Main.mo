@@ -600,6 +600,11 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     // FIFO queue of challenges: retrieved from GameState; to be processed
     var MAX_CHALLENGES_IN_QUEUE : Nat = 5;
+    // Self-cleanup thresholds for the challenge queue, ported from the
+    // previously off-chain daily cleanup job. The queue is wiped when either
+    // condition holds (see cleanupChallengeQueueIfNeeded).
+    let CHALLENGE_QUEUE_RESET_LENGTH_THRESHOLD : Nat = 4;
+    let CHALLENGE_QUEUE_STALENESS_NANOS : Nat64 = 86_400_000_000_000; // 24 hours
     var challengeQueue : List.List<Types.ChallengeQueueInput> = List.nil<Types.ChallengeQueueInput>();
 
     private func pushChallengeQueue(challengeQueueInput : Types.ChallengeQueueInput) : Bool {
@@ -620,6 +625,36 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     private func removeChallengeQueue(challengeQueuedId : Text) : Bool {
         challengeQueue := List.filter(challengeQueue, func(challengeQueueInputEntry : Types.ChallengeQueueInput) : Bool { challengeQueueInputEntry.challengeQueuedId != challengeQueuedId });
         return true;
+    };
+
+    // Returns the reason for a reset, or null if no reset is needed.
+    // Mirrors the off-chain rules: length >= threshold, OR all entries older
+    // than the staleness window.
+    private func challengeQueueResetReason() : ?Text {
+        let size = List.size<Types.ChallengeQueueInput>(challengeQueue);
+        if (size >= CHALLENGE_QUEUE_RESET_LENGTH_THRESHOLD) {
+            return ?("length " # debug_show(size) # " >= " # debug_show(CHALLENGE_QUEUE_RESET_LENGTH_THRESHOLD));
+        };
+        if (size == 0) { return null };
+        let now : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+        let allStale = List.all<Types.ChallengeQueueInput>(
+            challengeQueue,
+            func(e : Types.ChallengeQueueInput) : Bool {
+                now >= e.challengeQueuedTimestamp + CHALLENGE_QUEUE_STALENESS_NANOS
+            }
+        );
+        if (allStale) { return ?("all " # debug_show(size) # " entries older than 24h") };
+        return null;
+    };
+
+    private func cleanupChallengeQueueIfNeeded() : () {
+        switch (challengeQueueResetReason()) {
+            case (null) { };
+            case (?reason) {
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): cleanupChallengeQueueIfNeeded - resetting challengeQueue; reason = " # reason);
+                challengeQueue := List.nil<Types.ChallengeQueueInput>();
+            };
+        };
     };
 
     public query (msg) func getChallengeQueueAdmin() : async Types.ChallengeQueueInputsResult {
@@ -1800,6 +1835,11 @@ persistent actor class MainerAgentCtrlbCanister() = this {
             PAUSED_DUE_TO_LOW_CYCLE_BALANCE := true;
             return;
         };
+
+        // -----------------------------------------------------
+        // Self-cleanup: drop stale or critically-long queues before deciding
+        // whether to pull more work. Replaces the off-chain daily cleanup job.
+        cleanupChallengeQueueIfNeeded();
 
         // -----------------------------------------------------
         // Check if the queue already has enough challenges
