@@ -43,7 +43,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
         // Avoid wrong timers from running when changing mainer canister type
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setMainerCanisterType - Stopping Timers");
-        let result = await stopTimerExecution();
+        let result = try {
+            await stopTimerExecution();
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setMainerCanisterType - stopTimerExecution threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return #Err(#Other("stopTimerExecution failed: " # Error.message(error)));
+        };
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setMainerCanisterType - " # debug_show(result));
 
         return #Ok({ status_code = 200 });
@@ -1060,7 +1065,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         };
 
         // Restart the timers to apply the new settings
-        let stopResult = await stopTimerExecution();
+        let stopResult = try {
+            await stopTimerExecution();
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): updateAgentSettings - stopTimerExecution threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return #Err(#Other("stopTimerExecution failed: " # Error.message(error)));
+        };
         ignore startTimerExecution(msg.caller, "updateAgentSettings");
 
         return #Ok({ status_code = 200 });
@@ -1068,21 +1078,18 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     // Respond to challenges
 
-    private func getChallengeFromGameStateCanister() : async Types.ChallengeResult {
-        let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
-        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): calling getRandomOpenChallenge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
-        let result : Types.ChallengeResult = await gameStateCanisterActor.getRandomOpenChallenge();
-        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): getRandomOpenChallenge returned.");
-        return result;
-    };
-
     private func processRespondingToChallenge(challengeQueueInput : Types.ChallengeQueueInput) : async () {
         // Generate the response for the challengeQueueInput and:
         // (-) 'Own' canister submits it to GameState
         // (-) 'ShareService' canister sends it back to the 'ShareAgent' canister which submits it to GameState
 
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - calling respondToChallengeDoIt_");
-        let respondingResult : Types.ChallengeResponseResult = await respondToChallengeDoIt_(challengeQueueInput);
+        let respondingResult : Types.ChallengeResponseResult = try {
+            await respondToChallengeDoIt_(challengeQueueInput);
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - respondToChallengeDoIt_ threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return;
+        };
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - returned from respondToChallengeDoIt_");
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondingResult = " # debug_show (respondingResult));
 
@@ -1156,7 +1163,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     private func sendResponseToShareAgent(challengeResponseSubmissionInput : Types.ChallengeResponseSubmissionInput) : async () {
         let shareAgentCanisterActor = actor (Principal.toText(challengeResponseSubmissionInput.challengeQueuedBy)) : Types.MainerCanister_Actor;
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): sendResponseToShareAgent- calling addChallengeResponseToShareAgent of shareAgentCanisterActor = " # Principal.toText(Principal.fromActor(shareAgentCanisterActor)));
-        let result : Types.StatusCodeRecordResult = await shareAgentCanisterActor.addChallengeResponseToShareAgent(challengeResponseSubmissionInput);
+        let result : Types.StatusCodeRecordResult = try {
+            await shareAgentCanisterActor.addChallengeResponseToShareAgent(challengeResponseSubmissionInput);
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): sendResponseToShareAgent - addChallengeResponseToShareAgent threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return;
+        };
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): sendResponseToShareAgent - returned from addChallengeResponseToShareAgent.challengeResponseSubmissionInput with result = " # debug_show(result));
     };
 
@@ -1239,7 +1251,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
         let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling submitChallengeResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
-        let submitMetadaResult : Types.ChallengeResponseSubmissionMetadataResult = await gameStateCanisterActor.submitChallengeResponse(challengeResponseSubmissionInput);
+        let submitMetadaResult : Types.ChallengeResponseSubmissionMetadataResult = try {
+            await gameStateCanisterActor.submitChallengeResponse(challengeResponseSubmissionInput);
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - submitChallengeResponse threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return;
+        };
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse  - returned from gameStateCanisterActor.submitChallengeResponse");
         switch (submitMetadaResult) {
             case (#Err(error)) {
@@ -1386,7 +1403,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
             return #Err(#FailedOperation);
         };    
 
-        let generationId : Text = await Utils.newRandomUniqueId();
+        let generationId : Text = try {
+            await Utils.newRandomUniqueId();
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - Utils.newRandomUniqueId threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return #Err(#FailedOperation);
+        };
 
         // Use the generationId to create a highly variable seed for the LLM
         let seed : Nat32 = Utils.getRandomLlmSeed(generationId);
@@ -1456,7 +1478,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                     mainerPromptId = mainerPromptId;
                     chunkID = i;
                 };
-                let downloadMainerPromptCacheBytesChunkRecordResult: Types.DownloadMainerPromptCacheBytesChunkRecordResult = await retryGameStateMainerPromptCacheChunkDownloadWithDelay(gameStateCanisterActor, downloadMainerPromptCacheBytesChunkInput, maxAttempts, delay);
+                let downloadMainerPromptCacheBytesChunkRecordResult: Types.DownloadMainerPromptCacheBytesChunkRecordResult = try {
+                    await retryGameStateMainerPromptCacheChunkDownloadWithDelay(gameStateCanisterActor, downloadMainerPromptCacheBytesChunkInput, maxAttempts, delay);
+                } catch (error) {
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - retryGameStateMainerPromptCacheChunkDownloadWithDelay threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+                    return #Err(#FailedOperation);
+                };
                 switch (downloadMainerPromptCacheBytesChunkRecordResult) {
                     case (#Err(error)) {
                         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # ") - ERROR during download of mAIner prompt cache chunk - statusCodeRecordResult:" # debug_show (statusCodeRecordResult));
@@ -1508,7 +1535,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
                 var delay : Nat = 2_000_000_000; // 2 seconds
                 let maxAttempts : Nat = 8;
-                fileUploadRecordResult := await retryLlmPrompCacheChunkUploadWithDelay(llmCanister, uploadChunk, maxAttempts, delay);
+                fileUploadRecordResult := try {
+                    await retryLlmPrompCacheChunkUploadWithDelay(llmCanister, uploadChunk, maxAttempts, delay);
+                } catch (error) {
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - retryLlmPrompCacheChunkUploadWithDelay threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+                    return #Err(#FailedOperation);
+                };
                 switch (fileUploadRecordResult) {
                     case (#Err(error)) {
                         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - ERROR uploading a promptCache chunk - uploadModelFileResult:");
@@ -1849,10 +1881,23 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         };
 
         // -----------------------------------------------------
-        // Get the next challenge from GameState canister
-        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - calling getChallengeFromGameStateCanister.");
-        let challengeResult : Types.ChallengeResult = await getChallengeFromGameStateCanister();
-        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - received challengeResult from getChallengeFromGameStateCanister: " # debug_show (challengeResult));
+        // Get the next challenge from GameState canister.
+        // Inlined (no helper func) so the only `await` is the cross-canister
+        // call to GameState. A helper `private func ... : async ...` would have
+        // forced an extra Motoko self-call across the message queue, which
+        // can fail silently with #call_error when balance is below the IC's
+        // outgoing-call floor (the freezing reserve + per-call overhead).
+        let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - calling getRandomOpenChallenge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
+        let challengeResult : Types.ChallengeResult = try {
+            await gameStateCanisterActor.getRandomOpenChallenge();
+        } catch (error) {
+            // Most likely cause: low cycle balance triggered #call_error from the IC
+            // (formerly the IC0406 "could not perform self call" trap).
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - getRandomOpenChallenge threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return;
+        };
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - received challengeResult: " # debug_show (challengeResult));
         switch (challengeResult) {
             case (#Err(error)) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - challengeResult error : " # debug_show (error));
@@ -1869,7 +1914,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                 PAUSED_DUE_TO_LOW_CYCLE_BALANCE := false;
                 
                 // Add the challenge to the queue
-                let challengeQueuedId : Text = await Utils.newRandomUniqueId();
+                let challengeQueuedId : Text = try {
+                    await Utils.newRandomUniqueId();
+                } catch (error) {
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - Utils.newRandomUniqueId threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+                    return;
+                };
                 let challengeQueuedBy : Principal = Principal.fromActor(this);
                 let challengeQueuedTo : Principal = Principal.fromActor(shareServiceCanisterActor);
 
@@ -2134,7 +2184,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         };
         action2RegularityInSeconds := _action2RegularityInSeconds;
         // Restart the timer with the new regularity
-        let _ = await startTimerExecution(msg.caller, "setTimerAction2RegularityInSecondsAdmin");
+        let _ = try {
+            await startTimerExecution(msg.caller, "setTimerAction2RegularityInSecondsAdmin");
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimerAction2RegularityInSecondsAdmin - startTimerExecution threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return #Err(#Other("startTimerExecution failed: " # Error.message(error)));
+        };
         return #Ok({ status_code = 200 });
     };
 
@@ -2154,7 +2209,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     private func triggerRecurringAction1() : async () {
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 1 was triggered");
-        let result = await pullNextChallenge();
+        let result = try {
+            await pullNextChallenge();
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): triggerRecurringAction1 - pullNextChallenge threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return;
+        };
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 1 result");
         D.print(debug_show (result));
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 1 result");
@@ -2162,7 +2222,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     private func triggerRecurringAction2() : async () {
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 2 was triggered");
-        let result = await processNextChallenge();
+        let result = try {
+            await processNextChallenge();
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): triggerRecurringAction2 - processNextChallenge threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return;
+        };
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 2 result");
         D.print(debug_show (result));
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 2 result");
@@ -2238,7 +2303,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                 // Some error occurred, use default
             };
             // First stop an existing timer if it exists
-            let _ = await stopTimerExecution();
+            try {
+                let _ = await stopTimerExecution();
+            } catch (error) {
+                // Best-effort cleanup; log and continue with the start
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - stopTimerExecution threw (continuing): " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            };
 
             // Now start the timer
             let initialTimerId = setTimer<system>(#seconds randomInitialTimer,
@@ -2265,7 +2335,11 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                     };
                     ignore putAgentTimers(timersEntry);
 
-                    await triggerRecurringAction1();
+                    try {
+                        await triggerRecurringAction1();
+                    } catch (error) {
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - triggerRecurringAction1 threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+                    };
             });
             // Store the initial timer ID for reporting and cancellation
             initialTimerId1 := ?initialTimerId;
@@ -2313,7 +2387,11 @@ persistent actor class MainerAgentCtrlbCanister() = this {
             ignore putAgentTimers(timersEntry);
 
             // Trigger it right away. Without this, the first action would be delayed by the recurring timer regularity
-            await triggerRecurringAction2();
+            try {
+                await triggerRecurringAction2();
+            } catch (error) {
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - triggerRecurringAction2 threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            };
         };
 
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - leaving...");
@@ -2387,7 +2465,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        await startTimerExecution(msg.caller, "startTimerExecutionAdmin");
+        try {
+            await startTimerExecution(msg.caller, "startTimerExecutionAdmin");
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecutionAdmin - startTimerExecution threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return #Err(#Other("startTimerExecution failed: " # Error.message(error)));
+        };
     };
 
     public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
@@ -2397,7 +2480,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        await stopTimerExecution();
+        try {
+            await stopTimerExecution();
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecutionAdmin - stopTimerExecution threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return #Err(#Other("stopTimerExecution failed: " # Error.message(error)));
+        };
     };
 
     public shared query (msg) func getTimerBuffersAdmin() : async Types.MainerTimerBuffersResult {
@@ -2465,7 +2553,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         if (MAINER_AGENT_CANISTER_TYPE == #ShareService) {
             // execute timer 2 action
             D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): triggerChallengeResponseAdmin - (timer 2 action) calling processNextChallenge");
-            await processNextChallenge();
+            try {
+                await processNextChallenge();
+            } catch (error) {
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): triggerChallengeResponseAdmin - processNextChallenge threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+                return #Err(#Other("processNextChallenge failed: " # Error.message(error)));
+            };
             let authRecord = { auth = "You triggered the response generation." };
             return #Ok(authRecord);
         } else {
