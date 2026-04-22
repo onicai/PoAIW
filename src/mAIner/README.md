@@ -6,7 +6,8 @@
 make docker-build-base
 make docker-build-wasm
 
-# Deploy the pre-built wasm
+# Deploy the pre-built wasm for ShareService
+# See also `smoketest` target in Makefile
 # Note: Post-SNS, this step is replaced with SNS governed deployment.
 dfx canister --network $NETWORK stop mainer_service_canister
 dfx canister --network $NETWORK snapshot create mainer_service_canister
@@ -17,6 +18,16 @@ dfx canister --network $NETWORK start mainer_service_canister
 
 # Verify the deployed wasm matches the Docker build
 make docker-verify-wasm VERIFY_NETWORK=$NETWORK
+```
+
+# Deploy the pre-built wasm for mainer_ctrlb_canister_0, for testing
+# See also `smoketest` target in Makefile
+dfx canister --network $NETWORK stop mainer_ctrlb_canister_0
+dfx canister --network $NETWORK snapshot create mainer_ctrlb_canister_0
+dfx canister install --wasm out/mainer_service_canister.wasm \
+    --network $NETWORK --mode upgrade --wasm-memory-persistence keep \
+    mainer_ctrlb_canister_0
+dfx canister --network $NETWORK start mainer_ctrlb_canister_0
 ```
 
 # Available Makefile targets
