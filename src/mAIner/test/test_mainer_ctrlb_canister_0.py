@@ -832,9 +832,9 @@ def test__getSubmittedResponsesAdmin_anonymous(
 def test__getSubmittedResponsesAdmin(network: str) -> None:
     """Test getSubmittedResponsesAdmin with controller identity.
 
-    Also verifies the MAX_SUBMITTED_RESPONSES = 5 invariant: getSubmittedResponsesAdmin
-    must never return more than 5 entries. The cap is structural — putSubmittedResponse
-    trims the list after every push. We can't drive >5 entries from a single-canister
+    Also verifies the MAX_SUBMITTED_RESPONSES = 100 invariant: getSubmittedResponsesAdmin
+    must never return more than 100 entries. The cap is structural — putSubmittedResponse
+    trims the list after every push. We can't drive >100 entries from a single-canister
     test (putSubmittedResponse is private, only reached via storeAndSubmitResponse +
     GameState), so this asserts the empty-state result and the invariant holds for
     whatever entries ever land here.
@@ -850,7 +850,7 @@ def test__getSubmittedResponsesAdmin(network: str) -> None:
     assert response.startswith("(variant { Ok = vec")
     # Crude entry count: each entry begins with "record {" inside the vec.
     entry_count = response.count("record {")
-    assert entry_count <= 5, f"submittedResponses cap broken: got {entry_count} entries (max 5)"
+    assert entry_count <= 100, f"submittedResponses cap broken: got {entry_count} entries (max 100)"
 
 
 def test__getRecentSubmittedResponsesAdmin_anonymous(

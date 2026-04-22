@@ -680,7 +680,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     // Record of submitted responses (capped to bound stable memory growth)
-    let MAX_SUBMITTED_RESPONSES : Nat = 5;
+    let MAX_SUBMITTED_RESPONSES : Nat = 100;
     var submittedResponses : List.List<Types.ChallengeResponseSubmission> = List.nil<Types.ChallengeResponseSubmission>();
 
     private func putSubmittedResponse(responseEntry : Types.ChallengeResponseSubmission) : Bool {
