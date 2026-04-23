@@ -584,8 +584,12 @@ persistent actor class GameStateCanister() = this {
             # debug_show (TEAM_WALLET_ADDRESS)
         );
 
+        if (args.to != TEAM_WALLET_ADDRESS) {
+            return #Err(#Other("Invalid transfer destination for transferToTeam"));
+        };
+
         let transferArgs : TokenLedger.TransferArgs = {
-            to : Blob = TEAM_WALLET_ADDRESS;
+            to : Blob = args.to;
             fee : TokenLedger.Tokens = { e8s : Nat64 = 10_000; };
             memo : Nat64 = 42;
             from_subaccount : ?Blob = null;
