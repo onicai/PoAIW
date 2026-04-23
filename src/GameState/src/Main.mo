@@ -575,6 +575,11 @@ persistent actor class GameStateCanister() = this {
     };
 
     private func transferToTeam(args : Types.IcpTransferArgsAccount) : async Types.IcpTransferResult {
+        let derivedTeamWalletAccount : Text = Utils.bytesToText(Blob.toArray(TEAM_WALLET_ADDRESS));
+        if (derivedTeamWalletAccount != TEAM_WALLET_ICP_NATIVE_ACCOUNT_IDENTIFIER) {
+            return #Err(#Other("Team wallet account derivation mismatch"));
+        };
+
         D.print(
             "Transferring "
             # debug_show (args.amount)
@@ -583,7 +588,7 @@ persistent actor class GameStateCanister() = this {
         );
 
         if (args.to != TEAM_WALLET_ADDRESS) {
-            return #Err(#Other("Invalid transfer destination for transferToTeam"));
+            return #Err(#Other("Invalid transfer destination for transferToTeam. Expected ICP native account id: " # TEAM_WALLET_ICP_NATIVE_ACCOUNT_IDENTIFIER));
         };
 
         let transferArgs : TokenLedger.TransferArgs = {
@@ -4723,8 +4728,9 @@ persistent actor class GameStateCanister() = this {
     // Payment memo to specify in transaction to Protocol
     let MEMO_PAYMENT : Nat64 = 173;
     transient let PROTOCOL_PRINCIPAL_BLOB : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null);
-    transient let TEAM_WALLET_PRINCIPAL : Principal = Principal.fromText("k3pwi-qyaaa-aaaab-acbrq-cai");
-    transient let TEAM_WALLET_ADDRESS : Blob = Principal.toLedgerAccount(TEAM_WALLET_PRINCIPAL, null);
+    let TEAM_WALLET_ICP_NATIVE_ACCOUNT_IDENTIFIER : Text = "5d9bb4f164022de0933d3b45eaf33f1902e9578a2f330a1301d531c42bebf783";
+    let TEAM_WALLET_PRINCIPAL : Principal = Principal.fromText("k3pwi-qyaaa-aaaab-acbrq-cai");
+    let TEAM_WALLET_ADDRESS : Blob = Principal.toLedgerAccount(TEAM_WALLET_PRINCIPAL, null);
     // Construct subaccount for the canister principal
     private func principalToSubaccount(principal : Principal) : Blob {
         let sub = Buffer.Buffer<Nat8>(32);
