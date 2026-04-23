@@ -553,6 +553,37 @@ def test__getMainerStatisticsAdmin(network: str) -> None:
     assert response.startswith("(variant { Ok = record {")
 
 
+def test__getOfficialCyclesBalanceAdmin_anonymous(
+    identity_anonymous: Dict[str, str], network: str
+) -> None:
+    """Test getOfficialCyclesBalanceAdmin rejects anonymous callers"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getOfficialCyclesBalanceAdmin",
+        canister_argument="()",
+        network=network,
+        timeout_seconds=10,
+    )
+    expected_response = "(variant { Err = variant { Unauthorized } })"
+    assert response == expected_response
+
+
+def test__getOfficialCyclesBalanceAdmin(network: str) -> None:
+    """Test getOfficialCyclesBalanceAdmin returns both cycleBalance and officialCyclesBalance."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getOfficialCyclesBalanceAdmin",
+        canister_argument="()",
+        network=network,
+        timeout_seconds=10,
+    )
+    assert response.startswith("(variant { Ok = record {")
+    assert "cycleBalance =" in response
+    assert "officialCyclesBalance =" in response
+
+
 # -----------------------------------------------------------------------------
 # Agent Settings Endpoints
 # -----------------------------------------------------------------------------
