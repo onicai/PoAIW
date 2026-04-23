@@ -4729,8 +4729,7 @@ persistent actor class GameStateCanister() = this {
     let MEMO_PAYMENT : Nat64 = 173;
     transient let PROTOCOL_PRINCIPAL_BLOB : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null);
     let TEAM_WALLET_ICP_NATIVE_ACCOUNT_IDENTIFIER : Text = "5d9bb4f164022de0933d3b45eaf33f1902e9578a2f330a1301d531c42bebf783";
-    let TEAM_WALLET_PRINCIPAL : Principal = Principal.fromText("k3pwi-qyaaa-aaaab-acbrq-cai");
-    let TEAM_WALLET_ADDRESS : Blob = Principal.toLedgerAccount(TEAM_WALLET_PRINCIPAL, null);
+    let TEAM_WALLET_ADDRESS : Blob = "\5D\9B\B4\F1\64\02\2D\E0\93\3D\3B\45\EA\F3\3F\19\02\E9\57\8A\2F\33\0A\13\01\D5\31\C4\2B\EB\F7\83";
     // Construct subaccount for the canister principal
     private func principalToSubaccount(principal : Principal) : Blob {
         let sub = Buffer.Buffer<Nat8>(32);
