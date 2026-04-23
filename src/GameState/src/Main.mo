@@ -508,7 +508,6 @@ persistent actor class GameStateCanister() = this {
         
         let amountForTransfer : TokenLedger.Tokens = { e8s : Nat64 = Nat64.fromNat(amountToDisburse); };
         D.print("GameState: disburseIncomingFundsToTeam - amountForTransfer: " # debug_show(amountForTransfer)); 
-        let TEAM_WALLET_ADDRESS : Blob = "5d9bb4f164022de0933d3b45eaf33f1902e9578a2f330a1301d531c42bebf783";
         let transferArgs : Types.IcpTransferArgsAccount = {
             amount : TokenLedger.Tokens = amountForTransfer;
             to = TEAM_WALLET_ADDRESS;     
@@ -576,7 +575,6 @@ persistent actor class GameStateCanister() = this {
     };
 
     private func transferToTeam(args : Types.IcpTransferArgsAccount) : async Types.IcpTransferResult {
-        let TEAM_WALLET_ADDRESS : Blob = "5d9bb4f164022de0933d3b45eaf33f1902e9578a2f330a1301d531c42bebf783";
         D.print(
             "Transferring "
             # debug_show (args.amount)
@@ -4725,6 +4723,8 @@ persistent actor class GameStateCanister() = this {
     // Payment memo to specify in transaction to Protocol
     let MEMO_PAYMENT : Nat64 = 173;
     transient let PROTOCOL_PRINCIPAL_BLOB : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null);
+    transient let TEAM_WALLET_PRINCIPAL : Principal = Principal.fromText("k3pwi-qyaaa-aaaab-acbrq-cai");
+    transient let TEAM_WALLET_ADDRESS : Blob = Principal.toLedgerAccount(TEAM_WALLET_PRINCIPAL, null);
     // Construct subaccount for the canister principal
     private func principalToSubaccount(principal : Principal) : Blob {
         let sub = Buffer.Buffer<Nat8>(32);
