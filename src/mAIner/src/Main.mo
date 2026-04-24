@@ -43,7 +43,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
         // Avoid wrong timers from running when changing mainer canister type
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setMainerCanisterType - Stopping Timers");
-        let result = await stopTimerExecution();
+        let result = try {
+            await stopTimerExecution();
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setMainerCanisterType - stopTimerExecution threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return #Err(#Other("stopTimerExecution failed: " # Error.message(error)));
+        };
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setMainerCanisterType - " # debug_show(result));
 
         return #Ok({ status_code = 200 });
@@ -104,34 +109,71 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         return #Ok({ flag = MAINTENANCE });
     };
 
-    // Official cycle balance
-    var officialCyclesBalance : Nat = Cycles.balance();
-    var officialCycleTopUpsStorage : List.List<Types.OfficialMainerCycleTopUp> = List.nil<Types.OfficialMainerCycleTopUp>();
-    
+    // Official cycle balance.
+    //
+    // We add INSTALL_CODE_REFUND_BUFFER to compensate for an undocumented IC
+    // mechanism: install_code charges MAX_INSTRUCTIONS_PER_INSTALL_CODE
+    // (= 300 B cycles) UPFRONT before canister_init runs, and refunds the
+    // unused portion AFTER install completes. So Cycles.balance() inside
+    // canister_init returns a value that is ~300 B LOWER than the canister's
+    // true post-install balance. (Pre-reinstall snapshot create adds another
+    // ~130 B refund the same way.) Without this buffer, officialCyclesBalance
+    // would be ~430 B lower than reality, and the first storeAndSubmitResponse
+    // would falsely trigger the 90% unofficial-topup penalty.
+    //
+    // 1 T = comfortably above the largest refund we've observed across runs
+    // (~430 B in early runs, ~595 B in later runs — refund varies with snapshot
+    // size and instructions actually consumed by canister_init, so a single
+    // hard-coded value can't be tight). The buffer is one-time only:
+    // line 1294 (officialCyclesBalance := currentCyclesBalance - cyclesToSend)
+    // resets it to the actual balance after the first successful submit, so
+    // normal unofficial-topup detection resumes from then on.
+    //
+    // Refs:
+    //   - dfinity/ic subnet_config.rs (MAX_INSTRUCTIONS_PER_INSTALL_CODE = 300 B)
+    //   - dfinity/ic canister_manager.rs (prepay_execution_cycles / refund_unused_execution_cycles)
+    //   - https://forum.dfinity.org/t/temporary-canister-cycles-balance-drop-when-upgrading-a-canister/19345
+    let INSTALL_CODE_REFUND_BUFFER : Nat = 1_000_000_000_000;
+    var officialCyclesBalance : Nat = Cycles.balance() + INSTALL_CODE_REFUND_BUFFER;
+    // Top-level expression statement: runs as part of the actor body init,
+    // immediately after the var initializer above. Logs the captured value
+    // on every install/reinstall. Note: MAINER_AGENT_CANISTER_TYPE still
+    // holds its declared default #Own here — it gets reassigned later via
+    // setMainerCanisterType.
+    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): INIT - field initializer captured officialCyclesBalance = " # Nat.toText(officialCyclesBalance) # " (= Cycles.balance() " # Nat.toText(Cycles.balance()) # " + INSTALL_CODE_REFUND_BUFFER " # Nat.toText(INSTALL_CODE_REFUND_BUFFER) # "). Buffer compensates for the install_code prepay/refund: Cycles.balance() at canister_init is ~300 B lower than the true post-install balance because install_code charges its 300 B instruction-cost cap upfront and refunds unused cycles AFTER init returns. See dfinity/ic canister_manager.rs prepay/refund and forum post 19345.");
+
+    // Diagnostic: log balance + officialCyclesBalance at strategic points so we
+    // can trace exactly when officialCyclesBalance drifts from Cycles.balance()
+    // (the gap is what triggers the unofficial-topup penalty in storeAndSubmitResponse).
+    // The caller passes the FULL prefix string ("mAIner (#TYPE): <site> - <state>")
+    // so the resulting log line follows the same grep-able convention as every
+    // other D.print in the file. This matters when many mAIner logs land in one file.
+    private func logCycleState(prefix : Text) : () {
+        D.print(prefix # " | CYCLES balance=" # Nat.toText(Cycles.balance()) # " official=" # Nat.toText(officialCyclesBalance) # " diff(balance-official)=" # (if (Cycles.balance() >= officialCyclesBalance) { Nat.toText(Cycles.balance() - officialCyclesBalance) } else { "-" # Nat.toText(officialCyclesBalance - Cycles.balance()) }));
+    };
+
     public shared (msg) func addCycles() : async Types.AddCyclesResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): addCycles - entry, available=" # Nat.toText(Cycles.available()) # " caller=" # Principal.toText(msg.caller));
         // Accept the cycles the call is charged with
         let cyclesAdded = Cycles.accept<system>(Cycles.available());
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): addCycles - Accepted " # Nat.toText(cyclesAdded) # " Cycles from caller " # Principal.toText(msg.caller));
+        logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): addCycles - after accept");
 
         // Unpause the mAIner if it was paused due to low cycle balance
         PAUSED_DUE_TO_LOW_CYCLE_BALANCE := false;
 
-        // Add to official cycle balance and store all official top ups
+        // Add to official cycle balance
         if (Principal.equal(msg.caller, Principal.fromText(GAME_STATE_CANISTER_ID))) {
             // Game State can make official top ups (via its top up flow)
             officialCyclesBalance := officialCyclesBalance + cyclesAdded;
-            let topUpEntry : Types.OfficialMainerCycleTopUp = {
-                amountAdded : Nat = cyclesAdded;
-                newOfficialCycleBalance : Nat = officialCyclesBalance;
-                creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                sentBy : Principal = msg.caller;
-            };
-            officialCycleTopUpsStorage := List.push<Types.OfficialMainerCycleTopUp>(topUpEntry, officialCycleTopUpsStorage);
+            logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): addCycles - after official update (caller=GameState)");
+        } else {
+            logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): addCycles - caller is NOT GameState - officialCyclesBalance NOT updated");
         };
-        
+
         return #Ok({
             added : Bool = true;
             amount : Nat = cyclesAdded;
@@ -395,8 +437,28 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     // Orthogonal Persisted Data storage
 
 
-    // The minimum cycle balance we want to maintain
-    let CYCLE_BALANCE_MINIMUM = 250 * Constants.CYCLES_BILLION;
+    // The minimum cycle balance we want to maintain.
+    //
+    // Sized to keep the canister above the IC's prepay-deduction floor during
+    // an upgrade or reinstall. install_code charges its full instruction-cost
+    // cap UPFRONT (MAX_INSTRUCTIONS_PER_INSTALL_CODE = 300 B instructions ≈
+    // 300 B cycles on a 13-node subnet) and refunds the unused portion only
+    // AFTER canister_init / postupgrade returns. Snapshot create prepays
+    // similarly (~130-150 B for our canister size). Combined we've observed
+    // ~440 B temporarily deducted around a reinstall flow.
+    //
+    // If CYCLE_BALANCE_MINIMUM is below the prepay deduction, the canister
+    // would dip below the freezing reserve mid-install, and outgoing
+    // inter-canister calls (including the self-calls inside startTimer →
+    // pullNextChallenge → GameState) start failing silently with #call_error.
+    // 1 T gives comfortable headroom: ~440 B prepay + ~160 B freezing reserve
+    // + ~400 B operational margin.
+    //
+    // Refs:
+    //   - dfinity/ic subnet_config.rs (MAX_INSTRUCTIONS_PER_INSTALL_CODE)
+    //   - dfinity/ic canister_manager.rs (prepay_execution_cycles / refund_unused_execution_cycles)
+    //   - https://forum.dfinity.org/t/temporary-canister-cycles-balance-drop-when-upgrading-a-canister/19345
+    let CYCLE_BALANCE_MINIMUM = 1 * Constants.CYCLES_TRILLION;
 
     // A flag for the frontend to pick up and display a message to the user
     var PAUSED_DUE_TO_LOW_CYCLE_BALANCE : Bool = false;
@@ -494,6 +556,22 @@ persistent actor class MainerAgentCtrlbCanister() = this {
             cyclesBurnRate = cyclesBurnRateToReturn;
         };
         return #Ok(response);
+    };
+
+    // Returns both Cycles.balance() AND officialCyclesBalance in a single
+    // atomic query. Useful for diagnosing unofficial-topup penalty triggers
+    // (the penalty fires when officialCyclesBalance < Cycles.balance()).
+    public query (msg) func getOfficialCyclesBalanceAdmin() : async Types.CycleBalanceResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
+            return #Err(#Unauthorized);
+        };
+        return #Ok({
+            cycleBalance = Cycles.balance();
+            officialCyclesBalance = officialCyclesBalance;
+        });
     };
 
     // timer IDs for reporting purposes (actual stopping uses the buffers)
@@ -608,6 +686,11 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     // FIFO queue of challenges: retrieved from GameState; to be processed
     var MAX_CHALLENGES_IN_QUEUE : Nat = 5;
+    // Self-cleanup thresholds for the challenge queue, ported from the
+    // previously off-chain daily cleanup job. The queue is wiped when either
+    // condition holds (see cleanupChallengeQueueIfNeeded).
+    let CHALLENGE_QUEUE_RESET_LENGTH_THRESHOLD : Nat = 4;
+    let CHALLENGE_QUEUE_STALENESS_NANOS : Nat64 = 86_400_000_000_000; // 24 hours
     var challengeQueue : List.List<Types.ChallengeQueueInput> = List.nil<Types.ChallengeQueueInput>();
 
     private func pushChallengeQueue(challengeQueueInput : Types.ChallengeQueueInput) : Bool {
@@ -628,6 +711,36 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     private func removeChallengeQueue(challengeQueuedId : Text) : Bool {
         challengeQueue := List.filter(challengeQueue, func(challengeQueueInputEntry : Types.ChallengeQueueInput) : Bool { challengeQueueInputEntry.challengeQueuedId != challengeQueuedId });
         return true;
+    };
+
+    // Returns the reason for a reset, or null if no reset is needed.
+    // Mirrors the off-chain rules: length >= threshold, OR all entries older
+    // than the staleness window.
+    private func challengeQueueResetReason() : ?Text {
+        let size = List.size<Types.ChallengeQueueInput>(challengeQueue);
+        if (size >= CHALLENGE_QUEUE_RESET_LENGTH_THRESHOLD) {
+            return ?("length " # debug_show(size) # " >= " # debug_show(CHALLENGE_QUEUE_RESET_LENGTH_THRESHOLD));
+        };
+        if (size == 0) { return null };
+        let now : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+        let allStale = List.all<Types.ChallengeQueueInput>(
+            challengeQueue,
+            func(e : Types.ChallengeQueueInput) : Bool {
+                now >= e.challengeQueuedTimestamp + CHALLENGE_QUEUE_STALENESS_NANOS
+            }
+        );
+        if (allStale) { return ?("all " # debug_show(size) # " entries older than 24h") };
+        return null;
+    };
+
+    private func cleanupChallengeQueueIfNeeded() : () {
+        switch (challengeQueueResetReason()) {
+            case (null) { };
+            case (?reason) {
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): cleanupChallengeQueueIfNeeded - resetting challengeQueue; reason = " # reason);
+                challengeQueue := List.nil<Types.ChallengeQueueInput>();
+            };
+        };
     };
 
     public query (msg) func getChallengeQueueAdmin() : async Types.ChallengeQueueInputsResult {
@@ -652,32 +765,13 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         return #Ok({ status_code = 200 });
     };
 
-    // Record of generated responses
-    var generatedResponses : List.List<Types.ChallengeResponseSubmissionInput> = List.nil<Types.ChallengeResponseSubmissionInput>();
-
-    private func putGeneratedResponse(responseEntry : Types.ChallengeResponseSubmissionInput) : Bool {
-        generatedResponses := List.push<Types.ChallengeResponseSubmissionInput>(responseEntry, generatedResponses);
-        return true;
-    };
-
-    private func getGeneratedResponse(challengeId : Text) : ?Types.ChallengeResponseSubmissionInput {
-        return List.find<Types.ChallengeResponseSubmissionInput>(generatedResponses, func(responseEntry : Types.ChallengeResponseSubmissionInput) : Bool { responseEntry.challengeId == challengeId });
-    };
-
-    private func getGeneratedResponses() : [Types.ChallengeResponseSubmissionInput] {
-        return List.toArray<Types.ChallengeResponseSubmissionInput>(generatedResponses);
-    };
-
-    private func removeGeneratedResponse(challengeId : Text) : Bool {
-        generatedResponses := List.filter(generatedResponses, func(responseEntry : Types.ChallengeResponseSubmissionInput) : Bool { responseEntry.challengeId != challengeId });
-        return true;
-    };
-
-    // Record of submitted responses
+    // Record of submitted responses (capped to bound stable memory growth)
+    let MAX_SUBMITTED_RESPONSES : Nat = 100;
     var submittedResponses : List.List<Types.ChallengeResponseSubmission> = List.nil<Types.ChallengeResponseSubmission>();
 
     private func putSubmittedResponse(responseEntry : Types.ChallengeResponseSubmission) : Bool {
         submittedResponses := List.push<Types.ChallengeResponseSubmission>(responseEntry, submittedResponses);
+        submittedResponses := List.take<Types.ChallengeResponseSubmission>(submittedResponses, MAX_SUBMITTED_RESPONSES);
         return true;
     };
 
@@ -1052,7 +1146,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         };
 
         // Restart the timers to apply the new settings
-        let stopResult = await stopTimerExecution();
+        let stopResult = try {
+            await stopTimerExecution();
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): updateAgentSettings - stopTimerExecution threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return #Err(#Other("stopTimerExecution failed: " # Error.message(error)));
+        };
         ignore startTimerExecution(msg.caller, "updateAgentSettings");
 
         return #Ok({ status_code = 200 });
@@ -1060,21 +1159,19 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     // Respond to challenges
 
-    private func getChallengeFromGameStateCanister() : async Types.ChallengeResult {
-        let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
-        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): calling getRandomOpenChallenge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
-        let result : Types.ChallengeResult = await gameStateCanisterActor.getRandomOpenChallenge();
-        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): getRandomOpenChallenge returned.");
-        return result;
-    };
-
     private func processRespondingToChallenge(challengeQueueInput : Types.ChallengeQueueInput) : async () {
         // Generate the response for the challengeQueueInput and:
         // (-) 'Own' canister submits it to GameState
         // (-) 'ShareService' canister sends it back to the 'ShareAgent' canister which submits it to GameState
+        logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - entry");
 
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - calling respondToChallengeDoIt_");
-        let respondingResult : Types.ChallengeResponseResult = await respondToChallengeDoIt_(challengeQueueInput);
+        let respondingResult : Types.ChallengeResponseResult = try {
+            await respondToChallengeDoIt_(challengeQueueInput);
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - respondToChallengeDoIt_ threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return;
+        };
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - returned from respondToChallengeDoIt_");
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondingResult = " # debug_show (respondingResult));
 
@@ -1090,7 +1187,6 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                 // -> Admin must run a script to reset the challengeQueue of all the ShareAgent caniseters once the ShareService is fixed
             };
             case (#Ok(respondingOutput : Types.ChallengeResponse)) {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processRespondingToChallenge - calling putGeneratedResponse");
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondingOutput = " # debug_show (respondingOutput));
                 ignore increaseTotalCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
                 
@@ -1147,9 +1243,16 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     private func sendResponseToShareAgent(challengeResponseSubmissionInput : Types.ChallengeResponseSubmissionInput) : async () {
+        logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): sendResponseToShareAgent - entry");
         let shareAgentCanisterActor = actor (Principal.toText(challengeResponseSubmissionInput.challengeQueuedBy)) : Types.MainerCanister_Actor;
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): sendResponseToShareAgent- calling addChallengeResponseToShareAgent of shareAgentCanisterActor = " # Principal.toText(Principal.fromActor(shareAgentCanisterActor)));
-        let result : Types.StatusCodeRecordResult = await shareAgentCanisterActor.addChallengeResponseToShareAgent(challengeResponseSubmissionInput);
+        let result : Types.StatusCodeRecordResult = try {
+            await shareAgentCanisterActor.addChallengeResponseToShareAgent(challengeResponseSubmissionInput);
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): sendResponseToShareAgent - addChallengeResponseToShareAgent threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return;
+        };
+        logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): sendResponseToShareAgent - after await (any refund visible here)");
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): sendResponseToShareAgent - returned from addChallengeResponseToShareAgent.challengeResponseSubmissionInput with result = " # debug_show(result));
     };
 
@@ -1158,6 +1261,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): addChallengeResponseToShareAgent - entry, available=" # Nat.toText(Cycles.available()) # " caller=" # Principal.toText(msg.caller));
 
         // Only ShareAgent can handle this call
         if (MAINER_AGENT_CANISTER_TYPE != #ShareAgent) {
@@ -1199,120 +1303,119 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     private func storeAndSubmitResponse(challengeResponseSubmissionInput : Types.ChallengeResponseSubmissionInput) : async () {
-        // Store the generated response
-        let storeResult : Bool = putGeneratedResponse(challengeResponseSubmissionInput);
-            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - returned from putGeneratedResponse");
+        logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - entry");
+        // Check if the canister still has enough cycles to submit it
+        // Check against the number sent by the GameState for this particular Challenge
+        if (not sufficientCyclesToSubmit(challengeResponseSubmissionInput.cyclesSubmitResponse)) {
+            // Note: do not pause, to avoid blocking the canister in case of a single challenge with a really high cycle requirement
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - insufficientCyclesToSubmit");
+            return;
+        };
 
-        switch (storeResult) {
-            case (false) {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - storeResult error");
+        // Check if there were any unofficial cycle top ups and if so pay the appropriate fee for the Protocol's operational expenses
+        var cyclesToSend = challengeResponseSubmissionInput.cyclesSubmitResponse;
+        let currentCyclesBalance = Cycles.balance();
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - UNOFFICIAL CHECK: currentCyclesBalance=" # Nat.toText(currentCyclesBalance) # " officialCyclesBalance=" # Nat.toText(officialCyclesBalance) # " unofficialDetected=" # Bool.toText(officialCyclesBalance < currentCyclesBalance) # " (if true: diff=" # (if (currentCyclesBalance >= officialCyclesBalance) { Nat.toText(currentCyclesBalance - officialCyclesBalance) } else { "0" }) # ", protocolOperationFeesCut=" # Nat.toText(challengeResponseSubmissionInput.protocolOperationFeesCut) # ")");
+        if (officialCyclesBalance < currentCyclesBalance) {
+            // Unofficial top ups were made, thus pay the fee for these top ups to Game State now as a share of the balances difference
+            // Use protocolOperationFeesCut that was sent by the GameState canister with the Challenge
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - Unofficial top ups were made");
+            try {
+                let DIRECT_CYCLES_TOPUP_MULTIPLIER : Nat = 9;
+                let cyclesForOperationalExpenses = (currentCyclesBalance - officialCyclesBalance) * (challengeResponseSubmissionInput.protocolOperationFeesCut * DIRECT_CYCLES_TOPUP_MULTIPLIER) / 100;
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - Increasing cycles for operational expenses = " # debug_show(cyclesForOperationalExpenses));
+                cyclesToSend := cyclesToSend + cyclesForOperationalExpenses;
+            } catch (error : Error) {
+                // Continue nevertheless
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - catch error when calculating fee to pay for unofficial top ups : ");
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - error: " # Error.message(error));
             };
-            case (true) {
-                // Check if the canister still has enough cycles to submit it
-                // Check against the number sent by the GameState for this particular Challenge
-                if (not sufficientCyclesToSubmit(challengeResponseSubmissionInput.cyclesSubmitResponse)) {
-                    // Note: do not pause, to avoid blocking the canister in case of a single challenge with a really high cycle requirement
-                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - insufficientCyclesToSubmit");
-                    return;
+        };
+
+        // Add the required amount of cycles
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling Cycles.add for = " # debug_show(cyclesToSend) # " Cycles");
+        logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - before Cycles.add for GameState");
+        Cycles.add<system>(cyclesToSend);
+
+        let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling submitChallengeResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
+        let submitMetadaResult : Types.ChallengeResponseSubmissionMetadataResult = try {
+            await gameStateCanisterActor.submitChallengeResponse(challengeResponseSubmissionInput);
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - submitChallengeResponse threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return;
+        };
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse  - returned from gameStateCanisterActor.submitChallengeResponse");
+        logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - after submitChallengeResponse await (any GameState refund visible here)");
+        switch (submitMetadaResult) {
+            case (#Err(error)) {
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - submitMetada error");
+                D.print(debug_show (error));
+            };
+            case (#Ok(submitMetada : Types.ChallengeResponseSubmissionMetadata)) {
+                // Successfully submitted to Game State
+                let challengeResponseSubmission : Types.ChallengeResponseSubmission = {
+                    challengeTopic : Text = challengeResponseSubmissionInput.challengeTopic;
+                    challengeTopicId : Text = challengeResponseSubmissionInput.challengeTopicId;
+                    challengeTopicCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeTopicCreationTimestamp;
+                    challengeTopicStatus : Types.ChallengeTopicStatus = challengeResponseSubmissionInput.challengeTopicStatus;
+                    cyclesGenerateChallengeGsChctrl : Nat = challengeResponseSubmissionInput.cyclesGenerateChallengeGsChctrl;
+                    cyclesGenerateChallengeChctrlChllm : Nat = challengeResponseSubmissionInput.cyclesGenerateChallengeChctrlChllm;
+                    challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
+                    challengeQuestionSeed : Nat32 = challengeResponseSubmissionInput.challengeQuestionSeed;
+                    mainerPromptId : Text = challengeResponseSubmissionInput.mainerPromptId;
+                    mainerMaxContinueLoopCount : Nat = challengeResponseSubmissionInput.mainerMaxContinueLoopCount;
+                    mainerNumTokens : Nat64 = challengeResponseSubmissionInput.mainerNumTokens;
+                    mainerTemp : Float = challengeResponseSubmissionInput.mainerTemp;
+                    judgePromptId : Text = challengeResponseSubmissionInput.judgePromptId;
+                    challengeId : Text = challengeResponseSubmissionInput.challengeId;
+                    challengeCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeCreationTimestamp;
+                    challengeCreatedBy : Types.CanisterAddress = challengeResponseSubmissionInput.challengeCreatedBy;
+                    challengeStatus : Types.ChallengeStatus = challengeResponseSubmissionInput.challengeStatus;
+                    challengeClosedTimestamp : ?Nat64 = challengeResponseSubmissionInput.challengeClosedTimestamp;
+                    cyclesSubmitResponse : Nat = challengeResponseSubmissionInput.cyclesSubmitResponse;
+                    protocolOperationFeesCut : Nat = challengeResponseSubmissionInput.protocolOperationFeesCut;
+                    cyclesGenerateResponseSactrlSsctrl : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSactrlSsctrl;
+                    cyclesGenerateResponseSsctrlGs : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSsctrlGs;
+                    cyclesGenerateResponseSsctrlSsllm : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSsctrlSsllm;
+                    cyclesGenerateResponseOwnctrlGs : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlGs;
+                    cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmLOW;
+                    cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
+                    cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmHIGH;
+                    challengeQueuedId : Text = challengeResponseSubmissionInput.challengeQueuedId;
+                    challengeQueuedBy : Principal = challengeResponseSubmissionInput.challengeQueuedBy;
+                    challengeQueuedTo : Principal = challengeResponseSubmissionInput.challengeQueuedTo;
+                    challengeQueuedTimestamp : Nat64 = challengeResponseSubmissionInput.challengeQueuedTimestamp;
+                    challengeAnswer : Text = challengeResponseSubmissionInput.challengeAnswer;
+                    challengeAnswerSeed : Nat32 = challengeResponseSubmissionInput.challengeAnswerSeed;
+                    submittedBy : Principal = challengeResponseSubmissionInput.submittedBy;
+                    submissionId : Text = submitMetada.submissionId;
+                    submittedTimestamp : Nat64 = submitMetada.submittedTimestamp;
+                    submissionStatus : Types.ChallengeResponseSubmissionStatus = submitMetada.submissionStatus;
+                    cyclesGenerateScoreGsJuctrl : Nat = submitMetada.cyclesGenerateScoreGsJuctrl;
+                    cyclesGenerateScoreJuctrlJullm : Nat = submitMetada.cyclesGenerateScoreJuctrlJullm;
+                };
+                // Update official cycles balance after the successful submission
+                // Any outstanding top up fees were paid and it's reflected in cyclesToSend
+                officialCyclesBalance := currentCyclesBalance - cyclesToSend;
+                logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - after officialCyclesBalance := (pre-call balance - cyclesToSend)");
+                // Sanity check
+                let newCyclesBalance = Cycles.balance();
+                if (officialCyclesBalance < newCyclesBalance) {
+                    D.print("mAIner storeAndSubmitResponse - after updating the official cycles balance, it is still smaller than the actual balance");
+                    D.print("mAIner storeAndSubmitResponse - officialCyclesBalance: " # debug_show(officialCyclesBalance));
+                    D.print("mAIner storeAndSubmitResponse - newCyclesBalance: " # debug_show(newCyclesBalance));
                 };
 
-                // Check if there were any unofficial cycle top ups and if so pay the appropriate fee for the Protocol's operational expenses
-                var cyclesToSend = challengeResponseSubmissionInput.cyclesSubmitResponse;
-                let currentCyclesBalance = Cycles.balance();
-                if (officialCyclesBalance < currentCyclesBalance) {
-                    // Unofficial top ups were made, thus pay the fee for these top ups to Game State now as a share of the balances difference
-                    // Use protocolOperationFeesCut that was sent by the GameState canister with the Challenge
-                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - Unofficial top ups were made");
-                    try {
-                        let DIRECT_CYCLES_TOPUP_MULTIPLIER : Nat = 9;
-                        let cyclesForOperationalExpenses = (currentCyclesBalance - officialCyclesBalance) * (challengeResponseSubmissionInput.protocolOperationFeesCut * DIRECT_CYCLES_TOPUP_MULTIPLIER) / 100;
-                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - Increasing cycles for operational expenses = " # debug_show(cyclesForOperationalExpenses));
-                        cyclesToSend := cyclesToSend + cyclesForOperationalExpenses;
-                    } catch (error : Error) {
-                        // Continue nevertheless
-                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - catch error when calculating fee to pay for unofficial top ups : ");
-                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - error: " # Error.message(error));
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling putSubmittedResponse");
+                let putResult = putSubmittedResponse(challengeResponseSubmission);
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - return from putSubmittedResponse");
+                switch (putResult) {
+                    case (false) {
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - putResult error");
                     };
-                };
-
-                // Add the required amount of cycles
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling Cycles.add for = " # debug_show(cyclesToSend) # " Cycles");
-                Cycles.add<system>(cyclesToSend);
-
-                let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling submitChallengeResponse of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
-                let submitMetadaResult : Types.ChallengeResponseSubmissionMetadataResult = await gameStateCanisterActor.submitChallengeResponse(challengeResponseSubmissionInput);
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse  - returned from gameStateCanisterActor.submitChallengeResponse");
-                switch (submitMetadaResult) {
-                    case (#Err(error)) {
-                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - submitMetada error");
-                        D.print(debug_show (error));
-                    };
-                    case (#Ok(submitMetada : Types.ChallengeResponseSubmissionMetadata)) {
-                        // Successfully submitted to Game State
-                        let challengeResponseSubmission : Types.ChallengeResponseSubmission = {
-                            challengeTopic : Text = challengeResponseSubmissionInput.challengeTopic;
-                            challengeTopicId : Text = challengeResponseSubmissionInput.challengeTopicId;
-                            challengeTopicCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeTopicCreationTimestamp;
-                            challengeTopicStatus : Types.ChallengeTopicStatus = challengeResponseSubmissionInput.challengeTopicStatus;
-                            cyclesGenerateChallengeGsChctrl : Nat = challengeResponseSubmissionInput.cyclesGenerateChallengeGsChctrl;
-                            cyclesGenerateChallengeChctrlChllm : Nat = challengeResponseSubmissionInput.cyclesGenerateChallengeChctrlChllm;
-                            challengeQuestion : Text = challengeResponseSubmissionInput.challengeQuestion;
-                            challengeQuestionSeed : Nat32 = challengeResponseSubmissionInput.challengeQuestionSeed;
-                            mainerPromptId : Text = challengeResponseSubmissionInput.mainerPromptId;
-                            mainerMaxContinueLoopCount : Nat = challengeResponseSubmissionInput.mainerMaxContinueLoopCount;
-                            mainerNumTokens : Nat64 = challengeResponseSubmissionInput.mainerNumTokens;
-                            mainerTemp : Float = challengeResponseSubmissionInput.mainerTemp;
-                            judgePromptId : Text = challengeResponseSubmissionInput.judgePromptId;
-                            challengeId : Text = challengeResponseSubmissionInput.challengeId;
-                            challengeCreationTimestamp : Nat64 = challengeResponseSubmissionInput.challengeCreationTimestamp;
-                            challengeCreatedBy : Types.CanisterAddress = challengeResponseSubmissionInput.challengeCreatedBy;
-                            challengeStatus : Types.ChallengeStatus = challengeResponseSubmissionInput.challengeStatus;
-                            challengeClosedTimestamp : ?Nat64 = challengeResponseSubmissionInput.challengeClosedTimestamp;
-                            cyclesSubmitResponse : Nat = challengeResponseSubmissionInput.cyclesSubmitResponse;
-                            protocolOperationFeesCut : Nat = challengeResponseSubmissionInput.protocolOperationFeesCut;
-                            cyclesGenerateResponseSactrlSsctrl : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSactrlSsctrl;
-                            cyclesGenerateResponseSsctrlGs : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSsctrlGs;
-                            cyclesGenerateResponseSsctrlSsllm : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseSsctrlSsllm;
-                            cyclesGenerateResponseOwnctrlGs : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlGs;
-                            cyclesGenerateResponseOwnctrlOwnllmLOW : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmLOW;
-                            cyclesGenerateResponseOwnctrlOwnllmMEDIUM : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmMEDIUM;
-                            cyclesGenerateResponseOwnctrlOwnllmHIGH : Nat = challengeResponseSubmissionInput.cyclesGenerateResponseOwnctrlOwnllmHIGH;
-                            challengeQueuedId : Text = challengeResponseSubmissionInput.challengeQueuedId;
-                            challengeQueuedBy : Principal = challengeResponseSubmissionInput.challengeQueuedBy;
-                            challengeQueuedTo : Principal = challengeResponseSubmissionInput.challengeQueuedTo;
-                            challengeQueuedTimestamp : Nat64 = challengeResponseSubmissionInput.challengeQueuedTimestamp;
-                            challengeAnswer : Text = challengeResponseSubmissionInput.challengeAnswer;
-                            challengeAnswerSeed : Nat32 = challengeResponseSubmissionInput.challengeAnswerSeed;
-                            submittedBy : Principal = challengeResponseSubmissionInput.submittedBy;
-                            submissionId : Text = submitMetada.submissionId;
-                            submittedTimestamp : Nat64 = submitMetada.submittedTimestamp;
-                            submissionStatus : Types.ChallengeResponseSubmissionStatus = submitMetada.submissionStatus;
-                            cyclesGenerateScoreGsJuctrl : Nat = submitMetada.cyclesGenerateScoreGsJuctrl;
-                            cyclesGenerateScoreJuctrlJullm : Nat = submitMetada.cyclesGenerateScoreJuctrlJullm;
-                        };
-                        // Update official cycles balance after the successful submission
-                        // Any outstanding top up fees were paid and it's reflected in cyclesToSend
-                        officialCyclesBalance := currentCyclesBalance - cyclesToSend;
-                        // Sanity check
-                        let newCyclesBalance = Cycles.balance();
-                        if (officialCyclesBalance < newCyclesBalance) {
-                            D.print("mAIner storeAndSubmitResponse - after updating the official cycles balance, it is still smaller than the actual balance");
-                            D.print("mAIner storeAndSubmitResponse - officialCyclesBalance: " # debug_show(officialCyclesBalance));
-                            D.print("mAIner storeAndSubmitResponse - newCyclesBalance: " # debug_show(newCyclesBalance));                          
-                        };
-
-                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - calling putSubmittedResponse");
-                        let putResult = putSubmittedResponse(challengeResponseSubmission);
-                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - return from putSubmittedResponse");
-                        switch (putResult) {
-                            case (false) {
-                                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): storeAndSubmitResponse - putResult error");
-                            };
-                            case (true) {
-                                ignore increaseTotalCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
-                            };
-                        };
+                    case (true) {
+                        ignore increaseTotalCyclesBurnt(CYCLES_BURNT_RESPONSE_GENERATION);
                     };
                 };
             };
@@ -1320,6 +1423,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     private func respondToChallengeDoIt_(challengeQueueInput : Types.ChallengeQueueInput) : async Types.ChallengeResponseResult {
+        logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - entry");
         let maxContinueLoopCount : Nat = challengeQueueInput.mainerMaxContinueLoopCount; // After this many calls to run_update, we stop.
         let num_tokens : Nat64 = challengeQueueInput.mainerNumTokens; // Mostly we stop after maxContinueLoopCount update calls & this is never actually used
         let temp : Float = challengeQueueInput.mainerTemp;
@@ -1390,7 +1494,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
             return #Err(#FailedOperation);
         };    
 
-        let generationId : Text = await Utils.newRandomUniqueId();
+        let generationId : Text = try {
+            await Utils.newRandomUniqueId();
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - Utils.newRandomUniqueId threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return #Err(#FailedOperation);
+        };
 
         // Use the generationId to create a highly variable seed for the LLM
         let seed : Nat32 = Utils.getRandomLlmSeed(generationId);
@@ -1460,7 +1569,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                     mainerPromptId = mainerPromptId;
                     chunkID = i;
                 };
-                let downloadMainerPromptCacheBytesChunkRecordResult: Types.DownloadMainerPromptCacheBytesChunkRecordResult = await retryGameStateMainerPromptCacheChunkDownloadWithDelay(gameStateCanisterActor, downloadMainerPromptCacheBytesChunkInput, maxAttempts, delay);
+                let downloadMainerPromptCacheBytesChunkRecordResult: Types.DownloadMainerPromptCacheBytesChunkRecordResult = try {
+                    await retryGameStateMainerPromptCacheChunkDownloadWithDelay(gameStateCanisterActor, downloadMainerPromptCacheBytesChunkInput, maxAttempts, delay);
+                } catch (error) {
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - retryGameStateMainerPromptCacheChunkDownloadWithDelay threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+                    return #Err(#FailedOperation);
+                };
                 switch (downloadMainerPromptCacheBytesChunkRecordResult) {
                     case (#Err(error)) {
                         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # ") - ERROR during download of mAIner prompt cache chunk - statusCodeRecordResult:" # debug_show (statusCodeRecordResult));
@@ -1512,7 +1626,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
                 var delay : Nat = 2_000_000_000; // 2 seconds
                 let maxAttempts : Nat = 8;
-                fileUploadRecordResult := await retryLlmPrompCacheChunkUploadWithDelay(llmCanister, uploadChunk, maxAttempts, delay);
+                fileUploadRecordResult := try {
+                    await retryLlmPrompCacheChunkUploadWithDelay(llmCanister, uploadChunk, maxAttempts, delay);
+                } catch (error) {
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - retryLlmPrompCacheChunkUploadWithDelay threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+                    return #Err(#FailedOperation);
+                };
                 switch (fileUploadRecordResult) {
                     case (#Err(error)) {
                         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - ERROR uploading a promptCache chunk - uploadModelFileResult:");
@@ -1819,12 +1938,32 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     // Triggered by timer 1: get next challenge and add it to the queue
     private func pullNextChallenge() : async () {
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - entered");
+        logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - entry");
 
         if (MAINER_AGENT_CANISTER_TYPE == #ShareService) {
             // This should never happen, but still protect against it
             D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - Something is wrong. pullNextChallenge should not be called by a ShareService.");
             return;
         };
+
+        // -----------------------------------------------------
+        // Skip the GameState call entirely if we already paused ourselves due to
+        // low cycles, or if the balance is below the safety floor. addCycles()
+        // clears the flag once new cycles arrive, so the timer resumes naturally.
+        if (PAUSED_DUE_TO_LOW_CYCLE_BALANCE) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - PAUSED_DUE_TO_LOW_CYCLE_BALANCE is set; skipping");
+            return;
+        };
+        if (Cycles.balance() < CYCLE_BALANCE_MINIMUM) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - cycle balance below CYCLE_BALANCE_MINIMUM; skipping");
+            PAUSED_DUE_TO_LOW_CYCLE_BALANCE := true;
+            return;
+        };
+
+        // -----------------------------------------------------
+        // Self-cleanup: drop stale or critically-long queues before deciding
+        // whether to pull more work. Replaces the off-chain daily cleanup job.
+        cleanupChallengeQueueIfNeeded();
 
         // -----------------------------------------------------
         // Check if the queue already has enough challenges
@@ -1834,10 +1973,23 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         };
 
         // -----------------------------------------------------
-        // Get the next challenge from GameState canister
-        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - calling getChallengeFromGameStateCanister.");
-        let challengeResult : Types.ChallengeResult = await getChallengeFromGameStateCanister();
-        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - received challengeResult from getChallengeFromGameStateCanister: " # debug_show (challengeResult));
+        // Get the next challenge from GameState canister.
+        // Inlined (no helper func) so the only `await` is the cross-canister
+        // call to GameState. A helper `private func ... : async ...` would have
+        // forced an extra Motoko self-call across the message queue, which
+        // can fail silently with #call_error when balance is below the IC's
+        // outgoing-call floor (the freezing reserve + per-call overhead).
+        let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - calling getRandomOpenChallenge of gameStateCanisterActor = " # Principal.toText(Principal.fromActor(gameStateCanisterActor)));
+        let challengeResult : Types.ChallengeResult = try {
+            await gameStateCanisterActor.getRandomOpenChallenge();
+        } catch (error) {
+            // Most likely cause: low cycle balance triggered #call_error from the IC
+            // (formerly the IC0406 "could not perform self call" trap).
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - getRandomOpenChallenge threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return;
+        };
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - received challengeResult: " # debug_show (challengeResult));
         switch (challengeResult) {
             case (#Err(error)) {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - challengeResult error : " # debug_show (error));
@@ -1854,7 +2006,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                 PAUSED_DUE_TO_LOW_CYCLE_BALANCE := false;
                 
                 // Add the challenge to the queue
-                let challengeQueuedId : Text = await Utils.newRandomUniqueId();
+                let challengeQueuedId : Text = try {
+                    await Utils.newRandomUniqueId();
+                } catch (error) {
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - Utils.newRandomUniqueId threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+                    return;
+                };
                 let challengeQueuedBy : Principal = Principal.fromActor(this);
                 let challengeQueuedTo : Principal = Principal.fromActor(shareServiceCanisterActor);
 
@@ -1896,11 +2053,19 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                 if (MAINER_AGENT_CANISTER_TYPE == #ShareAgent) {
                     // Add the cycles required for the ShareService queue (We already checked there is enough)
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - calling Cycles.add for = " # debug_show(challenge.cyclesGenerateResponseSactrlSsctrl) # " Cycles");
+                    logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - before Cycles.add for ShareService");
                     Cycles.add<system>(challenge.cyclesGenerateResponseSactrlSsctrl);
+                    logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - after Cycles.add (note: Cycles.add does not change balance until the call goes out)");
 
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - calling addChallengeToShareServiceQueue of shareServiceCanisterActor = " # Principal.toText(Principal.fromActor(shareServiceCanisterActor)));
-                    let challegeQueueInputResult = await shareServiceCanisterActor.addChallengeToShareServiceQueue(challengeQueueInput);
-                    
+                    let challegeQueueInputResult = try {
+                        await shareServiceCanisterActor.addChallengeToShareServiceQueue(challengeQueueInput);
+                    } catch (error) {
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - addChallengeToShareServiceQueue threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+                        return;
+                    };
+                    logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - after await addChallengeToShareServiceQueue (any refund visible here)");
+
                     switch (challegeQueueInputResult) {
                         case (#Err(error)) {
                             D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - addChallengeToShareServiceQueue returned with error : " # debug_show (error));
@@ -1926,6 +2091,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
+        logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): addChallengeToShareServiceQueue - entry, available=" # Nat.toText(Cycles.available()) # " caller=" # Principal.toText(msg.caller));
 
         if (MAINER_AGENT_CANISTER_TYPE != #ShareService) {
             return #Err(#Unauthorized);
@@ -1942,6 +2108,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                 // Accept required cycles for queue input
                 let cyclesAcceptedForShareServiceQueue = Cycles.accept<system>(challengeQueueInput.cyclesGenerateResponseSactrlSsctrl);
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): addChallengeToShareServiceQueue - cyclesAcceptedForShareServiceQueue = " # Nat.toText(cyclesAcceptedForShareServiceQueue) # " from caller " # Principal.toText(msg.caller));
+                logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): addChallengeToShareServiceQueue - after accept");
 
                 // Store it in the queue
                 let _pushResult_ = pushChallengeQueue(challengeQueueInput);
@@ -1952,6 +2119,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     private func processNextChallenge() : async () {
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge - entered");
+        logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge - entry");
 
         if (MAINER_AGENT_CANISTER_TYPE == #ShareAgent) {
             // This should never happen, but still protect against it
@@ -2119,7 +2287,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         };
         action2RegularityInSeconds := _action2RegularityInSeconds;
         // Restart the timer with the new regularity
-        let _ = await startTimerExecution(msg.caller, "setTimerAction2RegularityInSecondsAdmin");
+        let _ = try {
+            await startTimerExecution(msg.caller, "setTimerAction2RegularityInSecondsAdmin");
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimerAction2RegularityInSecondsAdmin - startTimerExecution threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return #Err(#Other("startTimerExecution failed: " # Error.message(error)));
+        };
         return #Ok({ status_code = 200 });
     };
 
@@ -2139,7 +2312,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     private func triggerRecurringAction1() : async () {
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 1 was triggered");
-        let result = await pullNextChallenge();
+        let result = try {
+            await pullNextChallenge();
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): triggerRecurringAction1 - pullNextChallenge threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return;
+        };
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 1 result");
         D.print(debug_show (result));
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 1 result");
@@ -2147,7 +2325,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     private func triggerRecurringAction2() : async () {
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 2 was triggered");
-        let result = await processNextChallenge();
+        let result = try {
+            await processNextChallenge();
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): triggerRecurringAction2 - processNextChallenge threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return;
+        };
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 2 result");
         D.print(debug_show (result));
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): Recurring action 2 result");
@@ -2156,6 +2339,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     
     private func startTimerExecution(callerPrincipal : Principal, calledFromEndpoint : Text) : async Types.AuthRecordResult {
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - entered" # ", calledFromEndpoint = " # calledFromEndpoint # ", callerPrincipal = " # Principal.toText(callerPrincipal));
+        logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - entry");
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - initialTimerId1 = " # debug_show(initialTimerId1) # ", recurringTimerId1 = " # debug_show(recurringTimerId1) # ", bufferTimerId1 size = " # Nat.toText(bufferTimerId1.size()));
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - recurringTimerId2 = " # debug_show(recurringTimerId2) # ", bufferTimerId2 size = " # Nat.toText(bufferTimerId2.size()));
 
@@ -2172,7 +2356,13 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                     // use default
                 };
                 case (?agentSettings) {
-                    let cyclesBurnRateResult : Types.CyclesBurnRateResult = await gameStateCanisterActor.getCyclesBurnRate(agentSettings.cyclesBurnRate);
+                    let cyclesBurnRateResult : Types.CyclesBurnRateResult = try {
+                        await gameStateCanisterActor.getCyclesBurnRate(agentSettings.cyclesBurnRate);
+                    } catch (error) {
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - getCyclesBurnRate threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+                        #Err(#Other("getCyclesBurnRate failed: " # Error.message(error)));
+                    };
+                    logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - after await getCyclesBurnRate");
                     switch (cyclesBurnRateResult) {
                         case (#Err(error)) {
                             D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - gamestate.getCyclesBurnRate returned error: " # debug_show(error));
@@ -2180,14 +2370,20 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                         };
                         case (#Ok(cyclesBurnRateFromGameState_)) {
                             cyclesBurnRateFromGameState := cyclesBurnRateFromGameState_;
-                            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - cyclesBurnRate retrieved from gamestate.getCyclesBurnRate = " # debug_show(cyclesBurnRateFromGameState) ); 
+                            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - cyclesBurnRate retrieved from gamestate.getCyclesBurnRate = " # debug_show(cyclesBurnRateFromGameState) );
                         };
                     };
                 };
             };
             // Get the cycles used per response from GameState to calculate the timer regularity
             D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - calling getMainerCyclesUsedPerResponse of gameStateCanisterActor");
-            let cyclesUsedResult : Types.NatResult = await gameStateCanisterActor.getMainerCyclesUsedPerResponse();
+            let cyclesUsedResult : Types.NatResult = try {
+                await gameStateCanisterActor.getMainerCyclesUsedPerResponse();
+            } catch (error) {
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - getMainerCyclesUsedPerResponse threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+                #Err(#Other("getMainerCyclesUsedPerResponse failed: " # Error.message(error)));
+            };
+            logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - after await getMainerCyclesUsedPerResponse");
             switch (cyclesUsedResult) {
                 case (#Err(error)) {
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - getMainerCyclesUsedPerResponse error: " # debug_show(error));
@@ -2223,7 +2419,14 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                 // Some error occurred, use default
             };
             // First stop an existing timer if it exists
-            let _ = await stopTimerExecution();
+            logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - before await stopTimerExecution");
+            try {
+                let _ = await stopTimerExecution();
+            } catch (error) {
+                // Best-effort cleanup; log and continue with the start
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - stopTimerExecution threw (continuing): " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            };
+            logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - after await stopTimerExecution");
 
             // Now start the timer
             let initialTimerId = setTimer<system>(#seconds randomInitialTimer,
@@ -2250,7 +2453,13 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                     };
                     ignore putAgentTimers(timersEntry);
 
-                    await triggerRecurringAction1();
+                    logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - before await triggerRecurringAction1 (initial fire)");
+                    try {
+                        await triggerRecurringAction1();
+                    } catch (error) {
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - triggerRecurringAction1 threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+                    };
+                    logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - after await triggerRecurringAction1 (initial fire)");
             });
             // Store the initial timer ID for reporting and cancellation
             initialTimerId1 := ?initialTimerId;
@@ -2298,9 +2507,16 @@ persistent actor class MainerAgentCtrlbCanister() = this {
             ignore putAgentTimers(timersEntry);
 
             // Trigger it right away. Without this, the first action would be delayed by the recurring timer regularity
-            await triggerRecurringAction2();
+            logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - before await triggerRecurringAction2 (immediate)");
+            try {
+                await triggerRecurringAction2();
+            } catch (error) {
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - triggerRecurringAction2 threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            };
+            logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - after await triggerRecurringAction2 (immediate)");
         };
 
+        logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - exit");
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - leaving...");
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - initialTimerId1   = " # debug_show(initialTimerId1)   # ", recurringTimerId1 = " # debug_show(recurringTimerId1) # ", bufferTimerId1 size = " # Nat.toText(bufferTimerId1.size()));
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecution - recurringTimerId2 = " # debug_show(recurringTimerId2) # ", bufferTimerId2 size = " # Nat.toText(bufferTimerId2.size()));
@@ -2311,6 +2527,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     private func stopTimerExecution() : async Types.AuthRecordResult {
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - entered");
+        logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - entry");
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - initialTimerId1 = " # debug_show(initialTimerId1) # ", recurringTimerId1 = " # debug_show(recurringTimerId1) # ", bufferTimerId1 size = " # Nat.toText(bufferTimerId1.size()));
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - recurringTimerId2 = " # debug_show(recurringTimerId2) # ", bufferTimerId2 size = " # Nat.toText(bufferTimerId2.size()));
 
@@ -2358,6 +2575,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
             res := "No timers were running";
         };
 
+        logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - exit");
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - leaving...");
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - initialTimerId1 = " # debug_show(initialTimerId1) # ", recurringTimerId1 = " # debug_show(recurringTimerId1) # ", bufferTimerId1 size = " # Nat.toText(bufferTimerId1.size()));
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecution - recurringTimerId2 = " # debug_show(recurringTimerId2) # ", bufferTimerId2 size = " # Nat.toText(bufferTimerId2.size()));
@@ -2372,7 +2590,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        await startTimerExecution(msg.caller, "startTimerExecutionAdmin");
+        try {
+            await startTimerExecution(msg.caller, "startTimerExecutionAdmin");
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): startTimerExecutionAdmin - startTimerExecution threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return #Err(#Other("startTimerExecution failed: " # Error.message(error)));
+        };
     };
 
     public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
@@ -2382,7 +2605,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        await stopTimerExecution();
+        try {
+            await stopTimerExecution();
+        } catch (error) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): stopTimerExecutionAdmin - stopTimerExecution threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+            return #Err(#Other("stopTimerExecution failed: " # Error.message(error)));
+        };
     };
 
     public shared query (msg) func getTimerBuffersAdmin() : async Types.MainerTimerBuffersResult {
@@ -2450,7 +2678,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         if (MAINER_AGENT_CANISTER_TYPE == #ShareService) {
             // execute timer 2 action
             D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): triggerChallengeResponseAdmin - (timer 2 action) calling processNextChallenge");
-            await processNextChallenge();
+            try {
+                await processNextChallenge();
+            } catch (error) {
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): triggerChallengeResponseAdmin - processNextChallenge threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+                return #Err(#Other("processNextChallenge failed: " # Error.message(error)));
+            };
             let authRecord = { auth = "You triggered the response generation." };
             return #Ok(authRecord);
         } else {
@@ -2495,5 +2728,18 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
         // Reset reporting variable for timer
         action1RegularityInSeconds := 0; // Timer is not yet set (They don't persist across upgrades)
+
+        // Treat the post-upgrade balance as official. Cycles delivered during the
+        // upgrade (e.g. via `dfx wallet send`) bypass the addCycles() flow, so
+        // without this reset the next challenge would trigger the unofficial-topup
+        // penalty against those cycles.
+        //
+        // Same INSTALL_CODE_REFUND_BUFFER applied as in the field initializer:
+        // postupgrade runs INSIDE install_code (mode=upgrade), so Cycles.balance()
+        // here is also the pre-refund value, ~300 B lower than reality. The
+        // buffer compensates so the first storeAndSubmitResponse after upgrade
+        // doesn't fire the false unofficial-topup penalty.
+        officialCyclesBalance := Cycles.balance() + INSTALL_CODE_REFUND_BUFFER;
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): postupgrade - officialCyclesBalance set to " # Nat.toText(officialCyclesBalance) # " (= Cycles.balance() " # Nat.toText(Cycles.balance()) # " + INSTALL_CODE_REFUND_BUFFER " # Nat.toText(INSTALL_CODE_REFUND_BUFFER) # ")");
     };
 };

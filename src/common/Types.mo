@@ -63,6 +63,12 @@ module Types {
     public type NatResult = Result<Nat, ApiError>;
     public type TextResult = Result<Text, ApiError>;
     //-------------------------------------------------------------------------
+    public type CycleBalanceRecord = {
+        cycleBalance : Nat;          // Cycles.balance() at query time
+        officialCyclesBalance : Nat; // The mAIner's tracked official baseline
+    };
+    public type CycleBalanceResult = Result<CycleBalanceRecord, ApiError>;
+    //-------------------------------------------------------------------------
     public type GameStateTresholds = {
         thresholdArchiveClosedChallenges : Nat;
         thresholdMaxOpenChallenges : Nat;
