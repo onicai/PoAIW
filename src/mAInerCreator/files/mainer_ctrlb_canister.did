@@ -146,6 +146,7 @@ type MainerAgentCtrlbCanister =
    getMainerCanisterType: () -> (MainerAgentCanisterTypeResult) query;
    getMainerStatisticsAdmin: () -> (StatisticsRetrievalResult) query;
    getMaintenanceFlag: () -> (FlagResult) query;
+   getOfficialCyclesBalanceAdmin: () -> (CycleBalanceResult) query;
    getRecentSubmittedResponsesAdmin: () ->
     (ChallengeResponseSubmissionsResult) query;
    getRoundRobinCanister: () -> (CanisterIDRecordResult) query;
@@ -243,6 +244,16 @@ type CyclesBurnRate =
  record {
    cycles: nat;
    timeInterval: TimeInterval;
+ };
+type CycleBalanceResult = 
+ variant {
+   Err: ApiError;
+   Ok: CycleBalanceRecord;
+ };
+type CycleBalanceRecord = 
+ record {
+   cycleBalance: nat;
+   officialCyclesBalance: nat;
  };
 type ChallengeTopicStatus = 
  variant {
