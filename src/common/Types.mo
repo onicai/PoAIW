@@ -620,6 +620,31 @@ module Types {
         mainerAgent : OfficialMainerAgentCanister;
     };
 
+    public type MainerAgentTopUpByAddressInput = {
+        paymentTransactionBlockId : Nat64;
+        mainerAgentAddress : Text;
+    };
+
+    public type TopUpRecord = {
+        cyclesAdded : Nat;
+        mainerAgentAddress : Text;
+    };
+
+    public type TopUpResult = Result<TopUpRecord, ApiError>;
+
+    // Input record for GameState's processTopUpCyclesForMainer helper.
+    public type ProcessTopUpInput = {
+        caller : Principal;
+        paymentTransactionBlockId : Nat64;
+        mainerEntry : OfficialMainerAgentCanister;
+    };
+
+    // Internal result returned by GameState's processTopUpCyclesForMainer helper.
+    public type ProcessTopUpResult = {
+        mainerEntry : OfficialMainerAgentCanister;
+        cyclesAdded : Nat;
+    };
+
     public type MainerAuctionTimerInfoRecord = {        
         lastUpdateNs : Nat;
         intervalSeconds : Nat;
