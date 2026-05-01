@@ -194,3 +194,267 @@ dfx canister call game_state_canister toggleDisburseFundsToTreasuryFlagAdmin --n
 dfx canister call game_state_canister getDisburseFundsToTreasuryFlag --network $NETWORK
 ```
 
+# Top-up scenarios
+
+GameState exposes two top-up endpoints:
+
+- `topUpCyclesForMainerAgent` — owner-gated; only the mAIner's owner may call.
+- `topUpCyclesForAnyMainerAgent` — ungated; any authenticated caller may call.
+
+The **ungated** endpoint requires the ICP payment to include an ICRC-1 memo blob whose first byte is `0xAD` (the `MEMO_PAYMENT` marker) followed by the raw principal bytes of the target mAIner. Without this binding, the redeem is rejected. This prevents an attacker from front-running a third-party's transfer and redirecting the cycles to a different mAIner.
+
+Errors that reject a memo include the offending block ID and target mAIner address, e.g. `Memo of payment block 12345 doesn't bind to target mAIner xxxxx-cai`.
+
+## Rollout phases
+
+The change rolls out in three phases:
+
+- **Phase 1 — GameState upgraded, frontend not yet upgraded.** The new canister code is live: ungated `topUpCyclesForAnyMainerAgent` strictly requires the bound memo; gated `topUpCyclesForMainerAgent` accepts both the bound memo and the legacy 1-byte memo `[0xAD]`. The deployed frontend is still the old version, so it sends the legacy memo — that's fine because the gated endpoint dual-accepts.
+- **Phase 2 — Frontend upgraded; migration window.** The new frontend is deployed and now sends the bound memo. Cached browsers may still have the old frontend, so the gated endpoint continues to dual-accept. This window stays open until legacy memo usage drops to ~zero (target ≥30 days, monitor `D.print` logs).
+- **Phase 3 — Legacy memo turned off in GameState.** The gated endpoint is flipped to require the bound memo too (`requireBoundMemo = true`). Any cached frontend still sending the legacy memo will see `Err(Other("Memo of payment block <BLOCK> is missing or invalid for target mAIner <ADDRESS>"))` and need to refresh.
+
+## Scenarios
+
+| # | Scenario | Endpoint | Phase 1 (canister upgraded, old FE) | Phase 2 (new FE, dual-accept window) | Phase 3 (legacy off) |
+| - | -------- | -------- | ----------------------------------- | ------------------------------------ | -------------------- |
+| 1 | Owner tops up their own mAIner with the bound memo (manually via dfx in Phase 1; via UI from Phase 2 onward) | `topUpCyclesForMainerAgent` | `Ok` | `Ok` | `Ok` |
+| 2 | Owner tops up their own mAIner with the legacy memo `[0xAD]` (deployed frontend in Phase 1; cached old frontend in Phase 2) | `topUpCyclesForMainerAgent` | `Ok` | `Ok` | `Err(Other("Memo of payment block <BLOCK> is missing or invalid for target mAIner <ADDRESS>"))` |
+| 3 | Anyone tops up someone else's mAIner with the bound memo (gift) | `topUpCyclesForAnyMainerAgent` | `Ok` | `Ok` | `Ok` |
+| 4 | Replay: same `paymentTransactionBlockId` redeemed twice | either | second call → `Err(Other("Already redeemd this transaction block"))` | same | same |
+| 5 | Front-run: attacker redeems a third-party's block to a different mAIner | `topUpCyclesForAnyMainerAgent` | `Err(Other("Memo of payment block <BLOCK> doesn't bind to target mAIner <ADDRESS>"))` | same | same |
+| 6 | Missing or invalid memo on ungated endpoint | `topUpCyclesForAnyMainerAgent` | `Err(Other("Memo of payment block <BLOCK> is missing or invalid for target mAIner <ADDRESS>"))` | same | same |
+| 7 | Anonymous caller | either | `Err(Unauthorized)` | same | same |
+
+## Testing
+
+Tests are split by which entry point they exercise:
+
+- **Gated endpoint (Scenarios 1 & 2):** must be tested **via the UI** — see the note in the "Positive tests" section.
+- **Ungated endpoint and adversarial cases (Scenarios 3–8):** tested with `dfx` and a fresh `topup-tester` identity, as detailed below.
+
+Source `scripts/canister_ids-$NETWORK.env` from the funnAI repo root and use `$SUBNET_0_1_GAMESTATE` in commands below.
+
+### One-time setup
+
+```bash
+# Create a brand-new identity
+dfx identity new topup-tester
+
+TOPUP_TESTER_PRINCIPAL=$(dfx identity --identity topup-tester get-principal)
+TOPUP_TESTER_ACCOUNT=$(dfx --identity topup-tester ledger account-id)
+echo "topup-tester principal: $TOPUP_TESTER_PRINCIPAL"
+echo "topup-tester account:   $TOPUP_TESTER_ACCOUNT"
+
+# Fund it with 1 ICP - Just sent it from any wallet or you can also sent it 
+
+# Export a plaintext PEM for the Python `pay_topup` helper (used in Scenarios 3, 4,
+# 6, 7). dfx may have stored the identity encrypted in your OS keyring; this command
+# decrypts it (you'll be prompted for the password) and writes a plaintext PEM
+# alongside identity.json. It does NOT change how dfx itself uses the identity —
+# dfx still reads from the keyring when --identity topup-tester is passed.
+dfx identity export topup-tester > ~/.config/dfx/identity/topup-tester/identity.pem
+chmod 600 ~/.config/dfx/identity/topup-tester/identity.pem
+
+# Set the ICP ledger canister id (mainnet / testing — same canister id on every network)
+ICP_LEDGER=ryjl3-tyaaa-aaaaa-aaaba-cai
+```
+
+> **The transfer step uses Python (`icp-py-core`), not `dfx`.** Rationale and the `pay_topup` helper are a few sections below ("Send the ICP via `icp-py-core`"). The redeem step still uses `dfx canister call ... topUpCyclesForAnyMainerAgent` since that argument has no blob escapes.
+
+### Memo helper
+
+```bash
+# Requires icp-py-core in the active conda env: pip install icp-py-core
+# Note: llama_cpp_canister conda env has it already installed
+make_memo() {
+    local target="$1"
+    python3 -c "
+from icp_principal import Principal
+target = Principal.from_str('$target')
+memo = bytes([0xAD]) + target.bytes
+print(''.join(f'\\\\\\\\{b:02X}' for b in memo))
+"
+}
+# test usage:
+TARGET_MAINER=xxxxxx-cai
+MEMO=$(make_memo "$TARGET_MAINER")
+echo $MEMO
+```
+
+### Sanity-check the memo
+
+Before sending ICP, decode the memo bytes back to a principal and confirm they match `$TARGET_MAINER`. Catches typos, accidental shell-escaping, or wrong-target memos before any funds move.
+
+```bash
+verify_memo() {
+    local memo="$1"
+    python3 -c "
+import re
+from icp_principal import Principal
+memo = r'''$memo'''
+hex_bytes = re.findall(r'\\\\([0-9A-Fa-f]{2})', memo)
+raw = bytes(int(b, 16) for b in hex_bytes)
+print(f'marker byte:    0x{raw[0]:02X} (expected 0xAD)')
+print(f'target decoded: {Principal(raw[1:]).to_str()}')
+"
+}
+
+# Usage:
+verify_memo "$MEMO"
+# Expected output:
+#   marker byte:    0xAD (expected 0xAD)
+#   target decoded: <should match $TARGET_MAINER>
+```
+
+### Send the ICP via `icp-py-core` (`scripts/pay_topup.py`)
+
+> **Why Python instead of `dfx`?** Two dfx paths were tried and both fail:
+> - `dfx ledger transfer` (legacy) only accepts an 8-byte `--memo <Nat64>`, so it can't carry the bound memo at all.
+> - `dfx canister call <ICP_LEDGER> icrc1_transfer "(record { ... memo = opt blob \"\AD\00...\"; ... })"` looks correct on paper, but **dfx 0.29.x mis-parses the blob hex-escape syntax** — an 11-byte memo (1 marker + 10 principal bytes) is inflated past the ICP ledger's 32-byte `MEMO_SIZE_BYTES` limit and triggers the trap `the memo field is too large`. Verified via `icp-py-core`: the same 11-byte memo is accepted (the only error is `Err(InsufficientFunds)` from the unfunded test identity), proving the encoding is what's wrong, not the memo itself.
+>
+> The redeem step (`dfx canister call <GameState> topUpCyclesForAnyMainerAgent ...`) works fine because its argument doesn't include a blob escape.
+
+The transfer is implemented in `PoAIW/src/GameState/scripts/pay_topup.py`. It always uses the `topup-tester` identity (loaded from the exported plaintext PEM at `~/.config/dfx/identity/topup-tester/identity.pem`) and sends 0.1 ICP. The two arguments are the target mAIner canister id and GameState's canister id; on success it prints the ICP-ledger block index on stdout (capture-friendly).
+
+Define a tiny shell wrapper so the scenarios stay short — paste this once at the top of your testing session:
+
+```bash
+# Resolve the script path relative to the PoAIW repo root (PoAIW is a
+# separate git repo nested inside funnAI/, so git rev-parse from anywhere
+# under PoAIW returns the PoAIW directory). Works from any subdirectory
+# inside PoAIW, including PoAIW/src/GameState/ where you'll likely be running.
+PAY_TOPUP_PY="$(git rev-parse --show-toplevel)/src/GameState/scripts/pay_topup.py"
+pay_topup() { python3 "$PAY_TOPUP_PY" "$1" "$SUBNET_0_1_GAMESTATE"; }
+
+# Sanity check
+BLOCK=$(pay_topup "$TARGET_MAINER")
+echo "Block index: $BLOCK"
+```
+
+---
+
+## Positive tests (these should all succeed)
+
+These exercise the legitimate flows and confirm the new memo-binding logic doesn't regress them.
+
+> **Note on the gated endpoint (Scenarios 1 & 2):** these must be tested **through the UI**, not via `dfx`. The gated `topUpCyclesForMainerAgent` requires (a) the caller to be the mAIner owner and (b) a full `OfficialMainerAgentCanister` record passed as `mainerAgent` — the frontend already has both, but constructing the record by hand in `dfx` is impractical. The legacy-vs-bound memo behavior is the responsibility of the deployed frontend version, so the UI is what we want to exercise.
+
+### Scenario 1 — Owner tops up their own mAIner via gated endpoint using bound memo — test via UI once UI is upgraded
+
+This is the happy path for the deployed **new** frontend (Phase 2 onward).
+
+1. Open the production frontend in a **fresh** browser session (clear cache or use a private window so you definitely load the new build).
+2. Log in as the owner of one of your mAIners (e.g. via Internet Identity).
+3. Open the **Top up** modal for that mAIner. The target canister id shown in the modal is what the memo will bind to.
+4. Choose a token (ICP, ckBTC, …), enter an amount, confirm.
+5. Wait for the success toast. The mAIner's cycle balance should increase by roughly the converted amount (`dfx canister --network $NETWORK status <mAIner canister id> | grep Balance` before/after).
+6. Inspect the resulting ICP-ledger block (block index visible in the success notification or the browser console). The `icrc1_memo` field must be `[0xAD] ++ <target principal bytes>` — i.e. byte 0 = `0xAD`, bytes 1..N match `Principal.toBlob(<target mAIner canister id>)`.
+
+### Scenario 2 — Owner tops up with legacy memo (gated, Phase-1/2 dual-accept) — test via UI before UI upgrade
+
+This validates the migration window: the **old** frontend (or a cached copy of it) keeps working until Phase 3.
+
+1. Reproduce a session running the old frontend.
+2. Log in as the owner; top up one of your mAIners through the UI.
+3. **Expected (Phase 1 & Phase 2):** redeem succeeds; the resulting ledger block carries the legacy 1-byte memo `[0xAD]`. GameState's `D.print` log shows `verifyIncomingPayment - #MainerTopUp legacy memo accepted (Phase 1 dual-accept)`.
+4. **Expected (Phase 3, after the legacy switch is flipped):** the redeem fails with `Err(Other("Memo of payment block <BLOCK> is missing or invalid for target mAIner <OWN_MAINER>"))`. The user must hard-refresh to pick up the new frontend.
+
+### Scenario 3 — `topup-tester` tops up someone else's mAIner (ungated, gift)
+
+```bash
+# 1. (Optional) sanity-check the bound memo
+MEMO=$(make_memo "$TARGET_MAINER")
+verify_memo "$MEMO"
+
+# 2. Verify topup-tester has funds
+dfx ledger --ic balance
+
+# 3. Send 0.1 ICP via icp-py-core; pay_topup prints the block index on success
+BLOCK=$(pay_topup "$TARGET_MAINER")
+echo "Block: $BLOCK"
+
+# 4. Redeem on the ungated endpoint
+dfx canister --ic call "$SUBNET_0_1_GAMESTATE" topUpCyclesForAnyMainerAgent \
+    "(record { mainerAgentAddress = \"$TARGET_MAINER\"; paymentTransactionBlockId = $BLOCK : nat64 })"
+# expect: Ok with cyclesAdded > 0 and mainerAgentAddress == TARGET_MAINER
+```
+
+---
+
+## Adversarial tests (these should all be rejected)
+
+These confirm the new defenses fire and the existing ones still work. Run them as `topup-tester` to simulate a third party who isn't the mAIner owner.
+
+### Scenario 4 — Replay rejected
+
+```bash
+# Re-run any successful redeem from above with the same BLOCK
+dfx canister --ic call "$GAME_STATE" topUpCyclesForAnyMainerAgent \
+    "(record { mainerAgentAddress = \"$TARGET\"; paymentTransactionBlockId = $BLOCK : nat64 })"
+# expect: Err(Other("Already redeemd this transaction block"))
+```
+
+### Scenario 5 — Misdirection attempt rejected (ungated)
+
+```bash
+LEGIT_TARGET="$TARGET_MAINER"
+ATTACKER_TARGET="xxxxx-cai"  # some other mAIner
+
+# 1. (Optional) sanity-check the memo will bind to LEGIT_TARGET
+MEMO=$(make_memo "$LEGIT_TARGET")
+verify_memo "$MEMO"
+
+# 2. Send the ICP with memo bound to LEGIT_TARGET
+BLOCK=$(pay_topup "$LEGIT_TARGET")
+echo "Block: $BLOCK"
+
+# 3. Try to misdirect the redeem to ATTACKER_TARGET
+dfx canister --ic call "$SUBNET_0_1_GAMESTATE" topUpCyclesForAnyMainerAgent \
+    "(record { mainerAgentAddress = \"$ATTACKER_TARGET\"; paymentTransactionBlockId = $BLOCK : nat64 })"
+# expect: Err(Other("Memo of payment block <BLOCK> doesn't bind to target mAIner <ATTACKER_TARGET>"))
+
+# 4. Redeem to the correct (memo-bound) target — succeeds
+dfx canister --ic call "$SUBNET_0_1_GAMESTATE" topUpCyclesForAnyMainerAgent \
+    "(record { mainerAgentAddress = \"$LEGIT_TARGET\"; paymentTransactionBlockId = $BLOCK : nat64 })"
+# expect: Ok
+```
+
+### Scenario 6 — Missing / invalid memo rejected (ungated)
+
+`pay_topup` always sets the bound memo, so for this rejection test we use a sibling helper, `scripts/pay_topup_test_no_memo.py`, that sends the same 0.1 ICP transfer **without any memo**. Define a thin shell wrapper alongside `pay_topup`:
+
+```bash
+# Resolve relative to the PoAIW repo root (same convention as PAY_TOPUP_PY)
+PAY_TOPUP_NO_MEMO_PY="$(git rev-parse --show-toplevel)/src/GameState/scripts/pay_topup_test_no_memo.py"
+pay_topup_test_no_memo() { python3 "$PAY_TOPUP_NO_MEMO_PY" "$SUBNET_0_1_GAMESTATE"; }
+```
+
+Then run the scenario:
+
+```bash
+# 1. Send 0.1 ICP with NO memo; capture the block index
+BLOCK=$(pay_topup_test_no_memo)
+echo "Block: $BLOCK"
+
+# 2. Try to redeem — should fail because the memo is missing
+dfx canister --ic call "$SUBNET_0_1_GAMESTATE" topUpCyclesForAnyMainerAgent \
+    "(record { mainerAgentAddress = \"$TARGET_MAINER\"; paymentTransactionBlockId = $BLOCK : nat64 })"
+# expect: Err(Other("Memo of payment block <BLOCK> is missing or invalid for target mAIner <TARGET_MAINER>"))
+```
+
+### Scenario 7 — Anonymous caller rejected
+
+```bash
+dfx --identity anonymous canister --ic call "$SUBNET_0_1_GAMESTATE" topUpCyclesForAnyMainerAgent \
+    "(record { mainerAgentAddress = \"$TARGET_MAINER\"; paymentTransactionBlockId = $BLOCK : nat64 })"
+# expect: Err(Unauthorized)
+```
+
+---
+
+### Cleanup
+
+```bash
+dfx identity remove topup-tester
+```
+

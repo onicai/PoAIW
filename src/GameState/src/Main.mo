@@ -4622,6 +4622,11 @@ persistent actor class GameStateCanister() = this {
 
     // Payment memo to specify in transaction to Protocol
     let MEMO_PAYMENT : Nat64 = 173;
+
+    // First byte of the icrc1_memo blob for top-up payments. Same numeric value
+    // as MEMO_PAYMENT, prefixed onto the target canister's principal bytes:
+    //   icrc1_memo = [MEMO_PAYMENT_MARKER] ++ Principal.toBlob(target_mainer)
+    let MEMO_PAYMENT_MARKER : Nat8 = 0xAD;
     transient let PROTOCOL_PRINCIPAL_BLOB : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null);
     // Construct subaccount for the canister principal
     private func principalToSubaccount(principal : Principal) : Blob {
@@ -5013,7 +5018,10 @@ persistent actor class GameStateCanister() = this {
     };
 
     // Verify an incoming payment to the Protocol (e.g. for mAIner creation or top ups)
-    private func verifyIncomingPayment(transactionEntry : Types.RedeemedTransactionBlock) : async Types.VerifyPaymentResult {
+    private func verifyIncomingPayment(
+        transactionEntry : Types.RedeemedTransactionBlock,
+        requireBoundMemo : Bool
+    ) : async Types.VerifyPaymentResult {
         // Retrieve transaction from Ledger
             // https://dashboard.internetcomputer.org/canister/ryjl3-tyaaa-aaaaa-aaaba-cai
         let getBlocksArgs : TokenLedger.GetBlocksArgs = {
@@ -5078,9 +5086,32 @@ persistent actor class GameStateCanister() = this {
                                     case (_) { return #Err(#Other("Unsupported")); }
                                 };                             
                             };
-                            case (#MainerTopUp(_)) {
-                                D.print("GameState: verifyIncomingPayment - #MainerTopUp ");
-                                // continue as there is no fixed price                             
+                            case (#MainerTopUp(targetAddress)) {
+                                D.print("GameState: verifyIncomingPayment - #MainerTopUp targetAddress: " # targetAddress);
+                                if (requireBoundMemo) {
+                                    let blockIdText = Nat64.toText(transactionEntry.paymentTransactionBlockId);
+                                    let memoBlob = switch (retrievedTransaction.icrc1_memo) {
+                                        case (?b) { b };
+                                        case (null) {
+                                            return #Err(#Other("Memo of payment block " # blockIdText # " is missing or invalid for target mAIner " # targetAddress));
+                                        };
+                                    };
+                                    let memoBytes = Blob.toArray(memoBlob);
+                                    if (memoBytes.size() < 2 or memoBytes[0] != MEMO_PAYMENT_MARKER) {
+                                        return #Err(#Other("Memo of payment block " # blockIdText # " is missing or invalid for target mAIner " # targetAddress));
+                                    };
+                                    let memoTargetBytes = Array.subArray<Nat8>(memoBytes, 1, memoBytes.size() - 1 : Nat);
+                                    let memoTarget = Principal.fromBlob(Blob.fromArray(memoTargetBytes));
+                                    let expectedTarget = Principal.fromText(targetAddress);
+                                    if (not Principal.equal(memoTarget, expectedTarget)) {
+                                        return #Err(#Other("Memo of payment block " # blockIdText # " doesn't bind to target mAIner " # targetAddress));
+                                    };
+                                } else {
+                                    // PHASE 1: gated endpoint dual-accepts legacy memos. Log so we can
+                                    // monitor adoption of the new bound format and flip this branch to
+                                    // strict in Phase 2.
+                                    D.print("GameState: verifyIncomingPayment - #MainerTopUp legacy memo accepted (Phase 1 dual-accept)");
+                                };
                             };
                             case (_) { return #Err(#Other("Unsupported")); }
                         };
@@ -5324,7 +5355,10 @@ persistent actor class GameStateCanister() = this {
                 };
                 D.print("GameState: createUserMainerAgent - transactionEntryToVerify: "# debug_show(transactionEntryToVerify));
 
-                let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify);
+                // requireBoundMemo = false: #MainerCreation has no target canister yet at payment time,
+                // so the binding doesn't apply. The check inside verifyIncomingPayment is gated on
+                // #MainerTopUp anyway.
+                let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify, false);
                 D.print("GameState: createUserMainerAgent - verificationResponse: "# debug_show(verificationResponse));
                 switch (verificationResponse) {
                     case (#Ok(verificationResult)) {
@@ -7050,6 +7084,7 @@ persistent actor class GameStateCanister() = this {
                             caller = msg.caller;
                             paymentTransactionBlockId = mainerTopUpInfo.paymentTransactionBlockId;
                             mainerEntry = userMainerEntry;
+                            requireBoundMemo = false; // PHASE 1: dual-accept legacy memos. Flip to true in Phase 2.
                         })) {
                             case (#Ok(result)) { return #Ok(result.mainerEntry); };
                             case (#Err(err)) { return #Err(err); };
@@ -7103,6 +7138,7 @@ persistent actor class GameStateCanister() = this {
                     caller = msg.caller;
                     paymentTransactionBlockId = mainerTopUpInfo.paymentTransactionBlockId;
                     mainerEntry;
+                    requireBoundMemo = true;
                 })) {
                     case (#Ok(result)) {
                         return #Ok({
@@ -7136,15 +7172,17 @@ persistent actor class GameStateCanister() = this {
             amount : Nat = amountPaid; // to be updated
         };
         D.print("GameState: processTopUpCyclesForMainer - transactionEntryToVerify: "# debug_show(transactionEntryToVerify));
-        let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify);
+        let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify, input.requireBoundMemo);
         D.print("GameState: processTopUpCyclesForMainer - verificationResponse: "# debug_show(verificationResponse));
         switch (verificationResponse) {
             case (#Ok(verificationResult)) {
                 verifiedPayment := verificationResult.verified;
                 amountPaid := verificationResult.amountPaid;
             };
-            case (_) {
-                return #Err(#Other("Payment verification failed"));
+            case (#Err(err)) {
+                // Propagate the specific error (e.g. memo-binding mismatch)
+                // instead of swallowing it as a generic "Payment verification failed".
+                return #Err(err);
             };
         };
         if (not verifiedPayment) {
@@ -7311,7 +7349,10 @@ persistent actor class GameStateCanister() = this {
                             amount : Nat = amountPaid; // to be updated
                         };
                         D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - transactionEntryToVerify: "# debug_show(transactionEntryToVerify));
-                        let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify);
+                        // requireBoundMemo = false: admin recovery path. The controller is manually
+                        // completing a top-up (e.g. one stuck due to a legacy memo), so don't block
+                        // on the memo binding here.
+                        let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify, false);
                         D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - verificationResponse: "# debug_show(verificationResponse));
                         switch (verificationResponse) {
                             case (#Ok(verificationResult)) {
