@@ -620,6 +620,37 @@ module Types {
         mainerAgent : OfficialMainerAgentCanister;
     };
 
+    public type MainerAgentTopUpByAddressInput = {
+        paymentTransactionBlockId : Nat64;
+        mainerAgentAddress : Text;
+    };
+
+    public type TopUpRecord = {
+        cyclesAdded : Nat;
+        mainerAgentAddress : Text;
+    };
+
+    public type TopUpResult = Result<TopUpRecord, ApiError>;
+
+    // Input record for GameState's processTopUpCyclesForMainer helper.
+    // requireBoundMemo controls whether verifyIncomingPayment enforces the
+    // ICRC-1 memo binding the payment to the target mAIner. The ungated
+    // endpoint passes true (strict). The gated endpoint passes false during
+    // the Phase-1 migration window so cached old frontends (which only send
+    // the legacy 1-byte memo) keep working; flipped to true in Phase 2.
+    public type ProcessTopUpInput = {
+        caller : Principal;
+        paymentTransactionBlockId : Nat64;
+        mainerEntry : OfficialMainerAgentCanister;
+        requireBoundMemo : Bool;
+    };
+
+    // Internal result returned by GameState's processTopUpCyclesForMainer helper.
+    public type ProcessTopUpResult = {
+        mainerEntry : OfficialMainerAgentCanister;
+        cyclesAdded : Nat;
+    };
+
     public type MainerAuctionTimerInfoRecord = {        
         lastUpdateNs : Nat;
         intervalSeconds : Nat;

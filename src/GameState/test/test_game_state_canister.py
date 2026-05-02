@@ -2682,6 +2682,20 @@ def test__topUpCyclesForMainerAgent_anonymous(network: str, identity_anonymous: 
 
 
 @pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Requires multi-canister setup")
+def test__topUpCyclesForAnyMainerAgent_anonymous(network: str, identity_anonymous: dict) -> None:
+    """Test topUpCyclesForAnyMainerAgent - anonymous caller should be rejected."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="topUpCyclesForAnyMainerAgent",
+        canister_argument='(record { mainerAgentAddress = "aaaaa-aa"; paymentTransactionBlockId = 1 : nat64 })',
+        network=network,
+    )
+    expected_response = "(variant { Err = variant { Unauthorized } })"
+    assert response == expected_response
+
+
+@pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Requires multi-canister setup")
 def test__completeTopUpCyclesForMainerAgentAdmin_anonymous(network: str, identity_anonymous: dict) -> None:
     """Test completeTopUpCyclesForMainerAgentAdmin - anonymous caller should be rejected."""
     response = call_canister_api(
