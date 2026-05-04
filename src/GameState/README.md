@@ -389,7 +389,7 @@ These confirm the new defenses fire and the existing ones still work. Run them a
 
 ```bash
 # Re-run any successful redeem from above with the same BLOCK
-dfx canister --ic call "$GAME_STATE" topUpCyclesForAnyMainerAgent \
+dfx canister --ic call "$SUBNET_0_1_GAMESTATE" topUpCyclesForAnyMainerAgent \
     "(record { mainerAgentAddress = \"$TARGET\"; paymentTransactionBlockId = $BLOCK : nat64 })"
 # expect: Err(Other("Already redeemd this transaction block"))
 ```
