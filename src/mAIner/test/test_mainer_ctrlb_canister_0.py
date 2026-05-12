@@ -553,6 +553,37 @@ def test__getMainerStatisticsAdmin(network: str) -> None:
     assert response.startswith("(variant { Ok = record {")
 
 
+def test__getOfficialCyclesBalanceAdmin_anonymous(
+    identity_anonymous: Dict[str, str], network: str
+) -> None:
+    """Test getOfficialCyclesBalanceAdmin rejects anonymous callers"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getOfficialCyclesBalanceAdmin",
+        canister_argument="()",
+        network=network,
+        timeout_seconds=10,
+    )
+    expected_response = "(variant { Err = variant { Unauthorized } })"
+    assert response == expected_response
+
+
+def test__getOfficialCyclesBalanceAdmin(network: str) -> None:
+    """Test getOfficialCyclesBalanceAdmin returns both cycleBalance and officialCyclesBalance."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getOfficialCyclesBalanceAdmin",
+        canister_argument="()",
+        network=network,
+        timeout_seconds=10,
+    )
+    assert response.startswith("(variant { Ok = record {")
+    assert "cycleBalance =" in response
+    assert "officialCyclesBalance =" in response
+
+
 # -----------------------------------------------------------------------------
 # Agent Settings Endpoints
 # -----------------------------------------------------------------------------
@@ -830,7 +861,15 @@ def test__getSubmittedResponsesAdmin_anonymous(
 
 
 def test__getSubmittedResponsesAdmin(network: str) -> None:
-    """Test getSubmittedResponsesAdmin with controller identity"""
+    """Test getSubmittedResponsesAdmin with controller identity.
+
+    Also verifies the MAX_SUBMITTED_RESPONSES = 100 invariant: getSubmittedResponsesAdmin
+    must never return more than 100 entries. The cap is structural — putSubmittedResponse
+    trims the list after every push. We can't drive >100 entries from a single-canister
+    test (putSubmittedResponse is private, only reached via storeAndSubmitResponse +
+    GameState), so this asserts the empty-state result and the invariant holds for
+    whatever entries ever land here.
+    """
     response = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
         canister_name=CANISTER_NAME,
@@ -840,6 +879,9 @@ def test__getSubmittedResponsesAdmin(network: str) -> None:
         timeout_seconds=10,
     )
     assert response.startswith("(variant { Ok = vec")
+    # Crude entry count: each entry begins with "record {" inside the vec.
+    entry_count = response.count("record {")
+    assert entry_count <= 100, f"submittedResponses cap broken: got {entry_count} entries (max 100)"
 
 
 def test__getRecentSubmittedResponsesAdmin_anonymous(

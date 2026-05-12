@@ -4727,6 +4727,11 @@ persistent actor class GameStateCanister() = this {
 
     // Payment memo to specify in transaction to Protocol
     let MEMO_PAYMENT : Nat64 = 173;
+
+    // First byte of the icrc1_memo blob for top-up payments. Same numeric value
+    // as MEMO_PAYMENT, prefixed onto the target canister's principal bytes:
+    //   icrc1_memo = [MEMO_PAYMENT_MARKER] ++ Principal.toBlob(target_mainer)
+    let MEMO_PAYMENT_MARKER : Nat8 = 0xAD;
     transient let PROTOCOL_PRINCIPAL_BLOB : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null);
     let TEAM_WALLET_ICP_NATIVE_ACCOUNT_IDENTIFIER : Text = "5d9bb4f164022de0933d3b45eaf33f1902e9578a2f330a1301d531c42bebf783";
     let TEAM_WALLET_ADDRESS : Blob = "\5D\9B\B4\F1\64\02\2D\E0\93\3D\3B\45\EA\F3\3F\19\02\E9\57\8A\2F\33\0A\13\01\D5\31\C4\2B\EB\F7\83";
@@ -5150,7 +5155,10 @@ persistent actor class GameStateCanister() = this {
     };
 
     // Verify an incoming payment to the Protocol (e.g. for mAIner creation or top ups)
-    private func verifyIncomingPayment(transactionEntry : Types.RedeemedTransactionBlock) : async Types.VerifyPaymentResult {
+    private func verifyIncomingPayment(
+        transactionEntry : Types.RedeemedTransactionBlock,
+        requireBoundMemo : Bool
+    ) : async Types.VerifyPaymentResult {
         // Retrieve transaction from Ledger
             // https://dashboard.internetcomputer.org/canister/ryjl3-tyaaa-aaaaa-aaaba-cai
         let getBlocksArgs : TokenLedger.GetBlocksArgs = {
@@ -5215,9 +5223,32 @@ persistent actor class GameStateCanister() = this {
                                     case (_) { return #Err(#Other("Unsupported")); }
                                 };                             
                             };
-                            case (#MainerTopUp(_)) {
-                                D.print("GameState: verifyIncomingPayment - #MainerTopUp ");
-                                // continue as there is no fixed price                             
+                            case (#MainerTopUp(targetAddress)) {
+                                D.print("GameState: verifyIncomingPayment - #MainerTopUp targetAddress: " # targetAddress);
+                                if (requireBoundMemo) {
+                                    let blockIdText = Nat64.toText(transactionEntry.paymentTransactionBlockId);
+                                    let memoBlob = switch (retrievedTransaction.icrc1_memo) {
+                                        case (?b) { b };
+                                        case (null) {
+                                            return #Err(#Other("Memo of payment block " # blockIdText # " is missing or invalid for target mAIner " # targetAddress));
+                                        };
+                                    };
+                                    let memoBytes = Blob.toArray(memoBlob);
+                                    if (memoBytes.size() < 2 or memoBytes[0] != MEMO_PAYMENT_MARKER) {
+                                        return #Err(#Other("Memo of payment block " # blockIdText # " is missing or invalid for target mAIner " # targetAddress));
+                                    };
+                                    let memoTargetBytes = Array.subArray<Nat8>(memoBytes, 1, memoBytes.size() - 1 : Nat);
+                                    let memoTarget = Principal.fromBlob(Blob.fromArray(memoTargetBytes));
+                                    let expectedTarget = Principal.fromText(targetAddress);
+                                    if (not Principal.equal(memoTarget, expectedTarget)) {
+                                        return #Err(#Other("Memo of payment block " # blockIdText # " doesn't bind to target mAIner " # targetAddress));
+                                    };
+                                } else {
+                                    // PHASE 1: gated endpoint dual-accepts legacy memos. Log so we can
+                                    // monitor adoption of the new bound format and flip this branch to
+                                    // strict in Phase 2.
+                                    D.print("GameState: verifyIncomingPayment - #MainerTopUp legacy memo accepted (Phase 1 dual-accept)");
+                                };
                             };
                             case (_) { return #Err(#Other("Unsupported")); }
                         };
@@ -5461,7 +5492,10 @@ persistent actor class GameStateCanister() = this {
                 };
                 D.print("GameState: createUserMainerAgent - transactionEntryToVerify: "# debug_show(transactionEntryToVerify));
 
-                let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify);
+                // requireBoundMemo = false: #MainerCreation has no target canister yet at payment time,
+                // so the binding doesn't apply. The check inside verifyIncomingPayment is gated on
+                // #MainerTopUp anyway.
+                let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify, false);
                 D.print("GameState: createUserMainerAgent - verificationResponse: "# debug_show(verificationResponse));
                 switch (verificationResponse) {
                     case (#Ok(verificationResult)) {
@@ -7122,7 +7156,7 @@ persistent actor class GameStateCanister() = this {
             status : Types.CanisterStatus = canisterEntryToAdd.status;
             mainerConfig : Types.MainerConfigurationInput = canisterEntryToAdd.mainerConfig;
         }; 
-        putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry); 
+        putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry);
     };
 
     // Function for user to top up cycles of an existing mAIner agent
@@ -7183,116 +7217,196 @@ persistent actor class GameStateCanister() = this {
                             case (_) { return #Err(#Other("Unsupported")); }
                         };
 
-                        // Verify user's payment for this agent via the TransactionBlockId
-                        var verifiedPayment : Bool = false;
-                        var amountPaid : Nat = 0;
-                        let redeemedFor : Types.RedeemedForOptions = #MainerTopUp(userMainerEntry.address);
-                        let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                        let transactionEntryToVerify : Types.RedeemedTransactionBlock = {
-                            paymentTransactionBlockId : Nat64 = mainerTopUpInfo.paymentTransactionBlockId;
-                            creationTimestamp : Nat64 = creationTimestamp;
-                            redeemedBy : Principal = msg.caller;
-                            redeemedFor : Types.RedeemedForOptions = redeemedFor;
-                            amount : Nat = amountPaid; // to be updated
+                        switch (await processTopUpCyclesForMainer({
+                            caller = msg.caller;
+                            paymentTransactionBlockId = mainerTopUpInfo.paymentTransactionBlockId;
+                            mainerEntry = userMainerEntry;
+                            requireBoundMemo = false; // PHASE 1: dual-accept legacy memos. Flip to true in Phase 2.
+                        })) {
+                            case (#Ok(result)) { return #Ok(result.mainerEntry); };
+                            case (#Err(err)) { return #Err(err); };
                         };
-                        D.print("GameState: topUpCyclesForMainerAgent - transactionEntryToVerify: "# debug_show(transactionEntryToVerify));
-                        let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify);
-                        D.print("GameState: topUpCyclesForMainerAgent - verificationResponse: "# debug_show(verificationResponse));
-                        switch (verificationResponse) {
-                            case (#Ok(verificationResult)) {
-                                verifiedPayment := verificationResult.verified;
-                                amountPaid := verificationResult.amountPaid;
-                            };
-                            case (_) {
-                                return #Err(#Other("Payment verification failed"));                      
-                            };
-                        };
-                        if (not verifiedPayment) {
-                            return #Err(#Other("Payment couldn't be verified"));
-                        };
+                    };
+                };
+            };
+        };
+    };
 
-                        let newTransactionEntry : Types.RedeemedTransactionBlock = {
-                            paymentTransactionBlockId : Nat64 = mainerTopUpInfo.paymentTransactionBlockId;
-                            creationTimestamp : Nat64 = creationTimestamp;
-                            redeemedBy : Principal = msg.caller;
-                            redeemedFor : Types.RedeemedForOptions = redeemedFor;
-                            amount : Nat = amountPaid;
-                        };
-                        let handleResponse : Types.HandleIncomingFundsResult = await handleIncomingFunds(newTransactionEntry);
-                        D.print("GameState: topUpCyclesForMainerAgent - handleResponse: " # debug_show(handleResponse));
-                        switch (handleResponse) {
-                            case (#Err(error)) {
-                                D.print("GameState: topUpCyclesForMainerAgent - handleResponse FailedOperation: " # debug_show(error));
-                                return #Err(#FailedOperation);
+    // Ungated top-up: any authenticated caller may top up any mAIner with ICP.
+    // Gating is intentionally less restrictive than topUpCyclesForMainerAgent --
+    // no ownership check, no owner-scoped lookup. Double-spend protection still
+    // applies via checkExistingTransactionBlock + putRedeemedTransactionBlock.
+    public shared (msg) func topUpCyclesForAnyMainerAgent(mainerTopUpInfo : Types.MainerAgentTopUpByAddressInput) : async Types.TopUpResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (PAUSE_PROTOCOL and not Principal.isController(msg.caller)) {
+            return #Err(#Other("Protocol is currently paused"));
+        };
+        D.print("GameState: topUpCyclesForAnyMainerAgent - mainerTopUpInfo: "# debug_show(mainerTopUpInfo));
+
+        // Ensure this transaction block hasn't been redeemed yet (no double spending)
+        let transactionToVerify = mainerTopUpInfo.paymentTransactionBlockId;
+        switch (checkExistingTransactionBlock(transactionToVerify)) {
+            case (false) {
+                // new transaction, continue
+            };
+            case (true) {
+                return #Err(#Other("Already redeemd this transaction block"));
+            };
+        };
+
+        if (mainerTopUpInfo.mainerAgentAddress == "") {
+            return #Err(#InvalidId);
+        };
+
+        switch (getMainerAgentCanister(mainerTopUpInfo.mainerAgentAddress)) {
+            case (null) {
+                return #Err(#InvalidId);
+            };
+            case (?mainerEntry) {
+                switch (mainerEntry.canisterType) {
+                    case (#MainerAgent(_)) {
+                        // continue
+                    };
+                    case (_) { return #Err(#Other("Unsupported")); }
+                };
+                switch (await processTopUpCyclesForMainer({
+                    caller = msg.caller;
+                    paymentTransactionBlockId = mainerTopUpInfo.paymentTransactionBlockId;
+                    mainerEntry;
+                    requireBoundMemo = true;
+                })) {
+                    case (#Ok(result)) {
+                        return #Ok({
+                            cyclesAdded = result.cyclesAdded;
+                            mainerAgentAddress = result.mainerEntry.address;
+                        });
+                    };
+                    case (#Err(err)) { return #Err(err); };
+                };
+            };
+        };
+    };
+
+    // Shared post-gate logic for top-up endpoints: verify the ICP payment,
+    // run handleIncomingFunds, deliver cycles to the mAIner (with an
+    // IC0.deposit_cycles fallback for frozen canisters), and record the
+    // redeemed transaction block. The caller is responsible for all gating
+    // (anonymous, pause, double-spend, ownership, mAIner lookup, canisterType).
+    private func processTopUpCyclesForMainer(input : Types.ProcessTopUpInput) : async Types.Result<Types.ProcessTopUpResult, Types.ApiError> {
+        let { caller; paymentTransactionBlockId; mainerEntry } = input;
+        // Verify user's payment for this agent via the TransactionBlockId
+        var verifiedPayment : Bool = false;
+        var amountPaid : Nat = 0;
+        let redeemedFor : Types.RedeemedForOptions = #MainerTopUp(mainerEntry.address);
+        let creationTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
+        let transactionEntryToVerify : Types.RedeemedTransactionBlock = {
+            paymentTransactionBlockId : Nat64 = paymentTransactionBlockId;
+            creationTimestamp : Nat64 = creationTimestamp;
+            redeemedBy : Principal = caller;
+            redeemedFor : Types.RedeemedForOptions = redeemedFor;
+            amount : Nat = amountPaid; // to be updated
+        };
+        D.print("GameState: processTopUpCyclesForMainer - transactionEntryToVerify: "# debug_show(transactionEntryToVerify));
+        let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify, input.requireBoundMemo);
+        D.print("GameState: processTopUpCyclesForMainer - verificationResponse: "# debug_show(verificationResponse));
+        switch (verificationResponse) {
+            case (#Ok(verificationResult)) {
+                verifiedPayment := verificationResult.verified;
+                amountPaid := verificationResult.amountPaid;
+            };
+            case (#Err(err)) {
+                // Propagate the specific error (e.g. memo-binding mismatch)
+                // instead of swallowing it as a generic "Payment verification failed".
+                return #Err(err);
+            };
+        };
+        if (not verifiedPayment) {
+            return #Err(#Other("Payment couldn't be verified"));
+        };
+
+        let newTransactionEntry : Types.RedeemedTransactionBlock = {
+            paymentTransactionBlockId : Nat64 = paymentTransactionBlockId;
+            creationTimestamp : Nat64 = creationTimestamp;
+            redeemedBy : Principal = caller;
+            redeemedFor : Types.RedeemedForOptions = redeemedFor;
+            amount : Nat = amountPaid;
+        };
+        let handleResponse : Types.HandleIncomingFundsResult = await handleIncomingFunds(newTransactionEntry);
+        D.print("GameState: processTopUpCyclesForMainer - handleResponse: " # debug_show(handleResponse));
+        switch (handleResponse) {
+            case (#Err(error)) {
+                D.print("GameState: processTopUpCyclesForMainer - handleResponse FailedOperation: " # debug_show(error));
+                return #Err(#FailedOperation);
+            };
+            case (#Ok(handleResult)) {
+                D.print("GameState: processTopUpCyclesForMainer - handleResult: " # debug_show(handleResult));
+                // Credit mAIner agent with cycles (the user paid for)
+                try {
+                    let Mainer_Actor : Types.MainerAgentCtrlbCanister = actor (mainerEntry.address);
+                    D.print("GameState: processTopUpCyclesForMainer - calling Cycles.add for = " # debug_show(handleResult.cyclesForMainer) # " Cycles");
+                    var addCyclesResponse : Types.AddCyclesResult = #Err(#Other("addCycles call didn't work"));
+                    try {
+                        Cycles.add<system>(handleResult.cyclesForMainer);
+                        D.print("GameState: processTopUpCyclesForMainer - calling Mainer_Actor.addCycles");
+                        addCyclesResponse := await Mainer_Actor.addCycles();
+                    } catch (e) {
+                        D.print("GameState: processTopUpCyclesForMainer - Failed to call addCycles on mAIner: " # mainerEntry.address # " " # Error.message(e));
+                        // try again below
+                    };
+                    D.print("GameState: processTopUpCyclesForMainer - addCyclesResponse: " # debug_show(addCyclesResponse));
+                    switch (addCyclesResponse) {
+                        case (#Err(error)) {
+                            D.print("GameState: processTopUpCyclesForMainer - addCyclesResponse error: " # debug_show(error));
+                            // mAIner canister might be frozen due to too low cycles, so unfreeze canister by sending some cycles via the system API first
+                            let cyclesToUnfreezeMainer = 100 * Constants.CYCLES_BILLION;
+                            Cycles.add<system>(cyclesToUnfreezeMainer);
+                            let deposit_cycles_args = { canister_id : Principal = Principal.fromText(mainerEntry.address); };
+                            let _ = await IC0.deposit_cycles(deposit_cycles_args);
+                            D.print("GameState: processTopUpCyclesForMainer - Sent cycles to mAIner via IC0.deposit_cycles: " # debug_show(deposit_cycles_args));
+                            // then send any remaining cycles via the dedicated endpoint
+                            if (handleResult.cyclesForMainer > cyclesToUnfreezeMainer) {
+                                let remainingCycles = handleResult.cyclesForMainer - cyclesToUnfreezeMainer;
+                                D.print("GameState: processTopUpCyclesForMainer - calling addCycles on mAIner with remainingCycles: " # debug_show(remainingCycles));
+                                Cycles.add<system>(remainingCycles);
+                                addCyclesResponse := await Mainer_Actor.addCycles();
+                            } else {
+                                // Record successful cycles deposit
+                                let sentCyclesResult : Types.AddCyclesRecord = {
+                                    added : Bool = true;
+                                    amount : Nat = cyclesToUnfreezeMainer;
+                                };
+                                addCyclesResponse := #Ok(sentCyclesResult);
                             };
-                            case (#Ok(handleResult)) {
-                                D.print("GameState: topUpCyclesForMainerAgent - handleResult: " # debug_show(handleResult));
-                                // Credit mAIner agent with cycles (the user paid for)
-                                try {
-                                    let Mainer_Actor : Types.MainerAgentCtrlbCanister = actor (userMainerEntry.address);
-                                    D.print("GameState: topUpCyclesForMainerAgent - calling Cycles.add for = " # debug_show(handleResult.cyclesForMainer) # " Cycles");
-                                    var addCyclesResponse : Types.AddCyclesResult = #Err(#Other("addCycles call didn't work"));
-                                    try {
-                                        Cycles.add<system>(handleResult.cyclesForMainer);
-                                        D.print("GameState: topUpCyclesForMainerAgent - calling Mainer_Actor.addCycles");
-                                        addCyclesResponse := await Mainer_Actor.addCycles();
-                                    } catch (e) {
-                                        D.print("GameState: topUpCyclesForMainerAgent - Failed to call addCycles on mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e));      
-                                        // try again below
-                                    };
-                                    D.print("GameState: topUpCyclesForMainerAgent - addCyclesResponse: " # debug_show(addCyclesResponse));
-                                    switch (addCyclesResponse) {
-                                        case (#Err(error)) {
-                                            D.print("GameState: topUpCyclesForMainerAgent - addCyclesResponse error: " # debug_show(error));
-                                            // mAIner canister might be frozen due to too low cycles, so unfreeze canister by sending some cycles via the system API first
-                                            let cyclesToUnfreezeMainer = 100 * Constants.CYCLES_BILLION; 
-                                            Cycles.add<system>(cyclesToUnfreezeMainer);
-                                            let deposit_cycles_args = { canister_id : Principal = Principal.fromText(userMainerEntry.address); };
-                                            let _ = await IC0.deposit_cycles(deposit_cycles_args);
-                                            D.print("GameState: topUpCyclesForMainerAgent - Sent cycles to mAIner via IC0.deposit_cycles: " # debug_show(deposit_cycles_args)); 
-                                            // then send any remaining cycles via the dedicated endpoint
-                                            if (handleResult.cyclesForMainer > cyclesToUnfreezeMainer) {
-                                                let remainingCycles = handleResult.cyclesForMainer - cyclesToUnfreezeMainer;
-                                                D.print("GameState: topUpCyclesForMainerAgent - calling addCycles on mAIner with remainingCycles: " # debug_show(remainingCycles));
-                                                Cycles.add<system>(remainingCycles);
-                                                addCyclesResponse := await Mainer_Actor.addCycles();
-                                            } else {
-                                                // Record successful cycles deposit
-                                                let sentCyclesResult : Types.AddCyclesRecord = {
-                                                    added : Bool = true;
-                                                    amount : Nat = cyclesToUnfreezeMainer;
-                                                };
-                                                addCyclesResponse := #Ok(sentCyclesResult);
-                                            };
-                                        };
-                                        case (_) {
-                                            // continue as addCycles was successful
-                                        };
-                                    };
-                                    switch (addCyclesResponse) {
-                                        case (#Err(error)) {
-                                            D.print("GameState: topUpCyclesForMainerAgent - addCyclesResponse FailedOperation: " # debug_show(error));
-                                            return #Err(#FailedOperation);
-                                        };
-                                        case (#Ok(addCyclesResult)) {
-                                            D.print("GameState: topUpCyclesForMainerAgent - addCyclesResult: " # debug_show(addCyclesResult));
-                                            // Track redeemed transaction blocks to ensure no double spending
-                                            switch (putRedeemedTransactionBlock(newTransactionEntry)) {
-                                                case (false) { };
-                                                case (true) {
-                                                    // continue
-                                                };
-                                            };
-                                            return #Ok(userMainerEntry);
-                                        };
-                                    };
-                                } catch (e) {
-                                    D.print("GameState: topUpCyclesForMainerAgent - Failed to credit cycles to mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e));      
-                                    return #Err(#Other("GameState: topUpCyclesForMainerAgent - Failed to credit cycles to mAIner: " # debug_show(mainerTopUpInfo) # Error.message(e)));
+                        };
+                        case (_) {
+                            // continue as addCycles was successful
+                        };
+                    };
+                    switch (addCyclesResponse) {
+                        case (#Err(error)) {
+                            D.print("GameState: processTopUpCyclesForMainer - addCyclesResponse FailedOperation: " # debug_show(error));
+                            return #Err(#FailedOperation);
+                        };
+                        case (#Ok(addCyclesResult)) {
+                            D.print("GameState: processTopUpCyclesForMainer - addCyclesResult: " # debug_show(addCyclesResult));
+                            // Track redeemed transaction blocks to ensure no double spending
+                            switch (putRedeemedTransactionBlock(newTransactionEntry)) {
+                                case (false) { };
+                                case (true) {
+                                    // continue
                                 };
                             };
-                        };                       
+                            return #Ok({
+                                mainerEntry = mainerEntry;
+                                cyclesAdded = handleResult.cyclesForMainer;
+                            });
+                        };
                     };
+                } catch (e) {
+                    D.print("GameState: processTopUpCyclesForMainer - Failed to credit cycles to mAIner: " # mainerEntry.address # " " # Error.message(e));
+                    return #Err(#Other("GameState: processTopUpCyclesForMainer - Failed to credit cycles to mAIner: " # mainerEntry.address # " " # Error.message(e)));
                 };
             };
         };
@@ -7372,7 +7486,10 @@ persistent actor class GameStateCanister() = this {
                             amount : Nat = amountPaid; // to be updated
                         };
                         D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - transactionEntryToVerify: "# debug_show(transactionEntryToVerify));
-                        let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify);
+                        // requireBoundMemo = false: admin recovery path. The controller is manually
+                        // completing a top-up (e.g. one stuck due to a legacy memo), so don't block
+                        // on the memo binding here.
+                        let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify, false);
                         D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - verificationResponse: "# debug_show(verificationResponse));
                         switch (verificationResponse) {
                             case (#Ok(verificationResult)) {
