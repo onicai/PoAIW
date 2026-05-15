@@ -1,67 +1,17 @@
 {
   "llm_0": {
-    "prd": "4yuew-ziaaa-aaaag-auc7a-cai",
-    "testing": "gkyvn-gaaaa-aaaab-aakva-cai",
-    "development": "efovi-naaaa-aaaad-qhk4q-cai"
+    "development": "re7zo-eaaaa-aaaad-ql2uq-cai",
+    "testing": "tijwr-eaaaa-aaaab-aguna-cai",
+    "prd": "q6xar-uyaaa-aaaag-ayxxq-cai"
   },
   "llm_1": {
-    "prd": "47vcc-uqaaa-aaaag-auc7q-cai"
+    "testing": "gkyvn-gaaaa-aaaab-aakva-cai",
+    "prd": "k26rl-vqaaa-aaaai-rakcq-cai"
   },
-  "llm_10": {
-    "prd": "iiulj-6iaaa-aaaan-qz4rq-cai"
-  },
-  "llm_13": {
-    "prd": ""
-  },
-  "llm_14": {
-    "prd": ""
-  },
-  "llm_15": {
-    "prd": ""
-  },
-  "llm_16": {
-    "prd": ""
-  },
-  "llm_17": {
-    "prd": ""
-  },
-  "llm_18": {
-    "prd": ""
-  },
-  "llm_19": {
-    "prd": ""
-  },
-  "llm_20": {
-    "prd": ""
-  },
-  "llm_21": {
-    "prd": ""
-  },
-  "llm_22": {
-    "prd": ""
-  },
-  "llm_23": {
-    "prd": ""
-  },
-  "llm_24": {
-    "prd": ""
-  },
-  "llm_25": {
-    "prd": ""
+  "llm_2": {
+    "prd": "tb4fe-6qaaa-aaaac-be5tq-cai"
   },
   "llm_3": {
-    "prd": "6eiml-cqaaa-aaaai-q3yna-cai"
-  },
-  "llm_4": {
-    "prd": "6djk7-piaaa-aaaai-q3ynq-cai"
-  },
-  "llm_6": {
-    "prd": "tiw5l-siaaa-aaaac-awb2q-cai"
-  },
-  "llm_7": {
-    "prd": "sl2un-gqaaa-aaaac-awb4a-cai"
-  },
-  "llm_9": {
-    "prd": "ipvn5-tqaaa-aaaan-qz4ra-cai"
+    "prd": "6tx5a-raaaa-aaaan-q6hfa-cai"
   }
 }
