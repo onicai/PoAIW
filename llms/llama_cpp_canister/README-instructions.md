@@ -7,4 +7,4 @@ How to upgrade funnAI LLMs to a new version of llama_cpp_canister:
 - unzip it
 - copy full content of zip file into this folder
 
-Then redeploy using instructions of README
+Then deploy using instructions of README-prd-upgrade-commands.md

@@ -1,391 +1,17 @@
 {
-  "mainer_service_canister": {
-    "development": "ecpt4-ayaaa-aaaad-qhk4a-cai",
-    "ic": "",
-    "local": "",
-    "testing": "vtebo-riaaa-aaaam-qdxgq-cai",
-    "demo": "4xoqq-waaaa-aaaaj-a2bvq-cai",
-    "prd": "rilmv-caaaa-aaaaa-qandq-cai"
-  },
   "mainer_ctrlb_canister_0": {
-    "testing": "2calm-zyaaa-aaaam-qeooq-cai",
+    "development": "rgtlc-dyaaa-aaaaj-a35aa-cai",
     "prd": "h44g7-jyaaa-aaaaa-qbmdq-cai",
-    "demo": "tszo3-hyaaa-aaaaj-a2hoq-cai",
-    "development": "rgtlc-dyaaa-aaaaj-a35aa-cai"
+    "testing": "2calm-zyaaa-aaaam-qeooq-cai"
   },
   "mainer_ctrlb_canister_1": {
+    "development": "2ebdn-pqaaa-aaaaj-a345q-cai",
     "prd": "5djt4-wiaaa-aaaaa-qbc3q-cai",
-    "demo": "tj4s6-5aaaa-aaaaj-a2hma-cai",
-    "testing": "6iqjc-haaaa-aaaam-qeoua-cai",
-    "development": "2ebdn-pqaaa-aaaaj-a345q-cai"
-  },
-  "mainer_ctrlb_canister_2": {
-    "ic": "33rok-raaaa-aaaaa-qbj6q-cai",
-    "prd": "yrqer-gqaaa-aaaaa-qbcfa-cai",
-    "demo": "mlfba-yqaaa-aaaaj-a2c2q-cai",
-    "development": "73zah-5aaaa-aaaaj-a2b7q-cai",
-    "testing": "ifc2x-7qaaa-aaaam-qfd2q-cai"
-  },
-  "mainer_ctrlb_canister_3": {
-    "prd": "6u37o-hqaaa-aaaaa-qbcta-cai",
-    "demo": "kvlg2-diaaa-aaaaj-a2coa-cai",
-    "development": "swubj-6yaaa-aaaaj-a2hiq-cai",
-    "testing": "amsew-uaaaa-aaaam-qeyna-cai"
-  },
-  "mainer_ctrlb_canister_4": {
-    "prd": "himlk-zyaaa-aaaaa-qbhra-cai",
-    "demo": "kamxx-caaaa-aaaaj-a2cnq-cai",
-    "development": "sywmb-fiaaa-aaaaj-a2hjq-cai",
-    "testing": "v2hks-haaaa-aaaam-qdxha-cai"
-  },
-  "mainer_ctrlb_canister_5": {
-    "prd": "keww4-liaaa-aaaaa-qbkxa-cai",
-    "demo": "kskao-oqaaa-aaaaj-a2coq-cai",
-    "development": "s7xkv-iqaaa-aaaaj-a2hja-cai",
-    "testing": "26er5-oyaaa-aaaam-qeomq-cai"
-  },
-  "mainer_ctrlb_canister_6": {
-    "prd": "do6bw-vaaaa-aaaaa-qblgq-cai",
-    "demo": "t43dt-4iaaa-aaaaj-a2hpq-cai",
-    "development": "mqa5f-ciaaa-aaaaj-a2cya-cai",
-    "testing": "kanry-oyaaa-aaaam-qfekq-cai"
-  },
-  "mainer_ctrlb_canister_7": {
-    "prd": "hrjsv-kqaaa-aaaaa-qbl7q-cai",
-    "demo": "tvyip-kaaaa-aaaaj-a2hoa-cai",
-    "development": "ibvdo-giaaa-aaaaj-a2caa-cai",
-    "testing": "5suig-4yaaa-aaaam-qd5ba-cai"
-  },
-  "mainer_ctrlb_canister_8": {
-    "prd": "sqyr2-yaaaa-aaaaa-qb43q-cai",
-    "demo": "seswq-siaaa-aaaaj-a2hlq-cai",
-    "development": "oy2ca-qiaaa-aaaaj-a2cua-cai"
-  },
-  "mainer_ctrlb_canister_9": {
-    "prd": "d6ytv-qaaaa-aaaaa-qbhjq-cai",
-    "demo": "fmyca-fqaaa-aaaaj-a2exa-cai",
-    "development": "o73eu-5qaaa-aaaaj-a2cuq-cai"
+    "testing": "6iqjc-haaaa-aaaam-qeoua-cai"
   },
   "mainer_ctrlb_canister_10": {
-    "prd": "hdpfm-gaaaa-aaaaa-qbl4q-cai",
-    "demo": "n5ozl-naaaa-aaaaj-a2c7q-cai",
-    "development": "owypi-lyaaa-aaaaj-a2cva-cai"
-  },
-  "mainer_ctrlb_canister_11": {
-    "prd": "rijy2-faaaa-aaaaa-qbigq-cai",
-    "demo": "n2p77-ayaaa-aaaaj-a2c7a-cai",
-    "development": "orzj4-gaaaa-aaaaj-a2cvq-cai"
-  },
-  "mainer_ctrlb_canister_12": {
-    "prd": "3bv2v-4qaaa-aaaaa-qb5iq-cai",
-    "demo": "mzdwz-uaaaa-aaaaj-a2czq-cai",
-    "development": "zbbyl-tyaaa-aaaaj-a2gwq-cai"
-  },
-  "mainer_ctrlb_canister_13": {
-    "prd": "4vclx-dyaaa-aaaaa-qbc6q-cai",
-    "demo": "lebyf-3aaaa-aaaaj-a2clq-cai",
-    "development": "zictx-fqaaa-aaaaj-a2gxa-cai"
-  },
-  "mainer_ctrlb_canister_14": {
-    "prd": "hbpaw-pqaaa-aaaaa-qbhqq-cai",
-    "demo": "7s2l3-liaaa-aaaaj-a2b6a-cai",
-    "development": "mxb3r-pqaaa-aaaaj-a2cyq-cai"
-  },
-  "mainer_ctrlb_canister_15": {
-    "prd": "bge6t-haaaa-aaaaa-qblkq-cai",
-    "demo": "kjp4l-uiaaa-aaaaj-a2cma-cai",
-    "development": "dxxgu-2aaaa-aaaaj-a2ipa-cai"
-  },
-  "mainer_ctrlb_canister_16": {
-    "prd": "ds23h-caaaa-aaaaa-qbleq-cai",
-    "demo": "koo27-zqaaa-aaaaj-a2cmq-cai"
-  },
-  "mainer_ctrlb_canister_17": {
-    "prd": "la3zo-siaaa-aaaaa-qbkra-cai",
-    "demo": "t32fh-rqaaa-aaaaj-a2hpa-cai"
-  },
-  "mainer_ctrlb_canister_18": {
-    "prd": "mw2zu-cqaaa-aaaaa-qbgoq-cai",
-    "demo": "ta7zc-liaaa-aaaaj-a2hnq-cai"
-  },
-  "mainer_ctrlb_canister_19": {
-    "prd": "bdf55-diaaa-aaaaa-qbhga-cai",
-    "demo": "to5uk-qyaaa-aaaaj-a2hmq-cai"
-  },
-  "mainer_ctrlb_canister_20": {
-    "prd": "rpi6o-iyaaa-aaaaa-qbiga-cai",
-    "demo": "mfhmi-daaaa-aaaaj-a2c3q-cai"
-  },
-  "mainer_ctrlb_canister_21": {
-    "prd": "m2yrg-qqaaa-aaaaa-qbkdq-cai",
-    "demo": "6dqve-taaaa-aaaaj-a2b3q-cai"
-  },
-  "mainer_ctrlb_canister_22": {
-    "prd": "yqhyj-xyaaa-aaaaa-qbjua-cai",
-    "demo": "lwhp4-xqaaa-aaaaj-a2ciq-cai"
-  },
-  "mainer_ctrlb_canister_23": {
-    "prd": "nxwvi-7yaaa-aaaaa-qbkea-cai",
-    "demo": "lkdvn-aqaaa-aaaaj-a2ckq-cai"
-  },
-  "mainer_ctrlb_canister_24": {
-    "prd": "m7zsi-uyaaa-aaaaa-qbgpa-cai",
-    "demo": "lda6r-wyaaa-aaaaj-a2cla-cai"
-  },
-  "mainer_ctrlb_canister_25": {
-    "prd": "hwiub-hiaaa-aaaaa-qbl7a-cai",
-    "demo": "th67w-gqaaa-aaaaj-a2hna-cai"
-  },
-  "mainer_ctrlb_canister_26": {
-    "prd": "tbspf-aiaaa-aaaaa-qb46a-cai",
-    "demo": "sdtqe-7qaaa-aaaaj-a2hla-cai"
-  },
-  "mainer_ctrlb_canister_27": {
-    "prd": "cdqfy-2iaaa-aaaaa-qblba-cai",
-    "demo": "6va5l-kqaaa-aaaaj-a2gfa-cai"
-  },
-  "mainer_ctrlb_canister_28": {
-    "prd": "m5zxs-5iaaa-aaaaa-qbkda-cai",
-    "demo": "gn2g5-nyaaa-aaaaj-a2dba-cai"
-  },
-  "mainer_ctrlb_canister_29": {
-    "prd": "cuxrp-sqaaa-aaaaa-qbhoq-cai",
-    "demo": "g74re-biaaa-aaaaj-a2dca-cai"
-  },
-  "mainer_ctrlb_canister_30": {
-    "prd": "hkmoq-qiaaa-aaaaa-qbl5a-cai",
-    "demo": "mcgk4-oyaaa-aaaaj-a2c3a-cai"
-  },
-  "mainer_ctrlb_canister_31": {
-    "prd": "2w2c2-qiaaa-aaaaa-qddta-cai",
-    "demo": "l7eea-byaaa-aaaaj-a2cja-cai"
-  },
-  "mainer_ctrlb_canister_32": {
-    "prd": "runcl-saaaa-aaaaa-qbieq-cai",
-    "demo": "lyfcu-maaaa-aaaaj-a2cjq-cai"
-  },
-  "mainer_ctrlb_canister_33": {
-    "prd": "v65af-myaaa-aaaaa-qbi6a-cai",
-    "demo": "lnctz-niaaa-aaaaj-a2cka-cai"
-  },
-  "mainer_ctrlb_canister_34": {
-    "prd": "4wvsv-3aaaa-aaaaa-qbfdq-cai",
-    "demo": "6yvjb-jyaaa-aaaaj-a2bza-cai"
-  },
-  "mainer_ctrlb_canister_35": {
-    "prd": "533w3-uiaaa-aaaaa-qbfea-cai",
-    "demo": "6rwc5-7qaaa-aaaaj-a2byq-cai"
-  },
-  "mainer_ctrlb_canister_36": {
-    "prd": "574b6-oiaaa-aaaaa-qcsta-cai",
-    "demo": "6wxej-siaaa-aaaaj-a2bya-cai"
-  },
-  "mainer_ctrlb_canister_37": {
-    "prd": "4vtde-myaaa-aaaaa-qcsua-cai",
-    "demo": "4lkkb-baaaa-aaaaj-a2bxq-cai"
-  },
-  "mainer_ctrlb_canister_38": {
-    "prd": "5y5hk-dqaaa-aaaaa-qcstq-cai",
-    "demo": "4mlmv-myaaa-aaaaj-a2bxa-cai"
-  },
-  "mainer_ctrlb_canister_39": {
-    "prd": "i5lta-laaaa-aaaaa-qbsaq-cai",
-    "demo": "4fihj-2qaaa-aaaaj-a2bwq-cai"
-  },
-  "mainer_ctrlb_canister_40": {
-    "prd": "upx62-uqaaa-aaaaa-qbi3q-cai",
-    "demo": "7j7x6-rqaaa-aaaaj-a2b4q-cai"
-  },
-  "mainer_ctrlb_canister_41": {
-    "prd": "ls5ox-6yaaa-aaaaa-qbksa-cai",
-    "demo": "7o6rk-4iaaa-aaaaj-a2b4a-cai"
-  },
-  "mainer_ctrlb_canister_42": {
-    "prd": "sl5n7-cyaaa-aaaaa-qb4za-cai",
-    "demo": "6kt6y-fiaaa-aaaaj-a2b2a-cai"
-  },
-  "mainer_ctrlb_canister_43": {
-    "prd": "sc6gd-uqaaa-aaaaa-qb4yq-cai",
-    "demo": "67upv-eaaaa-aaaaj-a2bzq-cai"
-  },
-  "mainer_ctrlb_canister_44": {
-    "prd": "6i7f7-qqaaa-aaaaa-qbcra-cai",
-    "demo": "ff3j4-tyaaa-aaaaj-a2ewq-cai"
-  },
-  "mainer_ctrlb_canister_45": {
-    "prd": "exkq4-paaaa-aaaaa-qbmja-cai",
-    "demo": "fc2pi-6aaaa-aaaaj-a2ewa-cai"
-  },
-  "mainer_ctrlb_canister_46": {
-    "prd": "aqpgy-sqaaa-aaaaa-qblpq-cai",
-    "demo": "fx56f-7iaaa-aaaaj-a2evq-cai"
-  },
-  "mainer_ctrlb_canister_47": {
-    "prd": "sxzxo-vyaaa-aaaaa-qb43a-cai",
-    "demo": "fq4yr-sqaaa-aaaaj-a2eva-cai"
-  },
-  "mainer_ctrlb_canister_48": {
-    "prd": "64pik-aqaaa-aaaaa-qbjdq-cai",
-    "demo": "hvtt6-dyaaa-aaaaj-a2dfa-cai"
-  },
-  "mainer_ctrlb_canister_49": {
-    "prd": "7rbme-pyaaa-aaaaa-qbjea-cai",
-    "demo": "h4qyc-vqaaa-aaaaj-a2deq-cai"
-  },
-  "mainer_ctrlb_canister_50": {
-    "prd": "lc34u-3yaaa-aaaaa-qbg5a-cai",
-    "demo": "h3r6w-yiaaa-aaaaj-a2dea-cai"
-  },
-  "mainer_ctrlb_canister_51": {
-    "prd": "ho2rg-fiaaa-aaaaa-qbmaq-cai",
-    "demo": "gw72y-xaaaa-aaaaj-a2ddq-cai"
-  },
-  "mainer_ctrlb_canister_52": {
-    "prd": "v45f7-fiaaa-aaaaa-qbesa-cai",
-    "demo": "7v3np-gqaaa-aaaaj-a2b6q-cai"
-  },
-  "mainer_ctrlb_canister_53": {
-    "prd": "3usly-5yaaa-aaaaa-qb5la-cai",
-    "demo": "6ertq-6yaaa-aaaaj-a2b3a-cai"
-  },
-  "mainer_ctrlb_canister_54": {
-    "prd": "oxdnn-gyaaa-aaaaa-qbgda-cai",
-    "demo": "6nsym-iqaaa-aaaaj-a2b2q-cai"
-  },
-  "mainer_ctrlb_canister_55": {
-    "prd": "vx6lz-2qaaa-aaaaa-qbi7q-cai"
-  },
-  "mainer_ctrlb_canister_56": {
-    "prd": "h7l75-raaaa-aaaaa-qbl6q-cai"
-  },
-  "mainer_ctrlb_canister_57": {
-    "prd": "j2hrs-myaaa-aaaaa-qbk6a-cai"
-  },
-  "mainer_ctrlb_canister_58": {
-    "prd": "qrxrb-2iaaa-aaaaa-qbdtq-cai"
-  },
-  "mainer_ctrlb_canister_59": {
-    "prd": "notmx-mqaaa-aaaaa-qbgkq-cai"
-  },
-  "mainer_ctrlb_canister_60": {
-    "prd": "rv26t-diaaa-aaaaa-qbdvq-cai"
-  },
-  "mainer_ctrlb_canister_61": {
-    "prd": "narb7-xaaaa-aaaaa-qbglq-cai"
-  },
-  "mainer_ctrlb_canister_62": {
-    "prd": "zvl7b-zqaaa-aaaaa-qb5gq-cai"
-  },
-  "mainer_ctrlb_canister_63": {
-    "prd": "uoacc-fyaaa-aaaaa-qbdkq-cai"
-  },
-  "mainer_ctrlb_canister_64": {
-    "prd": "dj7hc-yyaaa-aaaaa-qblga-cai"
-  },
-  "mainer_ctrlb_canister_65": {
-    "prd": "ttuy4-myaaa-aaaaa-qb45a-cai"
-  },
-  "mainer_ctrlb_canister_66": {
-    "prd": "fqqgm-oyaaa-aaaaa-qblsa-cai"
-  },
-  "mainer_ctrlb_canister_67": {
-    "prd": "gzgvv-bqaaa-aaaaa-qbhuq-cai"
-  },
-  "mainer_ctrlb_canister_68": {
-    "prd": "g6htb-miaaa-aaaaa-qbhua-cai"
-  },
-  "mainer_ctrlb_canister_69": {
-    "prd": "w57bc-naaaa-aaaaa-qbdea-cai"
-  },
-  "mainer_ctrlb_canister_70": {
-    "prd": "nvwqs-wiaaa-aaaaa-qbgia-cai"
-  },
-  "mainer_ctrlb_canister_71": {
-    "prd": "cerdm-xqaaa-aaaaa-qblbq-cai"
-  },
-  "mainer_ctrlb_canister_72": {
-    "prd": "2l2yp-6aaaa-aaaaa-qb5pq-cai"
-  },
-  "mainer_ctrlb_canister_73": {
-    "prd": "g4hw3-fyaaa-aaaaa-qblya-cai"
-  },
-  "mainer_ctrlb_canister_74": {
-    "prd": "y6fvb-miaaa-aaaaa-qbjva-cai"
-  },
-  "mainer_ctrlb_canister_75": {
-    "prd": "z5j4h-yqaaa-aaaaa-qbjtq-cai"
-  },
-  "mainer_ctrlb_canister_76": {
-    "prd": "jre7u-taaaa-aaaaa-qbgtq-cai"
-  },
-  "mainer_ctrlb_canister_77": {
-    "prd": "ijnkx-5aaaa-aaaaa-qbgxq-cai"
-  },
-  "mainer_ctrlb_canister_78": {
-    "prd": "yzetv-bqaaa-aaaaa-qbjvq-cai"
-  },
-  "mainer_ctrlb_canister_79": {
-    "prd": "ivjqg-kaaaa-aaaaa-qbgvq-cai"
-  },
-  "mainer_ctrlb_canister_80": {
-    "prd": "4etfm-xqaaa-aaaaa-qbfaq-cai"
-  },
-  "mainer_ctrlb_canister_81": {
-    "prd": "k5tpd-yaaaa-aaaaa-qbgzq-cai"
-  },
-  "mainer_ctrlb_canister_82": {
-    "prd": "6g5ix-laaaa-aaaaa-qbcqa-cai"
-  },
-  "mainer_ctrlb_canister_83": {
-    "prd": "7qwq4-6qaaa-aaaaa-qbcva-cai"
-  },
-  "mainer_ctrlb_canister_84": {
-    "prd": "5ympz-mqaaa-aaaaa-qbcza-cai"
-  },
-  "mainer_ctrlb_canister_85": {
-    "prd": "5eivi-3qaaa-aaaaa-qbc3a-cai"
-  },
-  "mainer_ctrlb_canister_86": {
-    "prd": "kiu6o-ziaaa-aaaaa-qbg2a-cai"
-  },
-  "mainer_ctrlb_canister_87": {
-    "prd": "7mskn-jqaaa-aaaaa-qbcxa-cai"
-  },
-  "mainer_ctrlb_canister_88": {
-    "prd": "ajk7h-byaaa-aaaaa-qbhba-cai"
-  },
-  "mainer_ctrlb_canister_89": {
-    "prd": "lz6ar-baaaa-aaaaa-qbg7q-cai"
-  },
-  "mainer_ctrlb_canister_90": {
-    "prd": "ifpcf-paaaa-aaaaa-qbk2q-cai"
-  },
-  "mainer_ctrlb_canister_91": {
-    "prd": "xqrfm-ciaaa-aaaaa-qbddq-cai"
-  },
-  "mainer_ctrlb_canister_92": {
-    "prd": "57njn-biaaa-aaaaa-qbczq-cai"
-  },
-  "mainer_ctrlb_canister_93": {
-    "prd": "uvf6h-7aaaa-aaaaa-qbdia-cai"
-  },
-  "mainer_ctrlb_canister_94": {
-    "prd": "44bal-vqaaa-aaaaa-qbc7a-cai"
-  },
-  "mainer_ctrlb_canister_95": {
-    "prd": "smk7j-jaaaa-aaaaa-qbd4a-cai"
-  },
-  "mainer_ctrlb_canister_96": {
-    "prd": "vwjxb-lyaaa-aaaaa-qbdoq-cai"
-  },
-  "mainer_ctrlb_canister_97": {
-    "prd": "43ag7-yiaaa-aaaaa-qbc7q-cai"
-  },
-  "mainer_ctrlb_canister_98": {
-    "prd": "6b4od-gyaaa-aaaaa-qbcqq-cai"
-  },
-  "mainer_ctrlb_canister_99": {
-    "prd": "vepay-hiaaa-aaaaa-qbdnq-cai"
+    "development": "owypi-lyaaa-aaaaj-a2cva-cai",
+    "prd": "hdpfm-gaaaa-aaaaa-qbl4q-cai"
   },
   "mainer_ctrlb_canister_100": {
     "prd": "useyt-syaaa-aaaaa-qbdiq-cai"
@@ -417,6 +43,10 @@
   "mainer_ctrlb_canister_109": {
     "prd": "tgf5t-lqaaa-aaaaa-qbd3a-cai"
   },
+  "mainer_ctrlb_canister_11": {
+    "development": "orzj4-gaaaa-aaaaj-a2cvq-cai",
+    "prd": "rijy2-faaaa-aaaaa-qbigq-cai"
+  },
   "mainer_ctrlb_canister_110": {
     "prd": "7frbr-7yaaa-aaaaa-qbcwq-cai"
   },
@@ -446,6 +76,10 @@
   },
   "mainer_ctrlb_canister_119": {
     "prd": "udvwi-gqaaa-aaaaa-qbewq-cai"
+  },
+  "mainer_ctrlb_canister_12": {
+    "development": "zbbyl-tyaaa-aaaaj-a2gwq-cai",
+    "prd": "3bv2v-4qaaa-aaaaa-qb5iq-cai"
   },
   "mainer_ctrlb_canister_120": {
     "prd": "xbalx-waaaa-aaaaa-qbe5q-cai"
@@ -477,6 +111,10 @@
   "mainer_ctrlb_canister_129": {
     "prd": "xgbnd-3yaaa-aaaaa-qbe5a-cai"
   },
+  "mainer_ctrlb_canister_13": {
+    "development": "zictx-fqaaa-aaaaj-a2gxa-cai",
+    "prd": "4vclx-dyaaa-aaaaa-qbc6q-cai"
+  },
   "mainer_ctrlb_canister_130": {
     "prd": "xpcg7-nqaaa-aaaaa-qbe4q-cai"
   },
@@ -506,6 +144,10 @@
   },
   "mainer_ctrlb_canister_139": {
     "prd": "c2v4h-jaaaa-aaaaa-qbhpq-cai"
+  },
+  "mainer_ctrlb_canister_14": {
+    "development": "mxb3r-pqaaa-aaaaj-a2cyq-cai",
+    "prd": "hbpaw-pqaaa-aaaaa-qbhqq-cai"
   },
   "mainer_ctrlb_canister_140": {
     "prd": "xluzj-yqaaa-aaaaa-qbdba-cai"
@@ -537,6 +179,10 @@
   "mainer_ctrlb_canister_149": {
     "prd": "knv5a-5aaaa-aaaaa-qbkwq-cai"
   },
+  "mainer_ctrlb_canister_15": {
+    "development": "dxxgu-2aaaa-aaaaj-a2ipa-cai",
+    "prd": "bge6t-haaaa-aaaaa-qblkq-cai"
+  },
   "mainer_ctrlb_canister_150": {
     "prd": "77gjs-2iaaa-aaaaa-qddpa-cai"
   },
@@ -566,6 +212,9 @@
   },
   "mainer_ctrlb_canister_159": {
     "prd": "rtme7-7yaaa-aaaaa-qbiea-cai"
+  },
+  "mainer_ctrlb_canister_16": {
+    "prd": "ds23h-caaaa-aaaaa-qbleq-cai"
   },
   "mainer_ctrlb_canister_160": {
     "prd": "avofw-wyaaa-aaaaa-qbhda-cai"
@@ -597,6 +246,9 @@
   "mainer_ctrlb_canister_169": {
     "prd": "bigt3-4qaaa-aaaaa-qbllq-cai"
   },
+  "mainer_ctrlb_canister_17": {
+    "prd": "la3zo-siaaa-aaaaa-qbkra-cai"
+  },
   "mainer_ctrlb_canister_170": {
     "prd": "ttcm6-kyaaa-aaaaa-qbdyq-cai"
   },
@@ -626,6 +278,9 @@
   },
   "mainer_ctrlb_canister_179": {
     "prd": "5l5ey-riaaa-aaaaa-qbjla-cai"
+  },
+  "mainer_ctrlb_canister_18": {
+    "prd": "mw2zu-cqaaa-aaaaa-qbgoq-cai"
   },
   "mainer_ctrlb_canister_180": {
     "prd": "5f7jq-kyaaa-aaaaa-qbjka-cai"
@@ -657,6 +312,9 @@
   "mainer_ctrlb_canister_189": {
     "prd": "j7gs4-iqaaa-aaaaa-qbgsq-cai"
   },
+  "mainer_ctrlb_canister_19": {
+    "prd": "bdf55-diaaa-aaaaa-qbhga-cai"
+  },
   "mainer_ctrlb_canister_190": {
     "prd": "zbngw-pqaaa-aaaaa-qbjrq-cai"
   },
@@ -686,6 +344,15 @@
   },
   "mainer_ctrlb_canister_199": {
     "prd": "enyqb-eqaaa-aaaaa-qbh2q-cai"
+  },
+  "mainer_ctrlb_canister_2": {
+    "development": "73zah-5aaaa-aaaaj-a2b7q-cai",
+    "ic": "33rok-raaaa-aaaaa-qbj6q-cai",
+    "prd": "yrqer-gqaaa-aaaaa-qbcfa-cai",
+    "testing": "ifc2x-7qaaa-aaaam-qfd2q-cai"
+  },
+  "mainer_ctrlb_canister_20": {
+    "prd": "rpi6o-iyaaa-aaaaa-qbiga-cai"
   },
   "mainer_ctrlb_canister_200": {
     "prd": "ee335-syaaa-aaaaa-qbh3a-cai"
@@ -717,6 +384,9 @@
   "mainer_ctrlb_canister_209": {
     "prd": "6clxb-6aaaa-aaaaa-qbfnq-cai"
   },
+  "mainer_ctrlb_canister_21": {
+    "prd": "m2yrg-qqaaa-aaaaa-qbkdq-cai"
+  },
   "mainer_ctrlb_canister_210": {
     "prd": "dl7cy-riaaa-aaaaa-qbhka-cai"
   },
@@ -746,6 +416,9 @@
   },
   "mainer_ctrlb_canister_219": {
     "prd": "acjrb-6aaaa-aaaaa-qblmq-cai"
+  },
+  "mainer_ctrlb_canister_22": {
+    "prd": "yqhyj-xyaaa-aaaaa-qbjua-cai"
   },
   "mainer_ctrlb_canister_220": {
     "prd": "fxray-daaaa-aaaaa-qblsq-cai"
@@ -777,6 +450,9 @@
   "mainer_ctrlb_canister_229": {
     "prd": "3gcid-xiaaa-aaaaa-qbcnq-cai"
   },
+  "mainer_ctrlb_canister_23": {
+    "prd": "nxwvi-7yaaa-aaaaa-qbkea-cai"
+  },
   "mainer_ctrlb_canister_230": {
     "prd": "265jc-7iaaa-aaaaa-qb5ma-cai"
   },
@@ -806,6 +482,9 @@
   },
   "mainer_ctrlb_canister_239": {
     "prd": "7yhpg-xqaaa-aaaaa-qddpq-cai"
+  },
+  "mainer_ctrlb_canister_24": {
+    "prd": "m7zsi-uyaaa-aaaaa-qbgpa-cai"
   },
   "mainer_ctrlb_canister_240": {
     "prd": "3wvst-5iaaa-aaaaa-qc6ia-cai"
@@ -837,6 +516,9 @@
   "mainer_ctrlb_canister_249": {
     "prd": "jnaff-eaaaa-aaaaa-qbgrq-cai"
   },
+  "mainer_ctrlb_canister_25": {
+    "prd": "hwiub-hiaaa-aaaaa-qbl7a-cai"
+  },
   "mainer_ctrlb_canister_250": {
     "prd": "q6car-qqaaa-aaaaa-qbidq-cai"
   },
@@ -866,6 +548,9 @@
   },
   "mainer_ctrlb_canister_259": {
     "prd": "7zdpc-oyaaa-aaaaa-qb5ra-cai"
+  },
+  "mainer_ctrlb_canister_26": {
+    "prd": "tbspf-aiaaa-aaaaa-qb46a-cai"
   },
   "mainer_ctrlb_canister_260": {
     "prd": "3xtgy-daaaa-aaaaa-qbftq-cai"
@@ -897,6 +582,9 @@
   "mainer_ctrlb_canister_269": {
     "prd": "pil62-faaaa-aaaaa-qbghq-cai"
   },
+  "mainer_ctrlb_canister_27": {
+    "prd": "cdqfy-2iaaa-aaaaa-qblba-cai"
+  },
   "mainer_ctrlb_canister_270": {
     "prd": "3qsam-oyaaa-aaaaa-qbfta-cai"
   },
@@ -926,6 +614,9 @@
   },
   "mainer_ctrlb_canister_279": {
     "prd": "5h7mk-diaaa-aaaaa-qbfga-cai"
+  },
+  "mainer_ctrlb_canister_28": {
+    "prd": "m5zxs-5iaaa-aaaaa-qbkda-cai"
   },
   "mainer_ctrlb_canister_280": {
     "prd": "5a6k6-oqaaa-aaaaa-qbfgq-cai"
@@ -957,6 +648,9 @@
   "mainer_ctrlb_canister_289": {
     "prd": "yebb6-byaaa-aaaaa-qb5da-cai"
   },
+  "mainer_ctrlb_canister_29": {
+    "prd": "cuxrp-sqaaa-aaaaa-qbhoq-cai"
+  },
   "mainer_ctrlb_canister_290": {
     "prd": "tpqcn-3yaaa-aaaaa-qb47a-cai"
   },
@@ -986,6 +680,14 @@
   },
   "mainer_ctrlb_canister_299": {
     "prd": "mu24o-laaaa-aaaaa-qbkcq-cai"
+  },
+  "mainer_ctrlb_canister_3": {
+    "development": "swubj-6yaaa-aaaaj-a2hiq-cai",
+    "prd": "6u37o-hqaaa-aaaaa-qbcta-cai",
+    "testing": "amsew-uaaaa-aaaam-qeyna-cai"
+  },
+  "mainer_ctrlb_canister_30": {
+    "prd": "hkmoq-qiaaa-aaaaa-qbl5a-cai"
   },
   "mainer_ctrlb_canister_300": {
     "prd": "cbqac-tyaaa-aaaaa-qbhna-cai"
@@ -1017,6 +719,9 @@
   "mainer_ctrlb_canister_309": {
     "prd": "df5pq-kyaaa-aaaaa-qbhla-cai"
   },
+  "mainer_ctrlb_canister_31": {
+    "prd": "2w2c2-qiaaa-aaaaa-qddta-cai"
+  },
   "mainer_ctrlb_canister_310": {
     "prd": "qfh4u-kiaaa-aaaaa-qbiba-cai"
   },
@@ -1046,6 +751,9 @@
   },
   "mainer_ctrlb_canister_319": {
     "prd": "2r3eo-5qaaa-aaaaa-qddtq-cai"
+  },
+  "mainer_ctrlb_canister_32": {
+    "prd": "runcl-saaaa-aaaaa-qbieq-cai"
   },
   "mainer_ctrlb_canister_320": {
     "prd": "vknnq-4yaaa-aaaaa-qbdmq-cai"
@@ -1077,6 +785,9 @@
   "mainer_ctrlb_canister_329": {
     "prd": "2k3qv-jiaaa-aaaaa-qbj3a-cai"
   },
+  "mainer_ctrlb_canister_33": {
+    "prd": "v65af-myaaa-aaaaa-qbi6a-cai"
+  },
   "mainer_ctrlb_canister_330": {
     "prd": "eqlwi-cyaaa-aaaaa-qbmjq-cai"
   },
@@ -1106,6 +817,9 @@
   },
   "mainer_ctrlb_canister_339": {
     "prd": "e27ew-miaaa-aaaaa-qblva-cai"
+  },
+  "mainer_ctrlb_canister_34": {
+    "prd": "4wvsv-3aaaa-aaaaa-qbfdq-cai"
   },
   "mainer_ctrlb_canister_340": {
     "prd": "kysmn-4iaaa-aaaaa-qbkva-cai"
@@ -1137,6 +851,9 @@
   "mainer_ctrlb_canister_349": {
     "prd": "qrbfd-4iaaa-aaaaa-qb4wa-cai"
   },
+  "mainer_ctrlb_canister_35": {
+    "prd": "533w3-uiaaa-aaaaa-qbfea-cai"
+  },
   "mainer_ctrlb_canister_350": {
     "prd": "sz32g-oiaaa-aaaaa-qb42a-cai"
   },
@@ -1166,6 +883,9 @@
   },
   "mainer_ctrlb_canister_359": {
     "prd": "yrgqt-aqaaa-aaaaa-qb5aq-cai"
+  },
+  "mainer_ctrlb_canister_36": {
+    "prd": "574b6-oiaaa-aaaaa-qcsta-cai"
   },
   "mainer_ctrlb_canister_360": {
     "prd": "tgtjr-nqaaa-aaaaa-qb46q-cai"
@@ -1197,6 +917,9 @@
   "mainer_ctrlb_canister_369": {
     "prd": "3bdox-2qaaa-aaaaa-qbcna-cai"
   },
+  "mainer_ctrlb_canister_37": {
+    "prd": "4vtde-myaaa-aaaaa-qcsua-cai"
+  },
   "mainer_ctrlb_canister_370": {
     "prd": "pm5bm-qaaaa-aaaaa-qbb2a-cai"
   },
@@ -1226,6 +949,9 @@
   },
   "mainer_ctrlb_canister_379": {
     "prd": "juf42-xiaaa-aaaaa-qbk7a-cai"
+  },
+  "mainer_ctrlb_canister_38": {
+    "prd": "5y5hk-dqaaa-aaaaa-qcstq-cai"
   },
   "mainer_ctrlb_canister_380": {
     "prd": "vyl2j-qiaaa-aaaaa-qbdpq-cai"
@@ -1257,6 +983,9 @@
   "mainer_ctrlb_canister_389": {
     "prd": "pbivg-tiaaa-aaaaa-qbgga-cai"
   },
+  "mainer_ctrlb_canister_39": {
+    "prd": "i5lta-laaaa-aaaaa-qbsaq-cai"
+  },
   "mainer_ctrlb_canister_390": {
     "prd": "omgri-4aaaa-aaaaa-qbgbq-cai"
   },
@@ -1286,6 +1015,14 @@
   },
   "mainer_ctrlb_canister_399": {
     "prd": "otvs3-tyaaa-aaaaa-qbb6q-cai"
+  },
+  "mainer_ctrlb_canister_4": {
+    "development": "sywmb-fiaaa-aaaaj-a2hjq-cai",
+    "prd": "himlk-zyaaa-aaaaa-qbhra-cai",
+    "testing": "v2hks-haaaa-aaaam-qdxha-cai"
+  },
+  "mainer_ctrlb_canister_40": {
+    "prd": "upx62-uqaaa-aaaaa-qbi3q-cai"
   },
   "mainer_ctrlb_canister_400": {
     "prd": "heody-lyaaa-aaaaa-qbl4a-cai"
@@ -1317,6 +1054,9 @@
   "mainer_ctrlb_canister_409": {
     "prd": "vhyz2-7qaaa-aaaaa-qbeqq-cai"
   },
+  "mainer_ctrlb_canister_41": {
+    "prd": "ls5ox-6yaaa-aaaaa-qbksa-cai"
+  },
   "mainer_ctrlb_canister_410": {
     "prd": "unx3a-5aaaa-aaaaa-qbexq-cai"
   },
@@ -1346,6 +1086,9 @@
   },
   "mainer_ctrlb_canister_419": {
     "prd": "7uapk-lqaaa-aaaaa-qbfiq-cai"
+  },
+  "mainer_ctrlb_canister_42": {
+    "prd": "sl5n7-cyaaa-aaaaa-qb4za-cai"
   },
   "mainer_ctrlb_canister_420": {
     "prd": "75dew-5yaaa-aaaaa-qbfja-cai"
@@ -1377,6 +1120,9 @@
   "mainer_ctrlb_canister_429": {
     "prd": "i3l5o-rqaaa-aaaaa-qbguq-cai"
   },
+  "mainer_ctrlb_canister_43": {
+    "prd": "sc6gd-uqaaa-aaaaa-qb4yq-cai"
+  },
   "mainer_ctrlb_canister_430": {
     "prd": "zjzrs-iqaaa-aaaaa-qbcba-cai"
   },
@@ -1406,6 +1152,9 @@
   },
   "mainer_ctrlb_canister_439": {
     "prd": "gxey5-2aaaa-aaaaa-qbhvq-cai"
+  },
+  "mainer_ctrlb_canister_44": {
+    "prd": "6i7f7-qqaaa-aaaaa-qbcra-cai"
   },
   "mainer_ctrlb_canister_440": {
     "prd": "glacm-naaaa-aaaaa-qbhxq-cai"
@@ -1437,6 +1186,9 @@
   "mainer_ctrlb_canister_449": {
     "prd": "4ohxs-zaaaa-aaaaa-qbc4a-cai"
   },
+  "mainer_ctrlb_canister_45": {
+    "prd": "exkq4-paaaa-aaaaa-qbmja-cai"
+  },
   "mainer_ctrlb_canister_450": {
     "prd": "tlqjz-iyaaa-aaaaa-qbeha-cai"
   },
@@ -1466,6 +1218,9 @@
   },
   "mainer_ctrlb_canister_459": {
     "prd": "ozbaf-5iaaa-aaaaa-qbgca-cai"
+  },
+  "mainer_ctrlb_canister_46": {
+    "prd": "aqpgy-sqaaa-aaaaa-qblpq-cai"
   },
   "mainer_ctrlb_canister_460": {
     "prd": "2d5tx-raaaa-aaaaa-qddqq-cai"
@@ -1497,6 +1252,9 @@
   "mainer_ctrlb_canister_469": {
     "prd": "3vwl4-eqaaa-aaaaa-qddvq-cai"
   },
+  "mainer_ctrlb_canister_47": {
+    "prd": "sxzxo-vyaaa-aaaaa-qb43a-cai"
+  },
   "mainer_ctrlb_canister_470": {
     "prd": "tath7-xaaaa-aaaaa-qbikq-cai"
   },
@@ -1526,6 +1284,9 @@
   },
   "mainer_ctrlb_canister_479": {
     "prd": "t4x5o-aaaaa-aaaaa-qbiiq-cai"
+  },
+  "mainer_ctrlb_canister_48": {
+    "prd": "64pik-aqaaa-aaaaa-qbjdq-cai"
   },
   "mainer_ctrlb_canister_480": {
     "prd": "wiyqp-miaaa-aaaaa-qbdhq-cai"
@@ -1557,6 +1318,9 @@
   "mainer_ctrlb_canister_489": {
     "prd": "vj2us-eaaaa-aaaaa-qberq-cai"
   },
+  "mainer_ctrlb_canister_49": {
+    "prd": "7rbme-pyaaa-aaaaa-qbjea-cai"
+  },
   "mainer_ctrlb_canister_490": {
     "prd": "relqi-xaaaa-aaaaa-qbelq-cai"
   },
@@ -1586,6 +1350,14 @@
   },
   "mainer_ctrlb_canister_499": {
     "prd": "wzj6u-yaaaa-aaaaa-qbezq-cai"
+  },
+  "mainer_ctrlb_canister_5": {
+    "development": "s7xkv-iqaaa-aaaaj-a2hja-cai",
+    "prd": "keww4-liaaa-aaaaa-qbkxa-cai",
+    "testing": "26er5-oyaaa-aaaam-qeomq-cai"
+  },
+  "mainer_ctrlb_canister_50": {
+    "prd": "lc34u-3yaaa-aaaaa-qbg5a-cai"
   },
   "mainer_ctrlb_canister_500": {
     "prd": "grscr-gqaaa-aaaaa-qbmea-cai"
@@ -1617,6 +1389,9 @@
   "mainer_ctrlb_canister_509": {
     "prd": "l67gf-myaaa-aaaaa-qbg7a-cai"
   },
+  "mainer_ctrlb_canister_51": {
+    "prd": "ho2rg-fiaaa-aaaaa-qbmaq-cai"
+  },
   "mainer_ctrlb_canister_510": {
     "prd": "lq5ln-xiaaa-aaaaa-qbg6a-cai"
   },
@@ -1646,6 +1421,9 @@
   },
   "mainer_ctrlb_canister_519": {
     "prd": "jdcin-7qaaa-aaaaa-qbgqq-cai"
+  },
+  "mainer_ctrlb_canister_52": {
+    "prd": "v45f7-fiaaa-aaaaa-qbesa-cai"
   },
   "mainer_ctrlb_canister_520": {
     "prd": "zppl6-uaaaa-aaaaa-qbjqq-cai"
@@ -1677,6 +1455,9 @@
   "mainer_ctrlb_canister_529": {
     "prd": "a3mi6-niaaa-aaaaa-qbhca-cai"
   },
+  "mainer_ctrlb_canister_53": {
+    "prd": "3usly-5yaaa-aaaaa-qb5la-cai"
+  },
   "mainer_ctrlb_canister_530": {
     "prd": "2y5hm-fyaaa-aaaaa-qbjya-cai"
   },
@@ -1706,6 +1487,9 @@
   },
   "mainer_ctrlb_canister_539": {
     "prd": "ykdmw-2iaaa-aaaaa-qb5ca-cai"
+  },
+  "mainer_ctrlb_canister_54": {
+    "prd": "oxdnn-gyaaa-aaaaa-qbgda-cai"
   },
   "mainer_ctrlb_canister_540": {
     "prd": "mb5nd-kiaaa-aaaaa-qbkba-cai"
@@ -1737,6 +1521,9 @@
   "mainer_ctrlb_canister_549": {
     "prd": "er4kq-tqaaa-aaaaa-qbhyq-cai"
   },
+  "mainer_ctrlb_canister_55": {
+    "prd": "vx6lz-2qaaa-aaaaa-qbi7q-cai"
+  },
   "mainer_ctrlb_canister_550": {
     "prd": "6p6dl-5iaaa-aaaaa-qbcrq-cai"
   },
@@ -1766,6 +1553,9 @@
   },
   "mainer_ctrlb_canister_559": {
     "prd": "37wzp-laaaa-aaaaa-qc6jq-cai"
+  },
+  "mainer_ctrlb_canister_56": {
+    "prd": "h7l75-raaaa-aaaaa-qbl6q-cai"
   },
   "mainer_ctrlb_canister_560": {
     "prd": "vg3fp-pyaaa-aaaaa-qavba-cai"
@@ -1797,6 +1587,9 @@
   "mainer_ctrlb_canister_569": {
     "prd": "se6in-oaaaa-aaaaa-qbimq-cai"
   },
+  "mainer_ctrlb_canister_57": {
+    "prd": "j2hrs-myaaa-aaaaa-qbk6a-cai"
+  },
   "mainer_ctrlb_canister_570": {
     "prd": "kwqbf-hyaaa-aaaaa-qbkua-cai"
   },
@@ -1826,6 +1619,9 @@
   },
   "mainer_ctrlb_canister_579": {
     "prd": "7dh35-diaaa-aaaaa-qbjha-cai"
+  },
+  "mainer_ctrlb_canister_58": {
+    "prd": "qrxrb-2iaaa-aaaaa-qbdtq-cai"
   },
   "mainer_ctrlb_canister_580": {
     "prd": "3gu4b-riaaa-aaaaa-qb5ia-cai"
@@ -1857,6 +1653,9 @@
   "mainer_ctrlb_canister_589": {
     "prd": "qqanz-laaaa-aaaaa-qbicq-cai"
   },
+  "mainer_ctrlb_canister_59": {
+    "prd": "notmx-mqaaa-aaaaa-qbgkq-cai"
+  },
   "mainer_ctrlb_canister_590": {
     "prd": "2cphr-oiaaa-aaaaa-qbclq-cai"
   },
@@ -1886,6 +1685,14 @@
   },
   "mainer_ctrlb_canister_599": {
     "prd": "c7u7j-niaaa-aaaaa-qblda-cai"
+  },
+  "mainer_ctrlb_canister_6": {
+    "development": "mqa5f-ciaaa-aaaaj-a2cya-cai",
+    "prd": "do6bw-vaaaa-aaaaa-qblgq-cai",
+    "testing": "kanry-oyaaa-aaaam-qfekq-cai"
+  },
+  "mainer_ctrlb_canister_60": {
+    "prd": "rv26t-diaaa-aaaaa-qbdvq-cai"
   },
   "mainer_ctrlb_canister_600": {
     "prd": "si4a7-4aaaa-aaaaa-qbebq-cai"
@@ -1917,6 +1724,9 @@
   "mainer_ctrlb_canister_609": {
     "prd": "3pbd7-baaaa-aaaaa-qbcma-cai"
   },
+  "mainer_ctrlb_canister_61": {
+    "prd": "narb7-xaaaa-aaaaa-qbglq-cai"
+  },
   "mainer_ctrlb_canister_610": {
     "prd": "2zk3u-uqaaa-aaaaa-qbcja-cai"
   },
@@ -1946,6 +1756,9 @@
   },
   "mainer_ctrlb_canister_619": {
     "prd": "olhx4-ryaaa-aaaaa-qbgba-cai"
+  },
+  "mainer_ctrlb_canister_62": {
+    "prd": "zvl7b-zqaaa-aaaaa-qb5gq-cai"
   },
   "mainer_ctrlb_canister_620": {
     "prd": "ljyss-eaaaa-aaaaa-qbkqq-cai"
@@ -1977,6 +1790,9 @@
   "mainer_ctrlb_canister_629": {
     "prd": "z46a7-jyaaa-aaaaa-qbccq-cai"
   },
+  "mainer_ctrlb_canister_63": {
+    "prd": "uoacc-fyaaa-aaaaa-qbdkq-cai"
+  },
   "mainer_ctrlb_canister_630": {
     "prd": "g3gqp-iaaaa-aaaaa-qblyq-cai"
   },
@@ -2006,6 +1822,9 @@
   },
   "mainer_ctrlb_canister_639": {
     "prd": "bwcmq-caaaa-aaaaa-qbhfq-cai"
+  },
+  "mainer_ctrlb_canister_64": {
+    "prd": "dj7hc-yyaaa-aaaaa-qblga-cai"
   },
   "mainer_ctrlb_canister_640": {
     "prd": "fcwrv-ciaaa-aaaaa-qblra-cai"
@@ -2037,6 +1856,9 @@
   "mainer_ctrlb_canister_649": {
     "prd": "lmzr4-aiaaa-aaaaa-qbg4a-cai"
   },
+  "mainer_ctrlb_canister_65": {
+    "prd": "ttuy4-myaaa-aaaaa-qb45a-cai"
+  },
   "mainer_ctrlb_canister_650": {
     "prd": "b5bcw-5yaaa-aaaaa-qblia-cai"
   },
@@ -2066,6 +1888,9 @@
   },
   "mainer_ctrlb_canister_659": {
     "prd": "zmj2p-dyaaa-aaaaa-qc6ha-cai"
+  },
+  "mainer_ctrlb_canister_66": {
+    "prd": "fqqgm-oyaaa-aaaaa-qblsa-cai"
   },
   "mainer_ctrlb_canister_660": {
     "prd": "f6sle-viaaa-aaaaa-qblta-cai"
@@ -2097,6 +1922,9 @@
   "mainer_ctrlb_canister_669": {
     "prd": "njskd-biaaa-aaaaa-qbgka-cai"
   },
+  "mainer_ctrlb_canister_67": {
+    "prd": "gzgvv-bqaaa-aaaaa-qbhuq-cai"
+  },
   "mainer_ctrlb_canister_670": {
     "prd": "jedoz-siaaa-aaaaa-qbgqa-cai"
   },
@@ -2126,6 +1954,9 @@
   },
   "mainer_ctrlb_canister_679": {
     "prd": "urtbr-kaaaa-aaaaa-qbevq-cai"
+  },
+  "mainer_ctrlb_canister_68": {
+    "prd": "g6htb-miaaa-aaaaa-qbhua-cai"
   },
   "mainer_ctrlb_canister_680": {
     "prd": "vv6od-taaaa-aaaaa-qbetq-cai"
@@ -2157,6 +1988,9 @@
   "mainer_ctrlb_canister_689": {
     "prd": "t3w32-nyaaa-aaaaa-qbiia-cai"
   },
+  "mainer_ctrlb_canister_69": {
+    "prd": "w57bc-naaaa-aaaaa-qbdea-cai"
+  },
   "mainer_ctrlb_canister_690": {
     "prd": "lozug-jyaaa-aaaaa-qbkqa-cai"
   },
@@ -2186,6 +2020,14 @@
   },
   "mainer_ctrlb_canister_699": {
     "prd": "z4iu5-pyaaa-aaaaa-qb5ha-cai"
+  },
+  "mainer_ctrlb_canister_7": {
+    "development": "ibvdo-giaaa-aaaaj-a2caa-cai",
+    "prd": "hrjsv-kqaaa-aaaaa-qbl7q-cai",
+    "testing": "5suig-4yaaa-aaaam-qd5ba-cai"
+  },
+  "mainer_ctrlb_canister_70": {
+    "prd": "nvwqs-wiaaa-aaaaa-qbgia-cai"
   },
   "mainer_ctrlb_canister_700": {
     "prd": "kku3u-qyaaa-aaaaa-qbkwa-cai"
@@ -2217,6 +2059,9 @@
   "mainer_ctrlb_canister_709": {
     "prd": "zv5ld-7qaaa-aaaaa-qbcda-cai"
   },
+  "mainer_ctrlb_canister_71": {
+    "prd": "cerdm-xqaaa-aaaaa-qblbq-cai"
+  },
   "mainer_ctrlb_canister_710": {
     "prd": "zh342-taaaa-aaaaa-qbcaa-cai"
   },
@@ -2246,6 +2091,9 @@
   },
   "mainer_ctrlb_canister_719": {
     "prd": "ysh5t-6iaaa-aaaaa-qbfya-cai"
+  },
+  "mainer_ctrlb_canister_72": {
+    "prd": "2l2yp-6aaaa-aaaaa-qb5pq-cai"
   },
   "mainer_ctrlb_canister_720": {
     "prd": "uhdj6-tqaaa-aaaaa-qbdla-cai"
@@ -2277,6 +2125,9 @@
   "mainer_ctrlb_canister_729": {
     "prd": "afixv-tyaaa-aaaaa-qblma-cai"
   },
+  "mainer_ctrlb_canister_73": {
+    "prd": "g4hw3-fyaaa-aaaaa-qblya-cai"
+  },
   "mainer_ctrlb_canister_730": {
     "prd": "y3ewp-iaaaa-aaaaa-qbfzq-cai"
   },
@@ -2307,6 +2158,9 @@
   "mainer_ctrlb_canister_739": {
     "prd": "jibgl-aiaaa-aaaaa-qbk5a-cai"
   },
+  "mainer_ctrlb_canister_74": {
+    "prd": "y6fvb-miaaa-aaaaa-qbjva-cai"
+  },
   "mainer_ctrlb_canister_740": {
     "prd": "2qjqi-cyaaa-aaaaa-qbciq-cai"
   },
@@ -2318,5 +2172,93 @@
   },
   "mainer_ctrlb_canister_743": {
     "prd": "r3yt3-yyaaa-aaaaa-qbduq-cai"
+  },
+  "mainer_ctrlb_canister_75": {
+    "prd": "z5j4h-yqaaa-aaaaa-qbjtq-cai"
+  },
+  "mainer_ctrlb_canister_76": {
+    "prd": "jre7u-taaaa-aaaaa-qbgtq-cai"
+  },
+  "mainer_ctrlb_canister_77": {
+    "prd": "ijnkx-5aaaa-aaaaa-qbgxq-cai"
+  },
+  "mainer_ctrlb_canister_78": {
+    "prd": "yzetv-bqaaa-aaaaa-qbjvq-cai"
+  },
+  "mainer_ctrlb_canister_79": {
+    "prd": "ivjqg-kaaaa-aaaaa-qbgvq-cai"
+  },
+  "mainer_ctrlb_canister_8": {
+    "development": "oy2ca-qiaaa-aaaaj-a2cua-cai",
+    "prd": "sqyr2-yaaaa-aaaaa-qb43q-cai"
+  },
+  "mainer_ctrlb_canister_80": {
+    "prd": "4etfm-xqaaa-aaaaa-qbfaq-cai"
+  },
+  "mainer_ctrlb_canister_81": {
+    "prd": "k5tpd-yaaaa-aaaaa-qbgzq-cai"
+  },
+  "mainer_ctrlb_canister_82": {
+    "prd": "6g5ix-laaaa-aaaaa-qbcqa-cai"
+  },
+  "mainer_ctrlb_canister_83": {
+    "prd": "7qwq4-6qaaa-aaaaa-qbcva-cai"
+  },
+  "mainer_ctrlb_canister_84": {
+    "prd": "5ympz-mqaaa-aaaaa-qbcza-cai"
+  },
+  "mainer_ctrlb_canister_85": {
+    "prd": "5eivi-3qaaa-aaaaa-qbc3a-cai"
+  },
+  "mainer_ctrlb_canister_86": {
+    "prd": "kiu6o-ziaaa-aaaaa-qbg2a-cai"
+  },
+  "mainer_ctrlb_canister_87": {
+    "prd": "7mskn-jqaaa-aaaaa-qbcxa-cai"
+  },
+  "mainer_ctrlb_canister_88": {
+    "prd": "ajk7h-byaaa-aaaaa-qbhba-cai"
+  },
+  "mainer_ctrlb_canister_89": {
+    "prd": "lz6ar-baaaa-aaaaa-qbg7q-cai"
+  },
+  "mainer_ctrlb_canister_9": {
+    "development": "o73eu-5qaaa-aaaaj-a2cuq-cai",
+    "prd": "d6ytv-qaaaa-aaaaa-qbhjq-cai"
+  },
+  "mainer_ctrlb_canister_90": {
+    "prd": "ifpcf-paaaa-aaaaa-qbk2q-cai"
+  },
+  "mainer_ctrlb_canister_91": {
+    "prd": "xqrfm-ciaaa-aaaaa-qbddq-cai"
+  },
+  "mainer_ctrlb_canister_92": {
+    "prd": "57njn-biaaa-aaaaa-qbczq-cai"
+  },
+  "mainer_ctrlb_canister_93": {
+    "prd": "uvf6h-7aaaa-aaaaa-qbdia-cai"
+  },
+  "mainer_ctrlb_canister_94": {
+    "prd": "44bal-vqaaa-aaaaa-qbc7a-cai"
+  },
+  "mainer_ctrlb_canister_95": {
+    "prd": "smk7j-jaaaa-aaaaa-qbd4a-cai"
+  },
+  "mainer_ctrlb_canister_96": {
+    "prd": "vwjxb-lyaaa-aaaaa-qbdoq-cai"
+  },
+  "mainer_ctrlb_canister_97": {
+    "prd": "43ag7-yiaaa-aaaaa-qbc7q-cai"
+  },
+  "mainer_ctrlb_canister_98": {
+    "prd": "6b4od-gyaaa-aaaaa-qbcqq-cai"
+  },
+  "mainer_ctrlb_canister_99": {
+    "prd": "vepay-hiaaa-aaaaa-qbdnq-cai"
+  },
+  "mainer_service_canister": {
+    "development": "ecpt4-ayaaa-aaaad-qhk4a-cai",
+    "prd": "rilmv-caaaa-aaaaa-qandq-cai",
+    "testing": "vtebo-riaaa-aaaam-qdxgq-cai"
   }
 }

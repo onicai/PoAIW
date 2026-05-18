@@ -5,10 +5,6 @@
     "testing": "fug35-3iaaa-aaaap-qruta-cai"
   },
   "archive_challenges_canister_orig": {
-    "demo": "ga256-riaaa-aaaap-qp4fa-cai",
-    "development": "ga256-riaaa-aaaap-qp4fa-cai",
-    "ic": "",
-    "local": "",
     "prd": "474n2-qiaaa-aaaaf-qasoq-cai",
     "testing": ""
   }
