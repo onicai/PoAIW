@@ -1026,14 +1026,24 @@ persistent actor class ApiCanister() = this {
     // Internal create-or-replace used by both the admin endpoint and the on-chain
     // daily-metrics timer. Validates the date format, enriches missing pricing
     // fields from the cache, and writes the metric.
-    private func storeDailyMetric(input: Types.DailyMetricInput) : Types.DailyMetricResult {
+    // Validate + enrich + convert; no storage write. Reusable by both the
+    // "store" path and the "preview" admin endpoint.
+    private func computeDailyMetric(input: Types.DailyMetricInput) : Types.DailyMetricResult {
         if (not isValidDateFormat(input.date)) {
             return #Err(#Other("Invalid date format. Use YYYY-MM-DD"));
         };
         let enriched = enrichWithPricing(input);
-        let metric = inputToDailyMetric(enriched, false);
-        dailyMetrics.put(enriched.date, metric);
-        #Ok(metric)
+        #Ok(inputToDailyMetric(enriched, false))
+    };
+
+    private func storeDailyMetric(input: Types.DailyMetricInput) : Types.DailyMetricResult {
+        switch (computeDailyMetric(input)) {
+            case (#Err(e)) { #Err(e) };
+            case (#Ok(metric)) {
+                dailyMetrics.put(metric.metadata.date, metric);
+                #Ok(metric)
+            };
+        };
     };
 
     public shared (msg) func createDailyMetricAdmin(input: Types.DailyMetricInput) : async Types.DailyMetricResult {
@@ -1603,39 +1613,41 @@ persistent actor class ApiCanister() = this {
         }
     };
 
-    // Called by the daily timer (or by triggerDailyMetricsAggregationAdmin for tests).
-    // Pulls registry+activity from ShareService, aggregates, enriches, stores.
-    private func triggerDailyMetricsAggregation() : async Types.DailyMetricResult {
+    // Pull snapshot from ShareService, aggregate, and compute the DailyMetric
+    // record. Does NOT write to dailyMetrics and does NOT mutate any status
+    // markers — callers handle those concerns. Reusable by both the recurring
+    // timer (which then stores) and the preview admin (which doesn't).
+    private func computeDailyMetricFromSnapshot() : async Types.DailyMetricResult {
         let shareService : Types.ShareServiceCanister_Actor = actor(SHARE_SERVICE_CANISTER_ID);
         let snapshotResult = try {
             await shareService.getShareAgentRegistryWithActivityAdmin();
         } catch (e) {
-            let msg = "ShareService snapshot call threw: " # Error.message(e);
-            D.print("Api: triggerDailyMetricsAggregation - " # msg);
-            lastDailyMetricsFailure := ?msg;
-            return #Err(#Other(msg));
+            return #Err(#Other("ShareService snapshot call threw: " # Error.message(e)));
         };
         switch (snapshotResult) {
+            case (#Err(err)) { #Err(err) };
+            case (#Ok(snapshot)) { computeDailyMetric(aggregateFromSnapshot(snapshot)) };
+        };
+    };
+
+    // Called by the daily timer (or by triggerDailyMetricsAggregationAdmin for tests).
+    // Computes the DailyMetric via the shared helper, then writes it and updates
+    // the run-status markers.
+    private func triggerDailyMetricsAggregation() : async Types.DailyMetricResult {
+        let computed = await computeDailyMetricFromSnapshot();
+        switch (computed) {
             case (#Err(err)) {
-                let msg = "ShareService returned error: " # debug_show(err);
+                let msg = debug_show(err);
                 D.print("Api: triggerDailyMetricsAggregation - " # msg);
                 lastDailyMetricsFailure := ?msg;
                 #Err(err)
             };
-            case (#Ok(snapshot)) {
-                let input = aggregateFromSnapshot(snapshot);
-                let result = storeDailyMetric(input);
-                switch (result) {
-                    case (#Ok(metric)) {
-                        lastSuccessfulMetricDate := ?metric.metadata.date;
-                        lastDailyMetricsFailure := null;
-                        D.print("Api: triggerDailyMetricsAggregation - stored metric for " # metric.metadata.date);
-                    };
-                    case (#Err(err)) {
-                        lastDailyMetricsFailure := ?(debug_show(err));
-                    };
-                };
-                result
+            case (#Ok(metric)) {
+                dailyMetrics.put(metric.metadata.date, metric);
+                lastSuccessfulMetricDate := ?metric.metadata.date;
+                lastDailyMetricsFailure := null;
+                D.print("Api: triggerDailyMetricsAggregation - stored metric for " # metric.metadata.date);
+                #Ok(metric)
             };
         };
     };
@@ -1654,6 +1666,21 @@ persistent actor class ApiCanister() = this {
             D.print("Api: triggerDailyMetricsAggregationAdmin - " # msg);
             lastDailyMetricsFailure := ?msg;
             #Err(#Other(msg))
+        };
+    };
+
+    // Same compute path as triggerDailyMetricsAggregationAdmin (snapshot → aggregate →
+    // enrich → DailyMetric record) but does NOT write into dailyMetrics and does NOT
+    // touch the run-status markers. Use as the post-upgrade smoke test: confirms the
+    // cross-canister read, the RBAC grant, the pricing cache, and the aggregation
+    // math — without overwriting Django's row.
+    public shared (msg) func previewDailyMetricsAggregationAdmin() : async Types.DailyMetricResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
+        try {
+            await computeDailyMetricFromSnapshot()
+        } catch (e) {
+            #Err(#Other("computeDailyMetricFromSnapshot threw: " # Error.message(e)))
         };
     };
 
