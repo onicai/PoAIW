@@ -14,7 +14,8 @@ VERIFY_NETWORK ?= prd
 .PHONY: help
 help:
 	@echo "Makefile targets:"
-	@echo "  smoketest          - Start dfx, deploy canister, and run smoke tests"
+	@echo "  smoketest          - Start dfx, deploy canister, and run smoke tests (skips live_http)"
+	@echo "  smoketest-with-http     - Same as smoketest, plus installs NNS and runs live HTTPS outcall tests"
 	@echo "  build-wasm         - builds wasm using dfx and prints wasm-hash"
 	@echo "  docker-build-base  - builds the Docker base image with dfx, mops"
 	@echo "  docker-build-wasm  - builds wasm using Docker (reproducible build)"
@@ -24,10 +25,28 @@ help:
 ###########################################################################
 # Smoke tests
 #
+# `smoketest` is the CI/CD target. It skips tests marked @pytest.mark.live_http
+# (Coinbase + IC API outcalls) so it doesn't depend on internet access or the
+# NNS being available locally.
+#
+# `smoketest-with-http` adds `dfx nns install` (so the CMC inter-canister call works)
+# and runs the full suite including the live HTTPS outcall test.
 .PHONY: smoketest
 smoketest:
 	dfx stop
 	dfx start --clean --background
+	$(MAKE) docker-build-wasm
+	dfx canister create $(CANISTER_NAME)
+	dfx canister install --wasm out/$(CANISTER_NAME).wasm \
+		--mode install $(CANISTER_NAME)
+	pytest -vv --exitfirst -m "not live_http" test/test_api_canister.py
+	dfx stop
+
+.PHONY: smoketest-with-http
+smoketest-with-http:
+	dfx stop
+	dfx start --clean --background
+	dfx nns install
 	$(MAKE) docker-build-wasm
 	dfx canister create $(CANISTER_NAME)
 	dfx canister install --wasm out/$(CANISTER_NAME).wasm \

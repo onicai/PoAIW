@@ -1100,3 +1100,393 @@ def test__stopActivityFeedTimerAdmin_no_active(network: str) -> None:
     )
     expected_response = '(variant { Ok = record { auth = "No active activity feed sync timer.";} })'
     assert response == expected_response
+
+
+# =============================================================================
+# On-Chain Daily Metrics — Date Formatter
+# =============================================================================
+
+def test__previewIsoDateAdmin_unix_epoch(network: str) -> None:
+    """Util.toIsoDate(0) returns 1970-01-01"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="previewIsoDateAdmin",
+        canister_argument="(0 : int)",
+        network=network,
+    )
+    assert response == '(variant { Ok = "1970-01-01" })'
+
+
+def test__previewIsoDateAdmin_known_date(network: str) -> None:
+    """2024-02-29 (leap day) at midnight UTC = 1709164800 sec = 1709164800000000000 ns"""
+    nanos = 1709164800 * 1_000_000_000
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="previewIsoDateAdmin",
+        canister_argument=f"({nanos} : int)",
+        network=network,
+    )
+    assert response == '(variant { Ok = "2024-02-29" })'
+
+
+def test__previewIsoDateAdmin_anonymous_rejected(identity_anonymous: Dict[str, str], network: str) -> None:
+    """previewIsoDateAdmin rejects anonymous callers"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="previewIsoDateAdmin",
+        canister_argument="(0 : int)",
+        network=network,
+    )
+    assert response == '(variant { Err = variant { Unauthorized } })'
+
+
+# =============================================================================
+# On-Chain Daily Metrics — Float parser (parseFloat)
+#
+# Commented out — the previewParseFloatAdmin endpoint is also commented out in
+# Main.mo to avoid leaving a debug-only endpoint in production. Re-enable both
+# together for local debugging when an upstream API changes its number format.
+# =============================================================================
+
+# def _parse_float_ok(network: str, candid_input: str) -> float:
+#     """Call previewParseFloatAdmin with a Text argument and assert Ok, return the value."""
+#     response = call_canister_api(
+#         dfx_json_path=DFX_JSON_PATH,
+#         canister_name=CANISTER_NAME,
+#         canister_method="previewParseFloatAdmin",
+#         canister_argument=f'("{candid_input}")',
+#         network=network,
+#     )
+#     assert 'variant { Ok' in response, response
+#     return _extract_float(response, 'Ok')
+#
+#
+# def test__previewParseFloatAdmin_plain_decimal(network: str) -> None:
+#     """Plain decimal '42.5' parses to 42.5"""
+#     assert abs(_parse_float_ok(network, "42.5") - 42.5) < 1e-9
+#
+#
+# def test__previewParseFloatAdmin_negative_decimal(network: str) -> None:
+#     """'-3.14' parses to -3.14"""
+#     assert abs(_parse_float_ok(network, "-3.14") - (-3.14)) < 1e-9
+#
+#
+# def test__previewParseFloatAdmin_integer(network: str) -> None:
+#     """'100' parses to 100.0"""
+#     assert abs(_parse_float_ok(network, "100") - 100.0) < 1e-9
+#
+#
+# def test__previewParseFloatAdmin_exponent_lowercase(network: str) -> None:
+#     """'1.5e3' parses to 1500.0"""
+#     assert abs(_parse_float_ok(network, "1.5e3") - 1500.0) < 1e-6
+#
+#
+# def test__previewParseFloatAdmin_exponent_uppercase_plus(network: str) -> None:
+#     """'5E+5' parses to 500000.0"""
+#     assert abs(_parse_float_ok(network, "5E+5") - 500000.0) < 1e-3
+#
+#
+# def test__previewParseFloatAdmin_exponent_negative(network: str) -> None:
+#     """'2.0e-2' parses to 0.02"""
+#     assert abs(_parse_float_ok(network, "2.0e-2") - 0.02) < 1e-9
+#
+#
+# def test__previewParseFloatAdmin_integer_with_exponent(network: str) -> None:
+#     """'7e2' parses to 700.0 (no decimal point before exponent)"""
+#     assert abs(_parse_float_ok(network, "7e2") - 700.0) < 1e-9
+#
+#
+# def test__previewParseFloatAdmin_invalid_letters(network: str) -> None:
+#     """'abc' is not a number → Err"""
+#     response = call_canister_api(
+#         dfx_json_path=DFX_JSON_PATH,
+#         canister_name=CANISTER_NAME,
+#         canister_method="previewParseFloatAdmin",
+#         canister_argument='("abc")',
+#         network=network,
+#     )
+#     assert 'variant { Err' in response
+#     assert "could not parse 'abc'" in response
+#
+#
+# def test__previewParseFloatAdmin_invalid_double_dot(network: str) -> None:
+#     """'1.2.3' has two dots → Err"""
+#     response = call_canister_api(
+#         dfx_json_path=DFX_JSON_PATH,
+#         canister_name=CANISTER_NAME,
+#         canister_method="previewParseFloatAdmin",
+#         canister_argument='("1.2.3")',
+#         network=network,
+#     )
+#     assert 'variant { Err' in response
+#
+#
+# def test__previewParseFloatAdmin_invalid_empty_exponent(network: str) -> None:
+#     """'1e' has 'e' but no exponent digits → Err"""
+#     response = call_canister_api(
+#         dfx_json_path=DFX_JSON_PATH,
+#         canister_name=CANISTER_NAME,
+#         canister_method="previewParseFloatAdmin",
+#         canister_argument='("1e")',
+#         network=network,
+#     )
+#     assert 'variant { Err' in response
+#
+#
+# def test__previewParseFloatAdmin_invalid_empty(network: str) -> None:
+#     """Empty string has no digits → Err"""
+#     response = call_canister_api(
+#         dfx_json_path=DFX_JSON_PATH,
+#         canister_name=CANISTER_NAME,
+#         canister_method="previewParseFloatAdmin",
+#         canister_argument='("")',
+#         network=network,
+#     )
+#     assert 'variant { Err' in response
+#
+#
+# def test__previewParseFloatAdmin_anonymous_rejected(identity_anonymous: Dict[str, str], network: str) -> None:
+#     """previewParseFloatAdmin rejects anonymous callers"""
+#     response = call_canister_api(
+#         dfx_json_path=DFX_JSON_PATH,
+#         canister_name=CANISTER_NAME,
+#         canister_method="previewParseFloatAdmin",
+#         canister_argument='("1.0")',
+#         network=network,
+#     )
+#     assert response == '(variant { Err = variant { Unauthorized } })'
+
+
+# =============================================================================
+# On-Chain Daily Metrics — ShareService canister ID + tier constants
+# =============================================================================
+
+def test__getShareServiceCanisterIdAdmin_default(network: str) -> None:
+    """Default points at prd ShareService (rilmv-...)"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getShareServiceCanisterIdAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    assert 'rilmv-caaaa-aaaaa-qandq-cai' in response
+    assert 'variant { Ok' in response
+
+
+def test__setShareServiceCanisterIdAdmin(network: str) -> None:
+    """Setter accepts a new canister id, echoes it back, and getter reflects it"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="setShareServiceCanisterIdAdmin",
+        canister_argument='("aaaaa-aa")',
+        network=network,
+    )
+    assert response == (
+        '(variant { Ok = record { '
+        'auth = "You set the ShareService canister id for this canister to: aaaaa-aa";'
+        '} })'
+    )
+
+    # Verify the getter reflects the new value
+    get_response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getShareServiceCanisterIdAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    assert 'aaaaa-aa' in get_response
+    assert 'variant { Ok' in get_response
+
+    # Reset to default so later tests are unaffected
+    call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="setShareServiceCanisterIdAdmin",
+        canister_argument='("rilmv-caaaa-aaaaa-qandq-cai")',
+        network=network,
+    )
+
+
+# =============================================================================
+# On-Chain Daily Metrics — Pricing cache
+# =============================================================================
+
+def test__getPricingCacheAdmin_returns_defaults(network: str) -> None:
+    """A freshly-deployed canister is seeded with usdPerComputedXdr=1.5 and
+    icApiTcycleBurnRatePerDay=42.5. After a live refresh these values are
+    replaced by Coinbase/IC-API outputs, so accept either the defaults or a
+    populated cache (just verify Ok and the field names are present)."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getPricingCacheAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    assert 'variant { Ok' in response, response
+    assert 'usdPerComputedXdr' in response
+    assert 'icApiTcycleBurnRatePerDay' in response
+
+
+def test__pricing_auto_fill_in_createDailyMetricAdmin(network: str) -> None:
+    """When pricing cache is populated and input has zero pricing, the stored
+    metric has computed funnai_index and daily_burn_rate_usd."""
+    # Cache is seeded at deploy time with (1.5, 42.5).
+    # daily_burn_rate_cycles = 10 trillion → expected USD = 10 * 1.5 = 15.0,
+    # expected funnai_index = 0.9 * 10 / 42.5 = 0.2117...
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="createDailyMetricAdmin",
+        canister_argument=(
+            '(record { '
+            'date = "2030-01-15"; '
+            'funnai_index = 0.0 : float64; '
+            'daily_burn_rate_cycles = 10 : nat; '
+            'daily_burn_rate_usd = 0.0 : float64; '
+            'total_mainers_created = 0 : nat; '
+            'total_active_mainers = 0 : nat; '
+            'total_paused_mainers = 0 : nat; '
+            'total_cycles_all_mainers = 100 : nat; '
+            'active_low_burn_rate_mainers = 0 : nat; '
+            'active_medium_burn_rate_mainers = 0 : nat; '
+            'active_high_burn_rate_mainers = 0 : nat; '
+            'active_very_high_burn_rate_mainers = 0 : nat; '
+            'active_custom_burn_rate_mainers = 0 : nat; '
+            'paused_low_burn_rate_mainers = 0 : nat; '
+            'paused_medium_burn_rate_mainers = 0 : nat; '
+            'paused_high_burn_rate_mainers = 0 : nat; '
+            'paused_very_high_burn_rate_mainers = 0 : nat; '
+            'paused_custom_burn_rate_mainers = 0 : nat; '
+            'total_cycles_all = null; '
+            'total_cycles_all_usd = null; '
+            'total_cycles_protocol = null; '
+            'total_cycles_protocol_usd = null; '
+            'total_cycles_mainers_usd = null; '
+            '})'
+        ),
+        network=network,
+    )
+    # USD = 10 * 1.5 = 15.0
+    assert 'usd = 15' in response
+    # funnai_index ≈ 0.9 * 10 / 42.5 ≈ 0.2117647...
+    assert 'funnai_index = 0.21' in response
+
+    # Cleanup
+    call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="deleteDailyMetricAdmin",
+        canister_argument='("2030-01-15")',
+        network=network,
+    )
+
+
+# =============================================================================
+# On-Chain Daily Metrics — Live HTTPS outcalls (Coinbase + IC API + CMC)
+# =============================================================================
+
+def _extract_float(candid_text: str, field_name: str) -> float:
+    """Pull a Float64 value out of a candid Ok-record response."""
+    # Match e.g. `field_name = 12.34 : float64` (allow scientific notation, negatives).
+    import re
+    match = re.search(rf'{field_name}\s*=\s*([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*:\s*float64', candid_text)
+    assert match, f"Could not find {field_name} in: {candid_text}"
+    return float(match.group(1))
+
+
+@pytest.mark.live_http
+def test__pricing_timer_live_outcalls(network: str) -> None:
+    """End-to-end HTTPS outcall test driven via the pricing timer:
+      - startPricingTimerAdmin fires refreshPricingCache once immediately (and
+        only returns after that await resolves), which exercises the full path:
+          * CMC.get_icp_xdr_conversion_rate (inter-canister call)
+          * HTTPS-outcall https://api.coinbase.com/v2/exchange-rates?currency=ICP
+          * HTTPS-outcall https://ic-api.internetcomputer.org/api/v3/metrics/cycle-burn-rate
+      - getPricingCacheAdmin then verifies the cache is populated.
+    Requires internet access and a replica that supports outcalls (pocket-ic in
+    dfx >= 0.20). On local replicas without `dfx nns install` the CMC call fails
+    and the canister's seeded xdrPermyriadPerIcp default carries forward.
+    """
+    start_response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="startPricingTimerAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    assert start_response == '(variant { Ok = record { auth = "Pricing refresh timer started.";} })', (
+        f"startPricingTimerAdmin failed.\nResponse was: {start_response}"
+    )
+
+    cache_response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getPricingCacheAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    assert 'variant { Ok' in cache_response, cache_response
+
+    usd_per_xdr = _extract_float(cache_response, 'usdPerComputedXdr')
+    burn_rate = _extract_float(cache_response, 'icApiTcycleBurnRatePerDay')
+
+    # Sanity bounds — wide because `dfx nns install` seeds CMC with a placeholder
+    # xdr_permyriad_per_icp (1_000_000 ≈ 100 XDR/ICP, vs ~3 XDR/ICP on mainnet),
+    # which inflates cycles_per_icp and squashes usdPerComputedXdr roughly 30x.
+    # On prd the expected value is in the 0.5–5.0 USD range.
+    assert 0.0 < usd_per_xdr <= 10.0, (
+        f"usdPerComputedXdr={usd_per_xdr} is outside the (0, 10.0] sanity window"
+    )
+    assert burn_rate > 0.0, f"icApiTcycleBurnRatePerDay={burn_rate} should be positive"
+    assert burn_rate < 1_000_000_000.0, (
+        f"icApiTcycleBurnRatePerDay={burn_rate} is implausibly large"
+    )
+
+    # Cleanup so the recurring hourly timer doesn't keep firing.
+    call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="stopPricingTimerAdmin",
+        canister_argument="()",
+        network=network,
+    )
+
+
+# =============================================================================
+# On-Chain Daily Metrics — ShareService snapshot pull
+# =============================================================================
+
+def test__pullShareServiceSnapshotAdmin_unreachable_in_local(network: str) -> None:
+    """In local network the prd ShareService isn't reachable — call should
+    return Err Other rather than trap."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="pullShareServiceSnapshotAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    # Either #Err (most likely) or #Ok with empty registry if a local
+    # canister happens to be registered at the default id. Both are valid;
+    # what matters is no trap.
+    assert ('variant { Err' in response) or ('variant { Ok' in response)
+
+
+def test__getDailyMetricsRunStatusAdmin_initial(network: str) -> None:
+    """Run-status starts with no successful date and timer inactive"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getDailyMetricsRunStatusAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    assert 'variant { Ok' in response
+    assert 'timerActive = false' in response

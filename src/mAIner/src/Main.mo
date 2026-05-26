@@ -246,6 +246,12 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     var userToShareAgentsStorageStable : [(Principal, List.List<Types.OfficialMainerAgentCanister>)] = [];
     transient var userToShareAgentsStorage : HashMap.HashMap<Principal, List.List<Types.OfficialMainerAgentCanister>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
 
+    // ShareAgent Activity Registry: last heartbeat (burn-rate + cycle balance + timestamp) per
+    // registered ShareAgent. Updated by addChallengeToShareServiceQueue on every call;
+    // consumed via getShareAgentRegistryWithActivityAdmin by the Api canister's daily timer.
+    var shareAgentActivityStorageStable : [(Text, Types.ShareAgentActivity)] = [];
+    transient var shareAgentActivityStorage : HashMap.HashMap<Text, Types.ShareAgentActivity> = HashMap.HashMap(0, Text.equal, Text.hash);
+
     private func putShareAgentCanister(canisterAddress : Text, canisterEntry : Types.OfficialMainerAgentCanister) : Types.MainerAgentCanisterResult {
         switch (getShareAgentCanister(canisterAddress)) {
             case (null) {
@@ -279,6 +285,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
             case (null) { return false; };
             case (?canisterEntry) {
                 let removeResult = shareAgentCanistersStorage.remove(canisterAddress);
+                shareAgentActivityStorage.delete(canisterAddress);
                 // TODO - Implementation: remove from userToShareAgentsStorage
                 return true;
             };
@@ -429,6 +436,52 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         };
 
         #Ok(getAllAdminRoles())
+    };
+
+    //-------------------------------------------------------------------------
+    // ShareService snapshot for daily metrics aggregation
+    //
+    // The Api canister's daily-metrics timer calls this query method as an
+    // inter-canister update call to fetch the ShareAgent registry + the latest
+    // heartbeat per agent. Gated to #AdminQuery so an explicit admin role grant
+    // is required before the Api canister can read it.
+    public shared query (msg) func getShareAgentRegistryWithActivityAdmin() : async Types.ShareAgentRegistryWithActivityResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (MAINER_AGENT_CANISTER_TYPE != #ShareService) {
+            return #Err(#Unauthorized);
+        };
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
+            return #Err(#Unauthorized);
+        };
+
+        #Ok({
+            registry = Iter.toArray(shareAgentCanistersStorage.vals());
+            activity = Iter.toArray(shareAgentActivityStorage.vals());
+        })
+    };
+
+    // Controller-only debug helper: rewind (or fast-forward) the last-challenge
+    // timestamp for a given ShareAgent. Used by smoke tests to exercise the
+    // 25-hour staleness cutoff without waiting a day.
+    // TODO - outcomment once proven in production
+    public shared (msg) func setActivityTimestampAdmin(address : Text, timestamp : Nat64) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
+        if (MAINER_AGENT_CANISTER_TYPE != #ShareService) { return #Err(#Unauthorized); };
+        switch (shareAgentActivityStorage.get(address)) {
+            case (?existing) {
+                shareAgentActivityStorage.put(address, {
+                    address = existing.address;
+                    lastChallengeRequestTimestamp = timestamp;
+                    cyclesBurnRate = existing.cyclesBurnRate;
+                    cycleBalance = existing.cycleBalance;
+                });
+                #Ok({ status_code = 200 })
+            };
+            case null { #Err(#Other("No activity entry for " # address)) };
+        };
     };
 
     //-------------------------------------------------------------------------
@@ -2063,9 +2116,17 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                     challengeQueuedTo : Principal = challengeQueuedTo;
                     challengeQueuedTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
                 };
-                
+
                 // A ShareAgent canister first sends the challenge to the Shared mAIner Service to be put in that canisters queue
                 if (MAINER_AGENT_CANISTER_TYPE == #ShareAgent) {
+                    // Build the optional ShareAgentStatus, passed as the second arg below.
+                    // When settings haven't loaded yet we pass null so ShareService leaves
+                    // any prior activity row untouched.
+                    let shareAgentStatus : ?Types.ShareAgentStatus = switch (getCurrentAgentSettings()) {
+                        case (?s) { ?{ cyclesBurnRate = s.cyclesBurnRate; cycleBalance = Cycles.balance() } };
+                        case null { null };
+                    };
+
                     // Add the cycles required for the ShareService queue (We already checked there is enough)
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - calling Cycles.add for = " # debug_show(challenge.cyclesGenerateResponseSactrlSsctrl) # " Cycles");
                     // logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - before Cycles.add for ShareService");
@@ -2074,7 +2135,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
                     D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - calling addChallengeToShareServiceQueue of shareServiceCanisterActor = " # Principal.toText(Principal.fromActor(shareServiceCanisterActor)));
                     let challegeQueueInputResult = try {
-                        await shareServiceCanisterActor.addChallengeToShareServiceQueue(challengeQueueInput);
+                        await shareServiceCanisterActor.addChallengeToShareServiceQueue(challengeQueueInput, shareAgentStatus);
                     } catch (error) {
                         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): pullNextChallenge - addChallengeToShareServiceQueue threw: " # Error.message(error) # " (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
                         return;
@@ -2101,8 +2162,13 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         };
     };
 
-    // Function of ShareService canister to add new challenge to the ShareService canisters queue
-    public shared (msg) func addChallengeToShareServiceQueue(challengeQueueInput : Types.ChallengeQueueInput) : async Types.ChallengeQueueInputResult {
+    // Function of ShareService canister to add new challenge to the ShareService canisters queue.
+    // `shareAgentStatus` is an optional second arg so pre-upgrade ShareAgents that call with
+    // only one argument keep working — Candid pads the missing value with null.
+    public shared (msg) func addChallengeToShareServiceQueue(
+        challengeQueueInput : Types.ChallengeQueueInput,
+        shareAgentStatus : ?Types.ShareAgentStatus
+    ) : async Types.ChallengeQueueInputResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
         };
@@ -2125,12 +2191,28 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                 D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): addChallengeToShareServiceQueue - cyclesAcceptedForShareServiceQueue = " # Nat.toText(cyclesAcceptedForShareServiceQueue) # " from caller " # Principal.toText(msg.caller));
                 // logCycleState("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): addChallengeToShareServiceQueue - after accept");
 
+                // Record this ShareAgent's latest status. Only update when the caller
+                // supplied one — pre-upgrade ShareAgents send null (Candid-padded) and we
+                // leave any prior activity row untouched.
+                switch (shareAgentStatus) {
+                    case (?status) {
+                        let callerAddress = Principal.toText(msg.caller);
+                        shareAgentActivityStorage.put(callerAddress, {
+                            address = callerAddress;
+                            lastChallengeRequestTimestamp = Nat64.fromNat(Int.abs(Time.now()));
+                            cyclesBurnRate = status.cyclesBurnRate;
+                            cycleBalance = status.cycleBalance;
+                        });
+                    };
+                    case null {};
+                };
+
                 // Store it in the queue
                 let _pushResult_ = pushChallengeQueue(challengeQueueInput);
-                return #Ok(challengeQueueInput);                        
+                return #Ok(challengeQueueInput);
             };
         };
-    };    
+    };
 
     private func processNextChallenge() : async () {
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): processNextChallenge - entered");
@@ -2720,6 +2802,8 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         llmCanistersStable := Buffer.toArray(llmCanisterIds);
 
         adminRoleAssignmentsStable := Iter.toArray(adminRoleAssignmentsStorage.entries());
+
+        shareAgentActivityStorageStable := Iter.toArray(shareAgentActivityStorage.entries());
     };
 
     system func postupgrade() {
@@ -2740,6 +2824,9 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
         adminRoleAssignmentsStorage := HashMap.fromIter(Iter.fromArray(adminRoleAssignmentsStable), adminRoleAssignmentsStable.size(), Text.equal, Text.hash);
         adminRoleAssignmentsStable := [];
+
+        shareAgentActivityStorage := HashMap.fromIter(Iter.fromArray(shareAgentActivityStorageStable), shareAgentActivityStorageStable.size(), Text.equal, Text.hash);
+        shareAgentActivityStorageStable := [];
 
         // Reset reporting variable for timer
         action1RegularityInSeconds := 0; // Timer is not yet set (They don't persist across upgrades)

@@ -2,7 +2,11 @@ import Principal "mo:base/Principal";
 import Text "mo:base/Text";
 import HashMap "mo:base/HashMap";
 import Array "mo:base/Array";
+import Blob "mo:base/Blob";
+import Char "mo:base/Char";
 import Int "mo:base/Int";
+import Nat "mo:base/Nat";
+import Nat32 "mo:base/Nat32";
 import Time "mo:base/Time";
 import Float "mo:base/Float";
 import Iter "mo:base/Iter";
@@ -11,8 +15,11 @@ import Nat64 "mo:base/Nat64";
 import Timer "mo:base/Timer";
 import List "mo:base/List";
 import D "mo:base/Debug";
+import Error "mo:base/Error";
+import Cycles "mo:base/ExperimentalCycles";
 
 import Types "../../common/Types";
+import ICManagementCanister "../../common/ICManagementCanister";
 import Util "Utils";
 import { migration } "Migration";
 
@@ -42,6 +49,376 @@ persistent actor class ApiCanister() = this {
         };
         let authRecord = { auth = "Master canister id for this canister: " # MASTER_CANISTER_ID };
         return #Ok(authRecord);
+    };
+
+    // -------------------------------------------------------------------------------
+    // ShareService canister ID — defaults to prd ShareService (mainer_service_canister
+    // entry from PoAIW/src/mAIner/canister_ids.json). Non-prd networks override via
+    // setShareServiceCanisterIdAdmin after deploy.
+
+    var SHARE_SERVICE_CANISTER_ID : Text = "rilmv-caaaa-aaaaa-qandq-cai";
+
+    public shared (msg) func setShareServiceCanisterIdAdmin(newShareServiceCanisterId : Text) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        SHARE_SERVICE_CANISTER_ID := newShareServiceCanisterId;
+        let authRecord = { auth = "You set the ShareService canister id for this canister to: " # SHARE_SERVICE_CANISTER_ID };
+        return #Ok(authRecord);
+    };
+
+    public query (msg) func getShareServiceCanisterIdAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
+            return #Err(#Unauthorized);
+        };
+        let authRecord = { auth = "ShareService canister id for this canister: " # SHARE_SERVICE_CANISTER_ID };
+        return #Ok(authRecord);
+    };
+
+    // -------------------------------------------------------------------------------
+    // Daily burn-rate tier constants (cycles per day per ShareAgent in that tier).
+    // Mirror the defaults defined on GameState. Hardcoded so the daily aggregation
+    // doesn't need a cross-canister fetch; if GameState ever changes its tier
+    // values, this canister must be upgraded.
+
+    let BURN_RATE_LOW_CYCLES : Nat = 1_000_000_000_000;
+    let BURN_RATE_MID_CYCLES : Nat = 2_000_000_000_000;
+    let BURN_RATE_HIGH_CYCLES : Nat = 4_000_000_000_000;
+    let BURN_RATE_VERY_HIGH_CYCLES : Nat = 6_000_000_000_000;
+
+    // -------------------------------------------------------------------------------
+    // Pricing cache (refreshed by HTTPS outcalls; consumed by daily metrics aggregator)
+    //
+    // Two values feed the FunnAI index + USD reporting:
+    //   - usdPerComputedXdr: USD value of 1 trillion cycles (= 1 Computed XDR).
+    //     Derived from Coinbase USD/ICP + CMC XDR/ICP.
+    //   - icApiTcycleBurnRatePerDay: IC-wide tcycle burn rate per day.
+    //     Pulled from https://ic-api.internetcomputer.org cycle-burn-rate endpoint.
+    //
+    // Outcalls run on a separate hourly timer; the cache survives upgrades so a
+    // single failed refresh doesn't blank pricing on the next metric write.
+
+    transient let IC0 : ICManagementCanister.IC_Management = actor("aaaaa-aa");
+
+    // Seeded with placeholder defaults so a freshly-deployed canister has usable
+    // pricing immediately. Replaced by the first successful refreshPricingCache
+    // run via the hourly timer. The default xdrPermyriadPerIcp of 30_000
+    // (≈ 3 XDR/ICP) is in the ballpark of mainnet on May 2026.
+    var pricingCache : ?Types.PricingCache = ?{
+        xdrPermyriadPerIcp = 30_000 : Nat64;
+        usdPerComputedXdr = 1.5;
+        icApiTcycleBurnRatePerDay = 42.5;
+        lastUpdatedNs = 0 : Nat64;
+    };
+
+    public query (msg) func getPricingCacheAdmin() : async Types.PricingCacheResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not hasAdminRole(msg.caller, #AdminQuery)) { return #Err(#Unauthorized); };
+        switch (pricingCache) {
+            case (?p) { #Ok(p) };
+            case null { #Err(#Other("Pricing cache is empty")) };
+        };
+    };
+
+    // Transform function for HTTPS outcalls. Strips response headers so consensus
+    // is on body+status only. Caller assertion: only invoked via this canister's
+    // own outcall flow.
+    public shared query (msg) func pricingTransform(args : { context : Blob; response : ICManagementCanister.http_request_result }) : async ICManagementCanister.http_request_result {
+        assert(msg.caller == Principal.fromActor(this));
+        { status = args.response.status; body = args.response.body; headers = [] }
+    };
+
+    // Walk the body looking for `"<key>":"<value>"` and return the value, or null
+    // when the key is absent or the value isn't string-quoted. Sufficient for the
+    // Coinbase exchange-rates endpoint.
+    private func extractQuotedValue(body : Text, key : Text) : ?Text {
+        let parts = Iter.toArray(Text.split(body, #text "\""));
+        var i : Nat = 0;
+        while (i + 2 < parts.size()) {
+            if (parts[i] == key) {
+                return ?parts[i + 2];
+            };
+            i += 1;
+        };
+        null
+    };
+
+    // Issue a GET, returning the body as Text on HTTP 200 or null otherwise.
+    // 100B cycles attached covers a typical IC application subnet HTTPS outcall.
+    private func httpGet(url : Text, maxBytes : Nat64) : async ?Text {
+        let request : ICManagementCanister.http_request_args = {
+            url = url;
+            method = #get;
+            body = null;
+            max_response_bytes = ?maxBytes;
+            transform = ?{
+                function = pricingTransform;
+                context = Blob.fromArray([]);
+            };
+            headers = [];
+        };
+        Cycles.add<system>(100_000_000_000);
+        let response = try {
+            await IC0.http_request(request);
+        } catch (e) {
+            D.print("Api: httpGet - http_request threw for " # url # ": " # Error.message(e));
+            return null;
+        };
+        if (response.status != 200) {
+            D.print("Api: httpGet - non-200 status " # Nat.toText(response.status) # " for " # url);
+            return null;
+        };
+        Text.decodeUtf8(response.body)
+    };
+
+    // Refresh the pricing cache:
+    //   1. CMC inter-canister call for xdr_permyriad_per_icp → cycles per ICP.
+    //   2. Coinbase HTTPS outcall for USD/ICP.
+    //   3. Derive USD per Computed XDR.
+    //   4. IC API HTTPS outcall for protocol-wide cycle burn rate → Tcycles/day.
+    private func refreshPricingCache() : async Bool {
+        D.print("Api: refreshPricingCache - starting");
+
+        // Each upstream is refreshed independently: when one fails, the prior
+        // value carries forward. Coinbase is the brittle one — its failure must
+        // not block CMC / IC API updates.
+        let prior : Types.PricingCache = switch (pricingCache) {
+            case (?c) { c };
+            case null {
+                D.print("Api: refreshPricingCache - pricingCache is null, aborting");
+                return false;
+            };
+        };
+
+        // 1. CMC inter-canister call. On failure, keep prior xdrPermyriadPerIcp.
+        D.print("Api: refreshPricingCache - calling CMC get_icp_xdr_conversion_rate");
+        let xdrPermyriad : Nat64 = try {
+            let cmcResponse = await Types.CyclesMintingCanister_Actor.get_icp_xdr_conversion_rate();
+            D.print("Api: refreshPricingCache - CMC returned, xdr_permyriad_per_icp=" # Nat64.toText(cmcResponse.data.xdr_permyriad_per_icp));
+            cmcResponse.data.xdr_permyriad_per_icp
+        } catch (e) {
+            D.print("Api: refreshPricingCache - CMC call failed: " # Error.message(e) # "; keeping previous xdrPermyriadPerIcp");
+            prior.xdrPermyriadPerIcp
+        };
+
+        // 2. Coinbase USD/ICP via HTTPS outcall. Brittle — on any failure path
+        //    (throw, http error, parse failure) keep the prior usdPerComputedXdr.
+        D.print("Api: refreshPricingCache - calling Coinbase HTTPS outcall");
+        let coinbaseBody : ?Text = try {
+            await httpGet("https://api.coinbase.com/v2/exchange-rates?currency=ICP", 65_536);
+        } catch (e) {
+            D.print("Api: refreshPricingCache - Coinbase outcall threw: " # Error.message(e));
+            null
+        };
+        D.print("Api: refreshPricingCache - Coinbase outcall returned " # (if (Option.isSome(coinbaseBody)) "body" else "null"));
+        let usdPerComputedXdr : Float = switch (coinbaseBody) {
+            case (?body) {
+                switch (extractQuotedValue(body, "USD")) {
+                    case (?valueText) {
+                        switch (parseFloat(valueText)) {
+                            case (?v) {
+                                // 1 ICP = (xdr_permyriad_per_icp / 10000) XDR. 1 Computed XDR = 1T cycles.
+                                // cycles_per_icp = xdr_permyriad_per_icp / 10000 * 1e12.
+                                let xdrPermyriadFloat : Float = Float.fromInt(Nat64.toNat(xdrPermyriad));
+                                let cyclesPerIcp : Float = xdrPermyriadFloat * 1_000_000_000_000.0 / 10_000.0;
+                                v / (cyclesPerIcp / 1_000_000_000_000.0)
+                            };
+                            case null {
+                                D.print("Api: refreshPricingCache - failed to parse Coinbase USD value '" # valueText # "'; keeping previous usdPerComputedXdr");
+                                prior.usdPerComputedXdr
+                            };
+                        };
+                    };
+                    case null {
+                        D.print("Api: refreshPricingCache - Coinbase response missing 'USD' field; keeping previous usdPerComputedXdr");
+                        prior.usdPerComputedXdr
+                    };
+                };
+            };
+            case null {
+                D.print("Api: refreshPricingCache - Coinbase body unavailable; keeping previous usdPerComputedXdr");
+                prior.usdPerComputedXdr
+            };
+        };
+
+        // 3. IC API protocol-wide cycle burn rate via HTTPS outcall. On any
+        //    failure path keep the prior icApiTcycleBurnRatePerDay.
+        D.print("Api: refreshPricingCache - calling IC API HTTPS outcall");
+        let icApiBody : ?Text = try {
+            await httpGet("https://ic-api.internetcomputer.org/api/v3/metrics/cycle-burn-rate", 65_536);
+        } catch (e) {
+            D.print("Api: refreshPricingCache - IC API outcall threw: " # Error.message(e));
+            null
+        };
+        D.print("Api: refreshPricingCache - IC API outcall returned " # (if (Option.isSome(icApiBody)) "body" else "null"));
+        let icApiTcycleBurnRatePerDay : Float = switch (icApiBody) {
+            case (?body) {
+                switch (extractQuotedValue(body, "cycle_burn_rate")) {
+                    case (?valueText) {
+                        switch (parseFloat(valueText)) {
+                            case (?v) { v * 86_400.0 / 1_000_000_000_000.0 };
+                            case null {
+                                D.print("Api: refreshPricingCache - failed to parse IC API value '" # valueText # "'; keeping previous icApiTcycleBurnRatePerDay");
+                                prior.icApiTcycleBurnRatePerDay
+                            };
+                        };
+                    };
+                    case null {
+                        D.print("Api: refreshPricingCache - 'cycle_burn_rate' not found in IC API body; keeping previous icApiTcycleBurnRatePerDay");
+                        prior.icApiTcycleBurnRatePerDay
+                    };
+                };
+            };
+            case null {
+                D.print("Api: refreshPricingCache - IC API body unavailable; keeping previous icApiTcycleBurnRatePerDay");
+                prior.icApiTcycleBurnRatePerDay
+            };
+        };
+
+        pricingCache := ?{
+            xdrPermyriadPerIcp = xdrPermyriad;
+            usdPerComputedXdr = usdPerComputedXdr;
+            icApiTcycleBurnRatePerDay = icApiTcycleBurnRatePerDay;
+            lastUpdatedNs = Nat64.fromNat(Int.abs(Time.now()));
+        };
+        D.print("Api: refreshPricingCache - cache updated (usdPerComputedXdr=" # Float.toText(usdPerComputedXdr) # ", icApiTcycleBurnRatePerDay=" # Float.toText(icApiTcycleBurnRatePerDay) # ")");
+        true
+    };
+
+    // Hourly recurring pricing-refresh timer. Disabled by default; start via admin.
+    transient var pricingTimerId : ?Timer.TimerId = null;
+    var pricingTimerIntervalSeconds : Nat = 3600;
+
+    public shared (msg) func startPricingTimerAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
+        switch (pricingTimerId) {
+            case (?id) { Timer.cancelTimer(id); pricingTimerId := null; };
+            case null {};
+        };
+        // Fire once immediately so the cache is fresh before the first
+        // interval-tick — otherwise we'd run on seeded defaults for an hour.
+        try {
+            let _ = await refreshPricingCache();
+        } catch (e) {
+            D.print("Api: startPricingTimerAdmin - initial refreshPricingCache threw: " # Error.message(e));
+        };
+        let id = Timer.recurringTimer<system>(#seconds pricingTimerIntervalSeconds, func () : async () {
+            try {
+                let _ = await refreshPricingCache();
+            } catch (e) {
+                D.print("Api: pricingTimer - refreshPricingCache threw: " # Error.message(e));
+            };
+        });
+        pricingTimerId := ?id;
+        return #Ok({ auth = "Pricing refresh timer started." });
+    };
+
+    public shared (msg) func stopPricingTimerAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
+        switch (pricingTimerId) {
+            case (?id) { Timer.cancelTimer(id); pricingTimerId := null; };
+            case null {};
+        };
+        return #Ok({ auth = "Pricing refresh timer stopped." });
+    };
+
+    private func parseFloat(s : Text) : ?Float {
+        // mo:base has no Float parser, so digit-walk by hand. Accepts an optional
+        // leading '-', decimal digits, optional '.', a fractional part, and an
+        // optional exponent ('e'/'E' followed by an optional '+'/'-' and digits).
+        // Anything else returns null after emitting a debug log identifying the
+        // input and the reason — useful for spotting upstream API format changes.
+        func logFail(reason : Text) {
+            D.print("Api: parseFloat - failed to parse '" # s # "': " # reason);
+        };
+
+        var seenDot = false;
+        var negative = false;
+        var intPart : Float = 0.0;
+        var fracPart : Float = 0.0;
+        var fracScale : Float = 1.0;
+        var anyDigit = false;
+        var first = true;
+
+        var inExponent = false;
+        var expFirst = true;
+        var expNegative = false;
+        var expValue : Int = 0;
+        var anyExpDigit = false;
+
+        for (c in s.chars()) {
+            if (inExponent) {
+                if (expFirst and (c == '+' or c == '-')) {
+                    if (c == '-') { expNegative := true; };
+                    expFirst := false;
+                } else {
+                    expFirst := false;
+                    if (c >= '0' and c <= '9') {
+                        let digit : Int = Nat32.toNat(Char.toNat32(c) - 48);
+                        anyExpDigit := true;
+                        expValue := expValue * 10 + digit;
+                    } else {
+                        logFail("non-digit '" # Text.fromChar(c) # "' in exponent");
+                        return null;
+                    };
+                };
+            } else if (first and c == '-') {
+                negative := true;
+                first := false;
+            } else {
+                first := false;
+                if (c == '.') {
+                    if (seenDot) {
+                        logFail("second '.' in mantissa");
+                        return null;
+                    };
+                    seenDot := true;
+                } else if (c == 'e' or c == 'E') {
+                    if (not anyDigit) {
+                        logFail("exponent marker '" # Text.fromChar(c) # "' before any digit");
+                        return null;
+                    };
+                    inExponent := true;
+                } else if (c >= '0' and c <= '9') {
+                    let codePoint : Nat32 = Char.toNat32(c);
+                    let digit : Float = Float.fromInt(Nat32.toNat(codePoint - 48));
+                    anyDigit := true;
+                    if (seenDot) {
+                        fracScale *= 10.0;
+                        fracPart := fracPart * 10.0 + digit;
+                    } else {
+                        intPart := intPart * 10.0 + digit;
+                    };
+                } else {
+                    logFail("unexpected character '" # Text.fromChar(c) # "' in mantissa");
+                    return null;
+                };
+            };
+        };
+        if (not anyDigit) {
+            logFail("no digits in input");
+            return null;
+        };
+        if (inExponent and not anyExpDigit) {
+            logFail("exponent marker with no digits");
+            return null;
+        };
+
+        let mantissa = intPart + (fracPart / fracScale);
+        var v = if (negative) { -mantissa } else { mantissa };
+        if (inExponent) {
+            let exp : Int = if (expNegative) { -expValue } else { expValue };
+            v := v * Float.pow(10.0, Float.fromInt(exp));
+        };
+        ?v
     };
 
     // -------------------------------------------------------------------------------
@@ -599,6 +976,66 @@ persistent actor class ApiCanister() = this {
     // -------------------------------------------------------------------------------
     // Admin CRUD Endpoints
 
+    // Fill pricing-derived fields (funnai_index, *_usd) from the pricing cache
+    // when the caller has left them at their zero/null default. Cache misses leave
+    // those fields as-is; a future write (manual or from the next timer tick) can
+    // patch them via updateDailyMetricAdmin's merge-on-update semantic.
+    private func enrichWithPricing(input : Types.DailyMetricInput) : Types.DailyMetricInput {
+        switch (pricingCache) {
+            case null { input };
+            case (?cache) {
+                let cyclesFloat = Float.fromInt(input.daily_burn_rate_cycles);
+                let usd = if (input.daily_burn_rate_usd == 0.0 and input.daily_burn_rate_cycles > 0) {
+                    cyclesFloat * cache.usdPerComputedXdr
+                } else { input.daily_burn_rate_usd };
+                let index = if (input.funnai_index == 0.0 and cache.icApiTcycleBurnRatePerDay > 0.0) {
+                    let raw = 0.9 * cyclesFloat / cache.icApiTcycleBurnRatePerDay;
+                    if (raw < 0.0) { 0.0 } else if (raw > 100.0) { 100.0 } else { raw }
+                } else { input.funnai_index };
+                let mainersUsd = switch (input.total_cycles_mainers_usd) {
+                    case (?v) { ?v };
+                    case null {
+                        if (cache.usdPerComputedXdr > 0.0) {
+                            ?(Float.fromInt(input.total_cycles_all_mainers) * cache.usdPerComputedXdr)
+                        } else { null };
+                    };
+                };
+                let allUsd = switch (input.total_cycles_all_usd) {
+                    case (?v) { ?v };
+                    case null {
+                        if (cache.usdPerComputedXdr > 0.0) {
+                            let cyclesAll = switch (input.total_cycles_all) {
+                                case (?n) { Float.fromInt(n) };
+                                case null { Float.fromInt(input.total_cycles_all_mainers) };
+                            };
+                            ?(cyclesAll * cache.usdPerComputedXdr)
+                        } else { null };
+                    };
+                };
+                {
+                    input with
+                    daily_burn_rate_usd = usd;
+                    funnai_index = index;
+                    total_cycles_mainers_usd = mainersUsd;
+                    total_cycles_all_usd = allUsd;
+                }
+            };
+        };
+    };
+
+    // Internal create-or-replace used by both the admin endpoint and the on-chain
+    // daily-metrics timer. Validates the date format, enriches missing pricing
+    // fields from the cache, and writes the metric.
+    private func storeDailyMetric(input: Types.DailyMetricInput) : Types.DailyMetricResult {
+        if (not isValidDateFormat(input.date)) {
+            return #Err(#Other("Invalid date format. Use YYYY-MM-DD"));
+        };
+        let enriched = enrichWithPricing(input);
+        let metric = inputToDailyMetric(enriched, false);
+        dailyMetrics.put(enriched.date, metric);
+        #Ok(metric)
+    };
+
     public shared (msg) func createDailyMetricAdmin(input: Types.DailyMetricInput) : async Types.DailyMetricResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -607,16 +1044,7 @@ persistent actor class ApiCanister() = this {
         if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
-
-        // Validate date format
-        if (not isValidDateFormat(input.date)) {
-            return #Err(#Other("Invalid date format. Use YYYY-MM-DD"));
-        };
-
-        // Create or replace metric (replaces existing if it exists)
-        let metric = inputToDailyMetric(input, false);
-        dailyMetrics.put(input.date, metric);
-        return #Ok(metric);
+        return storeDailyMetric(input);
     };
 
     public shared (msg) func updateDailyMetricAdmin(params: Types.UpdateDailyMetricAdminInput) : async Types.DailyMetricResult {
@@ -965,6 +1393,298 @@ persistent actor class ApiCanister() = this {
 
     public shared query func getNumDailyMetrics() : async Types.NatResult {
         return #Ok(dailyMetrics.size());
+    };
+
+    // -------------------------------------------------------------------------------
+    // Daily Metrics On-Chain Aggregation
+    //
+    //   1. ShareAgents send burn-rate + cycle balance to ShareService on every
+    //      addChallengeToShareServiceQueue call (heartbeat).
+    //   2. ShareService caches the latest heartbeat per agent in shareAgentActivityStorage.
+    //   3. The Api canister (this canister) runs a 24h timer anchored to 00:00 UTC.
+    //   4. On each fire we call ShareService.getShareAgentRegistryWithActivityAdmin,
+    //      bucket active/paused × tier using a 25h staleness cutoff, enrich with
+    //      pricing from the local cache, and store yesterday's DailyMetric.
+    // -------------------------------------------------------------------------------
+
+    transient var dailyMetricsTimerId : ?Timer.TimerId = null;
+    var lastSuccessfulMetricDate : ?Text = null;
+    var lastDailyMetricsFailure : ?Text = null;
+
+    // 25-hour staleness window (in ns): a ShareAgent that hasn't called
+    // addChallengeToShareServiceQueue within this window is bucketed as paused
+    // and excluded from total_cycles_all_mainers.
+    let STALENESS_CUTOFF_NS : Nat64 = 25 * 3600 * 1_000_000_000;
+    let ONE_DAY_SECONDS : Nat = 86_400;
+    let ONE_DAY_NS : Int = 86_400 * 1_000_000_000;
+
+    // Snapshot of last aggregation result, exposed for monitoring.
+    public type DailyMetricsRunStatus = {
+        lastSuccessfulMetricDate : ?Text;
+        lastFailureMessage : ?Text;
+        timerActive : Bool;
+    };
+    public query (msg) func getDailyMetricsRunStatusAdmin() : async Types.Result<DailyMetricsRunStatus, Types.ApiError> {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not hasAdminRole(msg.caller, #AdminQuery)) { return #Err(#Unauthorized); };
+        #Ok({
+            lastSuccessfulMetricDate = lastSuccessfulMetricDate;
+            lastFailureMessage = lastDailyMetricsFailure;
+            timerActive = Option.isSome(dailyMetricsTimerId);
+        })
+    };
+
+    public shared (msg) func startDailyMetricsTimerAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
+        switch (dailyMetricsTimerId) {
+            case (?id) { Timer.cancelTimer(id); dailyMetricsTimerId := null; };
+            case null {};
+        };
+        let nowNs : Int = Time.now();
+        let nowSeconds : Int = nowNs / 1_000_000_000;
+        let oneDaySecondsInt : Int = ONE_DAY_SECONDS;
+        let secondsIntoDay : Int = nowSeconds % oneDaySecondsInt;
+        let secondsUntilNextMidnight : Nat = Int.abs(oneDaySecondsInt - secondsIntoDay);
+        // Initial setTimer to the next 00:00 UTC; on first fire we kick off the
+        // 24h recurring timer so subsequent runs stay phase-locked.
+        let _ = Timer.setTimer<system>(#seconds secondsUntilNextMidnight, func () : async () {
+            try {
+                let _ = await triggerDailyMetricsAggregation();
+            } catch (e) {
+                D.print("Api: dailyMetricsTimer (initial) - triggerDailyMetricsAggregation threw: " # Error.message(e));
+            };
+            let recurringId = Timer.recurringTimer<system>(#seconds ONE_DAY_SECONDS, func () : async () {
+                try {
+                    let _ = await triggerDailyMetricsAggregation();
+                } catch (e) {
+                    D.print("Api: dailyMetricsTimer (recurring) - triggerDailyMetricsAggregation threw: " # Error.message(e));
+                };
+            });
+            dailyMetricsTimerId := ?recurringId;
+        });
+        return #Ok({ auth = "Daily metrics timer scheduled — first fire at next 00:00 UTC." });
+    };
+
+    public shared (msg) func stopDailyMetricsTimerAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
+        switch (dailyMetricsTimerId) {
+            case (?id) { Timer.cancelTimer(id); dailyMetricsTimerId := null; };
+            case null {};
+        };
+        return #Ok({ auth = "Daily metrics timer stopped." });
+    };
+
+    // Translate a CyclesBurnRateDefault into one of (low, mid, high, very_high,
+    // custom). `custom` carries the per-day cycles for that agent so the
+    // aggregator can sum them into customBurnRateTotal.
+    private type TierBucket = { #Low; #Mid; #High; #VeryHigh; #Custom : Nat };
+
+    private func classifyBurnRate(rate : Types.CyclesBurnRateDefault) : TierBucket {
+        switch (rate) {
+            case (#Low) { #Low };
+            case (#Mid) { #Mid };
+            case (#High) { #High };
+            case (#VeryHigh) { #VeryHigh };
+            case (#Custom(custom)) {
+                // Only #Daily is currently defined in TimeInterval; treat anything
+                // else as "no contribution to daily burn-rate total" while still
+                // counting the agent toward custom-tier counts.
+                switch (custom.timeInterval) {
+                    case (#Daily) { #Custom(custom.cycles) };
+                };
+            };
+        };
+    };
+
+    // Snapshot of aggregation state, used both by the timer and by a debug-only
+    // controller-callable variant for tests.
+    private func aggregateFromSnapshot(snapshot : Types.ShareAgentRegistryWithActivity) : Types.DailyMetricInput {
+        let cutoff : Nat64 = Nat64.fromNat(Int.abs(Time.now())) - STALENESS_CUTOFF_NS;
+
+        // Index activity by canister address text for O(1) join with the registry.
+        let activityIndex = HashMap.HashMap<Text, Types.ShareAgentActivity>(snapshot.activity.size(), Text.equal, Text.hash);
+        for (a in snapshot.activity.vals()) {
+            activityIndex.put(a.address, a);
+        };
+
+        var total_mainers_created : Nat = 0;
+        var total_active : Nat = 0;
+        var total_paused : Nat = 0;
+        var total_cycles_active : Nat = 0;
+        var active_low : Nat = 0;
+        var active_mid : Nat = 0;
+        var active_high : Nat = 0;
+        var active_very_high : Nat = 0;
+        var active_custom : Nat = 0;
+        var paused_low : Nat = 0;
+        var paused_mid : Nat = 0;
+        var paused_high : Nat = 0;
+        var paused_very_high : Nat = 0;
+        var paused_custom : Nat = 0;
+        var custom_burn_rate_total : Nat = 0;
+
+        for (entry in snapshot.registry.vals()) {
+            total_mainers_created += 1;
+            switch (activityIndex.get(entry.address)) {
+                case null {
+                    // Never heartbeated → paused, custom-tier bucket, no cycles
+                    total_paused += 1;
+                    paused_custom += 1;
+                };
+                case (?a) {
+                    let isActive = a.lastChallengeRequestTimestamp >= cutoff;
+                    let bucket = classifyBurnRate(a.cyclesBurnRate);
+                    if (isActive) {
+                        total_active += 1;
+                        total_cycles_active += a.cycleBalance;
+                        switch (bucket) {
+                            case (#Low) { active_low += 1; };
+                            case (#Mid) { active_mid += 1; };
+                            case (#High) { active_high += 1; };
+                            case (#VeryHigh) { active_very_high += 1; };
+                            case (#Custom(cycles)) {
+                                active_custom += 1;
+                                custom_burn_rate_total += cycles;
+                            };
+                        };
+                    } else {
+                        total_paused += 1;
+                        switch (bucket) {
+                            case (#Low) { paused_low += 1; };
+                            case (#Mid) { paused_mid += 1; };
+                            case (#High) { paused_high += 1; };
+                            case (#VeryHigh) { paused_very_high += 1; };
+                            case (#Custom(_)) { paused_custom += 1; };
+                        };
+                    };
+                };
+            };
+        };
+
+        let totalTcyclesMainers : Nat = total_cycles_active / 1_000_000_000_000;
+        let daily_burn_rate_raw : Nat =
+            active_low * BURN_RATE_LOW_CYCLES
+            + active_mid * BURN_RATE_MID_CYCLES
+            + active_high * BURN_RATE_HIGH_CYCLES
+            + active_very_high * BURN_RATE_VERY_HIGH_CYCLES
+            + custom_burn_rate_total;
+        let daily_burn_rate_tcycles : Nat = daily_burn_rate_raw / 1_000_000_000_000;
+
+        // Always report yesterday's row — phase-aligned with the midnight tick.
+        let yesterdayNs : Int = Time.now() - ONE_DAY_NS;
+        let dateText = Util.toIsoDate(yesterdayNs);
+
+        {
+            date = dateText;
+            funnai_index = 0.0;          // filled by enrichWithPricing
+            daily_burn_rate_cycles = daily_burn_rate_tcycles;
+            daily_burn_rate_usd = 0.0;   // filled by enrichWithPricing
+            total_mainers_created = total_mainers_created;
+            total_active_mainers = total_active;
+            total_paused_mainers = total_paused;
+            total_cycles_all_mainers = totalTcyclesMainers;
+            active_low_burn_rate_mainers = active_low;
+            active_medium_burn_rate_mainers = active_mid;
+            active_high_burn_rate_mainers = active_high;
+            active_very_high_burn_rate_mainers = active_very_high;
+            active_custom_burn_rate_mainers = active_custom;
+            paused_low_burn_rate_mainers = paused_low;
+            paused_medium_burn_rate_mainers = paused_mid;
+            paused_high_burn_rate_mainers = paused_high;
+            paused_very_high_burn_rate_mainers = paused_very_high;
+            paused_custom_burn_rate_mainers = paused_custom;
+            total_cycles_all = ?totalTcyclesMainers;     // protocol cycles = 0, so = mainers
+            total_cycles_all_usd = null;                 // filled by enrichWithPricing
+            total_cycles_protocol = ?0;                  // dropped per design
+            total_cycles_protocol_usd = ?0.0;            // dropped per design
+            total_cycles_mainers_usd = null;             // filled by enrichWithPricing
+        }
+    };
+
+    // Called by the daily timer (or by triggerDailyMetricsAggregationAdmin for tests).
+    // Pulls registry+activity from ShareService, aggregates, enriches, stores.
+    private func triggerDailyMetricsAggregation() : async Types.DailyMetricResult {
+        let shareService : Types.ShareServiceCanister_Actor = actor(SHARE_SERVICE_CANISTER_ID);
+        let snapshotResult = try {
+            await shareService.getShareAgentRegistryWithActivityAdmin();
+        } catch (e) {
+            let msg = "ShareService snapshot call threw: " # Error.message(e);
+            D.print("Api: triggerDailyMetricsAggregation - " # msg);
+            lastDailyMetricsFailure := ?msg;
+            return #Err(#Other(msg));
+        };
+        switch (snapshotResult) {
+            case (#Err(err)) {
+                let msg = "ShareService returned error: " # debug_show(err);
+                D.print("Api: triggerDailyMetricsAggregation - " # msg);
+                lastDailyMetricsFailure := ?msg;
+                #Err(err)
+            };
+            case (#Ok(snapshot)) {
+                let input = aggregateFromSnapshot(snapshot);
+                let result = storeDailyMetric(input);
+                switch (result) {
+                    case (#Ok(metric)) {
+                        lastSuccessfulMetricDate := ?metric.metadata.date;
+                        lastDailyMetricsFailure := null;
+                        D.print("Api: triggerDailyMetricsAggregation - stored metric for " # metric.metadata.date);
+                    };
+                    case (#Err(err)) {
+                        lastDailyMetricsFailure := ?(debug_show(err));
+                    };
+                };
+                result
+            };
+        };
+    };
+
+    // Controller-only debug helpers — fire aggregation immediately without
+    // waiting for the timer, and inspect the raw ShareService snapshot. Used by
+    // smoke tests and by ops to verify a fresh aggregation end-to-end.
+
+    public shared (msg) func triggerDailyMetricsAggregationAdmin() : async Types.DailyMetricResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
+        try {
+            await triggerDailyMetricsAggregation()
+        } catch (e) {
+            let msg = "triggerDailyMetricsAggregation threw: " # Error.message(e);
+            D.print("Api: triggerDailyMetricsAggregationAdmin - " # msg);
+            lastDailyMetricsFailure := ?msg;
+            #Err(#Other(msg))
+        };
+    };
+
+    // TODO - outcomment once proven in production
+    public query (msg) func previewIsoDateAdmin(nanos : Int) : async Types.TextResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not hasAdminRole(msg.caller, #AdminQuery)) { return #Err(#Unauthorized); };
+        #Ok(Util.toIsoDate(nanos))
+    };
+
+    // Commented out — not for production. Re-enable only for local debugging of
+    // parseFloat against new upstream API formats. The pytest cases in
+    // test_api_canister.py (test__previewParseFloatAdmin_*) need this to run.
+    // public query (msg) func previewParseFloatAdmin(input : Text) : async Types.FloatResult {
+    //     if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+    //     if (not hasAdminRole(msg.caller, #AdminQuery)) { return #Err(#Unauthorized); };
+    //     switch (parseFloat(input)) {
+    //         case (?v) { #Ok(v) };
+    //         case null { #Err(#Other("parseFloat: could not parse '" # input # "'")) };
+    //     };
+    // };
+
+    public shared (msg) func pullShareServiceSnapshotAdmin() : async Types.ShareAgentRegistryWithActivityResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
+        let shareService : Types.ShareServiceCanister_Actor = actor(SHARE_SERVICE_CANISTER_ID);
+        try {
+            await shareService.getShareAgentRegistryWithActivityAdmin();
+        } catch (e) {
+            #Err(#Other("ShareService call threw: " # Error.message(e)))
+        };
     };
 
     // -------------------------------------------------------------------------------

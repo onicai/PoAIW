@@ -62,6 +62,7 @@ module Types {
     //-------------------------------------------------------------------------
     public type NatResult = Result<Nat, ApiError>;
     public type TextResult = Result<Text, ApiError>;
+    public type FloatResult = Result<Float, ApiError>;
     //-------------------------------------------------------------------------
     public type CycleBalanceRecord = {
         cycleBalance : Nat;          // Cycles.balance() at query time
@@ -374,6 +375,34 @@ module Types {
     public type OfficialMainerAgentCanister = OfficialProtocolCanister and {
         mainerConfig : MainerConfigurationInput;
     };
+
+    // Latest heartbeat recorded by ShareService for one ShareAgent, updated on every
+    // call to addChallengeToShareServiceQueue.
+    public type ShareAgentActivity = {
+        address : Text;
+        lastChallengeRequestTimestamp : Nat64; // ns since epoch
+        cyclesBurnRate : CyclesBurnRateDefault;
+        cycleBalance : Nat; // raw cycles, as last reported by the ShareAgent
+    };
+
+    // Point-in-time picture of a ShareAgent's cycle dimensions: its configured
+    // burn-rate tier plus its current cycle balance. Passed as a trailing
+    // optional argument to addChallengeToShareServiceQueue so ShareService can
+    // refresh its activity registry without having these fields propagate
+    // through ChallengeQueueInput and into the downstream challenge-response
+    // record chain.
+    public type ShareAgentStatus = {
+        cyclesBurnRate : CyclesBurnRateDefault;
+        cycleBalance : Nat;
+    };
+
+    // Snapshot returned by ShareService's admin-query endpoint to the Api canister
+    // for daily metrics aggregation.
+    public type ShareAgentRegistryWithActivity = {
+        registry : [OfficialMainerAgentCanister];
+        activity : [ShareAgentActivity];
+    };
+    public type ShareAgentRegistryWithActivityResult = Result<ShareAgentRegistryWithActivity, ApiError>;
 
     public type MainerMarketplaceListing = {
         address : CanisterAddress;
@@ -1463,8 +1492,15 @@ module Types {
 
     // mAIner ShareAgent canister
     public type MainerCanister_Actor = actor {
-        addChallengeToShareServiceQueue : (ChallengeQueueInput) -> async ChallengeQueueInputResult;
+        addChallengeToShareServiceQueue : (ChallengeQueueInput, ?ShareAgentStatus) -> async ChallengeQueueInputResult;
         addChallengeResponseToShareAgent : (ChallengeResponseSubmissionInput) -> async StatusCodeRecordResult;
+    };
+
+    // mAIner ShareService canister — the subset of methods called from the Api
+    // canister's daily-metrics aggregator. ShareService is the same Main.mo as the
+    // ShareAgent, but only the #ShareService branch implements this endpoint.
+    public type ShareServiceCanister_Actor = actor {
+        getShareAgentRegistryWithActivityAdmin : () -> async ShareAgentRegistryWithActivityResult;
     };
 
     // Archive canister
@@ -1495,7 +1531,18 @@ module Types {
 
     //-------------------------------------------------------------------------
     // Daily Metrics Types for API Canister
-    
+
+    // Cached pricing inputs feeding the FunnAI index and USD reporting. Refreshed
+    // by the Api canister's hourly timer (CMC inter-canister call + Coinbase and
+    // IC API HTTPS outcalls). The xdrPermyriadPerIcp field is the raw CMC value.
+    public type PricingCache = {
+        xdrPermyriadPerIcp : Nat64;
+        usdPerComputedXdr : Float;
+        icApiTcycleBurnRatePerDay : Float;
+        lastUpdatedNs : Nat64;
+    };
+    public type PricingCacheResult = Result<PricingCache, ApiError>;
+
     // Mainers breakdown by tier (using existing CyclesBurnRateDefault categories)
     // Maps to Low, Mid, High, VeryHigh
     public type MainersTierBreakdown = {
