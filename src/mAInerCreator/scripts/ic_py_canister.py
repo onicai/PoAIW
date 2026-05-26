@@ -1,17 +1,11 @@
-"""Returns an icp-py-core Canister instance, for calling the endpoints.
+"""Returns the icp-py-core Canister instance, for calling the endpoints."""
 
-Migrated from ic-py to icp-py-core because ic-py's certificate parsing breaks
-against current IC replicas (TypeError: byte indices must be integers or
-slices, not str inside cbor2.loads on the read_state response).
-"""
-
+import re
 import sys
 import subprocess
 from pathlib import Path
-from typing import Optional
-from icp_canister import Canister  # type: ignore
-from icp_agent import Agent, Client  # type: ignore
-from icp_identity import Identity  # type: ignore
+from typing import Any, List, Optional
+from icp_core import Agent, Identity, Client, Canister
 from icpp.run_shell_cmd import run_shell_cmd
 
 ROOT_PATH = Path(__file__).parent.parent
@@ -19,22 +13,46 @@ ROOT_PATH = Path(__file__).parent.parent
 # We use dfx to get some information.
 DFX = "dfx"
 
+# dfx 0.32.0 emits this deprecation banner on every invocation. Because
+# run_shell_cmd merges stderr into stdout, the banner ends up in the
+# captured output and gets glued onto things like the identity name —
+# corrupting the next dfx call's arguments. Strip exactly this known line.
+# Mirrors the fix in icpp-pro src/icpp/smoketest.py (commit 6f401c4).
+_DFX_DEPRECATION_RE = re.compile(
+    r"^WARNING: dfx is deprecated.*$\n?", flags=re.MULTILINE
+)
+
+
+def _strip_dfx_warnings(s: str) -> str:
+    """Remove the known dfx deprecation banner from captured shell output."""
+    return _DFX_DEPRECATION_RE.sub("", s)
+
+
+def extract_variant(response: List[Any]) -> Any:
+    """Extract variant result from icp-py-core response.
+
+    icp-py-core returns: [{'type': 'variant', 'value': {'Ok': {...}}}]
+    old ic-py returned:  [{'Ok': {...}}]
+    This helper normalizes both formats to {'Ok': {...}} or {'Err': ...}.
+    """
+    item = response[0]
+    if "value" in item:
+        return item["value"]
+    return item
+
 
 def run_dfx_command(cmd: str, quiet: bool = False) -> Optional[str]:
     """Runs dfx command as a subprocess"""
     try:
-        return run_shell_cmd(cmd, capture_output=True).rstrip("\n")
+        return _strip_dfx_warnings(run_shell_cmd(cmd, capture_output=True)).rstrip("\n")
     except subprocess.CalledProcessError as e:
         if not quiet:
             print(f"Failed dfx command: '{cmd}' with error: \n{e.output}")
     return None
 
 
-
-def get_agent(
-    network: str = "local"
-) -> Agent:
-    """Returns an ic_py Agent instance"""
+def get_agent(network: str = "local") -> Agent:
+    """Returns an icp-py-core Agent instance"""
 
     # Check if the network is up
     print(f"--\nChecking if the {network} network is up...")
@@ -80,22 +98,8 @@ def get_agent(
 
     # Create an IC agent to communicate with IC canisters
     agent = Agent(identity, client)
-
-    # Disable BLS certificate verification by default for every update call
-    # made through this agent. The optional `blst` Python binding required for
-    # BLS verification is not installed in our conda env, and these admin
-    # upload scripts run as a controller identity — replica reject codes
-    # already enforce auth and the wasm itself is sha256-verified end-to-end
-    # via getSha256HashesAdmin after upload.
-    # icp_canister.Canister always synthesizes verify_certificate=True before
-    # calling self.agent.update, so setdefault would never win — force False.
-    _original_update = agent.update
-    def _update_no_verify(*args, **kwargs):  # noqa: E306
-        kwargs["verify_certificate"] = False
-        return _original_update(*args, **kwargs)
-    agent.update = _update_no_verify  # type: ignore[assignment]
-
     return agent
+
 
 def get_canister(
     canister_name: str,
@@ -103,7 +107,7 @@ def get_canister(
     network: str = "local",
     canister_id: Optional[str] = "",
 ) -> Canister:
-    """Returns an ic_py Canister instance"""
+    """Returns an icp-py-core Canister instance"""
 
     agent = get_agent(network=network)
 
@@ -125,5 +129,4 @@ def get_canister(
         canister_did = f.read()
 
     # Create a Canister instance
-    # icp-py-core renamed `candid` -> `candid_str`.
     return Canister(agent=agent, canister_id=canister_id, candid_str=canister_did)
