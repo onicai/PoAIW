@@ -126,11 +126,13 @@ persistent actor class ApiCanister() = this {
         };
     };
 
-    // Transform function for HTTPS outcalls. Strips response headers so consensus
-    // is on body+status only. Caller assertion: only invoked via this canister's
-    // own outcall flow.
-    public shared query (msg) func pricingTransform(args : { context : Blob; response : ICManagementCanister.http_request_result }) : async ICManagementCanister.http_request_result {
-        assert(msg.caller == Principal.fromActor(this));
+    // Transform function for HTTPS outcalls. Strips response headers so all
+    // subnet replicas agree on body+status only. Invoked by the management
+    // canister as part of processing http_request — NOT a self-call — so no
+    // caller assertion is possible. The function is a pure deterministic
+    // transformation of its input; calling it from outside the outcall flow
+    // costs the canister nothing meaningful beyond standard query overhead.
+    public query func pricingTransform(args : { context : Blob; response : ICManagementCanister.http_request_result }) : async ICManagementCanister.http_request_result {
         { status = args.response.status; body = args.response.body; headers = [] }
     };
 
