@@ -2073,6 +2073,26 @@ persistent actor class ApiCanister() = this {
     };
 
     // -------------------------------------------------------------------------------
+    // TokenIndex Canister ID Admin Endpoints
+    //
+    // Default points at the prd FUNNAI TokenIndex. Non-prd networks must call
+    // setTokenIndexCanisterIdAdmin once after deploy to redirect to their own
+    // TokenIndex.
+
+    public shared (msg) func setTokenIndexCanisterIdAdmin(newTokenIndexCanisterId : Text) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
+        TOKEN_INDEX_CANISTER_ID := newTokenIndexCanisterId;
+        return #Ok({ auth = "You set the TokenIndex canister id for this canister to: " # TOKEN_INDEX_CANISTER_ID });
+    };
+
+    public query (msg) func getTokenIndexCanisterIdAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not hasAdminRole(msg.caller, #AdminQuery)) { return #Err(#Unauthorized); };
+        return #Ok({ auth = "TokenIndex canister id for this canister: " # TOKEN_INDEX_CANISTER_ID });
+    };
+
+    // -------------------------------------------------------------------------------
     // Burn Scan Timer Admin Endpoints
 
     public shared (msg) func startBurnScanTimerAdmin() : async Types.AuthRecordResult {
@@ -2138,20 +2158,5 @@ persistent actor class ApiCanister() = this {
 
         adminRoleAssignmentsStorage := HashMap.fromIter(Iter.fromArray(adminRoleAssignmentsStable), adminRoleAssignmentsStable.size(), Text.equal, Text.hash);
         adminRoleAssignmentsStable := [];
-
-        // Auto-start burn scan after every upgrade. Timers don't survive upgrades
-        // (they're transient), so we restart them here. A 30-second delay lets the
-        // canister finish initialising before making inter-canister calls.
-        ignore Timer.setTimer<system>(#seconds 30, func () : async () {
-            try { await scanBurnBatch() } catch (e) {
-                D.print("Api: postupgrade burnScan - threw: " # Error.message(e));
-            };
-        });
-        let burnId = Timer.recurringTimer<system>(#seconds burnScanIntervalSeconds, func () : async () {
-            try { await scanBurnBatch() } catch (e) {
-                D.print("Api: burnScanTimer - threw: " # Error.message(e));
-            };
-        });
-        burnScanTimerId := ?burnId;
     };
 };
