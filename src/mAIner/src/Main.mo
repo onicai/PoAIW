@@ -26,42 +26,33 @@ import ICManagementCanister "../../common/ICManagementCanister";
 import TimerRegularity "../../common/TimerRegularity";
 import Utils "Utils";
 
-// EOP migration: bridges canisters last deployed pre-#143 (or pre-on-chain-
-// daily-metrics) to the current stable signature.
-// Handles three classes of change:
-//   1. Drops two retired stable vars (PR #143):
-//        - officialCycleTopUpsStorage
-//        - generatedResponses
-//   2. Produces five new stable fields that didn't exist in the deployed
-//      signature so EOP doesn't try to read them from old memory:
-//        - CHALLENGE_QUEUE_RESET_LENGTH_THRESHOLD (let, PR #143)
-//        - CHALLENGE_QUEUE_STALENESS_NANOS       (let, PR #143)
-//        - INSTALL_CODE_REFUND_BUFFER            (let, PR #143)
-//        - MAX_SUBMITTED_RESPONSES               (let, PR #143)
-//        - shareAgentActivityStorageStable       (var, on-chain daily metrics)
-//   3. Re-casts shareServiceCanisterActor whose actor type gained a
-//      trailing `?ShareAgentStatus` parameter on addChallengeToShareServiceQueue.
-//      The principal is preserved; only the static type is updated.
-// Safe to remove once every network's ShareService is on a post-this-PR build.
+// EOP migration: slim variant for the ShareAgent mAIner rollout. ShareAgents
+// were already reinstalled post-#143 (2026-04-16), so their deployed memory:
+//   - does NOT contain officialCycleTopUpsStorage or generatedResponses
+//     (already retired by #143), and
+//   - already contains the four `let` constants added in #143
+//     (CHALLENGE_QUEUE_RESET_LENGTH_THRESHOLD, CHALLENGE_QUEUE_STALENESS_NANOS,
+//      INSTALL_CODE_REFUND_BUFFER, MAX_SUBMITTED_RESPONSES) — these
+//     "carry through" implicitly.
+// What this migration must still do:
+//   1. Add the genuinely new `shareAgentActivityStorageStable` var (on-chain
+//      daily metrics).
+//   2. Re-cast `shareServiceCanisterActor` from the pre-on-chain-daily-metric
+//      1-arg `addChallengeToShareServiceQueue` actor type to the 2-arg type
+//      (gained a trailing `?ShareAgentStatus` parameter).
+// Use this branch's wasm ONLY for ShareAgent upgrades. The pre-#143 ShareService
+// upgrade requires the fuller migration on the `on-chain-daily-metric` branch
+// (commit bc41bee or later). After every ShareAgent on every network is on
+// this branch's wasm, this migration block can be deleted entirely.
 (with migration = func (old : {
-    var officialCycleTopUpsStorage : List.List<Types.OfficialMainerCycleTopUp>;
-    var generatedResponses : List.List<Types.ChallengeResponseSubmissionInput>;
     var shareServiceCanisterActor : actor {
         addChallengeResponseToShareAgent : shared Types.ChallengeResponseSubmissionInput -> async Types.StatusCodeRecordResult;
         addChallengeToShareServiceQueue : shared Types.ChallengeQueueInput -> async Types.ChallengeQueueInputResult;
     };
 }) : {
-    CHALLENGE_QUEUE_RESET_LENGTH_THRESHOLD : Nat;
-    CHALLENGE_QUEUE_STALENESS_NANOS : Nat64;
-    INSTALL_CODE_REFUND_BUFFER : Nat;
-    MAX_SUBMITTED_RESPONSES : Nat;
     var shareAgentActivityStorageStable : [(Text, Types.ShareAgentActivity)];
     var shareServiceCanisterActor : Types.MainerCanister_Actor;
 } = {
-    CHALLENGE_QUEUE_RESET_LENGTH_THRESHOLD = 4;
-    CHALLENGE_QUEUE_STALENESS_NANOS = 86_400_000_000_000 : Nat64;
-    INSTALL_CODE_REFUND_BUFFER = 1_000_000_000_000;
-    MAX_SUBMITTED_RESPONSES = 100;
     var shareAgentActivityStorageStable = [];
     var shareServiceCanisterActor = actor(Principal.toText(Principal.fromActor(old.shareServiceCanisterActor))) : Types.MainerCanister_Actor;
 })
