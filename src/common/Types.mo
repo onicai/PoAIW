@@ -1889,4 +1889,33 @@ module Types {
     public type RemoveFeeTokenInput = {
         tokenLedger : Principal;
     };
+
+    //-------------------------------------------------------------------------
+    // Total Burned Counter — ICRC-3 Block Scanner
+
+    // ICRC-3 recursive Value type used to decode TokenIndex block data.
+    public type ICRC3Value = {
+        #Blob  : Blob;
+        #Text  : Text;
+        #Nat   : Nat;
+        #Nat64 : Nat64;
+        #Int   : Int;
+        #Array : [ICRC3Value];
+        #Map   : [(Text, ICRC3Value)];
+    };
+
+    // Minimal actor interface for the FUNNAI TokenIndex canister (ICRC-3).
+    // Declared as update calls so they can be awaited from timer callbacks.
+    public type TokenIndexCanister_Actor = actor {
+        status     : () -> async { num_blocks_synced : Nat };
+        get_blocks : ({ start : Nat; length : Nat }) -> async { blocks : [ICRC3Value] };
+    };
+
+    public type TotalBurnedRecord = {
+        totalBurnedE8s      : Nat;
+        lastScannedBlock    : Nat;
+        lastScanTimestampNs : Nat64;
+    };
+
+    public type TotalBurnedResult = Result<TotalBurnedRecord, ApiError>;
 };

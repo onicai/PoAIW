@@ -1973,6 +1973,179 @@ persistent actor class ApiCanister() = this {
         });
     };
 
+    // -------------------------------------------------------------------------------
+    // Total Burned Counter — TokenIndex Block Scanner
+    // -------------------------------------------------------------------------------
+    //
+    // Incrementally scans FUNNAI TokenIndex (ICRC-3) blocks to accumulate the
+    // total burned token amount in e8s.  A recurring hourly timer picks up new
+    // blocks; during the initial catch-up it self-schedules 5-second follow-ups
+    // so the full history is processed quickly without hitting instruction limits.
+
+    var TOKEN_INDEX_CANISTER_ID  : Text   = "mziuv-biaaa-aaaaa-qccrq-cai";
+    var totalBurnedE8s           : Nat    = 0;
+    var lastScannedBlock         : Nat    = 0;
+    var burnScanLastUpdatedNs    : Nat64  = 0;
+
+    transient var burnScanTimerId      : ?Timer.TimerId = null;
+    var burnScanIntervalSeconds        : Nat             = 3600;
+    transient var IS_BURN_SCANNING     : Bool            = false;
+
+    let BURN_SCAN_BATCH_SIZE : Nat = 500;
+
+    // Parse a single ICRC-3 block and return the burn amount (e8s), or null if
+    // the block does not represent a burn transaction.
+    private func parseBurnAmount(block : Types.ICRC3Value) : ?Nat {
+        switch (block) {
+            case (#Map(blockEntries)) {
+                var txValue : ?Types.ICRC3Value = null;
+                for ((key, value) in blockEntries.vals()) {
+                    if (key == "tx") { txValue := ?value };
+                };
+                switch (txValue) {
+                    case (?#Map(txEntries)) {
+                        var isBurn : Bool = false;
+                        var amt : ?Nat = null;
+                        for ((key, value) in txEntries.vals()) {
+                            if (key == "op") {
+                                switch (value) {
+                                    case (#Text("burn")) { isBurn := true };
+                                    case _ {};
+                                };
+                            } else if (key == "amt") {
+                                switch (value) {
+                                    case (#Nat(n))   { amt := ?n };
+                                    case (#Nat64(n)) { amt := ?Nat64.toNat(n) };
+                                    case _ {};
+                                };
+                            };
+                        };
+                        if (isBurn) { amt } else { null }
+                    };
+                    case _ { null };
+                };
+            };
+            case _ { null };
+        };
+    };
+
+    // Scan one batch of up to BURN_SCAN_BATCH_SIZE blocks starting at
+    // lastScannedBlock and self-schedule a follow-up if more blocks remain.
+    private func scanBurnBatch() : async () {
+        if (IS_BURN_SCANNING) {
+            D.print("Api: scanBurnBatch - already scanning, skipping");
+            return;
+        };
+        IS_BURN_SCANNING := true;
+        try {
+            let idx : Types.TokenIndexCanister_Actor = actor(TOKEN_INDEX_CANISTER_ID);
+            let statusResp = await idx.status();
+            let numBlocks  = statusResp.num_blocks_synced;
+            D.print("Api: scanBurnBatch - TokenIndex has " # Nat.toText(numBlocks) # " blocks, lastScanned=" # Nat.toText(lastScannedBlock));
+            if (lastScannedBlock >= numBlocks) {
+                D.print("Api: scanBurnBatch - up to date");
+                IS_BURN_SCANNING := false;
+                return;
+            };
+            let start  = lastScannedBlock;
+            let length = if (numBlocks - start < BURN_SCAN_BATCH_SIZE) { numBlocks - start } else { BURN_SCAN_BATCH_SIZE };
+            let resp   = await idx.get_blocks({ start; length });
+            var batchBurned : Nat = 0;
+            for (block in resp.blocks.vals()) {
+                switch (parseBurnAmount(block)) {
+                    case (?amt) { batchBurned += amt };
+                    case null   {};
+                };
+            };
+            totalBurnedE8s        += batchBurned;
+            lastScannedBlock       := start + length;
+            burnScanLastUpdatedNs  := Nat64.fromNat(Int.abs(Time.now()));
+            D.print("Api: scanBurnBatch - scanned " # Nat.toText(start) # ".." # Nat.toText(lastScannedBlock) # " batchBurned=" # Nat.toText(batchBurned) # " total=" # Nat.toText(totalBurnedE8s));
+            if (lastScannedBlock < numBlocks) {
+                ignore Timer.setTimer<system>(#seconds 5, func () : async () {
+                    await scanBurnBatch();
+                });
+            };
+        } catch (e) {
+            D.print("Api: scanBurnBatch - error: " # Error.message(e));
+        };
+        IS_BURN_SCANNING := false;
+    };
+
+    // -------------------------------------------------------------------------------
+    // TokenIndex Canister ID Admin Endpoints
+    //
+    // Default points at the prd FUNNAI TokenIndex. Non-prd networks must call
+    // setTokenIndexCanisterIdAdmin once after deploy to redirect to their own
+    // TokenIndex.
+
+    public shared (msg) func setTokenIndexCanisterIdAdmin(newTokenIndexCanisterId : Text) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
+        TOKEN_INDEX_CANISTER_ID := newTokenIndexCanisterId;
+        return #Ok({ auth = "You set the TokenIndex canister id for this canister to: " # TOKEN_INDEX_CANISTER_ID });
+    };
+
+    public query (msg) func getTokenIndexCanisterIdAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not hasAdminRole(msg.caller, #AdminQuery)) { return #Err(#Unauthorized); };
+        return #Ok({ auth = "TokenIndex canister id for this canister: " # TOKEN_INDEX_CANISTER_ID });
+    };
+
+    // -------------------------------------------------------------------------------
+    // Burn Scan Timer Admin Endpoints
+
+    public shared (msg) func startBurnScanTimerAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized) };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized) };
+        switch (burnScanTimerId) {
+            case (?id) { Timer.cancelTimer(id); burnScanTimerId := null };
+            case null  {};
+        };
+        try { await scanBurnBatch() } catch (e) {
+            D.print("Api: startBurnScanTimerAdmin - initial scan threw: " # Error.message(e));
+        };
+        let id = Timer.recurringTimer<system>(#seconds burnScanIntervalSeconds, func () : async () {
+            try { await scanBurnBatch() } catch (e) {
+                D.print("Api: burnScanTimer - threw: " # Error.message(e));
+            };
+        });
+        burnScanTimerId := ?id;
+        return #Ok({ auth = "Burn scan timer started." });
+    };
+
+    public shared (msg) func stopBurnScanTimerAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized) };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized) };
+        switch (burnScanTimerId) {
+            case (?id) { Timer.cancelTimer(id); burnScanTimerId := null };
+            case null  {};
+        };
+        return #Ok({ auth = "Burn scan timer stopped." });
+    };
+
+    public shared (msg) func triggerBurnScanAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized) };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized) };
+        try {
+            await scanBurnBatch();
+            return #Ok({ auth = "Burn scan triggered. lastScannedBlock=" # Nat.toText(lastScannedBlock) # " totalBurnedE8s=" # Nat.toText(totalBurnedE8s) });
+        } catch (e) {
+            return #Err(#Other("Burn scan error: " # Error.message(e)));
+        };
+    };
+
+    // -------------------------------------------------------------------------------
+    // Total Burned Public Query Endpoint
+
+    public shared query func getTotalBurned() : async Types.TotalBurnedResult {
+        return #Ok({
+            totalBurnedE8s      = totalBurnedE8s;
+            lastScannedBlock    = lastScannedBlock;
+            lastScanTimestampNs = burnScanLastUpdatedNs;
+        });
+    };
+
     // System upgrade hooks
     system func preupgrade() {
         dailyMetricsEntries := Iter.toArray(dailyMetrics.entries());
