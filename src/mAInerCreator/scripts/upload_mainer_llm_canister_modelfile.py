@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Generator
 from pprint import pprint
 from .calculate_sha256 import calculate_sha256
-from .ic_py_canister import get_canister, run_dfx_command
+from .ic_py_canister import extract_variant, get_canister, run_dfx_command
 from .parse_args_upload import parse_args
 
 ROOT_PATH = Path(__file__).parent.parent
@@ -84,8 +84,11 @@ def main() -> int:
     # ---------------------------------------------------------------------------
     # Start the upload process -> this results in replacing an existing model file
     print("--\nCalling start_upload_mainer_llm")
-    response = canister_creator.start_upload_mainer_llm()  # pylint: disable=no-member
-    if "Ok" in response[0].keys():
+    response = canister_creator.start_upload_mainer_llm(
+        verify_certificate=False,
+    )  # pylint: disable=no-member
+    result = extract_variant(response)
+    if "Ok" in result:
         print("OK!")
     else:
         print("Something went wrong:")
@@ -153,10 +156,12 @@ def main() -> int:
         for attempt in range(1, max_retries + 1):
             try:
                 # Send i as the chunkId
-                response = canister_creator.upload_mainer_llm_bytes_chunk({
-                    "bytesChunk" : chunk, 
-                    "chunkID" : i
-                    }
+                response = canister_creator.upload_mainer_llm_bytes_chunk(
+                    {
+                        "bytesChunk" : chunk,
+                        "chunkID" : i,
+                    },
+                    verify_certificate=False,
                 )  # pylint: disable=no-member
                 break  # Exit the loop if the request is successful
             except Exception as e:
@@ -170,7 +175,8 @@ def main() -> int:
                 print(f"Retrying in {retry_delay} seconds...")
                 time.sleep(retry_delay)  # Wait before retrying
 
-        if "Ok" in response[0].keys():
+        result = extract_variant(response)
+        if "Ok" in result:
             print("OK!")
         else:
             print("Something went wrong:")
@@ -179,10 +185,12 @@ def main() -> int:
 
     # ---------------------------------------------------------------------------
     # Store the expected sha256 hash of the model file
-    finishResponse = canister_creator.finish_upload_mainer_llm({
-        "selectedModel" : selectedModel,
-        "modelFileSha256" : modelFileSha256
-    }
+    finishResponse = canister_creator.finish_upload_mainer_llm(
+        {
+            "selectedModel" : selectedModel,
+            "modelFileSha256" : modelFileSha256,
+        },
+        verify_certificate=False,
     )  # pylint: disable=no-member
     print(finishResponse)
 
@@ -190,9 +198,10 @@ def main() -> int:
     # Get and display the SHA-256 hashes
     print("--\nRetrieving SHA-256 hashes")
     hashesResponse = canister_creator.getSha256HashesAdmin()  # pylint: disable=no-member
-    if "Ok" in hashesResponse[0].keys():
+    hashesResult = extract_variant(hashesResponse)
+    if "Ok" in hashesResult:
         print("SHA-256 Hashes:")
-        pprint(hashesResponse[0]["Ok"])
+        pprint(hashesResult["Ok"])
     else:
         print("Failed to retrieve SHA-256 hashes:")
         pprint(hashesResponse)

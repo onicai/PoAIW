@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import Generator
 from pprint import pprint
-from .ic_py_canister import get_canister, run_dfx_command
+from .ic_py_canister import extract_variant, get_canister, run_dfx_command
 from .parse_args_upload import parse_args
 
 ROOT_PATH = Path(__file__).parent.parent
@@ -81,8 +81,11 @@ def main() -> int:
     # ---------------------------------------------------------------------------
     # reset existing storage, we will overwrite with new wasm file
     print("--\nResetting the canister wasm storage")
-    response = canister_creator.start_upload_mainer_controller_canister_wasm()  # pylint: disable=no-member
-    if "Ok" in response[0].keys():  # pylint: disable=no-member
+    response = canister_creator.start_upload_mainer_controller_canister_wasm(
+        verify_certificate=False,
+    )  # pylint: disable=no-member
+    result = extract_variant(response)
+    if "Ok" in result:
         print("OK!")
     else:
         print("Something went wrong:")
@@ -127,7 +130,8 @@ def main() -> int:
         for attempt in range(1, max_retries + 1):
             try:
                 response = canister_creator.upload_mainer_controller_canister_wasm_bytes_chunk(
-                    chunk
+                    chunk,
+                    verify_certificate=False,
                 )  # pylint: disable=no-member
                 break  # Exit the loop if the request is successful
             except Exception as e:
@@ -142,7 +146,8 @@ def main() -> int:
                 time.sleep(retry_delay)  # Wait before retrying
 
 
-        if "Ok" in response[0].keys():
+        result = extract_variant(response)
+        if "Ok" in result:
             print("OK!")
         else:
             print("Something went wrong:")
@@ -152,8 +157,11 @@ def main() -> int:
     # ---------------------------------------------------------------------------
     # Finalize the upload and calculate SHA-256 hash
     print("--\nFinalizing upload and calculating SHA-256 hash")
-    finishResponse = canister_creator.finish_upload_mainer_controller_canister_wasm()  # pylint: disable=no-member
-    if "Ok" in finishResponse[0].keys():
+    finishResponse = canister_creator.finish_upload_mainer_controller_canister_wasm(
+        verify_certificate=False,
+    )  # pylint: disable=no-member
+    finishResult = extract_variant(finishResponse)
+    if "Ok" in finishResult:
         print("OK! SHA-256 hash calculated and cached.")
     else:
         print("Something went wrong:")
@@ -164,9 +172,10 @@ def main() -> int:
     # Get and display the SHA-256 hashes
     print("--\nRetrieving SHA-256 hashes")
     hashesResponse = canister_creator.getSha256HashesAdmin()  # pylint: disable=no-member
-    if "Ok" in hashesResponse[0].keys():
+    hashesResult = extract_variant(hashesResponse)
+    if "Ok" in hashesResult:
         print("SHA-256 Hashes:")
-        pprint(hashesResponse[0]["Ok"])
+        pprint(hashesResult["Ok"])
     else:
         print("Failed to retrieve SHA-256 hashes:")
         pprint(hashesResponse)
