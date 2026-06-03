@@ -26,45 +26,6 @@ import ICManagementCanister "../../common/ICManagementCanister";
 import TimerRegularity "../../common/TimerRegularity";
 import Utils "Utils";
 
-// EOP migration: bridges canisters last deployed pre-#143 (or pre-on-chain-
-// daily-metrics) to the current stable signature.
-// Handles three classes of change:
-//   1. Drops two retired stable vars (PR #143):
-//        - officialCycleTopUpsStorage
-//        - generatedResponses
-//   2. Produces five new stable fields that didn't exist in the deployed
-//      signature so EOP doesn't try to read them from old memory:
-//        - CHALLENGE_QUEUE_RESET_LENGTH_THRESHOLD (let, PR #143)
-//        - CHALLENGE_QUEUE_STALENESS_NANOS       (let, PR #143)
-//        - INSTALL_CODE_REFUND_BUFFER            (let, PR #143)
-//        - MAX_SUBMITTED_RESPONSES               (let, PR #143)
-//        - shareAgentActivityStorageStable       (var, on-chain daily metrics)
-//   3. Re-casts shareServiceCanisterActor whose actor type gained a
-//      trailing `?ShareAgentStatus` parameter on addChallengeToShareServiceQueue.
-//      The principal is preserved; only the static type is updated.
-// Safe to remove once every network's ShareService is on a post-this-PR build.
-(with migration = func (old : {
-    var officialCycleTopUpsStorage : List.List<Types.OfficialMainerCycleTopUp>;
-    var generatedResponses : List.List<Types.ChallengeResponseSubmissionInput>;
-    var shareServiceCanisterActor : actor {
-        addChallengeResponseToShareAgent : shared Types.ChallengeResponseSubmissionInput -> async Types.StatusCodeRecordResult;
-        addChallengeToShareServiceQueue : shared Types.ChallengeQueueInput -> async Types.ChallengeQueueInputResult;
-    };
-}) : {
-    CHALLENGE_QUEUE_RESET_LENGTH_THRESHOLD : Nat;
-    CHALLENGE_QUEUE_STALENESS_NANOS : Nat64;
-    INSTALL_CODE_REFUND_BUFFER : Nat;
-    MAX_SUBMITTED_RESPONSES : Nat;
-    var shareAgentActivityStorageStable : [(Text, Types.ShareAgentActivity)];
-    var shareServiceCanisterActor : Types.MainerCanister_Actor;
-} = {
-    CHALLENGE_QUEUE_RESET_LENGTH_THRESHOLD = 4;
-    CHALLENGE_QUEUE_STALENESS_NANOS = 86_400_000_000_000 : Nat64;
-    INSTALL_CODE_REFUND_BUFFER = 1_000_000_000_000;
-    MAX_SUBMITTED_RESPONSES = 100;
-    var shareAgentActivityStorageStable = [];
-    var shareServiceCanisterActor = actor(Principal.toText(Principal.fromActor(old.shareServiceCanisterActor))) : Types.MainerCanister_Actor;
-})
 persistent actor class MainerAgentCtrlbCanister() = this {
 
     transient let IC0 : ICManagementCanister.IC_Management = actor ("aaaaa-aa");
