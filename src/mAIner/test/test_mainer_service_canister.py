@@ -460,3 +460,63 @@ def test__revokeAdminRole_not_found(network: str) -> None:
     )
     expected_response = '(variant { Err = variant { Other = "No admin role found for principal: non-existent-principal" } })'
     assert response == expected_response
+
+
+# -----------------------------------------------------------------------------
+# Send-cycles drain timer admin endpoints
+# (role-gated #AdminUpdate; controllers auto-pass. Drain itself is #ShareService-only.)
+# -----------------------------------------------------------------------------
+
+
+def test__getSendCyclesPeriodInSecondsAdmin_default(network: str) -> None:
+    """Default send-cycles drain period is 3600 seconds"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getSendCyclesPeriodInSecondsAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    assert "3_600" in response and "Ok" in response
+
+
+def test__setSendCyclesPeriodInSecondsAdmin_roundtrip(network: str) -> None:
+    """setSendCyclesPeriodInSecondsAdmin updates the period"""
+    set_response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="setSendCyclesPeriodInSecondsAdmin",
+        canister_argument="(7200 : nat)",
+        network=network,
+    )
+    assert set_response == "(variant { Ok = record { status_code = 200 : nat16 } })"
+
+    get_response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getSendCyclesPeriodInSecondsAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    assert "7_200" in get_response
+
+    # Reset to the 3600s default
+    call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="setSendCyclesPeriodInSecondsAdmin",
+        canister_argument="(3600 : nat)",
+        network=network,
+    )
+
+
+def test__stopSendCyclesTimerAdmin(network: str) -> None:
+    """stopSendCyclesTimerAdmin returns Ok (no active timer is acceptable)"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="stopSendCyclesTimerAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    assert response.startswith("(variant { Ok")

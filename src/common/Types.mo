@@ -1472,6 +1472,14 @@ module Types {
         addCycles: () -> async AddCyclesResult;
     };
 
+    // LLM canister recurring cycle-balance monitor (llama_cpp_canister >= v0.11.0).
+    // Field names mirror the candid (build/llama_cpp.did) for Candid decoding.
+    public type LLMCycleBalanceRecord = {
+        cycle_balance : Nat;   // cached canister cycle balance (128-bit)
+        updated_at_ns : Nat64; // IC_API::time() when the snapshot was taken
+    };
+    public type LLMCycleBalanceRecordResult = Result<LLMCycleBalanceRecord, ApiError>;
+
     public type LLMCanister = actor {
         health : () -> async StatusCodeRecordResult;
         ready : () -> async StatusCodeRecordResult;
@@ -1488,6 +1496,7 @@ module Types {
         file_upload_chunk : (FileUploadInputRecord) -> async FileUploadRecordResult;
         log_pause : () -> async StatusCodeRecordResult;
         log_resume : () -> async StatusCodeRecordResult;
+        get_cycle_balance : () -> async LLMCycleBalanceRecordResult;
     };
 
     // mAIner ShareAgent canister

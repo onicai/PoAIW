@@ -33,10 +33,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     var MAINER_AGENT_CANISTER_TYPE : Types.MainerAgentCanisterType = #Own;
 
     public shared (msg) func setMainerCanisterType(_mainer_agent_canister_type : Types.MainerAgentCanisterType) : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
         MAINER_AGENT_CANISTER_TYPE := _mainer_agent_canister_type;
@@ -55,10 +52,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getMainerCanisterType() : async Types.MainerAgentCanisterTypeResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
 
@@ -69,10 +63,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     var GAME_STATE_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
     
     public shared (msg) func setGameStateCanisterId(_game_state_canister_id : Text) : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
         GAME_STATE_CANISTER_ID := _game_state_canister_id;
@@ -80,24 +71,26 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getGameStateCanisterId() : async Text {
-        if (Principal.isAnonymous(msg.caller)) {
-            return "#Err(#Unauthorized)";
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return "#Err(#Unauthorized)";
         };
 
         return GAME_STATE_CANISTER_ID;
     };
 
+    // --- Cycle capping config (used by the #ShareService controller role) ---
+    var MIN_CYCLES_BALANCE : Nat = 30 * Constants.CYCLES_TRILLION;
+    var CYCLES_AMOUNT_TO_GAME_STATE_CANISTER : Nat = 10 * Constants.CYCLES_TRILLION;
+
+    // timer ID for the recurring send-cycles drain (transient — re-arm after upgrade)
+    var sendCyclesTimerId : ?Timer.TimerId = null;
+    var sendCyclesPeriodInSeconds = 3600; // default: once per hour
+
     // Flag to pause mAIner for maintenance
     var MAINTENANCE : Bool = false;
 
     public shared (msg) func toggleMaintenanceFlagAdmin() : async Types.AuthRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
         MAINTENANCE := not MAINTENANCE;
@@ -185,10 +178,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     var shareServiceCanisterActor = actor (SHARE_SERVICE_CANISTER_ID) : Types.MainerCanister_Actor;
     
     public shared (msg) func setShareServiceCanisterId(_share_service_canister_id : Text) : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
         SHARE_SERVICE_CANISTER_ID := _share_service_canister_id;
@@ -197,10 +187,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getShareServiceCanisterId() : async Text {
-        if (Principal.isAnonymous(msg.caller)) {
-            return "#Err(#Unauthorized)";
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return "#Err(#Unauthorized)";
         };
 
@@ -467,8 +454,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     // 25-hour staleness cutoff without waiting a day.
     // TODO - outcomment once proven in production
     public shared (msg) func setActivityTimestampAdmin(address : Text, timestamp : Nat64) : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
-        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) { return #Err(#Unauthorized); };
         if (MAINER_AGENT_CANISTER_TYPE != #ShareService) { return #Err(#Unauthorized); };
         switch (shareAgentActivityStorage.get(address)) {
             case (?existing) {
@@ -666,10 +652,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared query (msg) func getCurrentAgentSettingsAdmin() : async Types.MainerAgentSettingsResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
 
@@ -684,10 +667,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared query (msg) func getAgentSettingsAdmin() : async Types.MainerAgentSettingsListResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
 
@@ -708,10 +688,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared query (msg) func getCurrentAgentTimersAdmin() : async Types.MainerAgentTimersResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
 
@@ -726,10 +703,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared query (msg) func getAgentTimersAdmin() : async Types.MainerAgentTimersListResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
 
@@ -861,10 +835,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getSubmittedResponsesAdmin() : async Types.ChallengeResponseSubmissionsResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
         let submissions : [Types.ChallengeResponseSubmission] = getSubmittedResponses();
@@ -872,10 +843,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public query (msg) func getRecentSubmittedResponsesAdmin() : async Types.ChallengeResponseSubmissionsResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
         let submissions : [Types.ChallengeResponseSubmission] = getLastSubmittedResponses(5);
@@ -894,10 +862,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     private transient var roundRobinLLMs : Nat = 0; // Only used when roundRobinUseAll is false
 
     public shared query (msg) func get_llm_canisters() : async Types.LlmCanistersRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
         let llmCanisterIds : [Types.CanisterAddress] = Buffer.toArray(
@@ -913,10 +878,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared (msg) func reset_llm_canisters() : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "):  reset_llm_canisters - Resetting all LLM canisters & round-robin state");
@@ -926,10 +888,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared (msg) func add_llm_canister(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
         D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "):  add_llm_canister - Adding llm: " # llmCanisterIdRecord.canister_id);
@@ -939,10 +898,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared (msg) func remove_llm_canister(llmCanisterIdRecord : Types.CanisterIDRecord) : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
 
@@ -974,10 +930,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     // Admin function to reset roundRobinLLMs
     public shared (msg) func resetRoundRobinLLMs() : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
         resetRoundRobinLLMs_();
@@ -991,10 +944,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     // Admin function to set roundRobinLLMs
     public shared (msg) func setRoundRobinLLMs(_roundRobinLLMs : Nat) : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
         roundRobinUseAll := false;
@@ -1081,10 +1031,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     // Alternative function: get_llm_canisters
     public query (msg) func getLLMCanisterIds() : async Types.CanisterAddressesResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
 
@@ -1123,10 +1070,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared (msg) func canAgentSettingsBeUpdated() : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
         switch (areAgentSettingsUpdateable()) {
@@ -1140,10 +1084,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared (msg) func timeToNextAgentSettingsUpdate() : async Types.NatResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
         switch (getCurrentAgentSettings()) {
@@ -1166,10 +1107,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared (msg) func updateAgentSettings(settingsInput : Types.MainerAgentSettingsInput) : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
         switch (settingsInput.cyclesBurnRate) {
@@ -1546,6 +1484,31 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         if (MAINER_AGENT_CANISTER_TYPE == #Own) {
             cyclesAdded := challengeQueueInput.cyclesGenerateResponseOwnctrlOwnllmHIGH; // TODO: adjust for mAIners with setting LOW or MEDIUM
         };
+        // LLM cycles cap (ShareService role only): skip funding when the LLM is already
+        // above MIN_CYCLES_BALANCE. Fail-open: if the cached balance cannot be read, fund anyway.
+        var fundLlm : Bool = true;
+        if (MAINER_AGENT_CANISTER_TYPE == #ShareService) {
+            fundLlm := try {
+                switch (await llmCanister.get_cycle_balance()) {
+                    case (#Ok(cycleBalanceRecord)) {
+                        if (cycleBalanceRecord.cycle_balance > MIN_CYCLES_BALANCE) {
+                            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - LLM " # debug_show(llmCanisterPrincipal) # " cap reached: balance " # debug_show(cycleBalanceRecord.cycle_balance) # " > cap " # debug_show(MIN_CYCLES_BALANCE) # " - skipping deposit");
+                            false;
+                        } else {
+                            true;
+                        };
+                    };
+                    case (#Err(error)) {
+                        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - LLM " # debug_show(llmCanisterPrincipal) # " cap: get_cycle_balance Err " # debug_show(error) # " - funding anyway (fail-open)");
+                        true;
+                    };
+                };
+            } catch (e) {
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - LLM " # debug_show(llmCanisterPrincipal) # " cap: get_cycle_balance trapped: " # Error.message(e) # " - funding anyway (fail-open)");
+                true;
+            };
+        };
+        if (fundLlm) {
         try {
             D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - calling Cycles.add for = " # debug_show(cyclesAdded) # " Cycles");
             Cycles.add<system>(cyclesAdded);
@@ -1561,6 +1524,8 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
             return #Err(#FailedOperation);
         };    
+
+        }; // end if (fundLlm)
 
         let generationId : Text = try {
             await Utils.newRandomUniqueId();
@@ -2267,10 +2232,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared query (msg) func getRoundRobinCanister() : async Types.CanisterIDRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
         if (llmCanisters.size() == 0) {
@@ -2307,10 +2269,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     // Function for mAIner Agent Creator canister to add new mAIner ShareAgent canister to a mAIner ShareService canister
     public shared (msg) func addMainerShareAgentCanister(canisterEntryToAdd : Types.OfficialMainerAgentCanister) : async Types.MainerAgentCanisterResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
         switch (canisterEntryToAdd.canisterType) {
@@ -2337,10 +2296,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     // Testing: admin Function to add new mAIner ShareAgent for testing
     public shared (msg) func addMainerShareAgentCanisterAdmin(canisterEntryToAdd : Types.OfficialMainerAgentCanister) : async Types.MainerAgentCanisterResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
         switch (canisterEntryToAdd.canisterType) {
@@ -2376,10 +2332,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     var cyclesBurnRateFromGameState = CYCLES_BURN_RATE_DEFAULT; // Just set it to some default value. The actual value is retrieved from the GameState in startTimerExecution()
    
     public shared (msg) func setTimerAction2RegularityInSecondsAdmin(_action2RegularityInSeconds : Nat) : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
         action2RegularityInSeconds := _action2RegularityInSeconds;
@@ -2394,10 +2347,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared query (msg) func getTimerActionRegularityInSecondsAdmin() : async Types.MainerTimersResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
         return #Ok({
@@ -2681,10 +2631,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared (msg) func startTimerExecutionAdmin() : async Types.AuthRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
         try {
@@ -2696,10 +2643,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared (msg) func stopTimerExecutionAdmin() : async Types.AuthRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
         try {
@@ -2710,11 +2654,134 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         };
     };
 
-    public shared query (msg) func getTimerBuffersAdmin() : async Types.MainerTimerBuffersResult {
-        if (Principal.isAnonymous(msg.caller)) {
+    // ======================================================================
+    // Cycle capping: drain excess cycles down to GameState (ShareService role).
+    // Ported from the Challenger/Judge controllers (which use the same idiom);
+    // mAIner has no CyclesTransaction storage, so this logs via D.print only.
+    // ======================================================================
+
+    // Core drain logic, callable without a controller msg.caller (e.g. from the
+    // recurring send-cycles timer). `sentBy` is recorded in the log line.
+    private func sendCyclesToGameStateInternal(sentBy : Principal) : async Types.AddCyclesResult {
+        let currentCyclesBalance : Nat = Cycles.balance();
+        try {
+            // Only move cycles if cycles balance is big enough
+            if (currentCyclesBalance - CYCLES_AMOUNT_TO_GAME_STATE_CANISTER < MIN_CYCLES_BALANCE) {
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): sendCyclesToGameStateInternal - balance not big enough: " # debug_show(currentCyclesBalance) # " sentBy " # debug_show(sentBy));
+                return #Err(#Unauthorized);
+            };
+            let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): sendCyclesToGameStateInternal - sending " # debug_show(CYCLES_AMOUNT_TO_GAME_STATE_CANISTER) # " cycles to GameState " # GAME_STATE_CANISTER_ID);
+            Cycles.add<system>(CYCLES_AMOUNT_TO_GAME_STATE_CANISTER);
+            let addCyclesResponse = await gameStateCanisterActor.addCycles();
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): sendCyclesToGameStateInternal - addCyclesResponse: " # debug_show(addCyclesResponse));
+            return addCyclesResponse;
+        } catch (e) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): sendCyclesToGameStateInternal - failed: " # Error.message(e));
+            return #Err(#Other("mAIner sendCyclesToGameStateInternal failed: " # Error.message(e)));
+        };
+    };
+
+    public shared (msg) func sendCyclesToGameStateCanister() : async Types.AddCyclesResult {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
-        if (not Principal.isController(msg.caller)) {
+        if (MAINER_AGENT_CANISTER_TYPE != #ShareService) {
+            return #Err(#Other("sendCyclesToGameStateCanister is only available on the ShareService role"));
+        };
+        return await sendCyclesToGameStateInternal(msg.caller);
+    };
+
+    public shared (msg) func setMinCyclesBalanceAdmin(newCyclesBalance : Nat) : async Types.StatusCodeRecordResult {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) { return #Err(#Unauthorized); };
+        MIN_CYCLES_BALANCE := newCyclesBalance;
+        return #Ok({ status_code = 200 });
+    };
+
+    public query (msg) func getMinCyclesBalanceAdmin() : async Nat {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) { return 0; };
+        return MIN_CYCLES_BALANCE;
+    };
+
+    public shared (msg) func setCyclesToSendToGameStateAdmin(newValue : Nat) : async Types.StatusCodeRecordResult {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) { return #Err(#Unauthorized); };
+        CYCLES_AMOUNT_TO_GAME_STATE_CANISTER := newValue;
+        return #Ok({ status_code = 200 });
+    };
+
+    public query (msg) func getCyclesToSendToGameStateAdmin() : async Nat {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) { return 0; };
+        return CYCLES_AMOUNT_TO_GAME_STATE_CANISTER;
+    };
+
+    // Recurring send-cycles timer (ShareService role only). Transient — re-arm after upgrade.
+    private func triggerSendCyclesToGameState() : async () {
+        if (MAINER_AGENT_CANISTER_TYPE != #ShareService) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): triggerSendCyclesToGameState - not ShareService, skipping");
+            return;
+        };
+        D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): triggerSendCyclesToGameState - triggered (Cycles.balance() = " # Nat.toText(Cycles.balance()) # ")");
+        try {
+            let result = await sendCyclesToGameStateInternal(Principal.fromActor(this));
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): triggerSendCyclesToGameState - result: " # debug_show(result));
+        } catch (e) {
+            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): triggerSendCyclesToGameState - Error: " # Error.message(e));
+        };
+    };
+
+    private func startSendCyclesTimer() : async Types.AuthRecordResult {
+        let _ = await stopSendCyclesTimer();
+        ignore setTimer<system>(#seconds 5,
+            func () : async () {
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): setTimer (send-cycles)");
+                let id = recurringTimer<system>(#seconds sendCyclesPeriodInSeconds, triggerSendCyclesToGameState);
+                sendCyclesTimerId := ?id;
+                await triggerSendCyclesToGameState();
+        });
+        return #Ok({ auth = "You started the send-cycles timer." });
+    };
+
+    private func stopSendCyclesTimer() : async Types.AuthRecordResult {
+        switch (sendCyclesTimerId) {
+            case (?id) {
+                Timer.cancelTimer(id);
+                sendCyclesTimerId := null;
+                return #Ok({ auth = "Send-cycles timer stopped successfully." });
+            };
+            case null {
+                return #Ok({ auth = "There is no active send-cycles timer. Nothing to do." });
+            };
+        };
+    };
+
+    public shared (msg) func startSendCyclesTimerAdmin() : async Types.AuthRecordResult {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) { return #Err(#Unauthorized); };
+        await startSendCyclesTimer();
+    };
+
+    public shared (msg) func stopSendCyclesTimerAdmin() : async Types.AuthRecordResult {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) { return #Err(#Unauthorized); };
+        await stopSendCyclesTimer();
+    };
+
+    public shared (msg) func setSendCyclesPeriodInSecondsAdmin(_periodInSeconds : Nat) : async Types.StatusCodeRecordResult {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) { return #Err(#Unauthorized); };
+        sendCyclesPeriodInSeconds := _periodInSeconds;
+        // If the timer is currently armed, restart it so the new period takes effect.
+        switch (sendCyclesTimerId) {
+            case (?_) { ignore await startSendCyclesTimer(); };
+            case null {};
+        };
+        return #Ok({ status_code = 200 });
+    };
+
+    public query (msg) func getSendCyclesPeriodInSecondsAdmin() : async Types.NatResult {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) { return #Err(#Unauthorized); };
+        return #Ok(sendCyclesPeriodInSeconds);
+    };
+
+    public shared query (msg) func getTimerBuffersAdmin() : async Types.MainerTimerBuffersResult {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
 
@@ -2731,10 +2798,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared (msg) func setTimerBufferMaxSizeAdmin(maxSize: Nat) : async Types.StatusCodeRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
 
@@ -2744,10 +2808,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
     };
 
     public shared query (msg) func getTimerBufferMaxSizeAdmin() : async Types.NatResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminQuery)) {
             return #Err(#Unauthorized);
         };
 
@@ -2756,10 +2817,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     // Testing function for admin for ShareService
     public shared (msg) func triggerChallengeResponseAdmin() : async Types.AuthRecordResult {
-        if (Principal.isAnonymous(msg.caller)) {
-            return #Err(#Unauthorized);
-        };
-        if (not Principal.isController(msg.caller)) {
+        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
             return #Err(#Unauthorized);
         };
         /* if (MAINER_AGENT_CANISTER_TYPE != #ShareService) {
