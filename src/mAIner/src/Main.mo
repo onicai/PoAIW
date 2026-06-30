@@ -2694,6 +2694,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
 
     public shared (msg) func setMinCyclesBalanceAdmin(newCyclesBalance : Nat) : async Types.StatusCodeRecordResult {
         if (not hasAdminRole(msg.caller, #AdminUpdate)) { return #Err(#Unauthorized); };
+        if (newCyclesBalance < 20 * Constants.CYCLES_TRILLION) { return #Err(#Unauthorized); };
         MIN_CYCLES_BALANCE := newCyclesBalance;
         return #Ok({ status_code = 200 });
     };
