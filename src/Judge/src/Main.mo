@@ -106,7 +106,7 @@ persistent actor class JudgeCtrlbCanister() = this {
         let currentCyclesBalance : Nat = Cycles.balance();
         try {
             // Only move cycles if cycles balance is big enough
-            if (currentCyclesBalance - CYCLES_AMOUNT_TO_GAME_STATE_CANISTER < MIN_CYCLES_BALANCE) {
+            if (currentCyclesBalance < CYCLES_AMOUNT_TO_GAME_STATE_CANISTER + MIN_CYCLES_BALANCE) {
                 D.print("Judge: sendCyclesToGameStateInternal - requested cycles transaction but balance is not big enough: " # debug_show(currentCyclesBalance) # " sentBy " # debug_show(sentBy));
                 return #Err(#Unauthorized);
             };
