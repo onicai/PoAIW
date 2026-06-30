@@ -1495,6 +1495,7 @@ persistent actor class MainerAgentCtrlbCanister() = this {
                             D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - LLM " # debug_show(llmCanisterPrincipal) # " cap reached: balance " # debug_show(cycleBalanceRecord.cycle_balance) # " > cap " # debug_show(MIN_CYCLES_BALANCE) # " - skipping deposit");
                             false;
                         } else {
+                            D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): respondToChallengeDoIt_ - LLM " # debug_show(llmCanisterPrincipal) # " under cap: balance " # debug_show(cycleBalanceRecord.cycle_balance) # " <= cap " # debug_show(MIN_CYCLES_BALANCE) # " - funding");
                             true;
                         };
                     };
