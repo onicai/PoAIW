@@ -1110,7 +1110,7 @@ def test__setSendCyclesPeriodInSecondsAdmin_roundtrip(network: str) -> None:
         canister_argument="(7200 : nat)",
         network=network,
     )
-    assert set_response == "(variant { Ok = record { status_code = 200 : nat16 } })"
+    assert set_response == "(variant { Ok = record { status_code = 200 : nat16;} })"
 
     get_response = call_canister_api(
         dfx_json_path=DFX_JSON_PATH,
