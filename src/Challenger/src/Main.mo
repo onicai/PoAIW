@@ -141,8 +141,8 @@ persistent actor class ChallengerCtrlbCanister() = this {
         try {
             // Only move cycles if cycles balance is big enough
             if (currentCyclesBalance < CYCLES_AMOUNT_TO_GAME_STATE_CANISTER + MIN_CYCLES_BALANCE) {
-                D.print("Challenger: sendCyclesToGameStateInternal - requested cycles transaction but balance is not big enough: " # debug_show(currentCyclesBalance) # " sentBy " # debug_show(sentBy));
-                return #Err(#Unauthorized);
+                D.print("Challenger: sendCyclesToGameStateInternal - balance too low: balance " # debug_show(currentCyclesBalance) # " < required " # debug_show(CYCLES_AMOUNT_TO_GAME_STATE_CANISTER + MIN_CYCLES_BALANCE) # " (send " # debug_show(CYCLES_AMOUNT_TO_GAME_STATE_CANISTER) # " + keep MIN " # debug_show(MIN_CYCLES_BALANCE) # ") - skipping. sentBy " # debug_show(sentBy));
+                return #Ok({ added = false; amount = 0 });
             };
 
             let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;

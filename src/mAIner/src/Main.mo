@@ -2667,8 +2667,8 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         try {
             // Only move cycles if cycles balance is big enough
             if (currentCyclesBalance < CYCLES_AMOUNT_TO_GAME_STATE_CANISTER + MIN_CYCLES_BALANCE) {
-                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): sendCyclesToGameStateInternal - balance not big enough: " # debug_show(currentCyclesBalance) # " sentBy " # debug_show(sentBy));
-                return #Err(#Unauthorized);
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): sendCyclesToGameStateInternal - balance too low: balance " # debug_show(currentCyclesBalance) # " < required " # debug_show(CYCLES_AMOUNT_TO_GAME_STATE_CANISTER + MIN_CYCLES_BALANCE) # " (send " # debug_show(CYCLES_AMOUNT_TO_GAME_STATE_CANISTER) # " + keep MIN " # debug_show(MIN_CYCLES_BALANCE) # ") - skipping. sentBy " # debug_show(sentBy));
+                return #Ok({ added = false; amount = 0 });
             };
             let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
             D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): sendCyclesToGameStateInternal - sending " # debug_show(CYCLES_AMOUNT_TO_GAME_STATE_CANISTER) # " cycles to GameState " # GAME_STATE_CANISTER_ID);
