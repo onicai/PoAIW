@@ -1082,3 +1082,195 @@ def test__sendCyclesToGameStateCanister(network: str) -> None:
     )
     # May fail due to insufficient cycles on local
     assert response.startswith("(variant {")
+
+
+# -----------------------------------------------------------------------------
+# Send-cycles drain timer admin endpoints
+# -----------------------------------------------------------------------------
+
+
+def test__getSendCyclesPeriodInSecondsAdmin_default(network: str) -> None:
+    """Default send-cycles drain period is 3600 seconds"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getSendCyclesPeriodInSecondsAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    assert "3_600" in response and "Ok" in response
+
+
+def test__setSendCyclesPeriodInSecondsAdmin_roundtrip(network: str) -> None:
+    """setSendCyclesPeriodInSecondsAdmin updates the period"""
+    set_response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="setSendCyclesPeriodInSecondsAdmin",
+        canister_argument="(7200 : nat)",
+        network=network,
+    )
+    assert set_response == "(variant { Ok = record { status_code = 200 : nat16;} })"
+
+    get_response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getSendCyclesPeriodInSecondsAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    assert "7_200" in get_response
+
+    # Reset to the 3600s default
+    call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="setSendCyclesPeriodInSecondsAdmin",
+        canister_argument="(3600 : nat)",
+        network=network,
+    )
+
+
+def test__stopSendCyclesTimerAdmin(network: str) -> None:
+    """stopSendCyclesTimerAdmin returns Ok (no active timer is acceptable)"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="stopSendCyclesTimerAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    assert response.startswith("(variant { Ok")
+
+
+# -----------------------------------------------------------------------------
+# Admin RBAC: management endpoints (assign / revoke / get) + anonymous rejection
+# Needed post-SNS, when the isController path is no longer available to the team.
+# These run in order: cleanup -> empty -> assign -> get -> revoke.
+# -----------------------------------------------------------------------------
+
+
+def test__getAdminRoles_anonymous(identity_anonymous: Dict[str, str], network: str) -> None:
+    """getAdminRoles rejects anonymous caller"""
+    assert identity_anonymous["identity"] == "anonymous"
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getAdminRoles",
+        canister_argument="()",
+        network=network,
+        timeout_seconds=10,
+    )
+    assert response == "(variant { Err = variant { Unauthorized } })"
+
+
+def test__assignAdminRole_anonymous(identity_anonymous: Dict[str, str], network: str) -> None:
+    """assignAdminRole rejects anonymous caller"""
+    assert identity_anonymous["identity"] == "anonymous"
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="assignAdminRole",
+        canister_argument='(record { "principal" = "aaaaa-aa"; role = variant { AdminQuery }; note = "test" })',
+        network=network,
+        timeout_seconds=10,
+    )
+    assert response == "(variant { Err = variant { Unauthorized } })"
+
+
+def test__revokeAdminRole_anonymous(identity_anonymous: Dict[str, str], network: str) -> None:
+    """revokeAdminRole rejects anonymous caller"""
+    assert identity_anonymous["identity"] == "anonymous"
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="revokeAdminRole",
+        canister_argument='("aaaaa-aa")',
+        network=network,
+        timeout_seconds=10,
+    )
+    assert response == "(variant { Err = variant { Unauthorized } })"
+
+
+def test__rbac_setup_cleanup(network: str) -> None:
+    """Setup: clean up any admin role left from a previous run"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="revokeAdminRole",
+        canister_argument='("aaaaa-aa")',
+        network=network,
+        timeout_seconds=10,
+    )
+    assert response in [
+        '(variant { Ok = "Admin role revoked for principal: aaaaa-aa" })',
+        '(variant { Err = variant { Other = "No admin role found for principal: aaaaa-aa" } })',
+    ]
+
+
+def test__getAdminRoles_empty(network: str) -> None:
+    """getAdminRoles returns empty list initially"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getAdminRoles",
+        canister_argument="()",
+        network=network,
+        timeout_seconds=10,
+    )
+    assert response == "(variant { Ok = vec {} })"
+
+
+def test__assignAdminRole_AdminQuery(network: str) -> None:
+    """assignAdminRole assigns an AdminQuery role (controller identity)"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="assignAdminRole",
+        canister_argument='(record { "principal" = "aaaaa-aa"; role = variant { AdminQuery }; note = "Test admin query role" })',
+        network=network,
+        timeout_seconds=10,
+    )
+    assert response.startswith("(variant { Ok = record {")
+    assert '"principal" = "aaaaa-aa"' in response
+    assert "AdminQuery" in response
+
+
+def test__getAdminRoles_after_assign(network: str) -> None:
+    """getAdminRoles returns the assigned role"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getAdminRoles",
+        canister_argument="()",
+        network=network,
+        timeout_seconds=10,
+    )
+    assert response.startswith("(variant { Ok = vec {")
+    assert "aaaaa-aa" in response
+
+
+def test__revokeAdminRole(network: str) -> None:
+    """revokeAdminRole removes the role"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="revokeAdminRole",
+        canister_argument='("aaaaa-aa")',
+        network=network,
+        timeout_seconds=10,
+    )
+    assert response == '(variant { Ok = "Admin role revoked for principal: aaaaa-aa" })'
+
+
+def test__revokeAdminRole_not_found(network: str) -> None:
+    """revokeAdminRole returns error for a non-existent principal"""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="revokeAdminRole",
+        canister_argument='("non-existent-principal")',
+        network=network,
+        timeout_seconds=10,
+    )
+    assert response == '(variant { Err = variant { Other = "No admin role found for principal: non-existent-principal" } })'
