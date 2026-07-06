@@ -1350,7 +1350,10 @@ persistent actor class GameStateCanister() = this {
         return #Ok(authRecord);
     };
 
-    private func applyMainerTopupBonus(cycles : Nat, redeemedFor : Types.RedeemedForOptions) : Nat {
+    private func applyMainerTopupBonus(cycles : Nat, redeemedFor : Types.RedeemedForOptions, usesExistingCyclesBalance : Bool) : Nat {
+        if (not usesExistingCyclesBalance) {
+            return cycles;
+        };
         switch (redeemedFor) {
             case (#MainerTopUp(_)) {
                 let bonusCycles : Nat = cycles * bonusCyclesTopupInPercent / 100;
@@ -4865,6 +4868,8 @@ persistent actor class GameStateCanister() = this {
                 D.print("GameState: handleIncomingFunds - #MainerTopUp(mainerCanisterAddress): "# debug_show(mainerCanisterAddress));
                 D.print("GameState: handleIncomingFunds - #MainerTopUp(mainerCanisterAddress) PROTOCOL_CYCLES_BALANCE_BUFFER: "# debug_show(PROTOCOL_CYCLES_BALANCE_BUFFER)); 
                 D.print("GameState: handleIncomingFunds - #MainerTopUp(mainerCanisterAddress) Cycles.balance(): "# debug_show(Cycles.balance())); 
+                // Key check: existing cycles balance vs CMC conversion. Bonus cycles apply only
+                // when amountToConvert = 0 (balance above buffer) — see applyMainerTopupBonus below.
                 if (PROTOCOL_CYCLES_BALANCE_BUFFER > Cycles.balance()) {
                     // Cycles balance is lower than security threshold, so convert the payment's share for the mAIner to cycles
                     amountToConvert := amountForMainer;
@@ -4964,8 +4969,8 @@ persistent actor class GameStateCanister() = this {
             let cycles : Nat = (icpAmount * Nat64.toNat(xdrPermyriadPerIcp) * CYCLES_PER_XDR) / (10_000 * E8S_PER_ICP); // Where 10_000 is to convert from permyriad (1/10000 of a unit)
             D.print("GameState: handleIncomingFunds - no conversion necessary, cycles: "# debug_show(cycles));
 
-            // Bonus for mAIner topups when existing cycles balance is used (no CMC conversion)
-            let cyclesForMainer : Nat = applyMainerTopupBonus(cycles, transactionEntry.redeemedFor);
+            // Bonus only when existing GameState cycles balance is used (amountToConvert = 0 above).
+            let cyclesForMainer : Nat = applyMainerTopupBonus(cycles, transactionEntry.redeemedFor, true);
             let cyclesForProtocol : Nat = 0; // Protocol already took its cut in ICP
             
             D.print("GameState: handleIncomingFunds - no conversion necessary, cyclesForMainer: "# debug_show(cyclesForMainer));
@@ -5028,8 +5033,14 @@ persistent actor class GameStateCanister() = this {
                 };
             };
             case (#MainerTopUp(mainerCanisterAddress)) {
-                D.print("GameState: whitelistHandleIncomingFunds - #MainerTopUp(mainerCanisterAddress): "# debug_show(mainerCanisterAddress)); 
-                amountToConvert := amountForMainer; // Always convert mAIner's share of payment into cycles
+                D.print("GameState: whitelistHandleIncomingFunds - #MainerTopUp(mainerCanisterAddress): "# debug_show(mainerCanisterAddress));
+                D.print("GameState: whitelistHandleIncomingFunds - #MainerTopUp(mainerCanisterAddress) PROTOCOL_CYCLES_BALANCE_BUFFER: "# debug_show(PROTOCOL_CYCLES_BALANCE_BUFFER));
+                D.print("GameState: whitelistHandleIncomingFunds - #MainerTopUp(mainerCanisterAddress) Cycles.balance(): "# debug_show(Cycles.balance()));
+                if (PROTOCOL_CYCLES_BALANCE_BUFFER > Cycles.balance()) {
+                    amountToConvert := amountForMainer;
+                } else {
+                    amountToConvert := 0;
+                };
             };
             case (_) { return #Err(#Other("Unsupported")); }
         };
@@ -5112,7 +5123,7 @@ persistent actor class GameStateCanister() = this {
             let cycles : Nat = (icpAmount * Nat64.toNat(xdrPermyriadPerIcp) * CYCLES_PER_XDR) / (10_000 * E8S_PER_ICP); // Where 10_000 is to convert from permyriad (1/10000 of a unit)
             D.print("GameState: whitelistHandleIncomingFunds - no conversion necessary, cycles: "# debug_show(cycles));
             
-            let cyclesForMainer : Nat = applyMainerTopupBonus(cycles, transactionEntry.redeemedFor);
+            let cyclesForMainer : Nat = applyMainerTopupBonus(cycles, transactionEntry.redeemedFor, true);
             let cyclesForProtocol : Nat = 0; // Protocol already took its cut in ICP
             
             D.print("GameState: whitelistHandleIncomingFunds - no conversion necessary, cyclesForMainer: "# debug_show(cyclesForMainer));
