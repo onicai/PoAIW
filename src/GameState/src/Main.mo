@@ -4910,7 +4910,7 @@ persistent actor class GameStateCanister() = this {
                     switch (notifyTopUpResult) {
                         case (#Ok(cyclesReceived)) {
                             D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult cyclesReceived: "# debug_show(cyclesReceived));
-                            let cyclesForMainer : Nat = applyMainerTopupBonus(cyclesReceived, transactionEntry.redeemedFor);
+                            let cyclesForMainer : Nat = cyclesReceived;
                             let cyclesForProtocol : Nat = 0; // Protocol already took its cut in ICP
 
                             D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult cyclesForMainer: "# debug_show(cyclesForMainer));
@@ -5066,7 +5066,7 @@ persistent actor class GameStateCanister() = this {
                     switch (notifyTopUpResult) {
                         case (#Ok(cyclesReceived)) {
                             D.print("GameState: whitelistHandleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult cyclesReceived: "# debug_show(cyclesReceived));
-                            let cyclesForMainer : Nat = applyMainerTopupBonus(cyclesReceived, transactionEntry.redeemedFor);
+                            let cyclesForMainer : Nat = cyclesReceived;
                             let cyclesForProtocol : Nat = 0; // Protocol already took its cut in ICP
 
                             D.print("GameState: whitelistHandleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult cyclesForMainer: "# debug_show(cyclesForMainer));
