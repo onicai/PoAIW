@@ -1332,7 +1332,7 @@ persistent actor class GameStateCanister() = this {
     var bonusCyclesTopupInPercent : Nat = DEFAULT_BONUS_CYCLES_TOPUP_IN_PERCENT;
 
     public query func getBonusCyclesTopupInPercent() : async Types.NatResult {
-        return #Ok(bonusCyclesTopupInPercent);
+        return #Ok(effectiveBonusCyclesTopupInPercent());
     };
 
     public shared (msg) func setBonusCyclesTopupInPercent(newPercent : Nat) : async Types.AuthRecordResult {
@@ -1356,7 +1356,8 @@ persistent actor class GameStateCanister() = this {
         };
         switch (redeemedFor) {
             case (#MainerTopUp(_)) {
-                let bonusCycles : Nat = cycles * bonusCyclesTopupInPercent / 100;
+                let percent = effectiveBonusCyclesTopupInPercent();
+                let bonusCycles : Nat = cycles * percent / 100;
                 return cycles + bonusCycles;
             };
             case (_) { return cycles; };
@@ -4789,6 +4790,16 @@ persistent actor class GameStateCanister() = this {
     //let PROTOCOL_PRINCIPAL_BLOB : Blob = "\C8\8E\F9\86\5D\F0\34\92\74\87\E4\17\8D\A1\F8\0A\16\48\EC\5A\76\4E\49\59\CB\A5\13\C3\72\CE\B5\20";
 
     var PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * Constants.CYCLES_TRILLION;
+
+    // Effective bonus percent exposed to callers and used at top-up time. Returns 0 when the
+    // protocol must mint cycles via CMC (balance below buffer); bonus only applies when
+    // existing GameState cycles balance is used.
+    private func effectiveBonusCyclesTopupInPercent() : Nat {
+        if (PROTOCOL_CYCLES_BALANCE_BUFFER > Cycles.balance()) {
+            return 0;
+        };
+        bonusCyclesTopupInPercent
+    };
 
     public shared (msg) func setProtocolCyclesBalanceBuffer(newBufferInTrillionCycles : Nat) : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
