@@ -37,7 +37,7 @@ echo "Using network type: $NETWORK_TYPE"
 MAINER="mainer_service_canister"
 echo " "
 echo "Checking if $MAINER is a controller of its registered LLM canisters"
-output=$(dfx canister call $MAINER checkAccessToLLMs --network $NETWORK_TYPE)
+output=$(icp canister call $MAINER checkAccessToLLMs '()' -e $NETWORK_TYPE)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
     echo "ERROR: $MAINER is not a controller of all its LLMs. Make sure to update the LLMs."
@@ -57,7 +57,7 @@ do
     if ($MAINER_CANISTER_TYPE == "Own"); then
         echo " "
         echo "Checking if $MAINER is a controller of its registered LLM canisters"
-        output=$(dfx canister call $MAINER checkAccessToLLMs --network $NETWORK_TYPE)
+        output=$(icp canister call $MAINER checkAccessToLLMs '()' -e $NETWORK_TYPE)
 
         if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
             echo "ERROR: $MAINER is not a controller of all its LLMs. Make sure to update the LLMs."

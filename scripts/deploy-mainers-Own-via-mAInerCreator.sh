@@ -50,7 +50,9 @@ if [ "$NETWORK_TYPE" = "local" ]; then
     echo " "
     echo "--------------------------------------------------"
     echo "Adding 20 TCycles to the mAInerCreator canister"
-    dfx ledger fabricate-cycles --all --t 20
+    # (icp-cli seeds every managed identity with cycles when the local network starts,
+    #  so there is no fabricate-cycles equivalent or need)
+    true
 fi
 
 # ================================================================
@@ -59,7 +61,7 @@ fi
 echo " "
 echo "--------------------------------------------------"
 echo "Deploying a mAInerController canister of type #Own"
-output=$(dfx canister call mainer_creator_canister testCreateMainerControllerCanister '(record { mainerAgentCanisterType = variant {Own}, shareServiceCanisterAddress = null })' --network $NETWORK_TYPE)
+output=$(icp canister call mainer_creator_canister testCreateMainerControllerCanister '(record { mainerAgentCanisterType = variant {Own}, shareServiceCanisterAddress = null })' -e $NETWORK_TYPE)
 echo $output
 if [[ "$output" != *"Ok = record"* ]]; then
     echo "Failed to create mAIner controller canister of type #Own. Exiting."    
@@ -70,11 +72,11 @@ fi
 
 echo " "
 echo "Deploy LLM for the mAInerController $NEW_MAINER_OWN_CANISTER of type #Own"
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  --network $NETWORK_TYPE
-# dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"   --network $NETWORK_TYPE
-# dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  --network $NETWORK_TYPE
+icp canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")" -e $NETWORK_TYPE
+# icp canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")" -e $NETWORK_TYPE
+# icp canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")" -e $NETWORK_TYPE
 # -> No need to save the canister id of the LLM, it is all saved internally...
 
 echo " "
 echo "Starting timers for the mAInerController $NEW_MAINER_OWN_CANISTER of type #Own"
-dfx canister call $NEW_MAINER_OWN_CANISTER startTimerExecutionAdmin --network $NETWORK_TYPE
+icp canister call $NEW_MAINER_OWN_CANISTER startTimerExecutionAdmin '()' -e $NETWORK_TYPE

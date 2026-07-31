@@ -28,7 +28,7 @@ done
 # Function to fetch logs and filter out new lines
 fetch_and_filter_logs() {
     # Fetch logs
-    new_logs=$(dfx canister logs mainer_creator_canister --network "$NETWORK_TYPE")
+    new_logs=$(icp canister logs mainer_creator_canister -e $NETWORK_TYPE)
 
     # Compare with previous logs to find new ones
     while IFS= read -r line; do

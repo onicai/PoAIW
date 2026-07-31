@@ -42,7 +42,7 @@ echo "We have deployed a total of $NUM_MAINERS_DEPLOYED mainer canisters"
 
 # go to the src folder to get the canister ID for mainer_service_canister
 cd ../../src/mAIner/
-CANISTER_ID_MAINER_SERVICE_CANISTER=$(dfx canister --network $NETWORK_TYPE id mainer_service_canister)
+CANISTER_ID_MAINER_SERVICE_CANISTER=$(icp canister status mainer_service_canister -e $NETWORK_TYPE --id-only)
 # go back to the current folder
 cd ../../llms/mAIner/
 
@@ -59,5 +59,5 @@ for i in $(seq $llm_id_start $llm_id_end)
 do
     echo "==================================================="
     echo "Making $CANISTER_ID_MAINER_SERVICE_CANISTER a controller of llm_$i"
-    dfx canister update-settings llm_$i --add-controller $CANISTER_ID_MAINER_SERVICE_CANISTER  --network $NETWORK_TYPE
+    icp canister settings update llm_$i --add-controller $CANISTER_ID_MAINER_SERVICE_CANISTER -e $NETWORK_TYPE
 done

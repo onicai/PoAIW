@@ -48,7 +48,7 @@ fi
 echo " "
 echo "--------------------------------------------------"
 echo "Checking health endpoint"
-output=$(dfx canister call judge_ctrlb_canister health --network $NETWORK_TYPE)
+output=$(icp canister call judge_ctrlb_canister health '()' -e $NETWORK_TYPE --query)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
     echo "judge_ctrlb_canister is not healthy. Exiting."
@@ -65,7 +65,7 @@ llm_id_start=0
 llm_id_end=$((NUM_LLMS_DEPLOYED - 1))
 
 echo "Calling reset_llm_canisters."
-output=$(dfx canister call judge_ctrlb_canister reset_llm_canisters --network $NETWORK_TYPE)
+output=$(icp canister call judge_ctrlb_canister reset_llm_canisters '()' -e $NETWORK_TYPE)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
     echo "Error calling reset_llm_canisters. Exiting."
@@ -78,11 +78,11 @@ for i in $(seq $llm_id_start $llm_id_end)
 do
     # go to the llm folder to get the canister ID for llm_$i
     cd ../../llms/Judge/
-    CANISTER_ID_LLM=$(dfx canister --network $NETWORK_TYPE id llm_$i)
+    CANISTER_ID_LLM=$(icp canister status llm_$i -e $NETWORK_TYPE --id-only)
     # go back to the current folder
     cd ../../src/Judge/
 
-    output=$(dfx canister call judge_ctrlb_canister add_llm_canister "(record { canister_id = \"$CANISTER_ID_LLM\" })" --network $NETWORK_TYPE)
+    output=$(icp canister call judge_ctrlb_canister add_llm_canister "(record { canister_id = \"$CANISTER_ID_LLM\" })" -e $NETWORK_TYPE)
 
     if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
         echo "Error calling add_llm_canister for $CANISTER_ID_LLM. Exiting."
@@ -96,7 +96,7 @@ done
 # echo " "
 # echo "--------------------------------------------------"
 # echo "Setting NUM_LLMS_ROUND_ROBIN to $NUM_LLMS_ROUND_ROBIN"
-# output=$(dfx canister call judge_ctrlb_canister setRoundRobinLLMs "($NUM_LLMS_ROUND_ROBIN)" --network $NETWORK_TYPE)
+# output=$(icp canister call judge_ctrlb_canister setRoundRobinLLMs "($NUM_LLMS_ROUND_ROBIN)" -e $NETWORK_TYPE)
 
 # if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
 #     echo "setRoundRobinLLMs call failed. Exiting."

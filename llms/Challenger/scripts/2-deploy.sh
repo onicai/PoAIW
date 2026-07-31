@@ -81,22 +81,22 @@ do
      echo "Deploying llm_$i to subnet ${!subnet_var}"
     if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ] || [ "$NETWORK_TYPE" = "demo" ] || [ "$NETWORK_TYPE" = "prd" ]; then
         if [ "${!subnet_var}" = "none" ]; then
-            yes | dfx deploy llm_$i --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
+            yes | icp deploy llm_$i -m $DEPLOY_MODE -e $NETWORK_TYPE -y
         else
-            yes | dfx deploy llm_$i --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE --subnet ${!subnet_var}
+            yes | icp deploy llm_$i -m $DEPLOY_MODE --subnet ${!subnet_var} -e $NETWORK_TYPE -y
         fi
         if [ "$DEPLOY_MODE" = "install" ]; then
             echo "Initial install to main-net: Waiting for 30 seconds before checking health endpoint for llm_$i"
             sleep 30
         fi
     else
-        yes | dfx deploy llm_$i --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
+        yes | icp deploy llm_$i -m $DEPLOY_MODE -e $NETWORK_TYPE -y
     fi 
     
     echo " "
     echo "--------------------------------------------------"
     echo "Checking health endpoint for llm_$i"
-    output=$(dfx canister call llm_$i health --network $NETWORK_TYPE )
+    output=$(icp canister call llm_$i health '()' -e $NETWORK_TYPE --query)
 
     if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
         echo "llm_$i health check failed."

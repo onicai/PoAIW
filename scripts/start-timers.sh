@@ -46,7 +46,7 @@ echo "Using network type: $NETWORK_TYPE"
 echo "==========================================="
 cd src/Challenger
 echo "Starting timer for Challenger:"
-dfx canister call challenger_ctrlb_canister startTimerExecutionAdmin --network $NETWORK_TYPE
+icp canister call challenger_ctrlb_canister startTimerExecutionAdmin '()' -e $NETWORK_TYPE
 
 # the timers for the mAIners are already running as part of the deploy process
 # echo "==========================================="
@@ -54,7 +54,7 @@ dfx canister call challenger_ctrlb_canister startTimerExecutionAdmin --network $
 
 # MAINER="mainer_service_canister"
 # echo "Starting timer for $MAINER:"
-# dfx canister call $MAINER startTimerExecutionAdmin --network $NETWORK_TYPE
+# icp canister call $MAINER startTimerExecutionAdmin '()' -e $NETWORK_TYPE
 
 
 # mainer_id_start=0
@@ -64,11 +64,11 @@ dfx canister call challenger_ctrlb_canister startTimerExecutionAdmin --network $
 # do
 #     MAINER="mainer_ctrlb_canister_$m"
 #     echo "Starting timer for $MAINER:"
-#     dfx canister call $MAINER startTimerExecutionAdmin --network $NETWORK_TYPE
+#     icp canister call $MAINER startTimerExecutionAdmin '()' -e $NETWORK_TYPE
 # done
 
 echo "==========================================="
 cd ../Judge
 echo "Starting timer for Judge:"
-dfx canister call judge_ctrlb_canister startTimerExecutionAdmin --network $NETWORK_TYPE
+icp canister call judge_ctrlb_canister startTimerExecutionAdmin '()' -e $NETWORK_TYPE
 

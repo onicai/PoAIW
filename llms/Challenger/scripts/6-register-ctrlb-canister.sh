@@ -36,7 +36,7 @@ if [ "$NETWORK_TYPE" = "prd" ]; then
 fi
 
 cd ../../src/Challenger/
-CANISTER_ID_CHALLENGER_CTRLB_CANISTER=$(dfx canister --network $NETWORK_TYPE id challenger_ctrlb_canister)
+CANISTER_ID_CHALLENGER_CTRLB_CANISTER=$(icp canister status challenger_ctrlb_canister -e $NETWORK_TYPE --id-only)
 # go back
 cd ../../llms/Challenger/
 
@@ -58,5 +58,5 @@ for i in $(seq $llm_id_start $llm_id_end)
 do
     echo "==================================================="
     echo "Making $CANISTER_ID_CHALLENGER_CTRLB_CANISTER a controller of llm_$i"
-    dfx canister update-settings llm_$i --add-controller $CANISTER_ID_CHALLENGER_CTRLB_CANISTER  --network $NETWORK_TYPE
+    icp canister settings update llm_$i --add-controller $CANISTER_ID_CHALLENGER_CTRLB_CANISTER -e $NETWORK_TYPE
 done

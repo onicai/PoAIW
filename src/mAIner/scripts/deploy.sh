@@ -57,24 +57,24 @@ MAINER="mainer_service_canister"
 echo "Deploying the protocol's $MAINER"
 if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ] || [ "$NETWORK_TYPE" = "demo" ] || [ "$NETWORK_TYPE" = "prd" ]; then
     if [ "$SUBNET" = "none" ]; then
-        dfx deploy $MAINER --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
+        icp deploy $MAINER -m $DEPLOY_MODE -e $NETWORK_TYPE -y
     else
-        dfx deploy $MAINER --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE --subnet $SUBNET
+        icp deploy $MAINER -m $DEPLOY_MODE --subnet $SUBNET -e $NETWORK_TYPE -y
     fi
 else
-    dfx deploy $MAINER --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
+    icp deploy $MAINER -m $DEPLOY_MODE -e $NETWORK_TYPE -y
 fi
 
 echo " "
 echo "--------------------------------------------------"
-dfx canister call $MAINER setMainerCanisterType '(variant {ShareService} )' --network $NETWORK_TYPE
+icp canister call $MAINER setMainerCanisterType '(variant {ShareService} )' -e $NETWORK_TYPE
 echo "verify getMainerCanisterType: "
-dfx canister call $MAINER getMainerCanisterType --network $NETWORK_TYPE
+icp canister call $MAINER getMainerCanisterType '()' -e $NETWORK_TYPE
 
 echo " "
 echo "--------------------------------------------------"
 echo "Checking health endpoint"
-output=$(dfx canister call $MAINER health --network $NETWORK_TYPE)
+output=$(icp canister call $MAINER health '()' -e $NETWORK_TYPE --query)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
     echo "$MAINER is not healthy. Exiting."
@@ -101,25 +101,25 @@ do
 
     if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ] || [ "$NETWORK_TYPE" = "demo" ] || [ "$NETWORK_TYPE" = "prd" ]; then
         if [ "$SUBNET" = "none" ]; then
-            dfx deploy $MAINER --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
+            icp deploy $MAINER -m $DEPLOY_MODE -e $NETWORK_TYPE -y
         else
-            dfx deploy $MAINER --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE --subnet $SUBNET
+            icp deploy $MAINER -m $DEPLOY_MODE --subnet $SUBNET -e $NETWORK_TYPE -y
         fi
     else
-        dfx deploy $MAINER --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
+        icp deploy $MAINER -m $DEPLOY_MODE -e $NETWORK_TYPE -y
     fi
 
     echo " "
     echo "--------------------------------------------------"
     echo "setMainerCanisterType to ${MAINER_CANISTER_TYPES[$m]}"
-    dfx canister call $MAINER setMainerCanisterType "(variant {${MAINER_CANISTER_TYPES[$m]}} )" --network $NETWORK_TYPE
+    icp canister call $MAINER setMainerCanisterType "(variant {${MAINER_CANISTER_TYPES[$m]}} )" -e $NETWORK_TYPE
     echo "verify getMainerCanisterType: "
-    dfx canister call $MAINER getMainerCanisterType --network $NETWORK_TYPE
+    icp canister call $MAINER getMainerCanisterType '()' -e $NETWORK_TYPE
 
     echo " "
     echo "--------------------------------------------------"
     echo "Checking health endpoint"
-    output=$(dfx canister call $MAINER health --network $NETWORK_TYPE)
+    output=$(icp canister call $MAINER health '()' -e $NETWORK_TYPE --query)
 
     if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
         echo "$MAINER is not healthy. Exiting."
@@ -132,4 +132,4 @@ done
 echo " "
 echo "--------------------------------------------------"
 echo "Generating bindings for a frontend"
-dfx generate
+# (dfx generate dropped: icp-cli has no equivalent and src/declarations/ is committed)

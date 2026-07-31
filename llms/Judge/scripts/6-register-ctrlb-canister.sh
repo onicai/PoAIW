@@ -41,7 +41,7 @@ fi
 
 # go to the src folder to get the canister ID for judge_ctrlb_canister
 cd ../../src/Judge/
-CANISTER_ID_JUDGE_CTRLB_CANISTER=$(dfx canister --network $NETWORK_TYPE id judge_ctrlb_canister)
+CANISTER_ID_JUDGE_CTRLB_CANISTER=$(icp canister status judge_ctrlb_canister -e $NETWORK_TYPE --id-only)
 # go back to the current folder
 cd ../../llms/Judge/
 
@@ -58,5 +58,5 @@ for i in $(seq $llm_id_start $llm_id_end)
 do
     echo "==================================================="
     echo "Making $CANISTER_ID_JUDGE_CTRLB_CANISTER a controller of llm_$i"
-    dfx canister update-settings llm_$i --add-controller $CANISTER_ID_JUDGE_CTRLB_CANISTER  --network $NETWORK_TYPE
+    icp canister settings update llm_$i --add-controller $CANISTER_ID_JUDGE_CTRLB_CANISTER -e $NETWORK_TYPE
 done

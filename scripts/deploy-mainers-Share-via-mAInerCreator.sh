@@ -49,7 +49,9 @@ if [ "$NETWORK_TYPE" = "local" ]; then
     echo " "
     echo "--------------------------------------------------"
     echo "Adding 20 TCycles to the mAInerCreator canister"
-    dfx ledger fabricate-cycles --all --t 20
+    # (icp-cli seeds every managed identity with cycles when the local network starts,
+    #  so there is no fabricate-cycles equivalent or need)
+    true
 fi
 
 # ================================================================
@@ -60,7 +62,7 @@ echo "--------------------------------------------------"
 echo "Deploying a mAInerController canister of type #ShareService"
 
 # Create a mAIner controller canister of type #ShareService
-output=$(dfx canister call mainer_creator_canister testCreateMainerControllerCanister '(record { mainerAgentCanisterType = variant {ShareService}, shareServiceCanisterAddress = null })' --network $NETWORK_TYPE)
+output=$(icp canister call mainer_creator_canister testCreateMainerControllerCanister '(record { mainerAgentCanisterType = variant {ShareService}, shareServiceCanisterAddress = null })' -e $NETWORK_TYPE)
 echo $output
 if [[ "$output" != *"Ok = record"* ]]; then
     echo "Failed to create mAIner controller canister of type #Own. Exiting."    
@@ -71,14 +73,14 @@ fi
 
 echo " "
 echo "Deploy LLM for the mAInerController $NEW_MAINER_SHARE_SERVICE_CANISTER of type #ShareService"
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")" --network $NETWORK_TYPE
-# dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")" --network $NETWORK_TYPE
-# dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")" --network $NETWORK_TYPE
+icp canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")" -e $NETWORK_TYPE
+# icp canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")" -e $NETWORK_TYPE
+# icp canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")" -e $NETWORK_TYPE
 # -> No need to save the canister id of the LLM, it is all saved internally...
 
 echo " "
 echo "Starting timers for the mAInerController $NEW_MAINER_SHARE_SERVICE_CANISTER of type #ShareService"
-dfx canister call $NEW_MAINER_SHARE_SERVICE_CANISTER startTimerExecutionAdmin --network $NETWORK_TYPE
+icp canister call $NEW_MAINER_SHARE_SERVICE_CANISTER startTimerExecutionAdmin '()' -e $NETWORK_TYPE
 
 echo " "
 echo "--------------------------------------------------"
@@ -86,7 +88,7 @@ echo "Deploying a mAInerController canister of type #ShareAgent"
 
 # -> A ShareAgent canister uses the ShareService and not its own LLMs,
 #    so pass the ShareService canister id
-output=$(dfx canister call mainer_creator_canister testCreateMainerControllerCanister "( record { mainerAgentCanisterType = variant {ShareAgent}, shareServiceCanisterAddress = opt \"$NEW_MAINER_SHARE_SERVICE_CANISTER\"})" --network $NETWORK_TYPE)
+output=$(icp canister call mainer_creator_canister testCreateMainerControllerCanister "( record { mainerAgentCanisterType = variant {ShareAgent}, shareServiceCanisterAddress = opt \"$NEW_MAINER_SHARE_SERVICE_CANISTER\"})" -e $NETWORK_TYPE)
 echo $output
 if [[ "$output" != *"Ok = record"* ]]; then
     echo "Failed to create mAIner controller canister of type #ShareAgent. Exiting."    
@@ -97,14 +99,14 @@ fi
 
 echo " "
 echo "Starting timers for the mAInerController $NEW_MAINER_SHARE_AGENT_CANISTER of type #ShareAgent"
-dfx canister call $NEW_MAINER_SHARE_AGENT_CANISTER startTimerExecutionAdmin --network $NETWORK_TYPE
+icp canister call $NEW_MAINER_SHARE_AGENT_CANISTER startTimerExecutionAdmin '()' -e $NETWORK_TYPE
 
 
 echo " "
 echo "--------------------------------------------------"
 echo "Deploying another mAInerController canister of type #ShareAgent"
 
-output=$(dfx canister call mainer_creator_canister testCreateMainerControllerCanister "( record { mainerAgentCanisterType = variant {ShareAgent}, shareServiceCanisterAddress = opt \"$NEW_MAINER_SHARE_SERVICE_CANISTER\"})" --network $NETWORK_TYPE)
+output=$(icp canister call mainer_creator_canister testCreateMainerControllerCanister "( record { mainerAgentCanisterType = variant {ShareAgent}, shareServiceCanisterAddress = opt \"$NEW_MAINER_SHARE_SERVICE_CANISTER\"})" -e $NETWORK_TYPE)
 echo $output
 if [[ "$output" != *"Ok = record"* ]]; then
     echo "Failed to create mAIner controller canister of type #ShareAgent. Exiting."    
@@ -115,6 +117,6 @@ fi
 
 echo " "
 echo "Starting timers for the mAInerController $ANOTHER_MAINER_SHARE_AGENT_CANISTER of type #ShareAgent"
-dfx canister call $ANOTHER_MAINER_SHARE_AGENT_CANISTER startTimerExecutionAdmin --network $NETWORK_TYPE 
+icp canister call $ANOTHER_MAINER_SHARE_AGENT_CANISTER startTimerExecutionAdmin '()' -e $NETWORK_TYPE
 
 #######################################################################

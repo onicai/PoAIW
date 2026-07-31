@@ -44,13 +44,13 @@ TOPPED_OFF_BALANCE_TARGET=$(printf "%.0f" $TOPPED_OFF_BALANCE_TARGET)
 
 # top off cycles for mAIner Service canister
 MAINER="mainer_service_canister"
-CURRENT_BALANCE=$(dfx canister --network $NETWORK_TYPE status $MAINER 2>&1 | grep "Balance:" | awk '{gsub("_", ""); print $2}')
+CURRENT_BALANCE=$(icp canister status $MAINER -e $NETWORK_TYPE 2>&1 | grep "Cycles:" | awk '{gsub("_", ""); print $2}')
 NEED_CYCLES_THRESHOLD=$(echo "$TOPPED_OFF_BALANCE_TRESHOLD - $CURRENT_BALANCE" | bc)
 NEED_CYCLES_TARGET=$(echo "$TOPPED_OFF_BALANCE_TARGET - $CURRENT_BALANCE" | bc)
 if [ $(echo "$NEED_CYCLES_THRESHOLD > 0" | bc) -eq 1 ]; then
-    CANISTER_ID=$(dfx canister --network $NETWORK_TYPE id $MAINER)
+    CANISTER_ID=$(icp canister status $MAINER -e $NETWORK_TYPE --id-only)
     echo "Sending $NEED_CYCLES_TARGET cycles to $MAINER"
-    dfx wallet send $CANISTER_ID $NEED_CYCLES_TARGET --network $NETWORK_TYPE
+    icp canister call jh35u-eqaaa-aaaag-abf3a-cai wallet_send "(record { canister = principal \"$CANISTER_ID\"; amount = $NEED_CYCLES_TARGET : nat64 })" -e $NETWORK_TYPE
 else
     echo "No need to send cycles to $MAINER. Balance = $(echo "scale=2; $CURRENT_BALANCE / 1000000000000" | bc) TCycles"
 fi
@@ -64,13 +64,13 @@ i=0 # LLM index
 for m in $(seq $mainer_id_start $mainer_id_end)
 do
     MAINER="mainer_ctrlb_canister_$m"
-    CURRENT_BALANCE=$(dfx canister --network $NETWORK_TYPE status $MAINER 2>&1 | grep "Balance:" | awk '{gsub("_", ""); print $2}')
+    CURRENT_BALANCE=$(icp canister status $MAINER -e $NETWORK_TYPE 2>&1 | grep "Cycles:" | awk '{gsub("_", ""); print $2}')
     NEED_CYCLES_THRESHOLD=$(echo "$TOPPED_OFF_BALANCE_TRESHOLD - $CURRENT_BALANCE" | bc)
     NEED_CYCLES_TARGET=$(echo "$TOPPED_OFF_BALANCE_TARGET - $CURRENT_BALANCE" | bc)
     if [ $(echo "$NEED_CYCLES_THRESHOLD > 0" | bc) -eq 1 ]; then
-        CANISTER_ID=$(dfx canister --network $NETWORK_TYPE id $MAINER)
+        CANISTER_ID=$(icp canister status $MAINER -e $NETWORK_TYPE --id-only)
         echo "Sending $NEED_CYCLES_TARGET cycles to $MAINER"
-        dfx wallet send $CANISTER_ID $NEED_CYCLES_TARGET --network $NETWORK_TYPE
+        icp canister call jh35u-eqaaa-aaaag-abf3a-cai wallet_send "(record { canister = principal \"$CANISTER_ID\"; amount = $NEED_CYCLES_TARGET : nat64 })" -e $NETWORK_TYPE
     else
         echo "No need to send cycles to $MAINER. Balance = $(echo "scale=2; $CURRENT_BALANCE / 1000000000000" | bc) TCycles"
     fi

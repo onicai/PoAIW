@@ -36,7 +36,7 @@ echo "Using network type: $NETWORK_TYPE"
 echo " "
 echo "--------------------------------------------------"
 echo "Checking readiness endpoint"
-output=$(dfx canister call judge_ctrlb_canister ready --network $NETWORK_TYPE)
+output=$(icp canister call judge_ctrlb_canister ready '()' -e $NETWORK_TYPE)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
     echo "judge_ctrlb_canister is not ready. Exiting."

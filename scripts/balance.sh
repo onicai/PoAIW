@@ -44,29 +44,29 @@ echo "Using network type: $NETWORK_TYPE"
 
 #######################################################################
 echo "==========================================="
-echo "dfx identity"
-dfx identity whoami; echo " "
+echo "icp identity"
+icp identity default; echo " "
 
 echo "==========================================="
 echo "Wallet balance"
-dfx wallet --network $NETWORK_TYPE balance; echo " "
+icp canister call jh35u-eqaaa-aaaag-abf3a-cai wallet_balance '()' -e $NETWORK_TYPE --query; echo " "
 
 echo "==========================================="
 cd src/GameState
 echo "Balance of GameState canister:"
-dfx canister status game_state_canister --network $NETWORK_TYPE 2>&1 | grep "Balance:"; echo " "
+icp canister status game_state_canister -e $NETWORK_TYPE 2>&1 | grep "Cycles:"; echo " "
 
 echo "==========================================="
 cd ../Challenger
 echo "Balance of Challenger canister:"
-dfx canister status challenger_ctrlb_canister --network $NETWORK_TYPE 2>&1 | grep "Balance:"; echo " "
+icp canister status challenger_ctrlb_canister -e $NETWORK_TYPE 2>&1 | grep "Cycles:"; echo " "
 
 echo "==========================================="
 cd ../mAIner
 
 MAINER="mainer_service_canister"
 echo "Balance of $MAINER:"
-dfx canister status $MAINER --network $NETWORK_TYPE 2>&1 | grep "Balance:"; echo " "
+icp canister status $MAINER -e $NETWORK_TYPE 2>&1 | grep "Cycles:"; echo " "
 
 mainer_id_start=0
 mainer_id_end=$((NUM_MAINERS_DEPLOYED - 1))
@@ -75,14 +75,14 @@ for m in $(seq $mainer_id_start $mainer_id_end)
 do
     MAINER="mainer_ctrlb_canister_$m"
     echo "Balance of $MAINER:"
-    dfx canister status $MAINER --network $NETWORK_TYPE 2>&1 | grep "Balance:"; echo " "
+    icp canister status $MAINER -e $NETWORK_TYPE 2>&1 | grep "Cycles:"; echo " "
 done
 
 
 echo "==========================================="
 cd ../Judge
 echo "Balance of Judge canister:"
-dfx canister status judge_ctrlb_canister --network $NETWORK_TYPE 2>&1 | grep "Balance:"; echo " "
+icp canister status judge_ctrlb_canister -e $NETWORK_TYPE 2>&1 | grep "Cycles:"; echo " "
 
 echo "==========================================="
 cd ../../llms/Challenger

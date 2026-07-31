@@ -46,14 +46,14 @@ echo "Using network type: $NETWORK_TYPE"
 echo "==========================================="
 cd src/Challenger
 echo "Stopping timer for Challenger:"
-dfx canister call challenger_ctrlb_canister stopTimerExecutionAdmin --network $NETWORK_TYPE
+icp canister call challenger_ctrlb_canister stopTimerExecutionAdmin '()' -e $NETWORK_TYPE
 
 # echo "==========================================="
 # cd ../mAIner
 
 # MAINER="mainer_service_canister"
 # echo "Stopping timer for $MAINER:"
-# dfx canister call $MAINER stopTimerExecutionAdmin --network $NETWORK_TYPE
+# icp canister call $MAINER stopTimerExecutionAdmin '()' -e $NETWORK_TYPE
 
 
 # mainer_id_start=0
@@ -63,11 +63,11 @@ dfx canister call challenger_ctrlb_canister stopTimerExecutionAdmin --network $N
 # do
 #     MAINER="mainer_ctrlb_canister_$m"
 #     echo "Stopping timer for $MAINER:"
-#     dfx canister call $MAINER stopTimerExecutionAdmin --network $NETWORK_TYPE
+#     icp canister call $MAINER stopTimerExecutionAdmin '()' -e $NETWORK_TYPE
 # done
 
 echo "==========================================="
 cd ../Judge
 echo "Stopping timer for Judge:"
-dfx canister call judge_ctrlb_canister stopTimerExecutionAdmin --network $NETWORK_TYPE
+icp canister call judge_ctrlb_canister stopTimerExecutionAdmin '()' -e $NETWORK_TYPE
 

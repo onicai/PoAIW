@@ -55,5 +55,5 @@ for i in $(seq $llm_id_start $llm_id_end)
 do
     echo "==================================================="
     echo "Calling log_resume for llm_$i"
-    dfx canister call llm_$i log_resume  --network $NETWORK_TYPE
+    icp canister call llm_$i log_resume '()' -e $NETWORK_TYPE
 done

@@ -47,7 +47,7 @@ do
     echo " "
     echo "--------------------------------------------------"
     echo "Checking health endpoint for llm_$i"
-    output=$(dfx canister call llm_$i health --network $NETWORK_TYPE )
+    output=$(icp canister call llm_$i health '()' -e $NETWORK_TYPE --query)
 
     if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
         echo "llm_$i health check failed."
@@ -60,9 +60,9 @@ do
     echo " "
     echo "--------------------------------------------------"
     echo "Calling load_model for llm_$i"
-    output=$(dfx canister call llm_$i load_model \
+    output=$(icp canister call llm_$i load_model \
             '(record { args = vec {"--model"; "models/model.gguf"} })' \
-            --network "$NETWORK_TYPE")
+            -e "$NETWORK_TYPE")
 
     if ! echo "$output" | grep -q " Ok "; then
         echo "llm_$i load_model failed."

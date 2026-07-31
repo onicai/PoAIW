@@ -55,18 +55,18 @@ echo "Deploying the game_state_canister"
 
 if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ] || [ "$NETWORK_TYPE" = "demo" ] || [ "$NETWORK_TYPE" = "prd" ]; then
     if [ "$SUBNET" = "none" ]; then
-        dfx deploy game_state_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
+        icp deploy game_state_canister -m $DEPLOY_MODE -e $NETWORK_TYPE -y
     else
-        dfx deploy game_state_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE --subnet $SUBNET
+        icp deploy game_state_canister -m $DEPLOY_MODE --subnet $SUBNET -e $NETWORK_TYPE -y
     fi
 else
-    dfx deploy game_state_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
+    icp deploy game_state_canister -m $DEPLOY_MODE -e $NETWORK_TYPE -y
 fi
 
 echo " "
 echo "--------------------------------------------------"
 echo "Checking health endpoint"
-output=$(dfx canister call game_state_canister health --network $NETWORK_TYPE)
+output=$(icp canister call game_state_canister health '()' -e $NETWORK_TYPE --query)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
     echo "game_state_canister is not healthy. Exiting."
@@ -78,17 +78,17 @@ fi
 echo " "
 echo "--------------------------------------------------"
 echo "Calling setCyclesFlowAdmin to calculate the CyclesFlow variables"
-dfx canister call game_state_canister setCyclesFlowAdmin '(record {})' --network $NETWORK_TYPE
+icp canister call game_state_canister setCyclesFlowAdmin '(record {})' -e $NETWORK_TYPE
 
 echo " "
 echo "Calling setCyclesFlowAdmin to get the CyclesFlow variables"
-dfx canister call game_state_canister getCyclesFlowAdmin --network $NETWORK_TYPE
+icp canister call game_state_canister getCyclesFlowAdmin '()' -e $NETWORK_TYPE
 
 if [ "$DEPLOY_MODE" != "upgrade" ]; then
     echo " "
     echo "--------------------------------------------------"
     echo "Setting initial challenge topics"
-    output=$(dfx canister call game_state_canister setInitialChallengeTopics --network $NETWORK_TYPE)
+    output=$(icp canister call game_state_canister setInitialChallengeTopics '()' -e $NETWORK_TYPE)
 
     if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
         echo "setInitialChallengeTopics failed. Exiting."
@@ -101,4 +101,4 @@ fi
 echo " "
 echo "--------------------------------------------------"
 echo "Generating bindings for a frontend"
-dfx generate
+# (dfx generate dropped: icp-cli has no equivalent and src/declarations/ is committed)

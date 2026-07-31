@@ -50,18 +50,18 @@ llm_id_start=0
 llm_id_end=$((NUM_LLMS_DEPLOYED - 1))
 
 echo " "
-echo "- dfx identity"
-dfx identity whoami
+echo "- icp identity"
+icp identity default
 
 for i in $(seq $llm_id_start $llm_id_end)
 do
     echo " "
 	echo "- llm_$i "
-    dfx canister status llm_$i --network $NETWORK_TYPE 2>&1 | grep "Memory Size: "
+    icp canister status llm_$i -e $NETWORK_TYPE 2>&1 | grep "Memory Size: "
 done
 
 echo " "
 echo "- CANISTER_ID_JUDGE_CTRLB_CANISTER: $CANISTER_ID_JUDGE_CTRLB_CANISTER"
-dfx canister status $CANISTER_ID_JUDGE_CTRLB_CANISTER --network $NETWORK_TYPE 2>&1 | grep "Memory Size: "
+icp canister status $CANISTER_ID_JUDGE_CTRLB_CANISTER -e $NETWORK_TYPE 2>&1 | grep "Memory Size: "
 
 echo " "

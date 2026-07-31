@@ -63,17 +63,17 @@ echo "Deploying the mainer_creator_canister"
 
 if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ] || [ "$NETWORK_TYPE" = "demo" ] || [ "$NETWORK_TYPE" = "prd" ]; then
     if [ "$SUBNET" = "none" ]; then
-        dfx deploy mainer_creator_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
+        icp deploy mainer_creator_canister -m $DEPLOY_MODE -e $NETWORK_TYPE -y
     else
-        dfx deploy mainer_creator_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE --subnet $SUBNET
+        icp deploy mainer_creator_canister -m $DEPLOY_MODE --subnet $SUBNET -e $NETWORK_TYPE -y
     fi
 else
-    dfx deploy mainer_creator_canister --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
+    icp deploy mainer_creator_canister -m $DEPLOY_MODE -e $NETWORK_TYPE -y
 fi
 
 echo " "
 echo "Checking health endpoint"
-output=$(dfx canister call mainer_creator_canister health --network $NETWORK_TYPE)
+output=$(icp canister call mainer_creator_canister health '()' -e $NETWORK_TYPE --query)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
     echo "mainer_creator_canister is not healthy. Exiting."
@@ -84,7 +84,7 @@ fi
 
 # echo " "
 # echo "Generate the bindings for the upload scripts"
-dfx generate
+# (dfx generate dropped: icp-cli has no equivalent and src/declarations/ is committed)
 CANDID="src/declarations/mainer_creator_canister/mainer_creator_canister.did"
 echo " "
 echo "Using the candid file: $CANDID"

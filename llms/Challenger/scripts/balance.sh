@@ -46,5 +46,5 @@ for i in $(seq $llm_id_start $llm_id_end)
 do
 	echo " "
     echo "- llm_$i "
-    dfx canister status llm_$i --network $NETWORK_TYPE 2>&1 | grep "Balance:"; echo " "
+    icp canister status llm_$i -e $NETWORK_TYPE 2>&1 | grep "Cycles:"; echo " "
 done

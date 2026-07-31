@@ -95,7 +95,7 @@ echo "$MAINER of type $MAINER_CANISTER_TYPE with id $CANISTER_ID_MAINER_SERVICE_
 
 echo " "
 echo "Checking health endpoint for $MAINER"
-output=$(dfx canister call $MAINER health --network $NETWORK_TYPE)
+output=$(icp canister call $MAINER health '()' -e $NETWORK_TYPE --query)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
     echo "$MAINER is not healthy. Exiting."
@@ -106,7 +106,7 @@ fi
 
 echo " "
 echo "Calling reset_llm_canisters."
-output=$(dfx canister call $MAINER reset_llm_canisters --network $NETWORK_TYPE)
+output=$(icp canister call $MAINER reset_llm_canisters '()' -e $NETWORK_TYPE)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
     echo "Error calling reset_llm_canisters. Exiting."
@@ -118,7 +118,7 @@ do
     CANISTER_ID_LLM=${CANISTER_ID_LLMS[$i]}
     echo " "
     echo "registering LLM $i ($CANISTER_ID_LLM) with $MAINER"
-    output=$(dfx canister call $MAINER add_llm_canister "(record { canister_id = \"$CANISTER_ID_LLM\" })" --network $NETWORK_TYPE)
+    output=$(icp canister call $MAINER add_llm_canister "(record { canister_id = \"$CANISTER_ID_LLM\" })" -e $NETWORK_TYPE)
 
     if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
         echo "Error calling add_llm_canister for $CANISTER_ID_LLM. Exiting."
@@ -129,7 +129,7 @@ done
 
 echo " "
 echo "Setting NUM_LLMS_ROUND_ROBIN to $NUM_LLMS_ROUND_ROBIN for $MAINER"
-output=$(dfx canister call $MAINER setRoundRobinLLMs "($NUM_LLMS_ROUND_ROBIN)" --network $NETWORK_TYPE)
+output=$(icp canister call $MAINER setRoundRobinLLMs "($NUM_LLMS_ROUND_ROBIN)" -e $NETWORK_TYPE)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
     echo "setRoundRobinLLMs call failed. Exiting."
@@ -155,7 +155,7 @@ do
 
     echo " "
     echo "Checking health endpoint for $MAINER"
-    output=$(dfx canister call $MAINER health --network $NETWORK_TYPE)
+    output=$(icp canister call $MAINER health '()' -e $NETWORK_TYPE --query)
 
     if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
         echo "$MAINER is not healthy. Exiting."
@@ -166,7 +166,7 @@ do
 
     if [ "$MAINER_CANISTER_TYPE" = "Own" ]; then
         echo "Calling reset_llm_canisters."
-        output=$(dfx canister call $MAINER reset_llm_canisters --network $NETWORK_TYPE)
+        output=$(icp canister call $MAINER reset_llm_canisters '()' -e $NETWORK_TYPE)
 
         if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
             echo "Error calling reset_llm_canisters. Exiting."
@@ -177,7 +177,7 @@ do
         do
             CANISTER_ID_LLM=${CANISTER_ID_LLMS[$i]}
             echo "registering LLM $i ($CANISTER_ID_LLM) with $MAINER"
-            output=$(dfx canister call $MAINER add_llm_canister "(record { canister_id = \"$CANISTER_ID_LLM\" })" --network $NETWORK_TYPE)
+            output=$(icp canister call $MAINER add_llm_canister "(record { canister_id = \"$CANISTER_ID_LLM\" })" -e $NETWORK_TYPE)
 
             if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
                 echo "Error calling add_llm_canister for $CANISTER_ID_LLM. Exiting."
@@ -188,7 +188,7 @@ do
 
         echo " "
         echo "Setting NUM_LLMS_ROUND_ROBIN to $NUM_LLMS_ROUND_ROBIN  for $MAINER"
-        output=$(dfx canister call $MAINER setRoundRobinLLMs "($NUM_LLMS_ROUND_ROBIN)" --network $NETWORK_TYPE)
+        output=$(icp canister call $MAINER setRoundRobinLLMs "($NUM_LLMS_ROUND_ROBIN)" -e $NETWORK_TYPE)
 
         if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
             echo "setRoundRobinLLMs call failed. Exiting."
@@ -197,7 +197,7 @@ do
     elif [ "$MAINER_CANISTER_TYPE" = "ShareAgent" ]; then
         # ------------
         echo "Registering mainer_service_canister ($CANISTER_ID_MAINER_SERVICE_CANISTER) with $MAINER"
-        output=$(dfx canister call $MAINER setShareServiceCanisterId "(\"$CANISTER_ID_MAINER_SERVICE_CANISTER\")" --network $NETWORK_TYPE)
+        output=$(icp canister call $MAINER setShareServiceCanisterId "(\"$CANISTER_ID_MAINER_SERVICE_CANISTER\")" -e $NETWORK_TYPE)
 
         if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
             echo "Error calling setShareServiceCanisterId for $CANISTER_ID_MAINER_SERVICE_CANISTER. Exiting."
@@ -206,8 +206,8 @@ do
 
         # ------------
         echo "Registering $MAINER ($MAINER_CANISTER_ID) with the mainer_service_canister"
-        MYPRINCIPAL=$(dfx identity get-principal | tr -d '\n')
-        output=$(dfx canister call mainer_service_canister addMainerShareAgentCanisterAdmin "(record { address = \"$MAINER_CANISTER_ID\"; canisterType = variant {MainerAgent}; ownedBy = principal \"$MYPRINCIPAL\" })" --network $NETWORK_TYPE)
+        MYPRINCIPAL=$(icp identity principal | tr -d '\n')
+        output=$(icp canister call mainer_service_canister addMainerShareAgentCanisterAdmin "(record { address = \"$MAINER_CANISTER_ID\"; canisterType = variant {MainerAgent}; ownedBy = principal \"$MYPRINCIPAL\" })" -e $NETWORK_TYPE)
         
         if [[ "$output" != *"Ok = record"* ]]; then
             if [[ "$output" != "(variant { Err = variant { Other = \"Canister entry already exists\" } })" ]]; then
