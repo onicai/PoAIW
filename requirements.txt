@@ -1,2 +1,5 @@
-icpp-pro>=5.3.1
+# 5.6.0 is the first release whose smoketest framework drives icp-cli instead of the
+# deprecated dfx: it takes `icp_yaml_path=` (not `dfx_json_path=`), resolves canister ids
+# from .icp/data/mappings/, and needs Python >= 3.11.
+icpp-pro>=5.6.0
 bitcoin-utils>=0.6.8

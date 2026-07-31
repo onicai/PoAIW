@@ -1,12 +1,16 @@
 # Reproducible build configuration for Challenger canister
-# Tool versions - update these when upgrading
+# Tool versions - update these when upgrading.
+# MOC_VERSION must match the `[toolchain] moc` pin in ../mops.toml: that is what
+# selects the compiler, and therefore the module hash.
 x-versions:
-  dfx: &dfx 0.29.2
-  mops: &mops 2.0.0
+  icp: &icp 1.2.0
+  mops: &mops 2.13.2
+  moc: &moc 1.4.1
 
 x-base-image:
-  # Base image naming convention: {repo}-build:dfx-{version} (repo=PoAIW, lowercase for Docker)
-  name: &base_name "poaiw-build:dfx-0.29.2"
+  # Base image naming convention: {repo}-build:icp-{version}-moc-{version}
+  # (repo=PoAIW, lowercase for Docker)
+  name: &base_name "poaiw-build:icp-1.2.0-moc-1.4.1"
 
 services:
   base:
@@ -14,8 +18,9 @@ services:
       context: ../../docker
       dockerfile: Dockerfile.base
       args:
-        DFX_VERSION: *dfx
+        ICP_VERSION: *icp
         MOPS_VERSION: *mops
+        MOC_VERSION: *moc
     image: *base_name
   # Image naming convention: {repo}-{canister_name}-wasm:latest (repo=PoAIW, lowercase for Docker)
   wasm:
@@ -27,6 +32,4 @@ services:
         IMAGE: *base_name
     volumes:
       - ../out:/app/Challenger/out
-    environment:
-      DFX_WARNING: "-mainnet_plaintext_identity"
     command: bash scripts/build.sh

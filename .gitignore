@@ -17,9 +17,25 @@ CLAUDE.md
 .DS_Store
 **/.DS_Store
 
-# dfx temporary files
+# dfx temporary files.
+# TODO: delete these two lines once the last canister is off dfx -- they only exist so
+# that leftover .dfx/ dirs of not-yet-migrated canisters stay out of the way.
 .dfx/
 **/.dfx/
+
+# icp-cli state.
+#
+# ONLY the cache is disposable: it holds build artifacts and the ids of canisters on the
+# throwaway local network. `.icp/data/mappings/<env>.ids.json` holds the MAINNET canister
+# ids -- the replacement for canister_ids.json -- and MUST be committed.
+#
+# The `**/` prefix is required, not cosmetic: a pattern containing a slash is anchored to
+# the directory of this .gitignore, so a bare `.icp/cache/` would silently miss every
+# nested project (src/*/, llms/*/).
+**/.icp/cache/
+
+# mops build output (the @dfinity/motoko recipe writes here before icp-cli shrinks it)
+**/.mops/.build/
 
 # generated files
 **/declarations/
