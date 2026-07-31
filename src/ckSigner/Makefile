@@ -34,15 +34,19 @@ help:
 # the mainnet canister ids.
 #
 # icp-cli also does not auto-create a `default` identity the way dfx did, and icpp-pro's
-# test fixtures need one. `--storage plaintext` is required: a keyring-backed identity
-# makes `icp identity export` prompt for a password and hang the test run.
+# test fixtures need one to EXIST. `--storage plaintext` is required: a keyring-backed
+# identity makes `icp identity export` prompt for a password and hang the test run.
+#
+# It is created but NOT switched to. `icp identity default <x>` is global and persistent,
+# so switching here would silently clobber the identity you use for mainnet work, leaving
+# you running as a non-controller afterwards. The canister is deployed as whatever identity
+# you already have active -- which is also the one the tests assert as.
 .PHONY: smoketest
 smoketest:
 	-icp network stop
 	rm -rf .icp/cache
 	icp network start -d
 	icp identity new default --storage plaintext 2>/dev/null || true
-	icp identity default default
 	$(MAKE) docker-build-wasm
 	icp canister create $(CANISTER_NAME) -e local
 	icp canister install $(CANISTER_NAME) --wasm out/$(CANISTER_NAME).wasm \
