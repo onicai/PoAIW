@@ -39,11 +39,22 @@ Install mops (https://mops.one/docs/install), and then:
 mops install
 ```
 
-## Install dfx
+## Install icp-cli
+
+dfx is deprecated; icp-cli (`icp`) replaces it. `@icp-sdk/ic-wasm` is not optional -- the
+Motoko build recipe shells out to it -- and both it and `moc` are pinned because each one
+changes the module hash.
 
 ```bash
-sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
+npm install -g @icp-sdk/icp-cli@1.2.0 @icp-sdk/ic-wasm@0.11.0 ic-mops@2.13.2
+mops toolchain use moc 1.4.1
+
+node --version   # must be >= 22
+icp --version    # 1.2.0
 ```
+
+See `funnAI/README-developer-migration-guide-from-dfx-to-icp-cli.md` for the identity
+setup and the full dfx -> icp command translation.
 
 # Download the LLMs from HuggingFace
 
@@ -94,26 +105,26 @@ controller > AdminUpdate > AdminQuery
 
 ## Management Endpoints (Controller-Only)
 
-| Endpoint           | Description                        |
-| ------------------ | ---------------------------------- |
-| `assignAdminRole`  | Assign an admin role to a principal |
-| `revokeAdminRole`  | Revoke an admin role from a principal |
-| `getAdminRoles`    | List all admin role assignments    |
+| Endpoint          | Description                           |
+| ----------------- | ------------------------------------- |
+| `assignAdminRole` | Assign an admin role to a principal   |
+| `revokeAdminRole` | Revoke an admin role from a principal |
+| `getAdminRoles`   | List all admin role assignments       |
 
 ## Usage Examples
 
 ```bash
 # Assign AdminQuery role
-dfx canister --network $NETWORK call <canister> assignAdminRole \
+icp canister call <canister> assignAdminRole \ -e $NETWORK
   '( record { "principal" = "<principal-id>"; role = variant { AdminQuery }; note = "Description" } )'
 
 # Assign AdminUpdate role
-dfx canister --network $NETWORK call <canister> assignAdminRole \
+icp canister call <canister> assignAdminRole \ -e $NETWORK
   '( record { "principal" = "<principal-id>"; role = variant { AdminUpdate }; note = "Description" } )'
 
 # List all admin role assignments
-dfx canister --network $NETWORK call <canister> getAdminRoles
+icp canister call <canister -e $NETWORK > getAdminRoles
 
 # Revoke an admin role
-dfx canister --network $NETWORK call <canister> revokeAdminRole '( "<principal-id>" )'
+icp canister call <canister> revokeAdminRole '( "<principal-id>" )' -e $NETWORK
 ```
