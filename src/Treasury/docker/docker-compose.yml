@@ -1,12 +1,20 @@
 # Reproducible build configuration for Treasury canister
-# Tool versions - update these when upgrading
+# Tool versions - update these when upgrading.
+#
+# Two of these directly determine the module hash and must be kept in sync with the local
+# toolchain, or a local `icp build` will not reproduce the Docker build:
+#   moc     - must match the `[toolchain] moc` pin in ../mops.toml
+#   ic-wasm - its `shrink` pass rewrites the element section
 x-versions:
-  dfx: &dfx 0.29.2
-  mops: &mops 2.0.0
+  icp: &icp 1.2.0
+  mops: &mops 2.13.2
+  moc: &moc 1.4.1
+  icwasm: &icwasm 0.11.0
 
 x-base-image:
-  # Base image naming convention: {repo}-build:dfx-{version} (repo=PoAIW, lowercase for Docker)
-  name: &base_name "poaiw-build:dfx-0.29.2"
+  # Base image naming convention: {repo}-build:icp-{version}-moc-{version}
+  # (repo=PoAIW, lowercase for Docker)
+  name: &base_name "poaiw-build:icp-1.2.0-moc-1.4.1"
 
 services:
   base:
@@ -14,8 +22,10 @@ services:
       context: ../../docker
       dockerfile: Dockerfile.base
       args:
-        DFX_VERSION: *dfx
+        ICP_VERSION: *icp
         MOPS_VERSION: *mops
+        MOC_VERSION: *moc
+        ICWASM_VERSION: *icwasm
     image: *base_name
   # Image naming convention: {repo}-{canister_name}-wasm:latest (repo=PoAIW, lowercase for Docker)
   wasm:
@@ -28,5 +38,6 @@ services:
     volumes:
       - ../out:/app/Treasury/out
     environment:
-      DFX_WARNING: "-mainnet_plaintext_identity"
+      # Keep the reproducible build hermetic: no usage telemetry from inside it.
+      DO_NOT_TRACK: "1"
     command: bash scripts/build.sh

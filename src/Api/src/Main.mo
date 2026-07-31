@@ -1308,28 +1308,30 @@ persistent actor class ApiCanister() = this {
             };
             case (?q) {
                 // Filter by date range if specified
+                // `keep`, not `include`: `include` became a reserved keyword in moc 1.4.1
+                // (mixins), so the old name no longer parses. Behaviour is unchanged.
                 sortedMetrics := Array.filter<Types.DailyMetric>(sortedMetrics, func(metric) {
-                    var include = true;
-                    
+                    var keep = true;
+
                     switch (q.start_date) {
                         case (?startDate) {
                             if (isValidDateFormat(startDate) and compareDates(metric.metadata.date, startDate) < 0) {
-                                include := false;
+                                keep := false;
                             };
                         };
                         case null {};
                     };
-                    
+
                     switch (q.end_date) {
                         case (?endDate) {
                             if (isValidDateFormat(endDate) and compareDates(metric.metadata.date, endDate) > 0) {
-                                include := false;
+                                keep := false;
                             };
                         };
                         case null {};
                     };
-                    
-                    include
+
+                    keep
                 });
                 
                 // Apply limit if specified

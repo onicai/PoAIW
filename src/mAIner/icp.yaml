@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=https://github.com/dfinity/icp-cli/raw/refs/tags/v1.2.0/docs/schemas/icp-yaml-schema.json
+#
+# icp-cli project configuration. Replaces the legacy `dfx.json`, because dfx is deprecated.
+#
+# The @dfinity/motoko recipe compiles via `mops build mainer_service_canister`, so the
+# canister `name` below must exactly match the `[canisters.<name>]` key in mops.toml, and
+# the moc version comes from mops.toml's `[toolchain]`.
+#
+# NOTE: the 744 `mainer_ctrlb_canister_N` canisters are deliberately NOT declared here.
+# They share this same wasm but are created and upgraded by principal
+# (`icp canister install <principal> --wasm ... `), which needs no icp.yaml entry.
+# Their ids live in the ops registry `mainer_ids.json`.
+
+canisters:
+  - name: mainer_service_canister
+    recipe:
+      type: '@dfinity/motoko@v5.0.0'
+      configuration:
+        # Pinned explicitly rather than inherited: shrink defaults to OFF, and turning it
+        # on changes the module hash, so it must be a property of this repo rather than of
+        # whichever recipe version happens to resolve.
+        shrink: true
+
+  # Declared ONLY so the local smoketest can stand up a second instance to run
+  # test_mainer_ctrlb_canister_0.py against; it shares mainer_service_canister's wasm.
+  #
+  # Deliberately has NO entry in .icp/data/mappings/<env>.ids.json: like the other 743
+  # mainer_ctrlb_canister_N it is addressed by principal in production, and all 744
+  # mainnet ids live in the ops registry mainer_ids.json.
+  #
+  # Because of that, `icp deploy -e <mainnet-env>` with no canister argument would try to
+  # CREATE it. Never run a bare deploy against prd/testing/development/demo/backup here --
+  # always name the canister, or install by principal.
+  - name: mainer_ctrlb_canister_0
+    recipe:
+      type: '@dfinity/motoko@v5.0.0'
+      configuration:
+        shrink: true
+
+networks:
+  # A project-local replica, started with `icp network start`. icp-cli runs one local
+  # network per project (keyed by project root), so this does not collide with the
+  # replicas of the other canister projects in this repo, or of other worktrees.
+  #
+  # `port: 0` lets the OS assign a free ephemeral port, so parallel projects cannot fight
+  # over the default 8000 either. The port therefore changes on every start: never
+  # hardcode it, read it back with `icp network status -e local --json`.
+  - name: local
+    mode: managed
+    gateway:
+      port: 0
+
+environments:
+  # `--network <env>` in the Makefiles, scripts and pytest now names one of these.
+  #
+  # These names were dfx "networks" that ALL pointed at https://icp0.io, i.e. they were
+  # never separate networks -- only separate canister-id namespaces. Under icp-cli that is
+  # exactly what an environment is, so each gets its own
+  # .icp/data/mappings/<env>.ids.json. `prd` is this project's mainnet convention.
+  - name: local
+    network: local
+  - name: prd
+    network: ic
+  - name: testing
+    network: ic
+  - name: development
+    network: ic
+  - name: demo
+    network: ic
+  - name: backup
+    network: ic
+  - name: ic
+    network: ic

@@ -1,5 +1,12 @@
+[toolchain]
+moc = "1.4.1"
+
 [dependencies]
 base = "0.13.5"
 hex = "https://github.com/letmejustputthishere/motoko-hex#master"
 uuid = "https://github.com/aviate-labs/uuid.mo#v0.2.0"
 sha2 = "0.0.2"
+
+[canisters.mainer_creator_canister]
+main = "src/Main.mo"
+args = ["--enhanced-orthogonal-persistence"]

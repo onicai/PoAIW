@@ -13,8 +13,11 @@ on:
         default: prd
 
 env:
-  DFX_VERSION: "0.29.2"
-  DFX_WARNING: "-mainnet_plaintext_identity"
+  # Keep in sync with the x-versions block in each src/*/docker/docker-compose.yml.
+  ICP_VERSION: "1.2.0"
+  MOPS_VERSION: "2.13.2"
+  MOC_VERSION: "1.4.1"
+  DO_NOT_TRACK: "1"
 
 jobs:
   verify-wasm:
@@ -49,23 +52,27 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: install dfx
-        run: |
-          set -euo pipefail
-          DFXVM_INIT_YES=true sh -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
-          source "$HOME/.local/share/dfx/env"
-          echo "$HOME/.local/share/dfx/bin" >> $GITHUB_PATH
-          dfxvm default $DFX_VERSION
+      # The icp-cli binary links against libdbus/libssl.
+      - name: install icp-cli system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-3 libssl3 ca-certificates
 
-      - name: create default identity
-        run: dfx identity get-principal > /dev/null 2>&1
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: install icp-cli
+        run: npm install -g "@icp-sdk/icp-cli@$ICP_VERSION" "@icp-sdk/ic-wasm"
+
+      # No identity is needed: `icp canister status <id> -n ic -p` reads the public state
+      # tree, so the hash lookup works without being a controller.
 
       - name: versions
         run: |
           echo "Runner OS   : $RUNNER_OS"
           echo "Architecture: $(uname -m)"
           echo "OS version  : $(lsb_release -d 2>/dev/null | cut -f2)"
-          echo "dfx version : $(dfx --version)"
+          echo "icp version : $(icp --version)"
           echo "Docker      : $(docker --version)"
 
       - name: clean docker build cache
@@ -79,6 +86,11 @@ jobs:
         working-directory: src/${{ matrix.canister }}
         run: make docker-build-wasm
 
+      # EXPECTED TO FAIL until each canister is redeployed with an icp-built wasm.
+      # The dfx -> icp-cli migration changed the build chain (moc now comes from
+      # mops.toml, and ic-wasm shrink rewrites the element section), so every hash moved.
+      # Redeploying is a separate project -- see WASM-HASHES.md, which tracks the new
+      # expected hash and the not-yet-redeployed state per canister.
       - name: verify wasm hash matches deployed canister
         working-directory: src/${{ matrix.canister }}
         run: make docker-verify-wasm VERIFY_NETWORK=${{ inputs.network }}
