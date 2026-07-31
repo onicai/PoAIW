@@ -2,8 +2,7 @@
 
 First deploy the canister:
 $ icp network start -d
-$ dfx deploy --network local
-
+$ icp deploy -e local -y
 Then run all the tests:
 $ pytest -vv --exitfirst --network local test/test_api_canister.py
 

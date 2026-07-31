@@ -209,7 +209,7 @@ def check_canister_status(network: str, canister_id: str, owner: str,
     """Check the full status of a single mAIner canister.
 
     Detection order:
-    1. dfx canister info → check Module hash (uninstalled/frozen)
+    1. icp canister status -p → check Module hash (uninstalled/frozen)
     2. health endpoint → healthy/maintenance/stopped/frozen/unavailable
     """
     result = {

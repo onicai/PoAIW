@@ -62,7 +62,7 @@ def main() -> int:
 
     if canister_id == "":
         canister_id = run_dfx_command(
-            f"dfx canister --network {network} id {canister_name} "
+            f"icp canister status {canister_name} -e {network} --id-only "
         )
 
     print(

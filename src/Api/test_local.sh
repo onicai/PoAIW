@@ -9,36 +9,36 @@ echo "============================================"
 # Deploy the canister
 echo ""
 echo "1. Deploying API canister..."
-dfx deploy api_canister
+icp deploy api_canister -e local -y
 
 # Get the canister ID
-CANISTER_ID=$(dfx canister id api_canister)
+CANISTER_ID=$(icp canister status api_canister -e local --id-only)
 echo "Canister deployed with ID: $CANISTER_ID"
 
 # Test health endpoint
 echo ""
 echo "2. Testing health endpoint..."
-dfx canister call api_canister health
+icp canister call api_canister health '()' -e local
 
 # Test whoami endpoint
 echo ""
 echo "3. Testing whoami endpoint..."
-dfx canister call api_canister whoami
+icp canister call api_canister whoami '()' -e local
 
 # Test controller check
 echo ""
 echo "4. Testing controller check..."
-dfx canister call api_canister amiController
+icp canister call api_canister amiController '()' -e local
 
 # Get initial metrics count
 echo ""
 echo "5. Getting initial metrics count..."
-dfx canister call api_canister getNumDailyMetrics
+icp canister call api_canister getNumDailyMetrics '()' -e local
 
 # Create a test daily metric
 echo ""
 echo "6. Creating test daily metric for 2025-09-08..."
-dfx canister call api_canister createDailyMetricAdmin '(record {
+icp canister call api_canister createDailyMetricAdmin '(record {
     date = "2025-09-08";
     funnai_index = 0.32;
     daily_burn_rate_cycles = 1365;
@@ -57,12 +57,12 @@ dfx canister call api_canister createDailyMetricAdmin '(record {
     paused_high_burn_rate_mainers = 135;
     paused_very_high_burn_rate_mainers = 0;
     paused_custom_burn_rate_mainers = 0;
-})'
+})' -e local
 
 # Create another test metric
 echo ""
 echo "7. Creating test daily metric for 2025-09-07..."
-dfx canister call api_canister createDailyMetricAdmin '(record {
+icp canister call api_canister createDailyMetricAdmin '(record {
     date = "2025-09-07";
     funnai_index = 0.28;
     daily_burn_rate_cycles = 1289;
@@ -81,41 +81,41 @@ dfx canister call api_canister createDailyMetricAdmin '(record {
     paused_high_burn_rate_mainers = 141;
     paused_very_high_burn_rate_mainers = 0;
     paused_custom_burn_rate_mainers = 0;
-})'
+})' -e local
 
 # Get metrics count after creation
 echo ""
 echo "8. Getting metrics count after creation..."
-dfx canister call api_canister getNumDailyMetrics
+icp canister call api_canister getNumDailyMetrics '()' -e local
 
 # Get latest metric
 echo ""
 echo "9. Getting latest daily metric..."
-dfx canister call api_canister getLatestDailyMetric
+icp canister call api_canister getLatestDailyMetric '()' -e local
 
 # Get specific metric by date
 echo ""
 echo "10. Getting metric for specific date (2025-09-07)..."
-dfx canister call api_canister getDailyMetricByDate '("2025-09-07")'
+icp canister call api_canister getDailyMetricByDate '("2025-09-07")' -e local
 
 # Get all metrics (public endpoint without params)
 echo ""
 echo "11. Getting daily metrics (public endpoint - latest only)..."
-dfx canister call api_canister getDailyMetrics 'null'
+icp canister call api_canister getDailyMetrics 'null' -e local
 
 # Get metrics with date range
 echo ""
 echo "12. Getting metrics with date range..."
-dfx canister call api_canister getDailyMetrics '(opt record {
+icp canister call api_canister getDailyMetrics '(opt record {
     start_date = opt "2025-09-07";
     end_date = opt "2025-09-08";
     limit = null;
-})'
+})' -e local
 
 # Test update functionality
 echo ""
 echo "13. Updating metric for 2025-09-08..."
-dfx canister call api_canister updateDailyMetricAdmin '(record {
+icp canister call api_canister updateDailyMetricAdmin '(record {
     date = "2025-09-08";
     input = record {
         funnai_index = opt 0.35;
@@ -136,17 +136,17 @@ dfx canister call api_canister updateDailyMetricAdmin '(record {
         paused_very_high_burn_rate_mainers = null;
         paused_custom_burn_rate_mainers = null;
     }
-})'
+})' -e local
 
 # Get updated metric
 echo ""
 echo "14. Getting updated metric..."
-dfx canister call api_canister getDailyMetricByDate '("2025-09-08")'
+icp canister call api_canister getDailyMetricByDate '("2025-09-08")' -e local
 
 # Test bulk create
 echo ""
 echo "15. Testing bulk create..."
-dfx canister call api_canister bulkCreateDailyMetricsAdmin '(vec {
+icp canister call api_canister bulkCreateDailyMetricsAdmin '(vec {
     record {
         date = "2025-09-06";
         funnai_index = 0.25;
@@ -187,27 +187,27 @@ dfx canister call api_canister bulkCreateDailyMetricsAdmin '(vec {
         paused_very_high_burn_rate_mainers = 0;
         paused_custom_burn_rate_mainers = 0;
     };
-})'
+})' -e local
 
 # Get all metrics (admin endpoint)
 echo ""
 echo "16. Getting all metrics (admin endpoint)..."
-dfx canister call api_canister getDailyMetricsAdmin
+icp canister call api_canister getDailyMetricsAdmin '()' -e local
 
 # Get final count
 echo ""
 echo "17. Getting final metrics count..."
-dfx canister call api_canister getNumDailyMetrics
+icp canister call api_canister getNumDailyMetrics '()' -e local
 
 # Test delete functionality
 echo ""
 echo "18. Deleting metric for 2025-09-05..."
-dfx canister call api_canister deleteDailyMetricAdmin '("2025-09-05")'
+icp canister call api_canister deleteDailyMetricAdmin '("2025-09-05")' -e local
 
 # Verify deletion
 echo ""
 echo "19. Verifying deletion - getting count..."
-dfx canister call api_canister getNumDailyMetrics
+icp canister call api_canister getNumDailyMetrics '()' -e local
 
 echo ""
 echo "============================================"
