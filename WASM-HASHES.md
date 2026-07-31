@@ -29,7 +29,7 @@ for it — the "redeployed" boxes stay unticked until that project ticks them.
 | package manager     | `mops sources` via dfx  | ic-mops 2.13.2                       |
 | post-processing     | dfx internal            | `@icp-sdk/ic-wasm` 0.11.0 shrink     |
 | Node (build image)  | 20                      | 22                                   |
-| llama_cpp_canister  | v0.11.0                 | v0.15.0                              |
+| llama_cpp_canister  | v0.11.0                 | v0.11.0 (unchanged — see below)      |
 
 Both `moc` and `ic-wasm` are pinned because both change the module hash. Measured:
 ic-wasm 0.9.11 vs 0.11.0 produce wasms differing by 1288 bytes in the **element section**
@@ -94,8 +94,14 @@ Unaffected by the build-chain change — nothing in this repo rebuilds them.
 
 ## LLM fleet (llama_cpp_canister)
 
-All prd LLM canisters run the **vendored v0.11.0** wasm. Re-vendoring to v0.15.0 is a real
-functional upgrade (spanning 0.12.0 → 0.12.1 → 0.13.0 → 0.14.0 → 0.15.0), not a rebuild.
+All prd LLM canisters run the **vendored v0.11.0** wasm, and the dfx -> icp-cli migration
+left that untouched: `PoAIW/llms/llama_cpp_canister/` is still v0.11.0.
+
+Re-vendoring is a real functional upgrade, not a rebuild, so it is deliberately **not**
+part of the tooling migration. It is on hold for **v0.16.0**, which is expected shortly;
+v0.14.0 and v0.15.0 were skipped. When it happens it needs the full per-canister sequence
+(stop → snapshot → install → start → health → `load_model` → `set_max_tokens` → pause →
+re-`assignAdminRole` → re-register), proven locally first.
 
 | controller | canister | prd principal               |
 | ---------- | -------- | --------------------------- |
@@ -110,7 +116,10 @@ functional upgrade (spanning 0.12.0 → 0.12.1 → 0.13.0 → 0.14.0 → 0.15.0)
 | mAIner     | `llm_3`  | 6tx5a-raaaa-aaaan-q6hfa-cai |
 
 | | hash | redeployed |
-| ------------------------ | ------------------------------------------------------------------ | ---------- |
-| deployed (v0.11.0)       | `625bf21898eb892fc822bae294439a8da0f0b5ed6240911e41d03ea45c1e9798` | ☐ 0 / 9    |
-| v0.14.0 (for reference)  | `7ef7c0a1cd71717bef0641035b4b5be80f9f771e88a38de1c16d8dd114903f74` |            |
-| v0.15.0 (target)         | TBD — record the sha256 from the release zip                       |            |
+| ------------------------- | ------------------------------------------------------------------ | ---------- |
+| deployed AND vendored (v0.11.0) | `625bf21898eb892fc822bae294439a8da0f0b5ed6240911e41d03ea45c1e9798` | n/a        |
+| v0.14.0 (skipped)         | `7ef7c0a1cd71717bef0641035b4b5be80f9f771e88a38de1c16d8dd114903f74` |            |
+| v0.16.0 (awaited)         | TBD — record the sha256 from the release zip when it lands          | ☐ 0 / 9    |
+
+Because the vendored tree and the deployed canisters are both still v0.11.0, the LLM fleet
+is the one part of this repo where the local build and mainnet still agree.
