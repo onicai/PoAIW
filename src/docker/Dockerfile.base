@@ -6,10 +6,15 @@ FROM --platform=${PLATFORM} ubuntu:22.04@sha256:c7eb020043d8fc2ae0793fb35a37bff1
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install minimal dependencies
+# libdbus-1-3 and libssl3 are required by the icp-cli binary itself: without them it
+# fails at startup with "libdbus-1.so.3: cannot open shared object file". dfx did not
+# need them.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl=7.81.0-1ubuntu1.24 \
+    curl=7.81.0-1ubuntu1.25 \
     ca-certificates=20260601~22.04.1 \
     git=1:2.34.1-1ubuntu1.17 \
+    libdbus-1-3=1.12.20-2ubuntu4.1 \
+    libssl3=3.0.2-0ubuntu1.26 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js from NodeSource (pin major version).
@@ -24,23 +29,40 @@ RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
 # @icp-sdk/ic-wasm is NOT optional: the @dfinity/motoko recipe shells out to `ic-wasm`
 # to stamp the moc:version / template:type metadata and to shrink the module. Without
 # it the build fails with "ic-wasm not found".
+#
+# ic-wasm MUST be pinned, not floating: its `shrink` pass rewrites the element section, so
+# two ic-wasm versions produce two different module hashes from identical Motoko code
+# (measured: 0.9.11 vs 0.11.0 differ by 1288 bytes in the element section alone, with a
+# byte-identical code section).
 ARG ICP_VERSION
 ARG MOPS_VERSION
+ARG ICWASM_VERSION
 RUN npm install -g \
     @icp-sdk/icp-cli@${ICP_VERSION} \
-    @icp-sdk/ic-wasm \
+    @icp-sdk/ic-wasm@${ICWASM_VERSION} \
     ic-mops@${MOPS_VERSION}
 
 # Pre-populate the moc toolchain so the build itself does no network I/O.
 # This MUST match the `[toolchain] moc` pin in each canister's mops.toml -- that pin is
 # what actually selects the compiler, and therefore the wasm hash.
+#
+# `mops toolchain use` writes the pin into a mops.toml and refuses to run without one, so
+# seed from a throwaway project. The binary lands in the shared user-level mops cache
+# (~/.cache/mops), which every canister build then reuses.
 ARG MOC_VERSION
-RUN mops toolchain use moc ${MOC_VERSION}
+RUN mkdir -p /tmp/moc-seed \
+    && printf '[toolchain]\nmoc = "%s"\n' "${MOC_VERSION}" > /tmp/moc-seed/mops.toml \
+    && cd /tmp/moc-seed \
+    && mops toolchain use moc ${MOC_VERSION} \
+    && cp "$(mops toolchain bin moc)" /usr/local/bin/moc \
+    && rm -rf /tmp/moc-seed
 
 # No identity is created: building a wasm needs no identity under icp-cli.
 
-# Print versions for verification
-RUN echo "icp version:  $(icp --version)" \
-    && echo "node version: $(node --version)" \
-    && echo "mops version: $(mops --version)" \
-    && echo "moc version:  $($(mops toolchain bin moc) --version)"
+# Verify the toolchain actually runs. `set -e` plus real invocations, not `echo $(...)`:
+# a failing command substitution inside echo exits 0 and would bake a broken image.
+RUN set -eux \
+    && icp --version \
+    && node --version \
+    && mops --version \
+    && moc --version

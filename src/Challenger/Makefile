@@ -52,10 +52,18 @@ smoketest:
 ###########################################################################
 # Local builds
 #
+# NOTE: on macOS this hash will NOT match the Docker build, and that is expected.
+# Motoko codegen is deterministic across platforms -- every wasm section is byte-identical
+# -- but the @dfinity/motoko recipe stamps `moc --version` into an `icp:private
+# moc:version` metadata section, and moc reports a platform-specific build hash:
+#   linux/amd64 : Motoko compiler 1.4.1 (source k8r4z8c3-...)
+#   darwin/arm64: Motoko compiler 1.4.1 (source 0r7vgklj-...)
+# That 90-byte string is the ONLY difference. The Docker build is the canonical,
+# reproducible artifact; this target is a fast local convenience.
 .PHONY: build-wasm
 build-wasm:
 	icp build $(CANISTER_NAME) -e prd
-	@echo "Wasm hash (SHA256):"
+	@echo "Wasm hash (SHA256) -- local build, differs from Docker on non-linux/amd64:"
 	@shasum -a 256 .icp/cache/artifacts/$(CANISTER_NAME) | cut -d ' ' -f 1
 
 ###########################################################################
@@ -99,8 +107,7 @@ docker-verify-wasm:
 	@LOCAL_HASH=$$(shasum -a 256 out/$(CANISTER_NAME).wasm | cut -d ' ' -f 1); \
 	echo "Docker wasm hash:   $$LOCAL_HASH"; \
 	CID=$$(icp canister status $(CANISTER_NAME) -e $(VERIFY_NETWORK) --id-only); \
-	DEPLOYED_HASH=$$(icp canister status $$CID -n ic -p --json \
-		| python3 -c 'import sys,json; print(json.load(sys.stdin)["module_hash"].removeprefix("0x"))'); \
+	DEPLOYED_HASH=$$(icp canister status $$CID -n ic -p | grep "Module hash:" | sed 's/.*0x//'); \
 	echo "Deployed wasm hash ($(VERIFY_NETWORK)): $$DEPLOYED_HASH"; \
 	if [ "$$LOCAL_HASH" = "$$DEPLOYED_HASH" ]; then \
 		echo "✅ MATCH: Docker build matches deployed canister $(CANISTER_NAME) on $(VERIFY_NETWORK)"; \

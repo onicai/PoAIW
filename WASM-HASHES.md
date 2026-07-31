@@ -23,12 +23,35 @@ for it — the "redeployed" boxes stay unticked until that project ticks them.
 ## Toolchain
 
 | | before (deployed wasms) | after (this repo builds) |
-| ------------------- | ----------------------- | ----------------------------- |
-| CLI                 | dfx 0.29.2              | icp-cli 1.2.0                 |
-| Motoko compiler     | bundled with dfx 0.29.2 | `moc` pinned in `mops.toml`   |
-| package manager     | `mops sources` via dfx  | ic-mops                       |
-| post-processing     | dfx internal            | `@icp-sdk/ic-wasm` shrink     |
-| llama_cpp_canister  | v0.11.0                 | v0.15.0                       |
+| ------------------- | ----------------------- | ------------------------------------ |
+| CLI                 | dfx 0.29.2              | icp-cli 1.2.0                        |
+| Motoko compiler     | bundled with dfx 0.29.2 | moc 1.4.1, pinned in `mops.toml`     |
+| package manager     | `mops sources` via dfx  | ic-mops 2.13.2                       |
+| post-processing     | dfx internal            | `@icp-sdk/ic-wasm` 0.11.0 shrink     |
+| Node (build image)  | 20                      | 22                                   |
+| llama_cpp_canister  | v0.11.0                 | v0.15.0                              |
+
+Both `moc` and `ic-wasm` are pinned because both change the module hash. Measured:
+ic-wasm 0.9.11 vs 0.11.0 produce wasms differing by 1288 bytes in the **element section**
+from byte-identical Motoko code, because `shrink` rewrites it.
+
+## Why a local `icp build` will not match the Docker build
+
+Motoko codegen *is* deterministic across platforms: for `challenger_ctrlb_canister`,
+every wasm section built on darwin/arm64 is byte-identical to the linux/amd64 build —
+code, elements, data, candid, stable-types, all of it.
+
+The one exception is the 90-byte `icp:private moc:version` custom section. The
+`@dfinity/motoko` recipe stamps `moc --version` into it verbatim, and moc reports a
+build-specific hash that differs per platform:
+
+```
+linux/amd64 : Motoko compiler 1.4.1 (source k8r4z8c3-7zqv9is3-l7cx4q5j-651yrgww)
+darwin/arm64: Motoko compiler 1.4.1 (source 0r7vgklj-w8ihnklx-w7qpgbif-wr0j195g)
+```
+
+So **the Docker linux/amd64 build is the canonical artifact**; `make build-wasm` is a
+local convenience and will differ on macOS. `make docker-verify-wasm` always uses Docker.
 
 ## Motoko canisters
 
@@ -37,7 +60,7 @@ for it — the "redeployed" boxes stay unticked until that project ticks them.
 | `api_canister`                     | bgm6p-5aaaa-aaaaf-qbzda-cai | `13ef2f45052b5b914cb867a02b281440307ab6ce861ef489d34ab71a1ede5513` | TBD               | ☐          |
 | `archive_challenges_canister`      | yiobo-hyaaa-aaaaf-qdjnq-cai | `1220f961d72159c8ddbee7eb6f89ac71a1a054781e4db7ca90add749c37061b7` | TBD               | ☐          |
 | `archive_challenges_canister_orig` | 474n2-qiaaa-aaaaf-qasoq-cai | `5a5379f4117de7a6db80dcfdb0566b062b8b9ad5a64e1284b16925cceb4068fa` | n/a — retired     | ☐          |
-| `challenger_ctrlb_canister`        | rtoqq-yyaaa-aaaaa-qanba-cai | `47f386b76144ef1a0fccd20608c099de7c83480a9a7e87a8ae1fa64b10f97db1` | TBD               | ☐          |
+| `challenger_ctrlb_canister`        | rtoqq-yyaaa-aaaaa-qanba-cai | `47f386b76144ef1a0fccd20608c099de7c83480a9a7e87a8ae1fa64b10f97db1` | `32f74d735aceeb05668c1ed850217c5b551940ecb1a644630546e051e9aaf249` | ☐          |
 | `game_state_canister`              | r5m5y-diaaa-aaaaa-qanaa-cai | `7bf1b4f185b2f7b469506b51a0d8e0bd1d9b57e5a193c4053ccc74e114c46ca6` | TBD               | ☐          |
 | `judge_ctrlb_canister`             | qmgdh-3aaaa-aaaaa-qanfq-cai | `24ade07da97f8e6026c15b150f81e6486360025fc846cf2eefa74bb195f7edd6` | TBD               | ☐          |
 | `funnai_treasury_canister`         | qbhxa-ziaaa-aaaaa-qbqza-cai | `df75427673a8a49c4cd03befdaf0c9b189e5e31e3e9f3481097ea8f5eaa006e7` | TBD               | ☐          |
