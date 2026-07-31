@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=https://github.com/dfinity/icp-cli/raw/refs/tags/v1.2.0/docs/schemas/icp-yaml-schema.json
+#
+# The mAIner LLM fleet. Replaces the legacy `dfx.json`, because dfx is deprecated.
+#
+# The old dfx.json declared 26 `llm_N` slots, of which only 4 were ever
+# deployed; the rest were placeholders. Only the live slots are carried over -- dead
+# config is not worth migrating. A new slot is added by `scripts/deploy_llm.py`, which
+# appends it here and records its id.
+#
+# All slots share one wasm: the vendored llama_cpp_canister build. There is nothing to
+# compile here, so each is a `pre-built` step pointing at it.
+
+canisters:
+  - name: llm_0
+    build:
+      steps:
+        - type: pre-built
+          path: ../llama_cpp_canister/build/llama_cpp.wasm
+
+  - name: llm_1
+    build:
+      steps:
+        - type: pre-built
+          path: ../llama_cpp_canister/build/llama_cpp.wasm
+
+  - name: llm_2
+    build:
+      steps:
+        - type: pre-built
+          path: ../llama_cpp_canister/build/llama_cpp.wasm
+
+  - name: llm_3
+    build:
+      steps:
+        - type: pre-built
+          path: ../llama_cpp_canister/build/llama_cpp.wasm
+
+networks:
+  - name: local
+    mode: managed
+    gateway:
+      # Ephemeral: read it back with `icp network status -e local --json`, never hardcode.
+      port: 0
+
+environments:
+  # These were dfx "networks" that all pointed at https://icp0.io -- separate canister-id
+  # namespaces rather than separate networks, which is exactly what an icp environment is.
+  - name: local
+    network: local
+  - name: prd
+    network: ic
+  - name: testing
+    network: ic
+  - name: development
+    network: ic
+  - name: demo
+    network: ic
+  - name: backup
+    network: ic

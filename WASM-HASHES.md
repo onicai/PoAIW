@@ -29,7 +29,7 @@ for it — the "redeployed" boxes stay unticked until that project ticks them.
 | package manager     | `mops sources` via dfx  | ic-mops 2.13.2                       |
 | post-processing     | dfx internal            | `@icp-sdk/ic-wasm` 0.11.0 shrink     |
 | Node (build image)  | 20                      | 22                                   |
-| llama_cpp_canister  | v0.11.0                 | v0.11.0 (unchanged — see below)      |
+| llama_cpp_canister  | v0.11.0                 | **v0.16.0** (re-vendored)            |
 
 Both `moc` and `ic-wasm` are pinned because both change the module hash. Measured:
 ic-wasm 0.9.11 vs 0.11.0 produce wasms differing by 1288 bytes in the **element section**
@@ -94,14 +94,22 @@ Unaffected by the build-chain change — nothing in this repo rebuilds them.
 
 ## LLM fleet (llama_cpp_canister)
 
-All prd LLM canisters run the **vendored v0.11.0** wasm, and the dfx -> icp-cli migration
-left that untouched: `PoAIW/llms/llama_cpp_canister/` is still v0.11.0.
+The vendored tree is now **v0.16.0** (`PoAIW/llms/llama_cpp_canister/`), verified against
+the release asset's published sha256. The prd canisters still run **v0.11.0** — upgrading
+them is a mainnet operation and is deliberately not done here.
 
-Re-vendoring is a real functional upgrade, not a rebuild, so it is deliberately **not**
-part of the tooling migration. It is on hold for **v0.16.0**, which is expected shortly;
-v0.14.0 and v0.15.0 were skipped. When it happens it needs the full per-canister sequence
-(stop → snapshot → install → start → health → `load_model` → `set_max_tokens` → pause →
-re-`assignAdminRole` → re-register), proven locally first.
+Interface delta v0.11.0 → v0.16.0, checked against every method funnAI calls:
+
+* **additive**: 5 `opt nat64` exact-token-accounting fields on the run-success record, and
+  `get_memory_status`. 125 → 133 methods; **nothing was removed**.
+* **one rename**: `timestamp_ns` → `timestamp`, inside the `get_chats` record only.
+  Grepped both repos: there are no `get_chats` callers, so nothing is affected.
+
+Proven on the local e2e network, not just inspected: the deployed module hash matches the
+release sha, `get_memory_status` (absent in v0.11.0) answers, and the v0.16.0 behavioural
+fix works — multi-call prompt ingestion advances **without** `--prompt-cache-all`, with
+`n_prompt_tokens_remaining` going 13 → 1 → 0 across successive `run_update` calls before
+generation starts. That path stalls under v0.11.0.
 
 | controller | canister | prd principal               |
 | ---------- | -------- | --------------------------- |
@@ -116,10 +124,11 @@ re-`assignAdminRole` → re-register), proven locally first.
 | mAIner     | `llm_3`  | 6tx5a-raaaa-aaaan-q6hfa-cai |
 
 | | hash | redeployed |
-| ------------------------- | ------------------------------------------------------------------ | ---------- |
-| deployed AND vendored (v0.11.0) | `625bf21898eb892fc822bae294439a8da0f0b5ed6240911e41d03ea45c1e9798` | n/a        |
-| v0.14.0 (skipped)         | `7ef7c0a1cd71717bef0641035b4b5be80f9f771e88a38de1c16d8dd114903f74` |            |
-| v0.16.0 (awaited)         | TBD — record the sha256 from the release zip when it lands          | ☐ 0 / 9    |
+| ------------------------------- | ------------------------------------------------------------------ | ---------- |
+| deployed on prd (v0.11.0)       | `625bf21898eb892fc822bae294439a8da0f0b5ed6240911e41d03ea45c1e9798` |            |
+| **vendored now (v0.16.0)**      | `3fd9704fd99688536527f866dad8532e2bc26f0b453de94a92bc0f3213dedec1` | ☐ 0 / 9    |
+| v0.14.0 / v0.15.0 (skipped)     | `7ef7c0a1cd71717bef0641035b4b5be80f9f771e88a38de1c16d8dd114903f74` (0.14.0) | |
 
-Because the vendored tree and the deployed canisters are both still v0.11.0, the LLM fleet
-is the one part of this repo where the local build and mainnet still agree.
+The 9 prd LLM canisters each need the full sequence when that mainnet work happens:
+stop → snapshot → install → start → health → `load_model` → `set_max_tokens` → pause →
+re-`assignAdminRole` → re-register. All of it is exercised locally by `make e2e-up`.
