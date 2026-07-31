@@ -90,7 +90,7 @@ OWNER=krkm3-yt4kk-ysww5-csra3-qp4an-slxy5-x2o7r-3txbe-vrr76-hle55-2ae   # IConfu
 OWNER=uim2h-2cvtu-oe76k-3mpof-t7nfe-nfr2j-ren66-as6pd-z45pc-rduv2-7ae   # IConfucius on development (https://zlbtt-2yaaa-aaaak-qufwa-cai.icp0.io)
 # set the creator -> Use our admin identities for testing
 CREATOR=cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe # Patrick
-CREATOR=chfec-vmrjj-vsmhw-uiolc-dpldl-ujifg-k6aph-pwccq-jfwii-nezv4-2ae # Arjaan
+CREATOR=$(icp identity principal)   # your own principal
 #
 # Cycles to send to the mAIner during creation (sent by gamestate)
 CYCLES=2_000_000_000_000

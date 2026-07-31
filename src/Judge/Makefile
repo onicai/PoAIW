@@ -7,10 +7,11 @@ MAKEFLAGS += --no-builtin-variables
 CANISTER_NAME  = judge_ctrlb_canister
 VERIFY_NETWORK ?= prd
 
-# icp-cli does NOT default to the identity dfx was using. Its own `default` identity is a
-# different principal, so every command that talks to mainnet must name this one, or it
-# silently runs as a non-controller.
-IDENTITY ?= icpp-llm
+# Which identity to act as. Empty means "whatever `icp identity default` is set to on this
+# machine" -- i.e. yours. icp-cli keeps its own identity store and does not import dfx's,
+# so import your key once (see README-developer-migration-guide-from-dfx-to-icp-cli.md).
+# Override for a single run with:  make <target> IDENTITY=my-deploy-key
+IDENTITY ?=
 
 ###########################################################################
 # Help
