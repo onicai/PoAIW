@@ -13,16 +13,19 @@ Note: The folder structure is important, because the scripts use relative paths.
 
 ## Miniconda
 
-Create a conda environment with python dependencies of `llama_cpp_canister` repo
+Create the `funnAI` conda environment. `funnAI/requirements.txt` is the single entry
+point -- it pulls in the vendored llama_cpp_canister tooling (icpp-pro, icp-py-core), the
+PoAIW canister-test dependencies, and the admin/monitoring script packages, so there is no
+longer a list of folders to visit in the right order.
 
 ```bash
 # install Miniconda on your system
 
-# create a conda environment
-conda create --name llama_cpp_canister python=3.11
-conda activate llama_cpp_canister
+# create the conda environment
+conda create --name funnAI python=3.11
+conda activate funnAI
 
-# from folder: PoAIW/llms/llama_cpp_canister
+# from folder: funnAI   (requires PoAIW to be cloned first -- see Clone above)
 pip install -r requirements.txt
 ```
 
@@ -69,13 +72,9 @@ PoAIW/llms/models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q8_0.ggu
 
 ## ckSigner Python test dependencies
 
-The ckSigner canister tests require additional Python packages:
-
-```bash
-pip install -r requirements.txt
-```
-
-This installs `icpp-pro` and `bitcoin-utils` (needed for BIP340 signature verification in tests).
+Already covered: `funnAI/requirements.txt` includes `PoAIW/requirements.txt`, which brings
+in `icpp-pro` and `bitcoin-utils` (needed for BIP340 signature verification in the ckSigner
+tests). Nothing extra to install.
 
 # Deploy ALL canisters:
 
