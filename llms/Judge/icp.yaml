@@ -1,11 +1,10 @@
 # yaml-language-server: $schema=https://github.com/dfinity/icp-cli/raw/refs/tags/v1.2.0/docs/schemas/icp-yaml-schema.json
 #
-# The Judge LLM fleet. Replaces the legacy `dfx.json`, because dfx is deprecated.
+# The Judge LLM fleet.
 #
-# The old dfx.json declared 24 `llm_N` slots, of which only 4 were ever
-# deployed; the rest were placeholders. Only the live slots are carried over -- dead
-# config is not worth migrating. A new slot is added by `scripts/deploy_llm.py`, which
-# appends it here and records its id.
+# Only the 4 slots that are actually deployed are declared here. A new slot is added by
+# `scripts/deploy_llm.py`, which appends it to this file and records its id in
+# .icp/data/mappings/<env>.ids.json.
 #
 # All slots share one wasm: the vendored llama_cpp_canister build. There is nothing to
 # compile here, so each is a `pre-built` step pointing at it.
@@ -43,8 +42,8 @@ networks:
       port: 0
 
 environments:
-  # These were dfx "networks" that all pointed at https://icp0.io -- separate canister-id
-  # namespaces rather than separate networks, which is exactly what an icp environment is.
+  # An environment is a named set of canister ids on a network. The mainnet environments
+  # all run on the `ic` network and differ only in which ids they address.
   - name: local
     network: local
   - name: prd
