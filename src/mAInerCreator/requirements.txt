@@ -1,4 +1,9 @@
 -r scripts/requirements.txt
-icpp-pro==3.13.0
-ic-py==1.0.1
+# Was pinned to ==3.13.0, which is a dfx-era release: installing this file would DOWNGRADE
+# the environment and take the smoketests back to the version that switches the machine-wide
+# icp identity. Nothing references this file (the environment is built from funnAI's
+# top-level requirements.txt), but a stale hard pin left lying around is a trap.
+icpp-pro>=6.0.0
+# ic-py is superseded by icp-py-core, which is what scripts/ic_py_canister.py imports.
+icp-py-core==2.3.1
 requests

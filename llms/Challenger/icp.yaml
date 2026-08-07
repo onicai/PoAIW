@@ -34,7 +34,3 @@ environments:
     network: ic
   - name: development
     network: ic
-  - name: demo
-    network: ic
-  - name: backup
-    network: ic

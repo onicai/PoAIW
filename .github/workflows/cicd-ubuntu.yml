@@ -86,7 +86,7 @@ jobs:
       - name: setup python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
       # Node >= 22 is required by icp-cli and the official canister recipes.
       - name: setup node
@@ -104,13 +104,14 @@ jobs:
           set -euo pipefail
           npm install -g "@icp-sdk/icp-cli@$ICP_VERSION" "@icp-sdk/ic-wasm" "ic-mops@$MOPS_VERSION"
 
-      # Unlike dfx, icp-cli does not create a `default` identity for you, and icpp-pro's
-      # pytest fixtures need one. `--storage plaintext` is required: a keyring identity
-      # makes `icp identity export` prompt for a password and hang the run.
-      - name: create default identity
+      # The identity the smoke tests deploy and assert as. Each Makefile exports
+      # ICPP_PRO_TEST_IDENTITY=funnAI-local, which icpp-pro 6.0.0 reads; it never touches
+      # the machine-wide active identity, so nothing here needs `icp identity default`.
+      # `--storage plaintext` is required: a keyring identity makes `icp identity export`
+      # prompt for a password and hang the run.
+      - name: create the test identity
         run: |
-          icp identity new default --storage plaintext 2>/dev/null || true
-          icp identity default default
+          icp identity new funnAI-local --storage plaintext 2>/dev/null || true
 
       - name: install python dependencies
         run: |

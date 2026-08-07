@@ -33,24 +33,33 @@ help:
 # that directory is the equivalent. NEVER remove .icp itself -- .icp/data/mappings holds
 # the mainnet canister ids.
 #
-# icp-cli also does not auto-create a `default` identity the way dfx did, and icpp-pro's
-# test fixtures need one to EXIST. `--storage plaintext` is required: a keyring-backed
-# identity makes `icp identity export` prompt for a password and hang the test run.
+# The identity to test as. icpp-pro 6.0.0 no longer reads or writes the machine-wide active
+# identity: pytest is told which one to use, via ${ICPP_PRO_TEST_IDENTITY} or
+# `pytest --identity <name>`. A run with neither stops at session start, so there is no way
+# to silently test as the wrong principal.
 #
-# It is created but NOT switched to. `icp identity default <x>` is global and persistent,
-# so switching here would silently clobber the identity you use for mainnet work, leaving
-# you running as a non-controller afterwards. The canister is deployed as whatever identity
-# you already have active -- which is also the one the tests assert as.
+# The canister below is DEPLOYED as this same identity on purpose. A canister's controller
+# is whoever installed it, so if the deploy and the tests disagree, every is_controller
+# assertion flips -- and `Err = Unauthorized` looks like a legitimate response, not a bug.
+#
+# `--storage plaintext` is required, not cosmetic: a keyring-backed identity makes
+# `icp identity export` prompt for a password and hang the run.
+#
+# Nothing here ever runs `icp identity default <x>` -- that is global and persistent, and
+# would clobber the identity you use for mainnet work.
+export ICPP_PRO_TEST_IDENTITY = funnAI-local
+TEST_IDENTITY := --identity $(ICPP_PRO_TEST_IDENTITY)
+
 .PHONY: smoketest
 smoketest:
 	-icp network stop
 	rm -rf .icp/cache
 	icp network start -d
-	icp identity new default --storage plaintext 2>/dev/null || true
+	icp identity new $(ICPP_PRO_TEST_IDENTITY) --storage plaintext 2>/dev/null || true
 	$(MAKE) docker-build-wasm
-	icp canister create $(CANISTER_NAME) -e local
+	icp canister create $(CANISTER_NAME) -e local $(TEST_IDENTITY)
 	icp canister install $(CANISTER_NAME) --wasm out/$(CANISTER_NAME).wasm \
-		--mode install -e local -y
+		--mode install -e local -y $(TEST_IDENTITY)
 	pytest -vv --exitfirst --network local test/test_archive_challenges_canister.py
 	icp network stop
 
@@ -78,11 +87,25 @@ build-wasm:
 docker-build-base:
 	cd docker && docker compose build base
 
+# The base image is the pinned toolchain (icp-cli, mops, moc, ic-wasm) that makes the
+# build reproducible. It lives only on this machine -- it is never pushed -- so a
+# `docker system prune -a` deletes it and the wasm build then fails trying to PULL it
+# from Docker Hub, where it has never existed. Rebuild it automatically when it is
+# missing, so a pruned Docker does not become a broken checkout.
+#
+# The name is read from docker-compose.yml rather than repeated here: that file already
+# pins the tool versions the name encodes, and two copies would drift.
+BASE_IMAGE := $(shell sed -n 's/^  name: &base_name "\(.*\)"/\1/p' docker/docker-compose.yml)
+
 # Under dfx this target also copied out/* into .dfx/<net>/canisters/<name>/ so that a
 # later `dfx deploy` would reuse the Docker-built wasm. icp-cli takes the wasm path
 # explicitly (see docker-deploy), so that copy is gone.
 .PHONY: docker-build-wasm
 docker-build-wasm:
+	@docker image inspect $(BASE_IMAGE) >/dev/null 2>&1 || { \
+	  echo "base image $(BASE_IMAGE) is missing -- building it first"; \
+	  $(MAKE) docker-build-base; \
+	}
 	cd docker && docker compose build --no-cache wasm && docker compose run --rm wasm
 	@echo "Wasm hash (Docker build):"
 	@shasum -a 256 out/$(CANISTER_NAME).wasm | cut -d ' ' -f 1

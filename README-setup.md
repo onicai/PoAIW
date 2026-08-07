@@ -1,86 +1,15 @@
 # PoAIW setup instructions
 
-## Clone
+For operations of PoAIW within the funnAI context, see funnAI/README-setup.md
 
-Clone the following repos to your local disk using this folder structure:
-
-```
-|-funnAI       (https://github.com/onicai/funnAI)
-  |-PoAIW      (https://github.com/onicai/PoAIW)
-```
-
-Note: The folder structure is important, because the scripts use relative paths.
-
-## Miniconda
-
-Create the `funnAI` conda environment. `funnAI/requirements.txt` is the single entry
-point -- it pulls in the vendored llama_cpp_canister tooling (icpp-pro, icp-py-core), the
-PoAIW canister-test dependencies, and the admin/monitoring script packages, so there is no
-longer a list of folders to visit in the right order.
-
-```bash
-# install Miniconda on your system
-
-# create the conda environment
-conda create --name funnAI python=3.11
-conda activate funnAI
-
-# from folder: funnAI   (requires PoAIW to be cloned first -- see Clone above)
-pip install -r requirements.txt
-```
-
-## mops
-
-Install mops (https://mops.one/docs/install), and then:
-
-```bash
-# Do this in all these folders:
-# - from folder: `PoAIW/src/Challenger`
-# - from folder: `PoAIW/src/Judge`
-# - from folder: `PoAIW/src/mAIner`
-# - from folder: `PoAIW/src/ckSigner`
-mops install
-```
-
-## Install icp-cli
-
-dfx is deprecated; icp-cli (`icp`) replaces it. `@icp-sdk/ic-wasm` is not optional -- the
-Motoko build recipe shells out to it -- and both it and `moc` are pinned because each one
-changes the module hash.
-
-```bash
-npm install -g @icp-sdk/icp-cli@1.2.0 @icp-sdk/ic-wasm@0.11.0 ic-mops@2.13.2
-mops toolchain use moc 1.4.1
-
-node --version   # must be >= 22
-icp --version    # 1.2.0
-```
-
-See `funnAI/README-developer-migration-guide-from-dfx-to-icp-cli.md` for the identity
-setup and the full dfx -> icp command translation.
-
-# Download the LLMs from HuggingFace
-
-## Download LLM model (gguf)
-
-Download the model `qwen2.5-0.5b-instruct-q8_0.gguf` from huggingface: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF
-
-Store it in: 
-```
-PoAIW/llms/models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q8_0.gguf
-```
+---
 
 ## ckSigner Python test dependencies
 
-Already covered: `funnAI/requirements.txt` includes `PoAIW/requirements.txt`, which brings
-in `icpp-pro` and `bitcoin-utils` (needed for BIP340 signature verification in the ckSigner
-tests). Nothing extra to install.
+ckSigner is a component used by the experimental IConfucius trading agent.
 
-# Deploy ALL canisters:
+`PoAIW/requirements.txt`, brings in `icpp-pro` and `bitcoin-utils` (needed for BIP340 signature verification in the ckSigner tests).
 
-Follow instructions of:
-- funnAI/README.md
-- README-prd-upgrade-commands.md
 
 # Admin RBAC
 
@@ -114,15 +43,17 @@ controller > AdminUpdate > AdminQuery
 
 ```bash
 # Assign AdminQuery role
-icp canister call <canister> assignAdminRole \ -e $NETWORK
-  '( record { "principal" = "<principal-id>"; role = variant { AdminQuery }; note = "Description" } )'
+icp canister call <canister> assignAdminRole \
+  '( record { "principal" = "<principal-id>"; role = variant { AdminQuery }; note = "Description" } )' \
+  -e $NETWORK
 
 # Assign AdminUpdate role
-icp canister call <canister> assignAdminRole \ -e $NETWORK
-  '( record { "principal" = "<principal-id>"; role = variant { AdminUpdate }; note = "Description" } )'
+icp canister call <canister> assignAdminRole \
+  '( record { "principal" = "<principal-id>"; role = variant { AdminUpdate }; note = "Description" } )' \
+  -e $NETWORK
 
 # List all admin role assignments
-icp canister call <canister -e $NETWORK > getAdminRoles
+icp canister call <canister> getAdminRoles '()' -e $NETWORK
 
 # Revoke an admin role
 icp canister call <canister> revokeAdminRole '( "<principal-id>" )' -e $NETWORK

@@ -1,5 +1,10 @@
-# 5.6.0 is the first release whose smoketest framework drives icp-cli instead of the
+# 5.6.0 was the first release whose smoketest framework drives icp-cli instead of the
 # deprecated dfx: it takes `icp_yaml_path=` (not `dfx_json_path=`), resolves canister ids
 # from .icp/data/mappings/, and needs Python >= 3.11.
-icpp-pro>=5.6.0
+#
+# 6.0.0 is now the minimum: it is where pytest stopped switching the machine-wide icp
+# identity and started reading $ICPP_PRO_TEST_IDENTITY, which every smoketest target here
+# exports. On 5.x that export is ignored and the suites run as whatever identity happens
+# to be active.
+icpp-pro>=6.0.0
 bitcoin-utils>=0.6.8

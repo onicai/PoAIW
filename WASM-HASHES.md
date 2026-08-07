@@ -71,6 +71,16 @@ local convenience and will differ on macOS. `make docker-verify-wasm` always use
 `archive_challenges_canister_orig` uses classical persistence and is not carried into
 `icp.yaml`; it is addressed by principal only.
 
+> ⚠️ **`mainer_creator_canister` now differs by more than the toolchain.** Its source was
+> changed after this baseline was taken: `src/Main.mo` sent `#upgrade(null)` to
+> `install_chunked_code`, which the IC rejects for the enhanced-orthogonal-persistence mAIner
+> wasm ("Missing upgrade option"), so `upgradeMainerctrl` failed on every call. It now sends
+> `#upgrade(?{wasm_memory_persistence = ?#keep; skip_pre_upgrade = ?false})`. Verified on the
+> local network: before the change the mAIner stayed at `"Controller Upgrade in Progress"`
+> forever; after it, the upgrade completes. So the eventual hash for this row reflects a
+> **functional fix as well as** the build-chain change — do not treat a mismatch here as
+> toolchain-only.
+
 ## mAIner controller fleet
 
 **744** `mainer_ctrlb_canister_N` on prd, built from the same

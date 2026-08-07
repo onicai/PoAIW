@@ -1,6 +1,7 @@
 """Returns the icp-py-core Canister instance, for calling the endpoints."""
 
 import re
+import os
 import json
 import sys
 import subprocess
@@ -10,6 +11,9 @@ from icp_core import Agent, Identity, Client, Canister
 from icpp.run_shell_cmd import run_shell_cmd
 
 ROOT_PATH = Path(__file__).parent.parent
+
+# Same name icpp-pro and llama_cpp_canister use.
+IDENTITY_ENV_VAR = "ICPP_PRO_TEST_IDENTITY"
 
 # We use the `icp` CLI to look up the network URL, the active identity's key and
 # canister ids. (dfx is deprecated; icp-cli is its successor.)
@@ -70,8 +74,18 @@ def get_agent(network: str = "local") -> Agent:
 
     print(f"Network URL        = {network_url}")
 
-    # Get the name of the current identity
-    identity_whoami = run_icp_command(f"{ICP} identity default ")
+    # Which identity to act as. $ICPP_PRO_TEST_IDENTITY wins over the machine default, so a
+    # caller can choose one WITHOUT `icp identity default <name>` -- which is global and
+    # persistent. The name matches icpp-pro and llama_cpp_canister, so one variable covers
+    # the pytest suites and every ic-py uploader.
+    #
+    # This matters because the very next line exports that identity's PRIVATE KEY. Falling
+    # back to the machine default means exporting whatever the developer uses for MAINNET,
+    # pulling it out of the OS keychain and through a pipe, for what is usually a throwaway
+    # local upload. Point it at a local identity and the mainnet key is never read.
+    identity_whoami = os.environ.get(IDENTITY_ENV_VAR, "").strip() or run_icp_command(
+        f"{ICP} identity default "
+    )
     print(f"Using identity = {identity_whoami}")
 
     # Get the private key of the current identity

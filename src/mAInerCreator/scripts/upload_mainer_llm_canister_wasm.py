@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import Generator
 from pprint import pprint
-from .ic_py_canister import extract_variant, get_canister, run_dfx_command
+from .ic_py_canister import extract_variant, get_canister, run_icp_command
 from .parse_args_upload import parse_args
 
 ROOT_PATH = Path(__file__).parent.parent
@@ -61,7 +61,7 @@ def main() -> int:
     dfx_json_path = ROOT_PATH / "dfx.json"
 
     if canister_id == "":
-        canister_id = run_dfx_command(
+        canister_id = run_icp_command(
             f"icp canister status {canister_name} -e {network} --id-only "
         )
 
