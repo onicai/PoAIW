@@ -8,12 +8,11 @@ make docker-build-wasm
 
 # Deploy the pre-built wasm
 # Note: Post-SNS, this step is replaced with SNS governed deployment.
-dfx canister --network $NETWORK stop game_state_canister
-dfx canister --network $NETWORK snapshot create game_state_canister
-dfx canister install --wasm out/game_state_canister.wasm \
-    --network $NETWORK --mode upgrade --wasm-memory-persistence keep \
-    game_state_canister
-dfx canister --network $NETWORK start game_state_canister
+icp canister stop game_state_canister -e $NETWORK
+icp canister snapshot create game_state_canister -e $NETWORK
+icp canister install game_state_canister --wasm out/game_state_canister.wasm \
+    -e $NETWORK --mode upgrade --wasm-memory-persistence keep -y
+icp canister start game_state_canister -e $NETWORK
 
 # Verify the deployed wasm matches the Docker build
 make docker-verify-wasm VERIFY_NETWORK=$NETWORK
@@ -32,50 +31,50 @@ See also instructions in `PoAIW/README.md`
 
 # ----------------------------------------
 # mAIner of type Own
-dfx canister call game_state_canister createUserMainerAgent '(record { paymentTransactionBlockId = 11; mainerConfig = record { mainerAgentCanisterType = variant {Own}; selectedLLM = opt variant {Qwen2_5_500M}; }; })'
+icp canister call game_state_canister createUserMainerAgent '(record { paymentTransactionBlockId = 11; mainerConfig = record { mainerAgentCanisterType = variant {Own}; selectedLLM = opt variant {Qwen2_5_500M}; }; })'
 
 ### Copy the output from above command as the argument for next command
-dfx canister call game_state_canister spinUpMainerControllerCanister '(record { status = variant { Paid }; canisterType = variant { MainerAgent = variant { Own } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_075_669_143_980_013 : nat64; createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; mainerConfig = record { selectedLLM = opt variant { Qwen2_5_500M }; mainerAgentCanisterType = variant { Own };  }; address = "";  } )'
+icp canister call game_state_canister spinUpMainerControllerCanister '(record { status = variant { Paid }; canisterType = variant { MainerAgent = variant { Own } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_075_669_143_980_013 : nat64; createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; mainerConfig = record { selectedLLM = opt variant { Qwen2_5_500M }; mainerAgentCanisterType = variant { Own };  }; address = "";  } )'
 
 ### Copy the output from above command as the argument for next command
-dfx canister call game_state_canister setUpMainerLlmCanister '(record { status = variant { ControllerCreated }; canisterType = variant { MainerAgent = variant { Own } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_075_669_143_980_013 : nat64;  createdBy = principal "be2us-64aaa-aaaaa-qaabq-cai";       mainerConfig = record { selectedLLM = opt variant { Qwen2_5_500M }; mainerAgentCanisterType = variant { Own }; }; address = "cuj6u-c4aaa-aaaaa-qaajq-cai"; } )'
+icp canister call game_state_canister setUpMainerLlmCanister '(record { status = variant { ControllerCreated }; canisterType = variant { MainerAgent = variant { Own } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_075_669_143_980_013 : nat64;  createdBy = principal "be2us-64aaa-aaaaa-qaabq-cai";       mainerConfig = record { selectedLLM = opt variant { Qwen2_5_500M }; mainerAgentCanisterType = variant { Own }; }; address = "cuj6u-c4aaa-aaaaa-qaajq-cai"; } )'
 
 ### To add another LLM, call this method with same argument
-dfx canister call game_state_canister addLlmCanisterToMainer '(record { status = variant { ControllerCreated }; canisterType = variant { MainerAgent = variant { Own } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_075_669_143_980_013 : nat64;  createdBy = principal "be2us-64aaa-aaaaa-qaabq-cai";       mainerConfig = record { selectedLLM = opt variant { Qwen2_5_500M }; mainerAgentCanisterType = variant { Own }; }; address = "cuj6u-c4aaa-aaaaa-qaajq-cai"; } )'
+icp canister call game_state_canister addLlmCanisterToMainer '(record { status = variant { ControllerCreated }; canisterType = variant { MainerAgent = variant { Own } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_075_669_143_980_013 : nat64;  createdBy = principal "be2us-64aaa-aaaaa-qaabq-cai";       mainerConfig = record { selectedLLM = opt variant { Qwen2_5_500M }; mainerAgentCanisterType = variant { Own }; }; address = "cuj6u-c4aaa-aaaaa-qaajq-cai"; } )'
 
 # ----------------------------------------
 # mAIner of type ShareService
 # Only a controller can make these calls when the mainerAgentCanisterType = variant {ShareService}
 # - No payment is due, so set paymentTransactionBlockId = 0
-dfx canister call game_state_canister createUserMainerAgent '(record { paymentTransactionBlockId = 0; mainerConfig = record { mainerAgentCanisterType = variant {ShareService}; selectedLLM = opt variant {Qwen2_5_500M}; }; })'
+icp canister call game_state_canister createUserMainerAgent '(record { paymentTransactionBlockId = 0; mainerConfig = record { mainerAgentCanisterType = variant {ShareService}; selectedLLM = opt variant {Qwen2_5_500M}; }; })'
 
 ### Copy the output from above command as the argument for next command
-dfx canister call game_state_canister spinUpMainerControllerCanister '(record { status = variant { Paid }; canisterType = variant { MainerAgent = variant { ShareService } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_075_669_143_980_013 : nat64; createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; mainerConfig = record { selectedLLM = opt variant { Qwen2_5_500M }; mainerAgentCanisterType = variant { ShareService };  }; address = "";  } )'
+icp canister call game_state_canister spinUpMainerControllerCanister '(record { status = variant { Paid }; canisterType = variant { MainerAgent = variant { ShareService } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_075_669_143_980_013 : nat64; createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; mainerConfig = record { selectedLLM = opt variant { Qwen2_5_500M }; mainerAgentCanisterType = variant { ShareService };  }; address = "";  } )'
 
 ### Copy the output from above command as the argument for next command
-dfx canister call game_state_canister setUpMainerLlmCanister '(record { status = variant { ControllerCreated }; canisterType = variant { MainerAgent = variant { ShareService } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_075_669_143_980_013 : nat64;  createdBy = principal "be2us-64aaa-aaaaa-qaabq-cai";       mainerConfig = record { selectedLLM = opt variant { Qwen2_5_500M }; mainerAgentCanisterType = variant { ShareService }; }; address = "cuj6u-c4aaa-aaaaa-qaajq-cai"; } )'
+icp canister call game_state_canister setUpMainerLlmCanister '(record { status = variant { ControllerCreated }; canisterType = variant { MainerAgent = variant { ShareService } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_075_669_143_980_013 : nat64;  createdBy = principal "be2us-64aaa-aaaaa-qaabq-cai";       mainerConfig = record { selectedLLM = opt variant { Qwen2_5_500M }; mainerAgentCanisterType = variant { ShareService }; }; address = "cuj6u-c4aaa-aaaaa-qaajq-cai"; } )'
 
 ### To add another LLM, call this method with same argument
-dfx canister call game_state_canister addLlmCanisterToMainer '(record { status = variant { ControllerCreated }; canisterType = variant { MainerAgent = variant { ShareService } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_075_669_143_980_013 : nat64;  createdBy = principal "be2us-64aaa-aaaaa-qaabq-cai";       mainerConfig = record { selectedLLM = opt variant { Qwen2_5_500M }; mainerAgentCanisterType = variant { ShareService }; }; address = "cuj6u-c4aaa-aaaaa-qaajq-cai"; } )'
+icp canister call game_state_canister addLlmCanisterToMainer '(record { status = variant { ControllerCreated }; canisterType = variant { MainerAgent = variant { ShareService } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_075_669_143_980_013 : nat64;  createdBy = principal "be2us-64aaa-aaaaa-qaabq-cai";       mainerConfig = record { selectedLLM = opt variant { Qwen2_5_500M }; mainerAgentCanisterType = variant { ShareService }; }; address = "cuj6u-c4aaa-aaaaa-qaajq-cai"; } )'
 
 # ----------------------------------------
 # mAIner of type ShareAgent
 
 ## Register ShareService if not done yet
 ## NOTE: When deploying with the scripts described in funnAI/README.md, this is already done...
-# dfx canister call game_state_canister addOfficialCanister "(record { address = \"aax3a-h4aaa-aaaaa-qaahq-cai\"; canisterType = variant {MainerAgent = variant {ShareService}}; })"
+# icp canister call game_state_canister addOfficialCanister "(record { address = \"aax3a-h4aaa-aaaaa-qaahq-cai\"; canisterType = variant {MainerAgent = variant {ShareService}}; })"
 
 ## Create ShareAgent
-dfx canister call game_state_canister createUserMainerAgent '(record { paymentTransactionBlockId = 12; mainerConfig = record { mainerAgentCanisterType = variant {ShareAgent}; selectedLLM = null; }; })'
+icp canister call game_state_canister createUserMainerAgent '(record { paymentTransactionBlockId = 12; mainerConfig = record { mainerAgentCanisterType = variant {ShareAgent}; selectedLLM = null; }; })'
 
 ### Copy the output from above command as the argument for next command
-dfx canister call game_state_canister spinUpMainerControllerCanister '(record {status = variant { Paid }; canisterType = variant { MainerAgent = variant { ShareAgent } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_076_185_351_556_204 : nat64; createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; mainerConfig = record {       selectedLLM = null; mainerAgentCanisterType = variant { ShareAgent }; }; address = ""; } )'
+icp canister call game_state_canister spinUpMainerControllerCanister '(record {status = variant { Paid }; canisterType = variant { MainerAgent = variant { ShareAgent } }; ownedBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; creationTimestamp = 1_745_076_185_351_556_204 : nat64; createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"; mainerConfig = record {       selectedLLM = null; mainerAgentCanisterType = variant { ShareAgent }; }; address = ""; } )'
 
 ## Fix issues
 #
 # Modify this, or use the parametrized version shown directly below
 #
-dfx canister call game_state_canister spinUpMainerControllerCanisterForUserAdmin '(record {        status = variant { Paid };        canisterType = variant { MainerAgent = variant { ShareAgent } };        ownedBy = principal "qhvia-unzwx-ewoal-5yepy-o577x-fc4dc-qzqm3-zqirv-j3icu-3h5jj-oqe";        creationTimestamp = 1_751_064_920_866_195_118 : nat64;        createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe";        mainerConfig = record {          selectedLLM = null;          subnetLlm = "";          mainerAgentCanisterType = variant { ShareAgent };          cyclesForMainer = 17_185_500_000_000 : nat;          subnetCtrl = "snjp4-xlbw4-mnbog-ddwy6-6ckfd-2w5a2-eipqo-7l436-pxqkh-l6fuv-vae";        };        subnet = "";        address = "";      } )' --network $NETWORK
+icp canister call game_state_canister spinUpMainerControllerCanisterForUserAdmin '(record {        status = variant { Paid };        canisterType = variant { MainerAgent = variant { ShareAgent } };        ownedBy = principal "qhvia-unzwx-ewoal-5yepy-o577x-fc4dc-qzqm3-zqirv-j3icu-3h5jj-oqe";        creationTimestamp = 1_751_064_920_866_195_118 : nat64;        createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe";        mainerConfig = record {          selectedLLM = null;          subnetLlm = "";          mainerAgentCanisterType = variant { ShareAgent };          cyclesForMainer = 17_185_500_000_000 : nat;          subnetCtrl = "snjp4-xlbw4-mnbog-ddwy6-6ckfd-2w5a2-eipqo-7l436-pxqkh-l6fuv-vae";        };        subnet = "";        address = "";      } )' -e $NETWORK
 #
 # Parametrized version of spinUpMainerControllerCanisterForUserAdmin call
 #
@@ -95,23 +94,23 @@ CREATOR=$(icp identity principal)   # your own principal
 # Cycles to send to the mAIner during creation (sent by gamestate)
 CYCLES=2_000_000_000_000
 ### Create a new mAIner for a user (Monitor logs of both GameState & mAInerCreator to ensure it all works)
-dfx canister call game_state_canister spinUpMainerControllerCanisterForUserAdmin '(record {        status = variant { Paid };        canisterType = variant { MainerAgent = variant { ShareAgent } };        ownedBy = principal "'$OWNER'";        creationTimestamp = 1_751_064_920_866_195_118 : nat64;        createdBy = principal "'$CREATOR'";        mainerConfig = record {          selectedLLM = null;          subnetLlm = "";          mainerAgentCanisterType = variant { ShareAgent };          cyclesForMainer = '$CYCLES' : nat;          subnetCtrl = "'$SUBNET'";        };        subnet = "";        address = "";      } )' --network $NETWORK
+icp canister call game_state_canister spinUpMainerControllerCanisterForUserAdmin '(record {        status = variant { Paid };        canisterType = variant { MainerAgent = variant { ShareAgent } };        ownedBy = principal "'$OWNER'";        creationTimestamp = 1_751_064_920_866_195_118 : nat64;        createdBy = principal "'$CREATOR'";        mainerConfig = record {          selectedLLM = null;          subnetLlm = "";          mainerAgentCanisterType = variant { ShareAgent };          cyclesForMainer = '$CYCLES' : nat;          subnetCtrl = "'$SUBNET'";        };        subnet = "";        address = "";      } )' -e $NETWORK
 
 ### Finish the setup of a user's mAIner that had an issue (get the mAIner entry to fix as parameter for the call, especially the creationTimestamp which is used as identifier for the mAIner entry)
 ### This is always on prd -> Make sure to replace the ownedBy & createdBy before running it
-dfx canister call game_state_canister completeMainerSetupForUserAdmin '(record {        status = variant { Paid };        canisterType = variant { MainerAgent = variant { ShareAgent } };        ownedBy = principal "kpxiy-zhtf2-dbvq6-pwk7l-rm6nz-24mmb-qojc6-fgxs6-653ef-w5lqf-dae";        creationTimestamp = 1_756_472_106_967_051_969 : nat64;        createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe";        mainerConfig = record {          selectedLLM = null;          subnetLlm = "";          mainerAgentCanisterType = variant { ShareAgent };          cyclesForMainer = 39_985_500_000_000 : nat;          subnetCtrl = "snjp4-xlbw4-mnbog-ddwy6-6ckfd-2w5a2-eipqo-7l436-pxqkh-l6fuv-vae";        };        subnet = "";        address = "";      } )' --network $NETWORK
+icp canister call game_state_canister completeMainerSetupForUserAdmin '(record {        status = variant { Paid };        canisterType = variant { MainerAgent = variant { ShareAgent } };        ownedBy = principal "kpxiy-zhtf2-dbvq6-pwk7l-rm6nz-24mmb-qojc6-fgxs6-653ef-w5lqf-dae";        creationTimestamp = 1_756_472_106_967_051_969 : nat64;        createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe";        mainerConfig = record {          selectedLLM = null;          subnetLlm = "";          mainerAgentCanisterType = variant { ShareAgent };          cyclesForMainer = 39_985_500_000_000 : nat;          subnetCtrl = "snjp4-xlbw4-mnbog-ddwy6-6ckfd-2w5a2-eipqo-7l436-pxqkh-l6fuv-vae";        };        subnet = "";        address = "";      } )' -e $NETWORK
 
 ## Topup issue
 TRANSACTIONINDEX=31456220
 MAINERADDRESS=2calm-zyaaa-aaaam-qeooq-cai
 OWNER=xzgcn-xbt3r-nhvsl-52jlc-nl5dc-zxkbo-2ghyc-z72s5-htxbe-se35n-jqe
-dfx canister call game_state_canister completeTopUpCyclesForMainerAgentAdmin '(record { paymentTransactionBlockId = '$TRANSACTIONINDEX'; mainerAgent = record {        status = variant { Running };        canisterType = variant { MainerAgent = variant { ShareAgent } };        ownedBy = principal "'$OWNER'";        creationTimestamp = 1_756_472_106_967_051_969 : nat64;        createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe";        mainerConfig = record {          selectedLLM = null;          subnetLlm = "";          mainerAgentCanisterType = variant { ShareAgent };          cyclesForMainer = 39_985_500_000_000 : nat;          subnetCtrl = "snjp4-xlbw4-mnbog-ddwy6-6ckfd-2w5a2-eipqo-7l436-pxqkh-l6fuv-vae";        };        subnet = "";        address = "'$MAINERADDRESS'";      }; } )' --network $NETWORK
+icp canister call game_state_canister completeTopUpCyclesForMainerAgentAdmin '(record { paymentTransactionBlockId = '$TRANSACTIONINDEX'; mainerAgent = record {        status = variant { Running };        canisterType = variant { MainerAgent = variant { ShareAgent } };        ownedBy = principal "'$OWNER'";        creationTimestamp = 1_756_472_106_967_051_969 : nat64;        createdBy = principal "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe";        mainerConfig = record {          selectedLLM = null;          subnetLlm = "";          mainerAgentCanisterType = variant { ShareAgent };          cyclesForMainer = 39_985_500_000_000 : nat;          subnetCtrl = "snjp4-xlbw4-mnbog-ddwy6-6ckfd-2w5a2-eipqo-7l436-pxqkh-l6fuv-vae";        };        subnet = "";        address = "'$MAINERADDRESS'";      }; } )' -e $NETWORK
 # ----------------------------------------
 
 ## Derive new mAIner wasm hash
-dfx canister call game_state_canister deriveNewMainerAgentCanisterWasmHashAdmin '(record {address = "canister id of new mAIner"; textNote = "Info on update"; } )'
+icp canister call game_state_canister deriveNewMainerAgentCanisterWasmHashAdmin '(record {address = "canister id of new mAIner"; textNote = "Info on update"; } )'
 e.g.
-dfx canister call game_state_canister deriveNewMainerAgentCanisterWasmHashAdmin '(record {address = "dmalx-m4aaa-aaaaa-qaanq-cai"; textNote = "After new addCycle function"; } )'
+icp canister call game_state_canister deriveNewMainerAgentCanisterWasmHashAdmin '(record {address = "dmalx-m4aaa-aaaaa-qaanq-cai"; textNote = "After new addCycle function"; } )'
 Response:
 (
   variant {
@@ -128,70 +127,70 @@ Response:
 # ----------------------------------------
 
 ## Add Unlocked mAIner
-dfx canister call game_state_canister unlockUserMainerAgent '(record { paymentTransactionBlockId = 0;  owner = opt principal "fmx2v-tpf3n-ihkag-gag34-oknfv-tbujq-ke4oe-r42z2-lwclp-fnff3-bqe"; mainerConfig = record { mainerAgentCanisterType = variant {ShareAgent}; selectedLLM = null; cyclesForMainer = 0; subnetCtrl = ""; subnetLlm = ""; }; })' --network $NETWORK
+icp canister call game_state_canister unlockUserMainerAgent '(record { paymentTransactionBlockId = 0;  owner = opt principal "fmx2v-tpf3n-ihkag-gag34-oknfv-tbujq-ke4oe-r42z2-lwclp-fnff3-bqe"; mainerConfig = record { mainerAgentCanisterType = variant {ShareAgent}; selectedLLM = null; cyclesForMainer = 0; subnetCtrl = ""; subnetLlm = ""; }; })' -e $NETWORK
 
-dfx canister call game_state_canister getMainerAgentCanistersAdmin --network $NETWORK
+icp canister call game_state_canister getMainerAgentCanistersAdmin -e $NETWORK
 
-dfx canister call game_state_canister getMainerAgentCanistersForUserAdmin '"dno55-cf4cu-q2wwf-udihm-tq4ul-76yti-ywaee-khuyf-urcfy-r2vcz-hae"' --network $NETWORK --output json
+icp canister call game_state_canister getMainerAgentCanistersForUserAdmin '"dno55-cf4cu-q2wwf-udihm-tq4ul-76yti-ywaee-khuyf-urcfy-r2vcz-hae"' -e $NETWORK --output json
 
-dfx canister call game_state_canister getNumMainerAgentCanistersForUserAdmin '"dno55-cf4cu-q2wwf-udihm-tq4ul-76yti-ywaee-khuyf-urcfy-r2vcz-hae"' --network $NETWORK
+icp canister call game_state_canister getNumMainerAgentCanistersForUserAdmin '"dno55-cf4cu-q2wwf-udihm-tq4ul-76yti-ywaee-khuyf-urcfy-r2vcz-hae"' -e $NETWORK
 
 ## Set price of mAIner
 ### ShareAgent
-dfx canister call game_state_canister setIcpForShareAgentAdmin '10' --network $NETWORK
-dfx canister call game_state_canister getPriceForShareAgent --network $NETWORK
+icp canister call game_state_canister setIcpForShareAgentAdmin '10' -e $NETWORK
+icp canister call game_state_canister getPriceForShareAgent -e $NETWORK
 #### whitelist
-dfx canister call game_state_canister setIcpForWhitelistShareAgentAdmin '5' --network $NETWORK
-dfx canister call game_state_canister getWhitelistPriceForShareAgent --network $NETWORK
+icp canister call game_state_canister setIcpForWhitelistShareAgentAdmin '5' -e $NETWORK
+icp canister call game_state_canister getWhitelistPriceForShareAgent -e $NETWORK
 
 ### Own
-dfx canister call game_state_canister setIcpForOwnMainerAdmin '1000' --network $NETWORK
-dfx canister call game_state_canister getPriceForOwnMainer --network $NETWORK
+icp canister call game_state_canister setIcpForOwnMainerAdmin '1000' -e $NETWORK
+icp canister call game_state_canister getPriceForOwnMainer -e $NETWORK
 #### whitelist
-dfx canister call game_state_canister setIcpForWhitelistOwnMainerAdmin '500' --network $NETWORK
-dfx canister call game_state_canister getWhitelistPriceForOwnMainer --network $NETWORK
+icp canister call game_state_canister setIcpForWhitelistOwnMainerAdmin '500' -e $NETWORK
+icp canister call game_state_canister getWhitelistPriceForOwnMainer -e $NETWORK
 
 ## Set limit how many mAIners may be created
 ### Buffer
-dfx canister call game_state_canister getBufferMainerCreation --network $NETWORK
-dfx canister call game_state_canister setBufferMainerCreation '100' --network $NETWORK
+icp canister call game_state_canister getBufferMainerCreation -e $NETWORK
+icp canister call game_state_canister setBufferMainerCreation '100' -e $NETWORK
 ### ShareAgent
-dfx canister call game_state_canister getNumberMainerAgentsAdmin '(record { mainerType = variant {ShareAgent}; })' --network $NETWORK
-dfx canister call game_state_canister getLimitForCreatingMainerAdmin '(record { mainerType = variant {ShareAgent}; })' --network $NETWORK
-dfx canister call game_state_canister setLimitForCreatingMainerAdmin '(record { mainerType = variant {ShareAgent}; newLimit = 697 })' --network $NETWORK
-dfx canister call game_state_canister shouldCreatingMainersBeStopped '(record { mainerType = variant {ShareAgent}; })' --network $NETWORK
+icp canister call game_state_canister getNumberMainerAgentsAdmin '(record { mainerType = variant {ShareAgent}; })' -e $NETWORK
+icp canister call game_state_canister getLimitForCreatingMainerAdmin '(record { mainerType = variant {ShareAgent}; })' -e $NETWORK
+icp canister call game_state_canister setLimitForCreatingMainerAdmin '(record { mainerType = variant {ShareAgent}; newLimit = 697 })' -e $NETWORK
+icp canister call game_state_canister shouldCreatingMainersBeStopped '(record { mainerType = variant {ShareAgent}; })' -e $NETWORK
 ### Own
-dfx canister call game_state_canister getNumberMainerAgentsAdmin '(record { mainerType = variant {Own}; })' --network $NETWORK
-dfx canister call game_state_canister getLimitForCreatingMainerAdmin '(record { mainerType = variant {Own}; })' --network $NETWORK
-dfx canister call game_state_canister setLimitForCreatingMainerAdmin '(record { mainerType = variant {Own}; newLimit = 0 })' --network $NETWORK
-dfx canister call game_state_canister shouldCreatingMainersBeStopped '(record { mainerType = variant {Own}; })' --network $NETWORK
+icp canister call game_state_canister getNumberMainerAgentsAdmin '(record { mainerType = variant {Own}; })' -e $NETWORK
+icp canister call game_state_canister getLimitForCreatingMainerAdmin '(record { mainerType = variant {Own}; })' -e $NETWORK
+icp canister call game_state_canister setLimitForCreatingMainerAdmin '(record { mainerType = variant {Own}; newLimit = 0 })' -e $NETWORK
+icp canister call game_state_canister shouldCreatingMainersBeStopped '(record { mainerType = variant {Own}; })' -e $NETWORK
 
 ## Update whitelist flags
 ### whitelist phase active
-dfx canister call game_state_canister toggleWhitelistPhaseActiveFlagAdmin --network $NETWORK
-dfx canister call game_state_canister getIsWhitelistPhaseActive --network $NETWORK
+icp canister call game_state_canister toggleWhitelistPhaseActiveFlagAdmin -e $NETWORK
+icp canister call game_state_canister getIsWhitelistPhaseActive -e $NETWORK
 ### whitelist mAIner creation (sale)
-dfx canister call game_state_canister togglePauseWhitelistMainerCreationFlagAdmin --network $NETWORK
-dfx canister call game_state_canister getPauseWhitelistMainerCreationFlag --network $NETWORK
+icp canister call game_state_canister togglePauseWhitelistMainerCreationFlagAdmin -e $NETWORK
+icp canister call game_state_canister getPauseWhitelistMainerCreationFlag -e $NETWORK
 
 ## Update protocol flag
-dfx canister call game_state_canister togglePauseProtocolFlagAdmin --network $NETWORK
-dfx canister call game_state_canister getPauseProtocolFlag --network $NETWORK
+icp canister call game_state_canister togglePauseProtocolFlagAdmin -e $NETWORK
+icp canister call game_state_canister getPauseProtocolFlag -e $NETWORK
 
 ## Cycles security buffer
 ### in trillion cycles
-dfx canister call game_state_canister setProtocolCyclesBalanceBuffer '500' --network $NETWORK
-dfx canister call game_state_canister getProtocolCyclesBalanceBuffer --network $NETWORK
+icp canister call game_state_canister setProtocolCyclesBalanceBuffer '500' -e $NETWORK
+icp canister call game_state_canister getProtocolCyclesBalanceBuffer -e $NETWORK
 ```
 
 ## Treasury
 ```bash
 # same treasury for all stages
-dfx canister call game_state_canister setTreasuryCanisterId '"qbhxa-ziaaa-aaaaa-qbqza-cai"' --network $NETWORK
-dfx canister call game_state_canister getTreasuryCanisterId --network $NETWORK
+icp canister call game_state_canister setTreasuryCanisterId '"qbhxa-ziaaa-aaaaa-qbqza-cai"' -e $NETWORK
+icp canister call game_state_canister getTreasuryCanisterId -e $NETWORK
 
-dfx canister call game_state_canister toggleDisburseFundsToTreasuryFlagAdmin --network $NETWORK
-dfx canister call game_state_canister getDisburseFundsToTreasuryFlag --network $NETWORK
+icp canister call game_state_canister toggleDisburseFundsToTreasuryFlagAdmin -e $NETWORK
+icp canister call game_state_canister getDisburseFundsToTreasuryFlag -e $NETWORK
 ```
 
 # Top-up scenarios
@@ -217,7 +216,7 @@ The change rolls out in three phases:
 
 | # | Scenario | Endpoint | Phase 1 (canister upgraded, old FE) | Phase 2 (new FE, dual-accept window) | Phase 3 (legacy off) |
 | - | -------- | -------- | ----------------------------------- | ------------------------------------ | -------------------- |
-| 1 | Owner tops up their own mAIner with the bound memo (manually via dfx in Phase 1; via UI from Phase 2 onward) | `topUpCyclesForMainerAgent` | `Ok` | `Ok` | `Ok` |
+| 1 | Owner tops up their own mAIner with the bound memo (manually via the CLI in Phase 1; via UI from Phase 2 onward) | `topUpCyclesForMainerAgent` | `Ok` | `Ok` | `Ok` |
 | 2 | Owner tops up their own mAIner with the legacy memo `[0xAD]` (deployed frontend in Phase 1; cached old frontend in Phase 2) | `topUpCyclesForMainerAgent` | `Ok` | `Ok` | `Err(Other("Memo of payment block <BLOCK> is missing or invalid for target mAIner <ADDRESS>"))` |
 | 3 | Anyone tops up someone else's mAIner with the bound memo (gift) | `topUpCyclesForAnyMainerAgent` | `Ok` | `Ok` | `Ok` |
 | 4 | Replay: same `paymentTransactionBlockId` redeemed twice | either | second call → `Err(Other("Already redeemd this transaction block"))` | same | same |
@@ -230,7 +229,7 @@ The change rolls out in three phases:
 Tests are split by which entry point they exercise:
 
 - **Gated endpoint (Scenarios 1 & 2):** must be tested **via the UI** — see the note in the "Positive tests" section.
-- **Ungated endpoint and adversarial cases (Scenarios 3–8):** tested with `dfx` and a fresh `topup-tester` identity, as detailed below.
+- **Ungated endpoint and adversarial cases (Scenarios 3–8):** tested with the CLI and a fresh `topup-tester` identity, as detailed below.
 
 Source `scripts/canister_ids-$NETWORK.env` from the funnAI repo root and use `$SUBNET_0_1_GAMESTATE` in commands below.
 
@@ -238,28 +237,28 @@ Source `scripts/canister_ids-$NETWORK.env` from the funnAI repo root and use `$S
 
 ```bash
 # Create a brand-new identity
-dfx identity new topup-tester
+icp identity new topup-tester --storage plaintext
 
-TOPUP_TESTER_PRINCIPAL=$(dfx identity --identity topup-tester get-principal)
-TOPUP_TESTER_ACCOUNT=$(dfx --identity topup-tester ledger account-id)
+TOPUP_TESTER_PRINCIPAL=$(icp identity principal --identity topup-tester)
+TOPUP_TESTER_ACCOUNT=$(icp identity account-id --identity topup-tester)
 echo "topup-tester principal: $TOPUP_TESTER_PRINCIPAL"
 echo "topup-tester account:   $TOPUP_TESTER_ACCOUNT"
 
 # Fund it with 1 ICP - Just sent it from any wallet or you can also sent it 
 
 # Export a plaintext PEM for the Python `pay_topup` helper (used in Scenarios 3, 4,
-# 6, 7). dfx may have stored the identity encrypted in your OS keyring; this command
-# decrypts it (you'll be prompted for the password) and writes a plaintext PEM
-# alongside identity.json. It does NOT change how dfx itself uses the identity —
-# dfx still reads from the keyring when --identity topup-tester is passed.
-dfx identity export topup-tester > ~/.config/dfx/identity/topup-tester/identity.pem
-chmod 600 ~/.config/dfx/identity/topup-tester/identity.pem
+# 6, 7). icp-cli may have stored the identity encrypted in your OS keyring; this command
+# decrypts it (you'll be prompted for the password) and writes a plaintext PEM.
+# It does NOT change how icp-cli itself uses the identity — icp-cli still reads from the
+# keyring when --identity topup-tester is passed.
+icp identity export topup-tester > ~/.config/icp/identity/topup-tester/identity.pem
+chmod 600 ~/.config/icp/identity/topup-tester/identity.pem
 
 # Set the ICP ledger canister id (mainnet / testing — same canister id on every network)
 ICP_LEDGER=ryjl3-tyaaa-aaaaa-aaaba-cai
 ```
 
-> **The transfer step uses Python (`icp-py-core`), not `dfx`.** Rationale and the `pay_topup` helper are a few sections below ("Send the ICP via `icp-py-core`"). The redeem step still uses `dfx canister call ... topUpCyclesForAnyMainerAgent` since that argument has no blob escapes.
+> **The transfer step uses Python (`icp-py-core`), not the CLI.** Rationale and the `pay_topup` helper are a few sections below ("Send the ICP via `icp-py-core`"). The redeem step still uses `icp canister call ... topUpCyclesForAnyMainerAgent` since that argument has no blob escapes.
 
 ### Memo helper
 
@@ -308,13 +307,14 @@ verify_memo "$MEMO"
 
 ### Send the ICP via `icp-py-core` (`scripts/pay_topup.py`)
 
-> **Why Python instead of `dfx`?** Two dfx paths were tried and both fail:
+> **Why Python instead of the CLI?** Both CLI paths were tried under dfx and both failed
+> (this predates the icp-cli migration and has not been re-tested since):
 > - `dfx ledger transfer` (legacy) only accepts an 8-byte `--memo <Nat64>`, so it can't carry the bound memo at all.
 > - `dfx canister call <ICP_LEDGER> icrc1_transfer "(record { ... memo = opt blob \"\AD\00...\"; ... })"` looks correct on paper, but **dfx 0.29.x mis-parses the blob hex-escape syntax** — an 11-byte memo (1 marker + 10 principal bytes) is inflated past the ICP ledger's 32-byte `MEMO_SIZE_BYTES` limit and triggers the trap `the memo field is too large`. Verified via `icp-py-core`: the same 11-byte memo is accepted (the only error is `Err(InsufficientFunds)` from the unfunded test identity), proving the encoding is what's wrong, not the memo itself.
 >
-> The redeem step (`dfx canister call <GameState> topUpCyclesForAnyMainerAgent ...`) works fine because its argument doesn't include a blob escape.
+> The redeem step (`icp canister call <GameState> topUpCyclesForAnyMainerAgent ...`) works fine because its argument doesn't include a blob escape.
 
-The transfer is implemented in `PoAIW/src/GameState/scripts/pay_topup.py`. It always uses the `topup-tester` identity (loaded from the exported plaintext PEM at `~/.config/dfx/identity/topup-tester/identity.pem`) and sends 0.1 ICP. The two arguments are the target mAIner canister id and GameState's canister id; on success it prints the ICP-ledger block index on stdout (capture-friendly).
+The transfer is implemented in `PoAIW/src/GameState/scripts/pay_topup.py`. It always uses the `topup-tester` identity (loaded from the exported plaintext PEM at `~/.config/icp/identity/topup-tester/identity.pem`) and sends 0.1 ICP. The two arguments are the target mAIner canister id and GameState's canister id; on success it prints the ICP-ledger block index on stdout (capture-friendly).
 
 Define a tiny shell wrapper so the scenarios stay short — paste this once at the top of your testing session:
 
@@ -337,7 +337,7 @@ echo "Block index: $BLOCK"
 
 These exercise the legitimate flows and confirm the new memo-binding logic doesn't regress them.
 
-> **Note on the gated endpoint (Scenarios 1 & 2):** these must be tested **through the UI**, not via `dfx`. The gated `topUpCyclesForMainerAgent` requires (a) the caller to be the mAIner owner and (b) a full `OfficialMainerAgentCanister` record passed as `mainerAgent` — the frontend already has both, but constructing the record by hand in `dfx` is impractical. The legacy-vs-bound memo behavior is the responsibility of the deployed frontend version, so the UI is what we want to exercise.
+> **Note on the gated endpoint (Scenarios 1 & 2):** these must be tested **through the UI**, not from the command line. The gated `topUpCyclesForMainerAgent` requires (a) the caller to be the mAIner owner and (b) a full `OfficialMainerAgentCanister` record passed as `mainerAgent` — the frontend already has both, but constructing the record by hand in `dfx` is impractical. The legacy-vs-bound memo behavior is the responsibility of the deployed frontend version, so the UI is what we want to exercise.
 
 ### Scenario 1 — Owner tops up their own mAIner via gated endpoint using bound memo — test via UI once UI is upgraded
 
@@ -347,7 +347,7 @@ This is the happy path for the deployed **new** frontend (Phase 2 onward).
 2. Log in as the owner of one of your mAIners (e.g. via Internet Identity).
 3. Open the **Top up** modal for that mAIner. The target canister id shown in the modal is what the memo will bind to.
 4. Choose a token (ICP, ckBTC, …), enter an amount, confirm.
-5. Wait for the success toast. The mAIner's cycle balance should increase by roughly the converted amount (`dfx canister --network $NETWORK status <mAIner canister id> | grep Balance` before/after).
+5. Wait for the success toast. The mAIner's cycle balance should increase by roughly the converted amount (`icp canister status <mAIner -e $NETWORK canister id> | grep Balance` before/after).
 6. Inspect the resulting ICP-ledger block (block index visible in the success notification or the browser console). The `icrc1_memo` field must be `[0xAD] ++ <target principal bytes>` — i.e. byte 0 = `0xAD`, bytes 1..N match `Principal.toBlob(<target mAIner canister id>)`.
 
 ### Scenario 2 — Owner tops up with legacy memo (gated, Phase-1/2 dual-accept) — test via UI before UI upgrade
@@ -367,14 +367,14 @@ MEMO=$(make_memo "$TARGET_MAINER")
 verify_memo "$MEMO"
 
 # 2. Verify topup-tester has funds
-dfx ledger --ic balance
+icp token balance -n ic
 
 # 3. Send 0.1 ICP via icp-py-core; pay_topup prints the block index on success
 BLOCK=$(pay_topup "$TARGET_MAINER")
 echo "Block: $BLOCK"
 
 # 4. Redeem on the ungated endpoint
-dfx canister --ic call "$SUBNET_0_1_GAMESTATE" topUpCyclesForAnyMainerAgent \
+icp canister call "$SUBNET_0_1_GAMESTATE" topUpCyclesForAnyMainerAgent -n ic \
     "(record { mainerAgentAddress = \"$TARGET_MAINER\"; paymentTransactionBlockId = $BLOCK : nat64 })"
 # expect: Ok with cyclesAdded > 0 and mainerAgentAddress == TARGET_MAINER
 ```
@@ -389,7 +389,7 @@ These confirm the new defenses fire and the existing ones still work. Run them a
 
 ```bash
 # Re-run any successful redeem from above with the same BLOCK
-dfx canister --ic call "$SUBNET_0_1_GAMESTATE" topUpCyclesForAnyMainerAgent \
+icp canister call "$SUBNET_0_1_GAMESTATE" topUpCyclesForAnyMainerAgent -n ic \
     "(record { mainerAgentAddress = \"$TARGET\"; paymentTransactionBlockId = $BLOCK : nat64 })"
 # expect: Err(Other("Already redeemd this transaction block"))
 ```
@@ -409,12 +409,12 @@ BLOCK=$(pay_topup "$LEGIT_TARGET")
 echo "Block: $BLOCK"
 
 # 3. Try to misdirect the redeem to ATTACKER_TARGET
-dfx canister --ic call "$SUBNET_0_1_GAMESTATE" topUpCyclesForAnyMainerAgent \
+icp canister call "$SUBNET_0_1_GAMESTATE" topUpCyclesForAnyMainerAgent -n ic \
     "(record { mainerAgentAddress = \"$ATTACKER_TARGET\"; paymentTransactionBlockId = $BLOCK : nat64 })"
 # expect: Err(Other("Memo of payment block <BLOCK> doesn't bind to target mAIner <ATTACKER_TARGET>"))
 
 # 4. Redeem to the correct (memo-bound) target — succeeds
-dfx canister --ic call "$SUBNET_0_1_GAMESTATE" topUpCyclesForAnyMainerAgent \
+icp canister call "$SUBNET_0_1_GAMESTATE" topUpCyclesForAnyMainerAgent -n ic \
     "(record { mainerAgentAddress = \"$LEGIT_TARGET\"; paymentTransactionBlockId = $BLOCK : nat64 })"
 # expect: Ok
 ```
@@ -437,7 +437,7 @@ BLOCK=$(pay_topup_test_no_memo)
 echo "Block: $BLOCK"
 
 # 2. Try to redeem — should fail because the memo is missing
-dfx canister --ic call "$SUBNET_0_1_GAMESTATE" topUpCyclesForAnyMainerAgent \
+icp canister call "$SUBNET_0_1_GAMESTATE" topUpCyclesForAnyMainerAgent -n ic \
     "(record { mainerAgentAddress = \"$TARGET_MAINER\"; paymentTransactionBlockId = $BLOCK : nat64 })"
 # expect: Err(Other("Memo of payment block <BLOCK> is missing or invalid for target mAIner <TARGET_MAINER>"))
 ```
@@ -445,7 +445,7 @@ dfx canister --ic call "$SUBNET_0_1_GAMESTATE" topUpCyclesForAnyMainerAgent \
 ### Scenario 7 — Anonymous caller rejected
 
 ```bash
-dfx --identity anonymous canister --ic call "$SUBNET_0_1_GAMESTATE" topUpCyclesForAnyMainerAgent \
+icp canister call "$SUBNET_0_1_GAMESTATE" topUpCyclesForAnyMainerAgent -n ic --identity anonymous \
     "(record { mainerAgentAddress = \"$TARGET_MAINER\"; paymentTransactionBlockId = $BLOCK : nat64 })"
 # expect: Err(Unauthorized)
 ```
@@ -455,6 +455,6 @@ dfx --identity anonymous canister --ic call "$SUBNET_0_1_GAMESTATE" topUpCyclesF
 ### Cleanup
 
 ```bash
-dfx identity remove topup-tester
+icp identity delete topup-tester
 ```
 

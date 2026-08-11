@@ -10,12 +10,11 @@ make docker-build-wasm
 
 # Deploy the pre-built wasm
 # Note: Post-SNS, this step is replaced with SNS governed deployment.
-dfx canister --network $NETWORK stop challenger_ctrlb_canister
-dfx canister --network $NETWORK snapshot create challenger_ctrlb_canister
-dfx canister install --wasm out/challenger_ctrlb_canister.wasm \
-    --network $NETWORK --mode upgrade --wasm-memory-persistence keep \
-    challenger_ctrlb_canister
-dfx canister --network $NETWORK start challenger_ctrlb_canister
+icp canister stop challenger_ctrlb_canister -e $NETWORK
+icp canister snapshot create challenger_ctrlb_canister -e $NETWORK
+icp canister install challenger_ctrlb_canister --wasm out/challenger_ctrlb_canister.wasm \
+    -e $NETWORK --mode upgrade --wasm-memory-persistence keep -y
+icp canister start challenger_ctrlb_canister -e $NETWORK
 
 # Verify the deployed wasm matches the Docker build
 make docker-verify-wasm VERIFY_NETWORK=$NETWORK

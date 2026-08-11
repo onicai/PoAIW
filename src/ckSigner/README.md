@@ -35,7 +35,7 @@ Both the production and testing canisters are deployed to the [fiduciary subnet]
 
 ### Prerequisites
 
-- [dfx](https://internetcomputer.org/docs/current/developer-docs/setup/) (0.29.2+)
+- [icp-cli](https://cli.internetcomputer.org) (1.2.0+)
 - [Docker](https://www.docker.com/) (for reproducible wasm builds)
 - Python 3.11+ (any environment manager: conda, venv, asdf, etc.)
 - [mops](https://mops.one/) (Motoko package manager)
@@ -59,10 +59,12 @@ make smoketest
 ```
 
 This will:
-1. Stop any running dfx replica
-2. Start a clean local dfx replica
+1. Stop any running local network (`icp network stop`)
+2. Start a clean local network (`rm -rf .icp/cache && icp network start -d`;
+   icp-cli has no `--clean`, removing the cache is the equivalent)
 3. Build the canister wasm (Docker reproducible build)
-4. Create and install the canister locally with `dfx_test_key`
+4. Create and install the canister locally with the `dfx_test_key` Schnorr key
+   (that is the management canister's key name on a local replica, not a dfx CLI concept)
 5. Run all pytest smoke tests
 6. Stop the replica
 
@@ -74,24 +76,24 @@ To deploy manually without running the full smoketest:
 cd src/ckSigner
 
 # Start a clean local replica
-dfx stop
-dfx start --clean --background
+icp network stop
+rm -rf .icp/cache && icp network start -d
 
 # Build wasm (Docker reproducible build)
 make docker-build-base
 make docker-build-wasm
 
 # Create and install the canister
-dfx canister create ck_signer_canister
-dfx canister install --wasm out/ck_signer_canister.wasm \
-    --mode install ck_signer_canister \
-    --argument '("dfx_test_key")'
+icp canister create ck_signer_canister -e local
+icp canister install ck_signer_canister --wasm out/ck_signer_canister.wasm \
+    --mode install \
+    --args '("dfx_test_key")'
 
 # Run tests
 pytest -vv --exitfirst test/test_ck_signer.py
 
 # Stop the replica when done
-dfx stop
+icp network stop
 ```
 
 ---
@@ -100,11 +102,11 @@ dfx stop
 
 ### Schnorr Key Names
 
-| Schnorr Key Name | dfx network                 | Signing Cost    | Subnet used for signing    |
+| Schnorr Key Name | network                     | Signing Cost    | Subnet used for signing    |
 |------------------|-----------------------------|-----------------|----------------------------|
 | `key_1`          | IC mainnet (prd)            | ~26B cycles     | 34-node fiduciary subnet   |
 | `test_key_1`     | IC mainnet (testing)        | ~10B cycles     | 13-node application subnet |
-| `dfx_test_key`   | Local replica (`dfx start`) | Free            | Local test subnet          |
+| `dfx_test_key`   | Local replica (`icp network start`) | Free            | Local test subnet          |
 
 ### Set the variables
 
@@ -136,54 +138,54 @@ echo "SCHNORR_KEY_NAME=$SCHNORR_KEY_NAME"
 make docker-build-base
 make docker-build-wasm
 
-dfx canister --network $NETWORK stop ck_signer_canister
-dfx canister --network $NETWORK snapshot create ck_signer_canister
+icp canister stop ck_signer_canister -e $NETWORK
+icp canister snapshot create ck_signer_canister -e $NETWORK
 
 # ---------------------------------------------
 # To upgrade
-dfx canister install ck_signer_canister \
+icp canister install ck_signer_canister \
     --mode upgrade \
-    --network $NETWORK \
+    -e $NETWORK \
     --wasm out/ck_signer_canister.wasm \
-    --argument "("$SCHNORR_KEY_NAME")" \
+    --args "("$SCHNORR_KEY_NAME")" \
     --wasm-memory-persistence keep
 
 # To reinstall
 # When reinstalling, make sure to redo the steps of the section:
 # "Configure fee tokens"
 #
-dfx canister install ck_signer_canister \
+icp canister install ck_signer_canister \
     --mode reinstall \
-    --network $NETWORK \
+    -e $NETWORK \
     --wasm out/ck_signer_canister.wasm \
-    --argument "("$SCHNORR_KEY_NAME")"
+    --args "("$SCHNORR_KEY_NAME")"
 
 # Verify wasm hash
 make docker-verify-wasm VERIFY_NETWORK=$NETWORK
 
 # Start the canister back up
-dfx canister --network $NETWORK start ck_signer_canister
-dfx canister --network $NETWORK status ck_signer_canister | grep Status
-dfx canister --network $NETWORK call ck_signer_canister health
+icp canister start ck_signer_canister -e $NETWORK
+icp canister status ck_signer_canister -e $NETWORK | grep Status
+icp canister call ck_signer_canister health
 
 # Verify Treasury -> go to Configure Treasury section if wrong
-dfx canister --network $NETWORK call ck_signer_canister getTreasury
+icp canister call ck_signer_canister getTreasury
 
 # Verify fee token configuration -> go to Configure Fee Tokens section if wrong
-dfx canister --network $NETWORK call ck_signer_canister getFeeTokens
+icp canister call ck_signer_canister getFeeTokens
 
 # Verify signing is functional
 # getPublicKey — should return an x-only public key and P2TR bitcoin address
-dfx canister --network $NETWORK call ck_signer_canister getPublicKey \
+icp canister call ck_signer_canister getPublicKey \
     '(record { botName = "testbot"; payment = null })'
 
 # sign — should return a 64-byte Schnorr signature
 # (the argument is a 32-byte message hash, hex-encoded as a blob)
-dfx canister --network $NETWORK call ck_signer_canister sign \
+icp canister call ck_signer_canister sign \
     '(record { botName = "testbot"; message = blob "\00\01\02\03\04\05\06\07\08\09\0a\0b\0c\0d\0e\0f\10\11\12\13\14\15\16\17\18\19\1a\1b\1c\1d\1e\1f"; payment = null })'
 
 # Verify that different botNames produce different keys
-dfx canister --network $NETWORK call ck_signer_canister getPublicKey \
+icp canister call ck_signer_canister getPublicKey \
     '(record { botName = "testbot2"; payment = null })'
 ```
 
@@ -196,7 +198,7 @@ After a reinstall, verify the treasury is correct. For testing, set it to the te
 echo "Using network: $NETWORK"
 
 # Check current treasury
-dfx canister --network $NETWORK call ck_signer_canister getTreasury
+icp canister call ck_signer_canister getTreasury
 
 ## Treasury Configuration
 #
@@ -206,7 +208,7 @@ dfx canister --network $NETWORK call ck_signer_canister getTreasury
 # | testing     | funnAI Treasury Canister Dev | pu2lc-nyaaa-aaaag-au65q-cai  |
 
 # Set treasury (only needed if default is wrong, e.g. for testing network)
-# dfx canister --network $NETWORK call ck_signer_canister setTreasury \
+# icp canister call ck_signer_canister setTreasury \
 #     '(record { treasuryName = "funnAI Treasury Canister Dev"; treasuryPrincipal = principal "pu2lc-nyaaa-aaaag-au65q-cai" })'
 ```
 
@@ -218,7 +220,7 @@ After a reinstall, configure the accepted ICRC-2 fee tokens.
 echo "Using network: $NETWORK"
 
 # Check current fee token configuration
-dfx canister --network $NETWORK call ck_signer_canister getFeeTokens
+icp canister call ck_signer_canister getFeeTokens
 
 ## Fee Token Configuration
 #
@@ -226,22 +228,22 @@ dfx canister --network $NETWORK call ck_signer_canister getFeeTokens
 # |-------|-----------------------------|------------|
 # | ckBTC | mxzaz-hqaaa-aaaar-qaada-cai | 100 (sats) |
 
-dfx canister --network $NETWORK call ck_signer_canister addFeeToken \
+icp canister call ck_signer_canister addFeeToken \
     '(record { tokenName = "ckBTC"; tokenLedger = principal "mxzaz-hqaaa-aaaar-qaada-cai"; fee = 100 : nat })'
 
 # Verify fee tokens are configured
-dfx canister --network $NETWORK call ck_signer_canister getFeeTokens
+icp canister call ck_signer_canister getFeeTokens
 
 # Verify getPublicKey rejects without payment (should return "Fee payment required" error)
-dfx canister --network $NETWORK call ck_signer_canister getPublicKey \
+icp canister call ck_signer_canister getPublicKey \
     '(record { botName = "testbot"; payment = null })'
 
 # Verify sign rejects without payment (should return "Fee payment required" error)
-dfx canister --network $NETWORK call ck_signer_canister sign \
+icp canister call ck_signer_canister sign \
     '(record { botName = "testbot"; message = blob "\00\01\02\03\04\05\06\07\08\09\0a\0b\0c\0d\0e\0f\10\11\12\13\14\15\16\17\18\19\1a\1b\1c\1d\1e\1f"; payment = null })'
 
 # To remove a fee token (if needed):
-# dfx canister --network $NETWORK call ck_signer_canister removeFeeToken \
+# icp canister call ck_signer_canister removeFeeToken \
 #     '(record { tokenLedger = principal "mxzaz-hqaaa-aaaar-qaada-cai" })'
 ```
 
@@ -250,18 +252,18 @@ dfx canister --network $NETWORK call ck_signer_canister sign \
 After a couple of hours, if everything looks good, remove the snapshots to save memory:
 
 ```bash
-dfx canister --network $NETWORK snapshot list   ck_signer_canister
-dfx canister --network $NETWORK snapshot delete  ck_signer_canister <snapshot-id>
+icp canister snapshot list ck_signer_canister -e $NETWORK
+icp canister snapshot delete ck_signer_canister -e $NETWORK <snapshot-id>
 ```
 
 ### Load a snapshot to ROLL BACK
 
 ```bash
-dfx canister --network $NETWORK stop ck_signer_canister
-dfx canister --network $NETWORK snapshot list ck_signer_canister
-dfx canister --network $NETWORK snapshot load ck_signer_canister <snapshot-id>
-dfx canister --network $NETWORK start ck_signer_canister
-dfx canister --network $NETWORK call ck_signer_canister health
+icp canister stop ck_signer_canister -e $NETWORK
+icp canister snapshot list ck_signer_canister -e $NETWORK
+icp canister snapshot restore ck_signer_canister -e $NETWORK <snapshot-id>
+icp canister start ck_signer_canister -e $NETWORK
+icp canister call ck_signer_canister health
 ```
 
 ---

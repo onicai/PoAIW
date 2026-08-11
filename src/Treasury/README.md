@@ -10,12 +10,11 @@ make docker-build-wasm
 
 # Deploy the pre-built wasm
 # Note: Post-SNS, this step is replaced with SNS governed deployment.
-dfx canister --network $NETWORK stop funnai_treasury_canister
-dfx canister --network $NETWORK snapshot create funnai_treasury_canister
-dfx canister install --wasm out/funnai_treasury_canister.wasm \
-    --network $NETWORK --mode upgrade --wasm-memory-persistence keep \
-    funnai_treasury_canister
-dfx canister --network $NETWORK start funnai_treasury_canister
+icp canister stop funnai_treasury_canister -e $NETWORK
+icp canister snapshot create funnai_treasury_canister -e $NETWORK
+icp canister install funnai_treasury_canister --wasm out/funnai_treasury_canister.wasm \
+    -e $NETWORK --mode upgrade --wasm-memory-persistence keep -y
+icp canister start funnai_treasury_canister -e $NETWORK
 
 # Verify the deployed wasm matches the Docker build
 make docker-verify-wasm VERIFY_NETWORK=$NETWORK
@@ -42,73 +41,73 @@ mops install
 
 ```bash
 # Generate the bindings for the upload scripts and the frontend
-dfx generate funnai_treasury_canister
+# (no `icp` equivalent to `dfx generate` -- src/declarations/ is committed)
 
 # local
-dfx deploy funnai_treasury_canister
+icp deploy funnai_treasury_canister
 
 # IC mainnet (caution!)
 ## development
-dfx deploy --network development funnai_treasury_canister
+icp deploy -e development funnai_treasury_canister
 
 ## production
-dfx deploy --network prd funnai_treasury_canister
+icp deploy -e prd funnai_treasury_canister
 
 # Set Game State as master canister (you have to deploy that canister first and then return with its id)
 # local
-dfx canister call funnai_treasury_canister setMasterCanisterId '("c5kvi-uuaaa-aaaaa-qaaia-cai")'
+icp canister call funnai_treasury_canister setMasterCanisterId '("c5kvi-uuaaa-aaaaa-qaaia-cai")'
 
 # IC mainnet (caution! there is only 1 treasury canister for the stages)
 ## development: do not call this anymore after treasury is in production (there is only 1 treasury, or create another treasury for this stage)
-dfx canister call --network development funnai_treasury_canister setMasterCanisterId '("ciqqv-4iaaa-aaaag-auara-cai")'
+icp canister call -e development funnai_treasury_canister setMasterCanisterId '("ciqqv-4iaaa-aaaag-auara-cai")'
 
 ## demo: do not call this anymore after treasury is in production (there is only 1 treasury, or create another treasury for this stage)
-dfx canister call --network demo funnai_treasury_canister setMasterCanisterId '("4tr6r-mqaaa-aaaae-qfcta-cai")'
+icp canister call -e demo funnai_treasury_canister setMasterCanisterId '("4tr6r-mqaaa-aaaae-qfcta-cai")'
 
 ## production
-dfx canister call --network prd funnai_treasury_canister setMasterCanisterId '("r5m5y-diaaa-aaaaa-qanaa-cai")'
+icp canister call -e prd funnai_treasury_canister setMasterCanisterId '("r5m5y-diaaa-aaaaa-qanaa-cai")'
 
 ```
 
 ```bash
-dfx canister call funnai_treasury_canister health --network $NETWORK
-dfx canister call funnai_treasury_canister whoami --network $NETWORK
-dfx canister call funnai_treasury_canister amiController --network $NETWORK
-dfx canister call funnai_treasury_canister getMasterCanisterId --network $NETWORK
-dfx canister call funnai_treasury_canister getConvertIcpToFunnaiFlag --network $NETWORK
-dfx canister call funnai_treasury_canister getBurnIncomingFunnaiFlag --network $NETWORK
-dfx canister call funnai_treasury_canister getBurnShareFunnai --network $NETWORK
-dfx canister call funnai_treasury_canister getDeveloperShareIcp --network $NETWORK
-dfx canister call funnai_treasury_canister getDisburseCyclesToDevelopersFlag --network $NETWORK
-dfx canister call funnai_treasury_canister getDisburseFundsToDevelopersFlag --network $NETWORK
-dfx canister call funnai_treasury_canister getIcpBaseAmount --network $NETWORK
-dfx canister call funnai_treasury_canister getLiquidityAdditionIncomingFunnaiFlag --network $NETWORK
-dfx canister call funnai_treasury_canister getLiquidityShareFunnai --network $NETWORK
-dfx canister call funnai_treasury_canister getMatchLiquidityAdditionIcpFlag --network $NETWORK
-dfx canister call funnai_treasury_canister getMinimumIcpBalance --network $NETWORK
+icp canister call funnai_treasury_canister health -e $NETWORK
+icp canister call funnai_treasury_canister whoami -e $NETWORK
+icp canister call funnai_treasury_canister amiController -e $NETWORK
+icp canister call funnai_treasury_canister getMasterCanisterId -e $NETWORK
+icp canister call funnai_treasury_canister getConvertIcpToFunnaiFlag -e $NETWORK
+icp canister call funnai_treasury_canister getBurnIncomingFunnaiFlag -e $NETWORK
+icp canister call funnai_treasury_canister getBurnShareFunnai -e $NETWORK
+icp canister call funnai_treasury_canister getDeveloperShareIcp -e $NETWORK
+icp canister call funnai_treasury_canister getDisburseCyclesToDevelopersFlag -e $NETWORK
+icp canister call funnai_treasury_canister getDisburseFundsToDevelopersFlag -e $NETWORK
+icp canister call funnai_treasury_canister getIcpBaseAmount -e $NETWORK
+icp canister call funnai_treasury_canister getLiquidityAdditionIncomingFunnaiFlag -e $NETWORK
+icp canister call funnai_treasury_canister getLiquidityShareFunnai -e $NETWORK
+icp canister call funnai_treasury_canister getMatchLiquidityAdditionIcpFlag -e $NETWORK
+icp canister call funnai_treasury_canister getMinimumIcpBalance -e $NETWORK
 
 # Update values
-dfx canister call funnai_treasury_canister setMinimumIcpBalance '0' --network $NETWORK
-dfx canister call funnai_treasury_canister toggleConvertIcpToFunnaiFlagAdmin --network $NETWORK
-dfx canister call funnai_treasury_canister toggleBurnIncomingFunnaiFlagAdmin --network $NETWORK
-dfx canister call funnai_treasury_canister toggleLiquidityAdditionIncomingFunnaiFlagAdmin --network $NETWORK
-dfx canister call funnai_treasury_canister toggleMatchLiquidityAdditionIcpFlagAdmin --network $NETWORK
-dfx canister call funnai_treasury_canister setLiquidityShareFunnai '100' --network $NETWORK
+icp canister call funnai_treasury_canister setMinimumIcpBalance '0' -e $NETWORK
+icp canister call funnai_treasury_canister toggleConvertIcpToFunnaiFlagAdmin -e $NETWORK
+icp canister call funnai_treasury_canister toggleBurnIncomingFunnaiFlagAdmin -e $NETWORK
+icp canister call funnai_treasury_canister toggleLiquidityAdditionIncomingFunnaiFlagAdmin -e $NETWORK
+icp canister call funnai_treasury_canister toggleMatchLiquidityAdditionIcpFlagAdmin -e $NETWORK
+icp canister call funnai_treasury_canister setLiquidityShareFunnai '100' -e $NETWORK
 
 # Send rewards for LP farm/staking pool on ICPSwap
-dfx canister call funnai_treasury_canister getAmountFunnaiToSend --network $NETWORK
-dfx canister call funnai_treasury_canister setAmountFunnaiToSend '1' --network $NETWORK
-dfx canister call funnai_treasury_canister getSendOutFunnaiFlag --network $NETWORK
-dfx canister call funnai_treasury_canister toggleSendOutFunnaiFlagAdmin --network $NETWORK
+icp canister call funnai_treasury_canister getAmountFunnaiToSend -e $NETWORK
+icp canister call funnai_treasury_canister setAmountFunnaiToSend '1' -e $NETWORK
+icp canister call funnai_treasury_canister getSendOutFunnaiFlag -e $NETWORK
+icp canister call funnai_treasury_canister toggleSendOutFunnaiFlagAdmin -e $NETWORK
 ## careful, this will actually send the FUNNAI tokens to ICPSwap
-dfx canister call funnai_treasury_canister sendFunnaiForPoolSetupAdmin --network $NETWORK
+icp canister call funnai_treasury_canister sendFunnaiForPoolSetupAdmin -e $NETWORK
 
 ## Might come in handy during local testing
-dfx ledger fabricate-cycles --canister funnai_treasury_canister
+icp cycles transfer 20t funnai_treasury_canister -e local
 ```
 
 # Account
-dfx ledger account-id --of-principal qbhxa-ziaaa-aaaaa-qbqza-cai
+icp identity account-id --of-principal qbhxa-ziaaa-aaaaa-qbqza-cai
 84f6f707fbc9a70ed8b38ac0765fa715066d81da5097964363bad96240f247bf
 
 e.g. check here: https://dashboard.internetcomputer.org/account/84f6f707fbc9a70ed8b38ac0765fa715066d81da5097964363bad96240f247bf
@@ -126,14 +125,14 @@ https://dashboard.internetcomputer.org/account/300d6f0058417bb5131c7313a3fe7f7b9
 - Upgrade demo Game State
 - Set treasury on Game State
 ```bash
-dfx canister call game_state_canister setTreasuryCanisterId '"pm62h-jyaaa-aaaag-aughq-cai"' --network demo
-dfx canister call game_state_canister getTreasuryCanisterId --network demo
+icp canister call game_state_canister setTreasuryCanisterId '"pm62h-jyaaa-aaaag-aughq-cai"' -e demo
+icp canister call game_state_canister getTreasuryCanisterId -e demo
 ```
 
 - Toggle disburse flag on Game State
 ```bash
-dfx canister call game_state_canister toggleDisburseFundsToTreasuryFlagAdmin --network demo
-dfx canister call game_state_canister getDisburseFundsToTreasuryFlag --network demo
+icp canister call game_state_canister toggleDisburseFundsToTreasuryFlagAdmin -e demo
+icp canister call game_state_canister getDisburseFundsToTreasuryFlag -e demo
 ```
 
 - Set Game State as master on Treasury
@@ -146,9 +145,9 @@ dfx canister call game_state_canister getDisburseFundsToTreasuryFlag --network d
 
 - Run test commands
 ```bash
-dfx canister call game_state_canister testDisbursementToTreasuryAdmin --network demo
-dfx canister logs game_state_canister --network demo
-dfx canister logs funnai_treasury_canister --network demo
+icp canister call game_state_canister testDisbursementToTreasuryAdmin -e demo
+icp canister logs game_state_canister -e demo
+icp canister logs funnai_treasury_canister -e demo
 ```
 
 - Test normal topup flow (on demo app)

@@ -10,12 +10,11 @@ make docker-build-wasm
 
 # Deploy the pre-built wasm
 # Note: Post-SNS, this step is replaced with SNS governed deployment.
-dfx canister --network $NETWORK stop judge_ctrlb_canister
-dfx canister --network $NETWORK snapshot create judge_ctrlb_canister
-dfx canister install --wasm out/judge_ctrlb_canister.wasm \
-    --network $NETWORK --mode upgrade --wasm-memory-persistence keep \
-    judge_ctrlb_canister
-dfx canister --network $NETWORK start judge_ctrlb_canister
+icp canister stop judge_ctrlb_canister -e $NETWORK
+icp canister snapshot create judge_ctrlb_canister -e $NETWORK
+icp canister install judge_ctrlb_canister --wasm out/judge_ctrlb_canister.wasm \
+    -e $NETWORK --mode upgrade --wasm-memory-persistence keep -y
+icp canister start judge_ctrlb_canister -e $NETWORK
 
 # Verify the deployed wasm matches the Docker build
 make docker-verify-wasm VERIFY_NETWORK=$NETWORK
