@@ -1327,7 +1327,7 @@ persistent actor class GameStateCanister() = this {
         return #Ok(MAX_FUNNAI_TOPUP_CYCLES_AMOUNT);
     };
 
-    // Bonus cycles percentage for mAIner topups (ICP, BOB, ckBTC — not FUNNAI)
+    // Bonus cycles percentage for mAIner topups and creations (ICP, BOB, ckBTC — not FUNNAI)
     transient let DEFAULT_BONUS_CYCLES_TOPUP_IN_PERCENT : Nat = 10;
     var bonusCyclesTopupInPercent : Nat = DEFAULT_BONUS_CYCLES_TOPUP_IN_PERCENT;
 
@@ -1350,17 +1350,27 @@ persistent actor class GameStateCanister() = this {
         return #Ok(authRecord);
     };
 
+    // The bonus applies to top-ups AND to mAIner creations (every creation route, whitelist
+    // included). It used to match #MainerTopUp only, while a purchase is tagged
+    // #MainerCreation, so the "+X% bonus cycles" the purchase screen advertises was never
+    // delivered - see PR #156, which pays that back for the 2026-08-09 auction buyers.
+    //
+    // The switch is exhaustive on purpose: no `case (_)` catch-all, so adding a variant to
+    // RedeemedForOptions forces a decision here instead of silently skipping the bonus, which
+    // is exactly how the original bug went unnoticed.
+    //
+    // effectiveBonusCyclesTopupInPercent() returns 0 while GameState is below
+    // PROTOCOL_CYCLES_BALANCE_BUFFER, which is what keeps the UI badge honest.
     private func applyMainerTopupBonus(cycles : Nat, redeemedFor : Types.RedeemedForOptions, usesExistingCyclesBalance : Bool) : Nat {
         if (not usesExistingCyclesBalance) {
             return cycles;
         };
         switch (redeemedFor) {
-            case (#MainerTopUp(_)) {
+            case (#MainerTopUp(_) or #MainerCreation(_)) {
                 let percent = effectiveBonusCyclesTopupInPercent();
                 let bonusCycles : Nat = cycles * percent / 100;
                 return cycles + bonusCycles;
             };
-            case (_) { return cycles; };
         };
     };
 
