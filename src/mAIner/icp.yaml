@@ -66,5 +66,10 @@ environments:
     network: ic
   - name: development
     network: ic
-  - name: ic
-    network: ic
+  #
+  # There is deliberately no `ic` environment. dfx.json declared one, but the only canister
+  # that ever had an id under it is mainer_ctrlb_canister_2, which is not declared above --
+  # the 744-canister controller fleet is addressed by principal through mainer_ids.json, not
+  # through icp-cli environments. An `ic` environment here would resolve no ids for the two
+  # canisters that ARE declared, so `icp deploy -e ic` would silently CREATE new mainnet
+  # canisters instead of upgrading existing ones.

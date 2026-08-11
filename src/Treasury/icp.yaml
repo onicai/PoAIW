@@ -45,3 +45,9 @@ environments:
     network: ic
   - name: development
     network: ic
+  # Treasury is the only project with a `demo` deployment. Its id is currently the same
+  # canister as `development` (pm62h-jyaaa-aaaag-aughq-cai), as it was in dfx.json, but it
+  # is kept as its own environment so .icp/data/mappings/demo.ids.json stays addressable
+  # rather than being an orphaned file.
+  - name: demo
+    network: ic
