@@ -134,6 +134,9 @@ jobs:
         working-directory: src/${{ matrix.canister }}
         run: |
           set -euo pipefail
-          mops toolchain use moc "$MOC_VERSION"
+          # `mops install` MUST come first: `mops toolchain use` runs checkRequirements,
+          # which reads each dependency's mops.toml, so on a clean checkout (no .mops/)
+          # it dies with ENOENT on .mops/base@<ver>/mops.toml.
           mops install
+          mops toolchain use moc "$MOC_VERSION"
           make smoketest
