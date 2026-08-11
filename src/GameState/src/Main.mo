@@ -1327,6 +1327,43 @@ persistent actor class GameStateCanister() = this {
         return #Ok(MAX_FUNNAI_TOPUP_CYCLES_AMOUNT);
     };
 
+    // Bonus cycles percentage for mAIner topups (ICP, BOB, ckBTC — not FUNNAI)
+    transient let DEFAULT_BONUS_CYCLES_TOPUP_IN_PERCENT : Nat = 10;
+    var bonusCyclesTopupInPercent : Nat = DEFAULT_BONUS_CYCLES_TOPUP_IN_PERCENT;
+
+    public query func getBonusCyclesTopupInPercent() : async Types.NatResult {
+        return #Ok(effectiveBonusCyclesTopupInPercent());
+    };
+
+    public shared (msg) func setBonusCyclesTopupInPercent(newPercent : Nat) : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (newPercent < 10 or newPercent > 50) {
+            return #Err(#Unauthorized);
+        };
+        bonusCyclesTopupInPercent := newPercent;
+        let authRecord = { auth = "You set the bonus cycles topup percent to " # Nat.toText(newPercent) # "%." };
+        return #Ok(authRecord);
+    };
+
+    private func applyMainerTopupBonus(cycles : Nat, redeemedFor : Types.RedeemedForOptions, usesExistingCyclesBalance : Bool) : Nat {
+        if (not usesExistingCyclesBalance) {
+            return cycles;
+        };
+        switch (redeemedFor) {
+            case (#MainerTopUp(_)) {
+                let percent = effectiveBonusCyclesTopupInPercent();
+                let bonusCycles : Nat = cycles * percent / 100;
+                return cycles + bonusCycles;
+            };
+            case (_) { return cycles; };
+        };
+    };
+
     // Protocol parameters used in the mAIner Creation Cycles Flow calculations
     transient let DEFAULT_CYCLES_CREATE_MAINER_MARGIN_GS          : Nat  =    25 * Constants.CYCLES_BILLION ; // Margin kept in GameState canister (includes actual costs)
     transient let DEFAULT_CYCLES_CREATE_MAINER_MARGIN_MC          : Nat  =   300 * Constants.CYCLES_BILLION ; // Margin kept in mAIner Creator canister (excludes actual costs)
@@ -4754,6 +4791,16 @@ persistent actor class GameStateCanister() = this {
 
     var PROTOCOL_CYCLES_BALANCE_BUFFER : Nat = 400 * Constants.CYCLES_TRILLION;
 
+    // Effective bonus percent exposed to callers and used at top-up time. Returns 0 when the
+    // protocol must mint cycles via CMC (balance below buffer); bonus only applies when
+    // existing GameState cycles balance is used.
+    private func effectiveBonusCyclesTopupInPercent() : Nat {
+        if (PROTOCOL_CYCLES_BALANCE_BUFFER > Cycles.balance()) {
+            return 0;
+        };
+        bonusCyclesTopupInPercent
+    };
+
     public shared (msg) func setProtocolCyclesBalanceBuffer(newBufferInTrillionCycles : Nat) : async Types.AuthRecordResult {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
@@ -4832,6 +4879,8 @@ persistent actor class GameStateCanister() = this {
                 D.print("GameState: handleIncomingFunds - #MainerTopUp(mainerCanisterAddress): "# debug_show(mainerCanisterAddress));
                 D.print("GameState: handleIncomingFunds - #MainerTopUp(mainerCanisterAddress) PROTOCOL_CYCLES_BALANCE_BUFFER: "# debug_show(PROTOCOL_CYCLES_BALANCE_BUFFER)); 
                 D.print("GameState: handleIncomingFunds - #MainerTopUp(mainerCanisterAddress) Cycles.balance(): "# debug_show(Cycles.balance())); 
+                // Key check: existing cycles balance vs CMC conversion. Bonus cycles apply only
+                // when amountToConvert = 0 (balance above buffer) — see applyMainerTopupBonus below.
                 if (PROTOCOL_CYCLES_BALANCE_BUFFER > Cycles.balance()) {
                     // Cycles balance is lower than security threshold, so convert the payment's share for the mAIner to cycles
                     amountToConvert := amountForMainer;
@@ -4877,15 +4926,10 @@ persistent actor class GameStateCanister() = this {
                     switch (notifyTopUpResult) {
                         case (#Ok(cyclesReceived)) {
                             D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult cyclesReceived: "# debug_show(cyclesReceived));
-                            var cyclesForMainer : Nat = cyclesReceived;
-                            var cyclesForProtocol : Nat = 0; // Protocol already took its cut in ICP
+                            let cyclesForMainer : Nat = cyclesReceived;
+                            let cyclesForProtocol : Nat = 0; // Protocol already took its cut in ICP
 
-                            // Sanity check
                             D.print("GameState: handleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult cyclesForMainer: "# debug_show(cyclesForMainer));
-                            if (cyclesForMainer > cyclesReceived) {
-                                // This should never happen
-                                return #Err(#Other("cyclesForMainer > cyclesReceived"));                            
-                            };
 
                             let response : Types.HandleIncomingFundsRecord = {
                                 cyclesForProtocol: Nat = cyclesForProtocol;
@@ -4936,11 +4980,8 @@ persistent actor class GameStateCanister() = this {
             let cycles : Nat = (icpAmount * Nat64.toNat(xdrPermyriadPerIcp) * CYCLES_PER_XDR) / (10_000 * E8S_PER_ICP); // Where 10_000 is to convert from permyriad (1/10000 of a unit)
             D.print("GameState: handleIncomingFunds - no conversion necessary, cycles: "# debug_show(cycles));
 
-            // Bonus for mAIner as existing cycles balance can be used
-            let bonusCycles : Nat = cycles / 10; // 10% bonus for mAIner
-            D.print("GameState: handleIncomingFunds - no conversion necessary, bonusCycles: "# debug_show(bonusCycles));
-            
-            let cyclesForMainer : Nat = cycles + bonusCycles;
+            // Bonus only when existing GameState cycles balance is used (amountToConvert = 0 above).
+            let cyclesForMainer : Nat = applyMainerTopupBonus(cycles, transactionEntry.redeemedFor, true);
             let cyclesForProtocol : Nat = 0; // Protocol already took its cut in ICP
             
             D.print("GameState: handleIncomingFunds - no conversion necessary, cyclesForMainer: "# debug_show(cyclesForMainer));
@@ -5003,8 +5044,14 @@ persistent actor class GameStateCanister() = this {
                 };
             };
             case (#MainerTopUp(mainerCanisterAddress)) {
-                D.print("GameState: whitelistHandleIncomingFunds - #MainerTopUp(mainerCanisterAddress): "# debug_show(mainerCanisterAddress)); 
-                amountToConvert := amountForMainer; // Always convert mAIner's share of payment into cycles
+                D.print("GameState: whitelistHandleIncomingFunds - #MainerTopUp(mainerCanisterAddress): "# debug_show(mainerCanisterAddress));
+                D.print("GameState: whitelistHandleIncomingFunds - #MainerTopUp(mainerCanisterAddress) PROTOCOL_CYCLES_BALANCE_BUFFER: "# debug_show(PROTOCOL_CYCLES_BALANCE_BUFFER));
+                D.print("GameState: whitelistHandleIncomingFunds - #MainerTopUp(mainerCanisterAddress) Cycles.balance(): "# debug_show(Cycles.balance()));
+                if (PROTOCOL_CYCLES_BALANCE_BUFFER > Cycles.balance()) {
+                    amountToConvert := amountForMainer;
+                } else {
+                    amountToConvert := 0;
+                };
             };
             case (_) { return #Err(#Other("Unsupported")); }
         };
@@ -5041,15 +5088,10 @@ persistent actor class GameStateCanister() = this {
                     switch (notifyTopUpResult) {
                         case (#Ok(cyclesReceived)) {
                             D.print("GameState: whitelistHandleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult cyclesReceived: "# debug_show(cyclesReceived));
-                            var cyclesForMainer : Nat = cyclesReceived;
-                            var cyclesForProtocol : Nat = 0; // Protocol already took its cut in ICP
+                            let cyclesForMainer : Nat = cyclesReceived;
+                            let cyclesForProtocol : Nat = 0; // Protocol already took its cut in ICP
 
-                            // Sanity check
                             D.print("GameState: whitelistHandleIncomingFunds - transferResult #Ok(transactionBlockId) notifyTopUpResult cyclesForMainer: "# debug_show(cyclesForMainer));
-                            if (cyclesForMainer > cyclesReceived) {
-                                // This should never happen
-                                return #Err(#Other("cyclesForMainer > cyclesReceived"));                            
-                            };
 
                             let response : Types.HandleIncomingFundsRecord = {
                                 cyclesForProtocol: Nat = cyclesForProtocol;
@@ -5092,7 +5134,7 @@ persistent actor class GameStateCanister() = this {
             let cycles : Nat = (icpAmount * Nat64.toNat(xdrPermyriadPerIcp) * CYCLES_PER_XDR) / (10_000 * E8S_PER_ICP); // Where 10_000 is to convert from permyriad (1/10000 of a unit)
             D.print("GameState: whitelistHandleIncomingFunds - no conversion necessary, cycles: "# debug_show(cycles));
             
-            let cyclesForMainer : Nat = cycles;
+            let cyclesForMainer : Nat = applyMainerTopupBonus(cycles, transactionEntry.redeemedFor, true);
             let cyclesForProtocol : Nat = 0; // Protocol already took its cut in ICP
             
             D.print("GameState: whitelistHandleIncomingFunds - no conversion necessary, cyclesForMainer: "# debug_show(cyclesForMainer));

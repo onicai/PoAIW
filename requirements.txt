@@ -6,5 +6,8 @@
 # identity and started reading $ICPP_PRO_TEST_IDENTITY, which every smoketest target here
 # exports. On 5.x that export is ignored and the suites run as whatever identity happens
 # to be active.
+#
+# This replaces the temporary `<5.5.0` cap main carried while the repo was still on dfx
+# (see PR #155); lifting it is exactly what that cap was waiting for.
 icpp-pro>=6.0.0
 bitcoin-utils>=0.6.8
