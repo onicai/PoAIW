@@ -6,6 +6,9 @@ on:
     paths:
       - ".github/workflows/cicd-ubuntu.yml"
       - ".github/workflows/trigger.txt"
+      # Pins the icpp-pro version the smoketests run on, so it decides whether
+      # this workflow passes and must be able to trigger it.
+      - "requirements.txt"
       # Keep in sync with matrix.canister below
       - "src/Api/**"
       - "src/mAIner/**"
