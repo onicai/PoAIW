@@ -1,7 +1,9 @@
-# icpp-pro 6.0.0 switched the smoketest framework from dfx to icp-cli: it no longer
-# falls back to the machine-wide active identity and shells out to `icp` instead of
-# `dfx`, so the suite fails with "ERROR: no test identity configured".
-# This repo still builds and tests with dfx, so cap below 6.0.0.
-# Lift the cap as part of the dfx -> icp-cli migration.
-icpp-pro>=5.3.1,<6.0.0
+# icpp-pro 5.5.0 switched the smoketest framework from dfx to icp-cli: it shells out to
+# `icp identity ...` where 5.4.2 and earlier used `dfx identity ...`. Without icp-cli on
+# PATH the suite dies before the first test, as
+#   5.5.0 - 5.6.0: CalledProcessError: Command 'icp identity default ' ... exit status 127
+#   6.0.0        : ERROR: no test identity configured.
+# 5.4.2 is the last dfx-based release, so cap below 5.5.0 while this repo still builds
+# and tests with dfx. Lift the cap as part of the dfx -> icp-cli migration.
+icpp-pro>=5.3.1,<5.5.0
 bitcoin-utils>=0.6.8
