@@ -7633,6 +7633,77 @@ persistent actor class GameStateCanister() = this {
         };
     };
 
+    // ---------------------------------------------------------------------------------
+    // TEMPORARY - remove this function and AUCTION_BONUS_PAYOUT once the payout has run.
+    //
+    // The 2026-08-09 reverse auction advertised "+50% bonus cycles" on the purchase screen,
+    // but applyMainerTopupBonus only matches #MainerTopUp and a purchase is tagged
+    // #MainerCreation(#ShareAgent), so all 10 buyers were shown the promise and none
+    // received it. This pays the shortfall out of GameState's own cycles balance.
+    //
+    // Amounts are 50% of each mAIner's cycles balance in the pre-repair baseline snapshot
+    // taken 2026-08-10T00:28:57Z. Total 364_506_205_538_708 cycles (364.506 T).
+    //
+    // No idempotency guard: calling this twice sends the cycles twice. Call it once, read
+    // the returned summary, and if any entry failed, trim the list to just those and
+    // redeploy before calling again.
+    // ---------------------------------------------------------------------------------
+    transient let AUCTION_BONUS_PAYOUT : [(Text, Nat)] = [
+        ("2fzyu-lyaaa-aaaaa-qhmka-cai", 92_157_535_997_659), // 130 ICP, delivered 184.315 T
+        ("2cy6a-gaaaa-aaaaa-qhmkq-cai", 42_711_727_303_806), //  60 ICP, delivered  85.423 T
+        ("2l3v4-qiaaa-aaaaa-qhmla-cai", 39_566_012_294_872), //  55 ICP, delivered  79.132 T
+        ("2m2ti-5qaaa-aaaaa-qhmlq-cai", 39_575_914_893_493), //  55 ICP, delivered  79.152 T
+        ("3buxg-syaaa-aaaaa-qhmma-cai", 32_110_897_570_649), //  45 ICP, delivered  64.222 T
+        ("3gvrs-7aaaa-aaaaa-qhmmq-cai", 24_823_635_799_863), //  35 ICP, delivered  49.647 T
+        ("3pw2o-jiaaa-aaaaa-qhmna-cai", 23_402_366_864_301), //  33 ICP, delivered  46.805 T
+        ("3ix42-eqaaa-aaaaa-qhmnq-cai", 23_386_037_726_152), //  33 ICP, delivered  46.772 T
+        ("35qnx-fyaaa-aaaaa-qhmoa-cai", 23_386_038_351_385), //  33 ICP, delivered  46.772 T
+        ("32rld-iaaaa-aaaaa-qhmoq-cai", 23_386_038_736_528), //  33 ICP, delivered  46.772 T
+    ];
+
+    // Function for admin to pay the bonus cycles owed to the 2026-08-09 reverse auction buyers
+    public shared (msg) func payMissingAuctionBonusCyclesAdmin() : async Types.AuthRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+
+        var creditedCount : Nat = 0;
+        var creditedCycles : Nat = 0;
+        let failures = Buffer.Buffer<Text>(0);
+
+        for ((address, cyclesToCredit) in AUCTION_BONUS_PAYOUT.vals()) {
+            try {
+                let Mainer_Actor : Types.MainerAgentCtrlbCanister = actor (address);
+                // Deliver via addCycles (not IC0.deposit_cycles) so the mAIner counts this
+                // towards its officialCyclesBalance. A failed call refunds the cycles.
+                Cycles.add<system>(cyclesToCredit);
+                let addCyclesResponse = await Mainer_Actor.addCycles();
+                switch (addCyclesResponse) {
+                    case (#Ok(addCyclesResult)) {
+                        creditedCount += 1;
+                        creditedCycles += addCyclesResult.amount;
+                        D.print("GameState: payMissingAuctionBonusCyclesAdmin - credited " # Nat.toText(addCyclesResult.amount) # " cycles to " # address);
+                    };
+                    case (#Err(error)) {
+                        D.print("GameState: payMissingAuctionBonusCyclesAdmin - addCycles failed for " # address # ": " # debug_show(error));
+                        failures.add(address # " (" # debug_show(error) # ")");
+                    };
+                };
+            } catch (e) {
+                D.print("GameState: payMissingAuctionBonusCyclesAdmin - call failed for " # address # ": " # Error.message(e));
+                failures.add(address # " (" # Error.message(e) # ")");
+            };
+        };
+
+        let summary = "Credited " # Nat.toText(creditedCount) # "/" # Nat.toText(AUCTION_BONUS_PAYOUT.size()) # " mAIners with " # Nat.toText(creditedCycles) # " cycles."
+            # (if (failures.size() == 0) { "" } else { " FAILED: " # Text.join(", ", failures.vals()) });
+        D.print("GameState: payMissingAuctionBonusCyclesAdmin - " # summary);
+        return #Ok({ auth = summary });
+    };
+
     // Function for user to top up cycles of an existing mAIner agent with FUNNAI
     public shared (msg) func topUpCyclesForMainerAgentWithFunnai(mainerTopUpInfo : Types.MainerAgentTopUpInput) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {
