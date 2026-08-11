@@ -1355,9 +1355,10 @@ persistent actor class GameStateCanister() = this {
     // #MainerCreation, so the "+X% bonus cycles" the purchase screen advertises was never
     // delivered - see PR #156, which pays that back for the 2026-08-09 auction buyers.
     //
-    // The switch is exhaustive on purpose: no `case (_)` catch-all, so adding a variant to
-    // RedeemedForOptions forces a decision here instead of silently skipping the bonus, which
-    // is exactly how the original bug went unnoticed.
+    // The first arm covers every variant of RedeemedForOptions today, so the `case (_)` below
+    // is currently unreachable and moc flags it with "M0146 this pattern is never matched".
+    // That warning is the signal that coverage is complete - if it ever disappears, a new
+    // variant is falling through and silently getting no bonus, so log loudly there.
     //
     // effectiveBonusCyclesTopupInPercent() returns 0 while GameState is below
     // PROTOCOL_CYCLES_BALANCE_BUFFER, which is what keeps the UI badge honest.
@@ -1370,6 +1371,10 @@ persistent actor class GameStateCanister() = this {
                 let percent = effectiveBonusCyclesTopupInPercent();
                 let bonusCycles : Nat = cycles * percent / 100;
                 return cycles + bonusCycles;
+            };
+            case (_) {
+                D.print("GameState: applyMainerTopupBonus - WARNING: no bonus applied, unhandled redeemedFor variant: " # debug_show(redeemedFor));
+                return cycles;
             };
         };
     };
