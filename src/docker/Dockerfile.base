@@ -5,11 +5,25 @@ FROM --platform=${PLATFORM} ubuntu:22.04@sha256:c7eb020043d8fc2ae0793fb35a37bff1
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install minimal dependencies
+# Install minimal dependencies.
+#
+# Deliberately NOT pinned to exact apt versions. The base image above is pinned by digest, so
+# its filesystem is fixed, but `apt-get update` reads the LIVE Ubuntu archive index. Ubuntu
+# removes a superseded version as soon as a security update lands, so any exact pin here has
+# a shelf life of weeks and then fails the build with:
+#
+#     E: Version '7.81.0-1ubuntu1.24' for 'curl' was not found
+#
+# That has already happened at least three times (8f10136f, 51da1576, 0dfb5439 all just bump
+# a pin "to unblock base image build"), and it broke CI on main for ~6 weeks from 2026-07-01.
+#
+# Pinning these buys no reproducibility that matters: the wasm hash is determined by moc
+# (via DFX_VERSION) and MOPS_VERSION, both pinned as build args below. curl, git and
+# ca-certificates only fetch installers -- they contribute nothing to the artifact.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl=7.81.0-1ubuntu1.24 \
-    ca-certificates=20260601~22.04.1 \
-    git=1:2.34.1-1ubuntu1.17 \
+    curl \
+    ca-certificates \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js 20.x from NodeSource (pin major version)
