@@ -69,7 +69,7 @@ def collect_error_text(e) -> str:
 
 
 def get_module_hash(network: str, canister_id: str) -> tuple[Optional[str], Optional[str]]:
-    """Get the module hash of a canister via dfx canister info.
+    """Get the module hash of a canister via `icp canister status`.
 
     Retries on transient errors (timeouts, connection issues).
 
@@ -157,7 +157,7 @@ def calculate_freeze_prediction(memory_bytes, cycles_balance):
         return (None, None, None)
     # 317,500 cycles per GiB per second on 13-node subnets
     # (was 127,000, increased 2.5x by NNS Proposal 140538 / Mission70)
-    # Verified: dfx canister status shows idle_cycles_burned_per_day = 10.6B for 416MB,
+    # Verified: canister status shows idle_cycles_burned_per_day = 10.6B for 416MB,
     # which matches 317,500 rate (127,000 rate would give only 4.3B)
     daily_drain = int(memory_bytes * 317_500 / (1024 ** 3) * 86_400)
     freeze_threshold = daily_drain * 30  # 30 days = default freezing threshold
@@ -169,7 +169,7 @@ def calculate_freeze_prediction(memory_bytes, cycles_balance):
 
 
 def get_canister_resources(network: str, canister_id: str) -> tuple[Optional[int], Optional[int]]:
-    """Get memory size and cycle balance via dfx canister status.
+    """Get memory size and cycle balance via `icp canister status`.
 
     Retries on transient errors. Returns (None, None) for frozen/unreachable.
 
@@ -227,7 +227,7 @@ def check_canister_status(network: str, canister_id: str, owner: str,
         "days_until_freeze": None,
     }
 
-    # Step 1: Check module hash via dfx canister info
+    # Step 1: Check module hash via `icp canister status`
     module_hash, info_error = get_module_hash(network, canister_id)
 
     if info_error:

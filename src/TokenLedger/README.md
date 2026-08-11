@@ -1,5 +1,10 @@
 # Token Ledger
 
+> **No `icp.yaml` here, on purpose.** This is not a project icp-cli builds: the wasm is the
+> official ICRC-1 ledger, fetched by `download_latest_icrc1_ledger.sh`. There is no source to
+> compile, so there is nothing for a build recipe to do. The deployed canister ids live in
+> `token_ids.json` and are addressed by principal, not through an icp-cli environment.
+
 Params to specify (see constructor.did):
 record {
   decimals = opt 8;

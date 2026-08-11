@@ -17,9 +17,9 @@ CLAUDE.md
 .DS_Store
 **/.DS_Store
 
-# dfx temporary files.
-# TODO: delete these two lines once the last canister is off dfx -- they only exist so
-# that leftover .dfx/ dirs of not-yet-migrated canisters stay out of the way.
+# dfx build output. No canister here is built with dfx any more, but dfx-era .dfx/
+# directories survive in existing checkouts and must never be committed -- they contain
+# built wasms. Keep this rule even though the migration is done.
 .dfx/
 **/.dfx/
 
@@ -55,3 +55,4 @@ dist/
 src/mAInerCreator/files/qwen2.5-0.5b-instruct-q8_0.gguf
 
 *.pyc
+__pycache__/

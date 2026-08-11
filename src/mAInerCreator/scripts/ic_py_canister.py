@@ -1,6 +1,5 @@
 """Returns the icp-py-core Canister instance, for calling the endpoints."""
 
-import re
 import os
 import json
 import sys
@@ -19,21 +18,6 @@ IDENTITY_ENV_VAR = "ICPP_PRO_TEST_IDENTITY"
 # canister ids. (dfx is deprecated; icp-cli is its successor.)
 ICP = "icp"
 
-# dfx 0.32.0 emits this deprecation banner on every invocation. Because
-# run_shell_cmd merges stderr into stdout, the banner ends up in the
-# captured output and gets glued onto things like the identity name —
-# corrupting the next dfx call's arguments. Strip exactly this known line.
-# Mirrors the fix in icpp-pro src/icpp/smoketest.py (commit 6f401c4).
-_DFX_DEPRECATION_RE = re.compile(
-    r"^WARNING: dfx is deprecated.*$\n?", flags=re.MULTILINE
-)
-
-
-def _strip_dfx_warnings(s: str) -> str:
-    """Remove the known dfx deprecation banner from captured shell output (kept for any residual dfx call; icp emits no such banner)."""
-    return _DFX_DEPRECATION_RE.sub("", s)
-
-
 def extract_variant(response: List[Any]) -> Any:
     """Extract variant result from icp-py-core response.
 
@@ -50,7 +34,7 @@ def extract_variant(response: List[Any]) -> Any:
 def run_icp_command(cmd: str, quiet: bool = False) -> Optional[str]:
     """Runs an `icp` command as a subprocess and returns its stripped stdout."""
     try:
-        return _strip_dfx_warnings(run_shell_cmd(cmd, capture_output=True)).rstrip("\n")
+        return run_shell_cmd(cmd, capture_output=True).rstrip("\n")
     except subprocess.CalledProcessError as e:
         if not quiet:
             print(f"Failed icp command: '{cmd}' with error: \n{e.output}")

@@ -141,4 +141,5 @@ generation starts. That path stalls under v0.11.0.
 
 The 9 prd LLM canisters each need the full sequence when that mainnet work happens:
 stop → snapshot → install → start → health → `load_model` → `set_max_tokens` → pause →
-re-`assignAdminRole` → re-register. All of it is exercised locally by `make e2e-up`.
+re-`assignAdminRole` → re-register. All of it is exercised locally by the funnAI repo's
+e2e harness: `make e2e-start-clean && make e2e-install && make e2e-test`.

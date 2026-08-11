@@ -1,5 +1,9 @@
 # FUNNAI Token Index Canister
 
+> **No `icp.yaml` here, on purpose.** Like TokenLedger, this is a download-only canister:
+> the wasm is the official ICRC-1 index, not built from source in this repo. Its deployed
+> ids live in `token_ids.json` and are addressed by principal, not via an icp-cli environment.
+
 ## Deployment
 
 ```bash

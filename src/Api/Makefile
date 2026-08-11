@@ -9,7 +9,9 @@ VERIFY_NETWORK ?= prd
 
 # Which identity to act as. Empty means "whatever `icp identity default` is set to on this
 # machine" -- i.e. yours. icp-cli keeps its own identity store and does not import dfx's,
-# so import your key once (see README-developer-migration-guide-from-dfx-to-icp-cli.md).
+# so import your key once. That is described in
+# README-developer-migration-guide-from-dfx-to-icp-cli.md, which lives in the funnAI
+# repo (../../../ from here) and is deliberately not duplicated into PoAIW.
 # Override for a single run with:  make <target> IDENTITY=my-deploy-key
 IDENTITY ?=
 

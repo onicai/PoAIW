@@ -14,8 +14,8 @@ Why this script exists (instead of `icp` CLI transfers or `icp canister call
   - `icp-py-core` encodes the memo blob correctly. Verified end-to-end: the
     same 11-byte memo sent here is accepted by the ledger.
 
-The redeem step (`dfx canister call <GameState> topUpCyclesForAnyMainerAgent
-...`) does not have the blob-escape issue and remains a plain dfx call.
+The redeem step (`icp canister call <GameState> topUpCyclesForAnyMainerAgent
+...`) does not have the blob-escape issue and remains a plain CLI call.
 
 Usage:
     python3 pay_topup.py <target_mainer_canister_id> <gamestate_canister_id>
