@@ -254,6 +254,36 @@ def test__getLimitForCreatingMainerAdmin_as_controller(network: str) -> None:
     assert "variant { Ok =" in response
 
 
+def test__getBonusCyclesTopupInPercent(network: str) -> None:
+    """Test getBonusCyclesTopupInPercent - returns the effective percent for any caller.
+
+    Locally the canister's cycles balance is far below PROTOCOL_CYCLES_BALANCE_BUFFER, so
+    effectiveBonusCyclesTopupInPercent() gates the bonus off and returns 0.
+    """
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getBonusCyclesTopupInPercent",
+        canister_argument="()",
+        network=network,
+    )
+    expected_response = "(variant { Ok = 0 : nat })"
+    assert response == expected_response
+
+
+def test__setBonusCyclesTopupInPercent_anonymous(network: str, identity_anonymous: dict) -> None:
+    """Test setBonusCyclesTopupInPercent - anonymous caller should be rejected."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="setBonusCyclesTopupInPercent",
+        canister_argument="(50 : nat)",
+        network=network,
+    )
+    expected_response = "(variant { Err = variant { Unauthorized } })"
+    assert response == expected_response
+
+
 def test__setBufferMainerCreation_anonymous(network: str, identity_anonymous: dict) -> None:
     """Test setBufferMainerCreation - anonymous caller should be rejected."""
     response = call_canister_api(

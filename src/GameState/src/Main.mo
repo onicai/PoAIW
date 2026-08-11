@@ -1327,7 +1327,7 @@ persistent actor class GameStateCanister() = this {
         return #Ok(MAX_FUNNAI_TOPUP_CYCLES_AMOUNT);
     };
 
-    // Bonus cycles percentage for mAIner topups (ICP, BOB, ckBTC — not FUNNAI)
+    // Bonus cycles percentage for mAIner topups and creations (ICP, BOB, ckBTC — not FUNNAI)
     transient let DEFAULT_BONUS_CYCLES_TOPUP_IN_PERCENT : Nat = 10;
     var bonusCyclesTopupInPercent : Nat = DEFAULT_BONUS_CYCLES_TOPUP_IN_PERCENT;
 
@@ -1350,17 +1350,32 @@ persistent actor class GameStateCanister() = this {
         return #Ok(authRecord);
     };
 
+    // The bonus applies to top-ups AND to mAIner creations (every creation route, whitelist
+    // included). It used to match #MainerTopUp only, while a purchase is tagged
+    // #MainerCreation, so the "+X% bonus cycles" the purchase screen advertises was never
+    // delivered - see PR #156, which pays that back for the 2026-08-09 auction buyers.
+    //
+    // The first arm covers every variant of RedeemedForOptions today, so the `case (_)` below
+    // is currently unreachable and moc flags it with "M0146 this pattern is never matched".
+    // That warning is the signal that coverage is complete - if it ever disappears, a new
+    // variant is falling through and silently getting no bonus, so log loudly there.
+    //
+    // effectiveBonusCyclesTopupInPercent() returns 0 while GameState is below
+    // PROTOCOL_CYCLES_BALANCE_BUFFER, which is what keeps the UI badge honest.
     private func applyMainerTopupBonus(cycles : Nat, redeemedFor : Types.RedeemedForOptions, usesExistingCyclesBalance : Bool) : Nat {
         if (not usesExistingCyclesBalance) {
             return cycles;
         };
         switch (redeemedFor) {
-            case (#MainerTopUp(_)) {
+            case (#MainerTopUp(_) or #MainerCreation(_)) {
                 let percent = effectiveBonusCyclesTopupInPercent();
                 let bonusCycles : Nat = cycles * percent / 100;
                 return cycles + bonusCycles;
             };
-            case (_) { return cycles; };
+            case (_) {
+                D.print("GameState: applyMainerTopupBonus - WARNING: no bonus applied, unhandled redeemedFor variant: " # debug_show(redeemedFor));
+                return cycles;
+            };
         };
     };
 
