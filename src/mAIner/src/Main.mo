@@ -2343,10 +2343,16 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         };
 
         // Remove the ShareAgent from its owner's index.
+        //
+        // A missing index row is not a reason to refuse the removal: it means there is nothing
+        // to clean up there. Returning an error here would abort before
+        // `shareAgentCanistersStorage.remove` below, leaving the ShareAgent permanently
+        // un-removable -- this endpoint is the only way to deregister one. The index and the
+        // registry can drift (see the TODO on `removeShareAgentCanister` at :270, which removes
+        // from the registry without touching this index), and GameState's twin
+        // `removeMainerAgentCanisterAdmin` already continues in this case. Match it.
         switch (userToShareAgentsStorage.get(shareAgentEntry.ownedBy)) {
-            case (null) {
-                return #Err(#Other("Owner for ShareAgent canister ID not found: " # canisterId));
-            };
+            case (null) {};
             case (?userShareAgents) {
                 let updatedUserShareAgents = List.filter<Types.OfficialMainerAgentCanister>(
                     userShareAgents,
