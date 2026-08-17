@@ -10,12 +10,11 @@ make docker-build-wasm
 
 # Deploy the pre-built wasm
 # Note: Post-SNS, this step is replaced with SNS governed deployment.
-dfx canister --network $NETWORK stop mainer_creator_canister
-dfx canister --network $NETWORK snapshot create mainer_creator_canister
-dfx canister install --wasm out/mainer_creator_canister.wasm \
-    --network $NETWORK --mode upgrade --wasm-memory-persistence keep \
-    mainer_creator_canister
-dfx canister --network $NETWORK start mainer_creator_canister
+icp canister stop mainer_creator_canister -e $NETWORK
+icp canister snapshot create mainer_creator_canister -e $NETWORK
+icp canister install mainer_creator_canister --wasm out/mainer_creator_canister.wasm \
+    -e $NETWORK --mode upgrade --wasm-memory-persistence keep -y
+icp canister start mainer_creator_canister -e $NETWORK
 
 # Verify the deployed wasm matches the Docker build
 make docker-verify-wasm VERIFY_NETWORK=$NETWORK
@@ -52,13 +51,13 @@ Do a local deploy and copy it over:
 
 ```bash
 # Start the local network
-dfx start --clean
+rm -rf .icp/cache && icp network start
 
 # From folder: PoAIW/src/mAIner
-dfx deploy mainer_ctrlb_canister_0
-dfx canister info mainer_ctrlb_canister_0 # Confirm hash matches target hash
-cp .dfx/local/canisters/mainer_ctrlb_canister_0/mainer_ctrlb_canister_0.did ../mAInerCreator/files/mainer_ctrlb_canister.did
-cp .dfx/local/canisters/mainer_ctrlb_canister_0/mainer_ctrlb_canister_0.wasm ../mAInerCreator/files/mainer_ctrlb_canister.wasm
+icp deploy mainer_ctrlb_canister_0
+icp canister status mainer_ctrlb_canister_0 # Confirm hash matches target hash
+cp out/mainer_ctrlb_canister_0.did ../mAInerCreator/files/mainer_ctrlb_canister.did
+cp out/mainer_ctrlb_canister_0.wasm ../mAInerCreator/files/mainer_ctrlb_canister.wasm
 ```
 
 ## LLM model
@@ -101,61 +100,61 @@ After that initial deployment, to update the code for the mAIner Creator caniste
 see "Build, Deploy and Verify" section above.
 
 ```bash
-scripts/register-game-state.sh [--network prd]
+scripts/register-game-state.sh [-e prd]
 ```
 
 ### Create a mAIner
 
 ```bash
-dfx canister call mainer_creator_canister health
-dfx canister call mainer_creator_canister whoami
-dfx canister call mainer_creator_canister amiController
+icp canister call mainer_creator_canister health
+icp canister call mainer_creator_canister whoami
+icp canister call mainer_creator_canister amiController
 
 # ================================================================
 # Type: #Own
 
 # Create a mAIner controller canister of type #Own
-dfx canister call mainer_creator_canister testCreateMainerControllerCanister '(record {mainerAgentCanisterType = variant {Own}, shareServiceCanisterAddress = null})'
+icp canister call mainer_creator_canister testCreateMainerControllerCanister '(record {mainerAgentCanisterType = variant {Own}, shareServiceCanisterAddress = null})'
 NEW_MAINER_OWN_CANISTER="xxxxx-...-cai"   # copy newCanisterId from printout
 
 # Create one or more llm canister for the just created mAIner controller canister of type #Own
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  # To add another LLM
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  # Etc..
+icp canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"
+icp canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  # To add another LLM
+icp canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  # Etc..
 # -> No need to save the canister id of the LLM, it is all saved internally...
 
 # ================================================================
 # Type: #ShareService & #ShareAgent
 
 # Create a mAIner controller canister of type #ShareService
-dfx canister call mainer_creator_canister testCreateMainerControllerCanister '(record {mainerAgentCanisterType = variant {ShareService}, shareServiceCanisterAddress = null})'
+icp canister call mainer_creator_canister testCreateMainerControllerCanister '(record {mainerAgentCanisterType = variant {ShareService}, shareServiceCanisterAddress = null})'
 NEW_MAINER_SHARE_SERVICE_CANISTER="yyyyy-...-cai"   # copy newCanisterId from printout
 
 # Create one or more llm canisters for use by the just created mAIner ShareService canister
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")"
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")" # To add another LLM
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")" # Etc.
+icp canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")"
+icp canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")" # To add another LLM
+icp canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")" # Etc.
 
 # Create mAIner controller canisters of type #ShareAgent
 # -> A ShareAgent canister uses the ShareService and not its own LLMs,
 #    so pass the ShareService canister id
         mainerAgentCanisterType : MainerAgentCanisterType;
-dfx canister call mainer_creator_canister testCreateMainerControllerCanister "(record { mainerAgentCanisterType = variant {ShareAgent}, shareServiceCanisterAddress = opt \"$NEW_MAINER_SHARE_SERVICE_CANISTER\"})"
+icp canister call mainer_creator_canister testCreateMainerControllerCanister "(record { mainerAgentCanisterType = variant {ShareAgent}, shareServiceCanisterAddress = opt \"$NEW_MAINER_SHARE_SERVICE_CANISTER\"})"
 NEW_MAINER_SHARE_AGENT_CANISTER="zzzzz-...-cai"   # copy newCanisterId from printout
 
 # You can create more ShareAgent canisters that use the same ShareService
-dfx canister call mainer_creator_canister testCreateMainerControllerCanister "(record {mainerAgentCanisterType = variant {ShareAgent}, shareServiceCanisterAddress = opt \"$NEW_MAINER_SHARE_SERVICE_CANISTER\"})" 
+icp canister call mainer_creator_canister testCreateMainerControllerCanister "(record {mainerAgentCanisterType = variant {ShareAgent}, shareServiceCanisterAddress = opt \"$NEW_MAINER_SHARE_SERVICE_CANISTER\"})" 
 ANOTHER_MAINER_SHARE_AGENT_CANISTER="zzzzz-...-cai"   # copy newCanisterId from printout
 # etc.
 
 # You can verify that a ShareAgent is not allowed to have it's own LLMs
 # This will give an error
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_AGENT_CANISTER\")"
+icp canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_AGENT_CANISTER\")"
 
 ###################################################
 
 ## Might come in handy during local testing
-dfx ledger fabricate-cycles --canister mainer_creator_canister
+icp cycles transfer 20t mainer_creator_canister -e local
 ```
 
 ### Test newly created mAIners
@@ -173,32 +172,32 @@ MAINER=$ANOTHER_MAINER_SHARE_AGENT_CANISTER
 # In production, timers will be running, and things will happen automatic.
 
 # Test some helper endpoints
-dfx canister call $MAINER amiController [--ic]
-dfx canister call $MAINER health [--ic]
-dfx canister call $MAINER ready [--ic]
-dfx canister call $MAINER checkAccessToLLMs [--ic]
-dfx canister call $MAINER getMainerCanisterType [--ic]
+icp canister call $MAINER amiController [--ic]
+icp canister call $MAINER health [--ic]
+icp canister call $MAINER ready [--ic]
+icp canister call $MAINER checkAccessToLLMs [--ic]
+icp canister call $MAINER getMainerCanisterType [--ic]
 
 # Follow instructions of PoAIW README to generate challenges.
 # Then, once they're available in the Game State, call this endpoint.
 # (-) A #Own mAIner will pull a challenge, create a response & submit it
 # (-) A #ShareAgent mAIner will pull a challenge and send the Challenge to the #ShareService.
 #     In the #ShareService canister, it will now sit in the queue
-dfx canister call $MAINER triggerChallengeResponseAdmin [--ic]
+icp canister call $MAINER triggerChallengeResponseAdmin [--ic]
 
 # For a #ShareAgent mAIner, you must now also trigger the #ShareService canister
 # to process an item in the queue to generate a response, and send it to the ShareAgent
 # who submits it with the GameState
-dfx canister call $NEW_MAINER_SHARE_SERVICE_CANISTER triggerChallengeResponseAdmin [--ic]
+icp canister call $NEW_MAINER_SHARE_SERVICE_CANISTER triggerChallengeResponseAdmin [--ic]
 
 # To ensure it all worked, call
-dfx canister call $MAINER getSubmittedResponsesAdmin --output json [--ic]
-dfx canister call $MAINER getChallengeQueueAdmin --output json [--ic]
-dfx canister call $NEW_MAINER_SHARE_SERVICE_CANISTER getChallengeQueueAdmin --output json [--ic]
+icp canister call $MAINER getSubmittedResponsesAdmin --output json [--ic]
+icp canister call $MAINER getChallengeQueueAdmin --output json [--ic]
+icp canister call $NEW_MAINER_SHARE_SERVICE_CANISTER getChallengeQueueAdmin --output json [--ic]
 
 # or from folder: funnAI
-dfx canister call game_state_canister getSubmissionsAdmin --output json [--ic]
-dfx canister call game_state_canister getNumSubmissionsAdmin --output json [--ic]
+icp canister call game_state_canister getSubmissionsAdmin --output json [--ic]
+icp canister call game_state_canister getNumSubmissionsAdmin --output json [--ic]
 ```
 
 ---
@@ -216,17 +215,17 @@ NETWORK=local
 # set the gamestate id
 # easiest is to go to the funnAI folder to set it, and then come back
 cd ../../../
-CANISTER_ID_GAME_STATE_CANISTER=$(dfx canister --network $NETWORK id game_state_canister)
+CANISTER_ID_GAME_STATE_CANISTER=$(icp canister status game_state_canister) -e $NETWORK --id-only
 cd PoAIW/src/mAInerCreator/
 echo "CANISTER_ID_GAME_STATE_CANISTER = $CANISTER_ID_GAME_STATE_CANISTER"
 
 # Generate the bindings for the upload scripts and the frontend
-dfx generate mainer_creator_canister
+# (no `icp` equivalent to `dfx generate` -- src/declarations/ is committed)
 
 # Deploy & configure
-dfx deploy   --network $NETWORK mainer_creator_canister --mode [install/reinstall/upgrade]
-dfx canister --network $NETWORK call mainer_creator_canister setMasterCanisterId '("'$CANISTER_ID_GAME_STATE_CANISTER'")'
-dfx canister --network $NETWORK call mainer_creator_canister getMasterCanisterIdAdmin
+icp deploy   -e $NETWORK mainer_creator_canister --mode [install/reinstall/upgrade]
+icp canister call mainer_creator_canister setMasterCanisterId '("'$CANISTER_ID_GAME_STATE_CANISTER'")'
+icp canister call mainer_creator_canister getMasterCanisterIdAdmin
 
 # Upload wasm & llm model files
 #
@@ -259,16 +258,16 @@ class SyncStream(NetworkStream):
 # ------------------------------------------------------------------------
 
 # Upload the mainer controller canister wasm
-python -m scripts.upload_mainer_controller_canister --network $NETWORK --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+python -m scripts.upload_mainer_controller_canister -e $NETWORK --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 
 # Upload the mainer LLM canister wasm
-python -m scripts.upload_mainer_llm_canister_wasm --network local --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+python -m scripts.upload_mainer_llm_canister_wasm -e local --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 
 # Upload the mainer LLM model file (gguf)
-python -m scripts.upload_mainer_llm_canister_modelfile --network local --canister mainer_creator_canister --chunksize 2000000 --wasm files/qwen2.5-0.5b-instruct-q8_0.gguf --hf-sha256 "ca59ca7f13d0e15a8cfa77bd17e65d24f6844b554a7b6c12e07a5f89ff76844e" --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+python -m scripts.upload_mainer_llm_canister_modelfile -e local --canister mainer_creator_canister --chunksize 2000000 --wasm files/qwen2.5-0.5b-instruct-q8_0.gguf --hf-sha256 "ca59ca7f13d0e15a8cfa77bd17e65d24f6844b554a7b6c12e07a5f89ff76844e" --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 
 # Verify the sha256 hashes of all uploaded files
 # Warning: do not run this while upload is in process. Wait till it is fully completed.
 #          It uses a lazy evaluation logic.
-dfx canister --network $NETWORK call mainer_creator_canister getSha256HashesAdmin
+icp canister call mainer_creator_canister getSha256HashesAdmin
 ```

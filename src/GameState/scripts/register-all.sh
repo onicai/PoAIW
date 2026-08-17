@@ -46,11 +46,11 @@ echo " "
 # echo "Using network type: $NETWORK_TYPE"
 
 # cd ../mAInerCreator
-# CANISTER_ID_MAINER_CREATOR_CANISTER=$(dfx canister --network $NETWORK_TYPE id mainer_creator_canister)
+# CANISTER_ID_MAINER_CREATOR_CANISTER=$(icp canister status mainer_creator_canister -e $NETWORK_TYPE --id-only)
 # cd ../Challenger
-# CANISTER_ID_CHALLENGER_CTRLB_CANISTER=$(dfx canister --network $NETWORK_TYPE id challenger_ctrlb_canister)
+# CANISTER_ID_CHALLENGER_CTRLB_CANISTER=$(icp canister status challenger_ctrlb_canister -e $NETWORK_TYPE --id-only)
 # cd ../Judge
-# CANISTER_ID_JUDGE_CTRLB_CANISTER=$(dfx canister --network $NETWORK_TYPE id judge_ctrlb_canister)
+# CANISTER_ID_JUDGE_CTRLB_CANISTER=$(icp canister status judge_ctrlb_canister -e $NETWORK_TYPE --id-only)
 
 # # go back to the Gamestate folder
 # cd ../Gamestate
@@ -59,7 +59,7 @@ echo " "
 # echo " "
 # echo "--------------------------------------------------"
 # echo "Checking health endpoint"
-# output=$(dfx canister call game_state_canister health --network $NETWORK_TYPE)
+# output=$(icp canister call game_state_canister health '()' -e $NETWORK_TYPE --query)
 
 # if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
 #     echo "game_state_canister is not healthy. Exiting."
@@ -71,7 +71,7 @@ echo " "
 # echo " "
 # echo "--------------------------------------------------"
 # echo "Registering mAInerCreator with the game_state_canister"
-# output=$(dfx canister call game_state_canister addOfficialCanister "(record { address = \"$CANISTER_ID_MAINER_CREATOR_CANISTER\"; canisterType = variant {MainerCreator} })" --network $NETWORK_TYPE)
+# output=$(icp canister call game_state_canister addOfficialCanister "(record { address = \"$CANISTER_ID_MAINER_CREATOR_CANISTER\"; canisterType = variant {MainerCreator} })" -e $NETWORK_TYPE)
 
 # if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
 #     echo "Error calling addOfficialCanister for mAInerCreator $CANISTER_ID_MAINER_CREATOR_CANISTER."
@@ -83,7 +83,7 @@ echo " "
 # echo " "
 # echo "--------------------------------------------------"
 # echo "Registering Challenger with the game_state_canister"
-# output=$(dfx canister call game_state_canister addOfficialCanister "(record { address = \"$CANISTER_ID_CHALLENGER_CTRLB_CANISTER\"; canisterType = variant {Challenger} })" --network $NETWORK_TYPE)
+# output=$(icp canister call game_state_canister addOfficialCanister "(record { address = \"$CANISTER_ID_CHALLENGER_CTRLB_CANISTER\"; canisterType = variant {Challenger} })" -e $NETWORK_TYPE)
 
 # if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
 #     echo "Error calling addOfficialCanister for Challenger $CANISTER_ID_CHALLENGER_CTRLB_CANISTER."
@@ -95,7 +95,7 @@ echo " "
 # echo " "
 # echo "--------------------------------------------------"
 # echo "Registering Judge with the game_state_canister"
-# output=$(dfx canister call game_state_canister addOfficialCanister "(record { address = \"$CANISTER_ID_JUDGE_CTRLB_CANISTER\"; canisterType = variant {Judge} })" --network $NETWORK_TYPE)
+# output=$(icp canister call game_state_canister addOfficialCanister "(record { address = \"$CANISTER_ID_JUDGE_CTRLB_CANISTER\"; canisterType = variant {Judge} })" -e $NETWORK_TYPE)
 
 # if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
 #     echo "Error calling addOfficialCanister for Judge $CANISTER_ID_JUDGE_CTRLB_CANISTER."
@@ -132,8 +132,8 @@ echo " "
 #     echo " "
 #     echo "--------------------------------------------------"
 #     echo "Registering mainer_ctrlb_canister_$m ($CANISTER_ID_MAINER_CTRLB_CANISTER) with the game_state_canister"
-#     MYPRINCIPAL=$(dfx identity get-principal | tr -d '\n')
-#     output=$(dfx canister call game_state_canister addMainerAgentCanisterAdmin "(record { address = \"$CANISTER_ID_MAINER_CTRLB_CANISTER\"; canisterType = variant {MainerAgent}; ownedBy = principal \"$MYPRINCIPAL\" })" --network $NETWORK_TYPE)
+#     MYPRINCIPAL=$(icp identity principal | tr -d '\n')
+#     output=$(icp canister call game_state_canister addMainerAgentCanisterAdmin "(record { address = \"$CANISTER_ID_MAINER_CTRLB_CANISTER\"; canisterType = variant {MainerAgent}; ownedBy = principal \"$MYPRINCIPAL\" })" -e $NETWORK_TYPE)
     
 #     if [[ "$output" != *"Ok = record"* ]]; then
 #         if [[ "$output" != "(variant { Err = variant { Other = \"Canister entry already exists\" } })" ]]; then

@@ -23,8 +23,16 @@ on:
       - "src/docker/**"
 
 env:
-  DFX_VERSION: "0.29.2"
-  DFX_WARNING: "-mainnet_plaintext_identity"
+  # Keep in sync with the x-versions block in each src/*/docker/docker-compose.yml.
+  ICP_VERSION: "1.2.0"
+  MOPS_VERSION: "2.13.2"
+  MOC_VERSION: "1.4.1"
+  # `icp network start` downloads the network-launcher through the GitHub API.
+  # Unauthenticated that is 60 requests/hour shared across ALL GitHub-hosted runners, so a
+  # 9-way matrix fails at random with "403 rate limit exceeded". This token lifts it.
+  ICP_CLI_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # Keep CI runs out of the usage telemetry.
+  DO_NOT_TRACK: "1"
 
 jobs:
   reproducible-build:
@@ -81,19 +89,32 @@ jobs:
       - name: setup python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
-      # Node is required for mops install
+      # Node >= 22 is required by icp-cli and the official canister recipes.
       - name: setup node
         uses: actions/setup-node@v4
+        with:
+          node-version: '22'
 
-      - name: install dfx
+      # The icp-cli binary links against libdbus/libssl; without them it fails at startup
+      # with "libdbus-1.so.3: cannot open shared object file".
+      - name: install icp-cli system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-3 libssl3 ca-certificates
+
+      - name: install icp-cli, ic-wasm and mops
         run: |
           set -euo pipefail
-          DFXVM_INIT_YES=true sh -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
-          source "$HOME/.local/share/dfx/env"
-          echo "$HOME/.local/share/dfx/bin" >> $GITHUB_PATH
-          dfxvm default $DFX_VERSION
+          npm install -g "@icp-sdk/icp-cli@$ICP_VERSION" "@icp-sdk/ic-wasm" "ic-mops@$MOPS_VERSION"
+
+      # The identity the smoke tests deploy and assert as. Each Makefile exports
+      # ICPP_PRO_TEST_IDENTITY=funnAI-local, which icpp-pro 6.0.0 reads; it never touches
+      # the machine-wide active identity, so nothing here needs `icp identity default`.
+      # `--storage plaintext` is required: a keyring identity makes `icp identity export`
+      # prompt for a password and hang the run.
+      - name: create the test identity
+        run: |
+          icp identity new funnAI-local --storage plaintext 2>/dev/null || true
 
       - name: install python dependencies
         run: |
@@ -101,12 +122,10 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: install mops to manage motoko dependencies
-        run: npm install -g ic-mops
-
       - name: smoketest versions
         run: |
-          echo "dfx version   : $(dfx --version)"
+          echo "icp version   : $(icp --version)"
+          echo "mops version  : $(mops --version)"
           echo "pip version   : $(pip --version)"
           echo "python version: $(python --version)"
           echo "pytest version: $(pytest --version)"
@@ -115,5 +134,9 @@ jobs:
         working-directory: src/${{ matrix.canister }}
         run: |
           set -euo pipefail
+          # `mops install` MUST come first: `mops toolchain use` runs checkRequirements,
+          # which reads each dependency's mops.toml, so on a clean checkout (no .mops/)
+          # it dies with ENOENT on .mops/base@<ver>/mops.toml.
           mops install
+          mops toolchain use moc "$MOC_VERSION"
           make smoketest

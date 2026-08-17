@@ -1,0 +1,54 @@
+# yaml-language-server: $schema=https://github.com/dfinity/icp-cli/raw/refs/tags/v1.2.0/docs/schemas/icp-yaml-schema.json
+#
+# The mAIner LLM fleet.
+#
+# Only the 4 slots that are actually deployed are declared here. A new slot is added by
+# `scripts/deploy_llm.py`, which appends it to this file and records its id in
+# .icp/data/mappings/<env>.ids.json.
+#
+# All slots share one wasm: the vendored llama_cpp_canister build. There is nothing to
+# compile here, so each is a `pre-built` step pointing at it.
+
+canisters:
+  - name: llm_0
+    build:
+      steps:
+        - type: pre-built
+          path: ../llama_cpp_canister/build/llama_cpp.wasm
+
+  - name: llm_1
+    build:
+      steps:
+        - type: pre-built
+          path: ../llama_cpp_canister/build/llama_cpp.wasm
+
+  - name: llm_2
+    build:
+      steps:
+        - type: pre-built
+          path: ../llama_cpp_canister/build/llama_cpp.wasm
+
+  - name: llm_3
+    build:
+      steps:
+        - type: pre-built
+          path: ../llama_cpp_canister/build/llama_cpp.wasm
+
+networks:
+  - name: local
+    mode: managed
+    gateway:
+      # Ephemeral: read it back with `icp network status -e local --json`, never hardcode.
+      port: 0
+
+environments:
+  # An environment is a named set of canister ids on a network. The mainnet environments
+  # all run on the `ic` network and differ only in which ids they address.
+  - name: local
+    network: local
+  - name: prd
+    network: ic
+  - name: testing
+    network: ic
+  - name: development
+    network: ic

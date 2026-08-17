@@ -9,9 +9,11 @@ FROM --platform=linux/amd64 ${IMAGE}
 WORKDIR /app/Challenger
 
 # Copy project files
+# mops.lock pins the exact dependency versions, so it is part of the reproducible build.
+# canister_ids.json is deliberately NOT copied: building a wasm needs no canister ids.
 COPY Challenger/mops.toml ./
-COPY Challenger/dfx.json ./
-COPY Challenger/canister_ids.json ./
+COPY Challenger/mops.lock ./
+COPY Challenger/icp.yaml ./
 
 # Install mops dependencies
 RUN mops install

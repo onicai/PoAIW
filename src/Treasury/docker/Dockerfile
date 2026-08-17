@@ -8,10 +8,11 @@ FROM --platform=linux/amd64 ${IMAGE}
 
 WORKDIR /app/Treasury
 
-# Copy project files
+# mops.lock pins the exact dependency versions, so it is part of the reproducible
+# build. canister_ids.json is NOT copied: building a wasm needs no canister ids.
 COPY Treasury/mops.toml ./
-COPY Treasury/dfx.json ./
-COPY Treasury/canister_ids.json ./
+COPY Treasury/mops.lock ./
+COPY Treasury/icp.yaml ./
 
 # Install mops dependencies
 RUN mops install

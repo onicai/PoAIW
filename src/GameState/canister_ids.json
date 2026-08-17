@@ -1,7 +1,0 @@
-{
-  "game_state_canister": {
-    "development": "ciqqv-4iaaa-aaaag-auara-cai",
-    "testing": "vpa37-giaaa-aaaam-qdxeq-cai",
-    "prd": "r5m5y-diaaa-aaaaa-qanaa-cai"
-  }
-}

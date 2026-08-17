@@ -38,7 +38,7 @@ if [ "$NETWORK_TYPE" = "prd" ]; then
 fi
 
 cd ../../src/Challenger/
-CANISTER_ID_CHALLENGER_CTRLB_CANISTER=$(dfx canister --network $NETWORK_TYPE id challenger_ctrlb_canister)
+CANISTER_ID_CHALLENGER_CTRLB_CANISTER=$(icp canister status challenger_ctrlb_canister -e $NETWORK_TYPE --id-only)
 # go back
 cd ../../llms/Challenger/
 
@@ -50,18 +50,18 @@ llm_id_start=0
 llm_id_end=$((NUM_LLMS_DEPLOYED - 1))
 
 echo " "
-echo "- dfx identity"
-dfx identity whoami
+echo "- icp identity"
+icp identity default
 
 for i in $(seq $llm_id_start $llm_id_end)
 do
     echo " "
 	echo "- llm_$i "
-    dfx canister status llm_$i --network $NETWORK_TYPE 2>&1 | grep "Memory Size: "
+    icp canister status llm_$i -e $NETWORK_TYPE 2>&1 | grep "Memory Size: "
 done
 
 echo " "
 echo "- CANISTER_ID_CHALLENGER_CTRLB_CANISTER: $CANISTER_ID_CHALLENGER_CTRLB_CANISTER"
-dfx canister status $CANISTER_ID_CHALLENGER_CTRLB_CANISTER --network $NETWORK_TYPE 2>&1 | grep "Memory Size: "
+icp canister status $CANISTER_ID_CHALLENGER_CTRLB_CANISTER -e $NETWORK_TYPE 2>&1 | grep "Memory Size: "
 
 echo " "

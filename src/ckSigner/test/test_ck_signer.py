@@ -1,9 +1,8 @@
 """Test ck_signer_canister endpoints
 
 First deploy the canister:
-$ dfx start --clean --background
-$ dfx deploy --network local
-
+$ icp network start -d
+$ icp deploy -e local -y
 Then run all the tests:
 $ pytest -vv --exitfirst --network local test/test_ck_signer.py
 
@@ -17,12 +16,12 @@ from pathlib import Path
 from typing import Dict
 import re
 import pytest
-from icpp.smoketest import call_canister_api
+from .candid_compat import call_canister_api, norm
 
-# Path to the dfx.json file
-DFX_JSON_PATH = Path(__file__).parent / "../dfx.json"
+# Path to the icp.yaml file
+ICP_YAML_PATH = Path(__file__).parent / "../icp.yaml"
 
-# Canister in the dfx.json file we want to test
+# Canister in the icp.yaml file we want to test
 CANISTER_NAME = "ck_signer_canister"
 
 # Reusable 32-byte sighash for sign() tests
@@ -48,14 +47,14 @@ TEST_TREASURY_PRINCIPAL = "pu2lc-nyaaa-aaaag-au65q-cai"
 def test__health(network: str) -> None:
     """Test health endpoint returns status 200"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="health",
         canister_argument="()",
         network=network,
     )
     expected_response = '(variant { Ok = record { status_code = 200 : nat16;} })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # =============================================================================
@@ -65,14 +64,14 @@ def test__health(network: str) -> None:
 def test__amiController(network: str) -> None:
     """Test amiController succeeds for controller (default dfx identity)"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="amiController",
         canister_argument="()",
         network=network,
     )
     expected_response = '(variant { Ok = record { status_code = 200 : nat16;} })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__amiController_anonymous(identity_anonymous: Dict[str, str], network: str) -> None:
@@ -80,14 +79,14 @@ def test__amiController_anonymous(identity_anonymous: Dict[str, str], network: s
     assert identity_anonymous["identity"] == "anonymous"
 
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="amiController",
         canister_argument="()",
         network=network,
     )
     expected_response = '(variant { Err = variant { Unauthorized } })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # =============================================================================
@@ -97,7 +96,7 @@ def test__amiController_anonymous(identity_anonymous: Dict[str, str], network: s
 def test__getTreasury_default(network: str) -> None:
     """Test getTreasury returns funnAI Treasury Canister (prd) by default"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getTreasury",
         canister_argument="()",
@@ -110,18 +109,18 @@ def test__getTreasury_default(network: str) -> None:
 def test__setTreasury(network: str) -> None:
     """Test setTreasury succeeds for controller"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setTreasury",
         canister_argument=f'(record {{ treasuryName = "{TEST_TREASURY_NAME}"; treasuryPrincipal = principal "{TEST_TREASURY_PRINCIPAL}" }})',
         network=network,
     )
     expected_response = '(variant { Ok = record { status_code = 200 : nat16;} })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
     # Verify it was updated
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getTreasury",
         canister_argument="()",
@@ -136,27 +135,27 @@ def test__setTreasury_anonymous(identity_anonymous: Dict[str, str], network: str
     assert identity_anonymous["identity"] == "anonymous"
 
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setTreasury",
         canister_argument=f'(record {{ treasuryName = "{TEST_TREASURY_NAME}"; treasuryPrincipal = principal "{TEST_TREASURY_PRINCIPAL}" }})',
         network=network,
     )
     expected_response = '(variant { Err = variant { Unauthorized } })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__setTreasury_restore_default(network: str) -> None:
     """Restore treasury to default for remaining tests"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setTreasury",
         canister_argument=f'(record {{ treasuryName = "{DEFAULT_TREASURY_NAME}"; treasuryPrincipal = principal "{DEFAULT_TREASURY_PRINCIPAL}" }})',
         network=network,
     )
     expected_response = '(variant { Ok = record { status_code = 200 : nat16;} })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # =============================================================================
@@ -166,7 +165,7 @@ def test__setTreasury_restore_default(network: str) -> None:
 def test__getFeeTokens_empty(network: str) -> None:
     """Test getFeeTokens returns empty list with canisterId, treasury, and usage"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getFeeTokens",
         canister_argument="()",
@@ -187,20 +186,20 @@ def test__getFeeTokens_empty(network: str) -> None:
 def test__addFeeToken(network: str) -> None:
     """Test addFeeToken succeeds for controller"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="addFeeToken",
         canister_argument=f'(record {{ tokenName = "ckBTC"; tokenLedger = principal "{FAKE_LEDGER}"; fee = 100 : nat }})',
         network=network,
     )
     expected_response = '(variant { Ok = record { status_code = 200 : nat16;} })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__addFeeToken_verify(network: str) -> None:
     """Test getFeeTokens returns the added token with canisterId, treasury, and usage"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getFeeTokens",
         canister_argument="()",
@@ -219,18 +218,18 @@ def test__addFeeToken_idempotent(network: str) -> None:
     """Test addFeeToken with same ledger updates the existing entry"""
     # Update fee from 100 to 200
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="addFeeToken",
         canister_argument=f'(record {{ tokenName = "ckBTC"; tokenLedger = principal "{FAKE_LEDGER}"; fee = 200 : nat }})',
         network=network,
     )
     expected_response = '(variant { Ok = record { status_code = 200 : nat16;} })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
     # Verify the fee was updated (only one entry, not two)
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getFeeTokens",
         canister_argument="()",
@@ -243,18 +242,18 @@ def test__addFeeToken_idempotent(network: str) -> None:
 def test__addFeeToken_multiple(network: str) -> None:
     """Test adding a second fee token"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="addFeeToken",
         canister_argument=f'(record {{ tokenName = "ckETH"; tokenLedger = principal "{FAKE_LEDGER_2}"; fee = 50 : nat }})',
         network=network,
     )
     expected_response = '(variant { Ok = record { status_code = 200 : nat16;} })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
     # Verify both tokens are present
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getFeeTokens",
         canister_argument="()",
@@ -269,14 +268,14 @@ def test__addFeeToken_anonymous(identity_anonymous: Dict[str, str], network: str
     assert identity_anonymous["identity"] == "anonymous"
 
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="addFeeToken",
         canister_argument=f'(record {{ tokenName = "ckBTC"; tokenLedger = principal "{FAKE_LEDGER}"; fee = 100 : nat }})',
         network=network,
     )
     expected_response = '(variant { Err = variant { Unauthorized } })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # =============================================================================
@@ -286,18 +285,18 @@ def test__addFeeToken_anonymous(identity_anonymous: Dict[str, str], network: str
 def test__removeFeeToken(network: str) -> None:
     """Test removeFeeToken succeeds for controller"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="removeFeeToken",
         canister_argument=f'(record {{ tokenLedger = principal "{FAKE_LEDGER_2}" }})',
         network=network,
     )
     expected_response = '(variant { Ok = record { status_code = 200 : nat16;} })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
     # Verify only ckBTC remains
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getFeeTokens",
         canister_argument="()",
@@ -310,14 +309,14 @@ def test__removeFeeToken(network: str) -> None:
 def test__removeFeeToken_idempotent(network: str) -> None:
     """Test removeFeeToken for non-existent ledger succeeds (idempotent)"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="removeFeeToken",
         canister_argument=f'(record {{ tokenLedger = principal "{FAKE_LEDGER_2}" }})',
         network=network,
     )
     expected_response = '(variant { Ok = record { status_code = 200 : nat16;} })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__removeFeeToken_anonymous(identity_anonymous: Dict[str, str], network: str) -> None:
@@ -325,14 +324,14 @@ def test__removeFeeToken_anonymous(identity_anonymous: Dict[str, str], network: 
     assert identity_anonymous["identity"] == "anonymous"
 
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="removeFeeToken",
         canister_argument=f'(record {{ tokenLedger = principal "{FAKE_LEDGER}" }})',
         network=network,
     )
     expected_response = '(variant { Err = variant { Unauthorized } })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # =============================================================================
@@ -343,7 +342,7 @@ def test__removeFeeToken_anonymous(identity_anonymous: Dict[str, str], network: 
 def test__sign_fee_required_no_payment(network: str) -> None:
     """Test sign rejects when fees configured but no payment provided, includes self-discovery"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="sign",
         canister_argument=f'(record {{ botName = "testbot"; message = blob "{SIGHASH_32_BYTES}"; payment = null }})',
@@ -360,7 +359,7 @@ def test__sign_fee_required_no_payment(network: str) -> None:
 def test__sign_fee_wrong_ledger(network: str) -> None:
     """Test sign rejects payment with unsupported ledger, includes self-discovery"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="sign",
         canister_argument=f'(record {{ botName = "testbot"; message = blob "{SIGHASH_32_BYTES}"; payment = opt record {{ tokenName = "ckBTC"; tokenLedger = principal "{FAKE_LEDGER_2}"; amount = 200 : nat }} }})',
@@ -374,7 +373,7 @@ def test__sign_fee_wrong_ledger(network: str) -> None:
 def test__sign_fee_wrong_token_name(network: str) -> None:
     """Test sign rejects payment with wrong token name, includes self-discovery"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="sign",
         canister_argument=f'(record {{ botName = "testbot"; message = blob "{SIGHASH_32_BYTES}"; payment = opt record {{ tokenName = "WRONG"; tokenLedger = principal "{FAKE_LEDGER}"; amount = 200 : nat }} }})',
@@ -388,7 +387,7 @@ def test__sign_fee_wrong_token_name(network: str) -> None:
 def test__sign_fee_insufficient_amount(network: str) -> None:
     """Test sign rejects payment with insufficient amount, includes self-discovery"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="sign",
         canister_argument=f'(record {{ botName = "testbot"; message = blob "{SIGHASH_32_BYTES}"; payment = opt record {{ tokenName = "ckBTC"; tokenLedger = principal "{FAKE_LEDGER}"; amount = 50 : nat }} }})',
@@ -403,7 +402,7 @@ def test__sign_fee_sanity_check_passes_transfer_fails(network: str) -> None:
     """Test sign with correct payment details: sanity check passes but transfer_from
     fails because there is no real ICRC-2 ledger on local replica. Includes self-discovery."""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="sign",
         canister_argument=f'(record {{ botName = "testbot"; message = blob "{SIGHASH_32_BYTES}"; payment = opt record {{ tokenName = "ckBTC"; tokenLedger = principal "{FAKE_LEDGER}"; amount = 200 : nat }} }})',
@@ -422,7 +421,7 @@ def test__sign_fee_sanity_check_passes_transfer_fails(network: str) -> None:
 def test__getPublicKey_fee_required_no_payment(network: str) -> None:
     """Test getPublicKey rejects when fees configured but no payment provided"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
         canister_argument='(record { botName = "testbot"; payment = null })',
@@ -438,7 +437,7 @@ def test__getPublicKey_fee_required_no_payment(network: str) -> None:
 def test__getPublicKey_fee_wrong_ledger(network: str) -> None:
     """Test getPublicKey rejects payment with unsupported ledger"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
         canister_argument=f'(record {{ botName = "testbot"; payment = opt record {{ tokenName = "ckBTC"; tokenLedger = principal "{FAKE_LEDGER_2}"; amount = 200 : nat }} }})',
@@ -451,7 +450,7 @@ def test__getPublicKey_fee_wrong_ledger(network: str) -> None:
 def test__getPublicKey_fee_wrong_token_name(network: str) -> None:
     """Test getPublicKey rejects payment with wrong token name"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
         canister_argument=f'(record {{ botName = "testbot"; payment = opt record {{ tokenName = "WRONG"; tokenLedger = principal "{FAKE_LEDGER}"; amount = 200 : nat }} }})',
@@ -464,7 +463,7 @@ def test__getPublicKey_fee_wrong_token_name(network: str) -> None:
 def test__getPublicKey_fee_insufficient_amount(network: str) -> None:
     """Test getPublicKey rejects payment with insufficient amount"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
         canister_argument=f'(record {{ botName = "testbot"; payment = opt record {{ tokenName = "ckBTC"; tokenLedger = principal "{FAKE_LEDGER}"; amount = 50 : nat }} }})',
@@ -478,7 +477,7 @@ def test__getPublicKey_fee_sanity_check_passes_transfer_fails(network: str) -> N
     """Test getPublicKey with correct payment: sanity check passes but transfer_from
     fails because there is no real ICRC-2 ledger on local replica."""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
         canister_argument=f'(record {{ botName = "testbot"; payment = opt record {{ tokenName = "ckBTC"; tokenLedger = principal "{FAKE_LEDGER}"; amount = 200 : nat }} }})',
@@ -495,18 +494,18 @@ def test__getPublicKey_fee_sanity_check_passes_transfer_fails(network: str) -> N
 def test__removeFeeToken_cleanup(network: str) -> None:
     """Remove all fee tokens to restore free access for remaining tests"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="removeFeeToken",
         canister_argument=f'(record {{ tokenLedger = principal "{FAKE_LEDGER}" }})',
         network=network,
     )
     expected_response = '(variant { Ok = record { status_code = 200 : nat16;} })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
     # Verify empty
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getFeeTokens",
         canister_argument="()",
@@ -525,33 +524,33 @@ def test__getPublicKey_anonymous(identity_anonymous: Dict[str, str], network: st
     assert identity_anonymous["identity"] == "anonymous"
 
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
         canister_argument='(record { botName = "testbot"; payment = null })',
         network=network,
     )
     expected_response = '(variant { Err = variant { Unauthorized } })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getPublicKey_empty_botName(network: str) -> None:
     """Test getPublicKey rejects empty botName"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
         canister_argument='(record { botName = ""; payment = null })',
         network=network,
     )
     expected_response = '(variant { Err = variant { Other = "botName cannot be empty" } })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getPublicKey_no_fee_with_payment(network: str) -> None:
     """Test getPublicKey with payment provided but no fees configured — rejects unsupported ledger"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
         canister_argument=f'(record {{ botName = "testbot"; payment = opt record {{ tokenName = "ckBTC"; tokenLedger = principal "{FAKE_LEDGER}"; amount = 100 : nat }} }})',
@@ -569,46 +568,46 @@ def test__sign_anonymous(identity_anonymous: Dict[str, str], network: str) -> No
     assert identity_anonymous["identity"] == "anonymous"
 
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="sign",
         canister_argument=f'(record {{ botName = "testbot"; message = blob "{SIGHASH_32_BYTES}"; payment = null }})',
         network=network,
     )
     expected_response = '(variant { Err = variant { Unauthorized } })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__sign_empty_botName(network: str) -> None:
     """Test sign rejects empty botName"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="sign",
         canister_argument=f'(record {{ botName = ""; message = blob "{SIGHASH_32_BYTES}"; payment = null }})',
         network=network,
     )
     expected_response = '(variant { Err = variant { Other = "botName cannot be empty" } })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__sign_wrong_message_size(network: str) -> None:
     """Test sign rejects message that is not 32 bytes"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="sign",
         canister_argument=r'(record { botName = "testbot"; message = blob "\00\01\02\03"; payment = null })',
         network=network,
     )
     expected_response = '(variant { Err = variant { Other = "message must be exactly 32 bytes (sighash)" } })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__sign_no_fee_with_payment(network: str) -> None:
     """Test sign with payment provided but no fees configured — rejects unsupported ledger"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="sign",
         canister_argument=f'(record {{ botName = "testbot"; message = blob "{SIGHASH_32_BYTES}"; payment = opt record {{ tokenName = "ckBTC"; tokenLedger = principal "{FAKE_LEDGER}"; amount = 100 : nat }} }})',
@@ -624,7 +623,7 @@ def test__sign_no_fee_with_payment(network: str) -> None:
 def test__getPublicKeyQuery_cache_miss(network: str) -> None:
     """Test getPublicKeyQuery returns cache miss error for uncached bot"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKeyQuery",
         canister_argument='(record { botName = "query_test_bot" })',
@@ -638,27 +637,27 @@ def test__getPublicKeyQuery_anonymous(identity_anonymous: Dict[str, str], networ
     assert identity_anonymous["identity"] == "anonymous"
 
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKeyQuery",
         canister_argument='(record { botName = "testbot" })',
         network=network,
     )
     expected_response = '(variant { Err = variant { Unauthorized } })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getPublicKeyQuery_empty_botName(network: str) -> None:
     """Test getPublicKeyQuery rejects empty botName"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKeyQuery",
         canister_argument='(record { botName = "" })',
         network=network,
     )
     expected_response = '(variant { Err = variant { Other = "botName cannot be empty" } })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # =============================================================================
@@ -668,7 +667,7 @@ def test__getPublicKeyQuery_empty_botName(network: str) -> None:
 def test__getPublicKey(network: str) -> None:
     """Test getPublicKey returns public key and P2TR address (no fees configured)"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
         canister_argument='(record { botName = "testbot"; payment = null })',
@@ -692,7 +691,7 @@ def test__getPublicKey_p2tr_address_matches_local(network: str) -> None:
     setup('mainnet')
 
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
         canister_argument='(record { botName = "testbot"; payment = null })',
@@ -722,14 +721,14 @@ def test__getPublicKey_p2tr_address_matches_local(network: str) -> None:
 def test__getPublicKey_cache_hit(network: str) -> None:
     """Test getPublicKey returns same result on second call (cache hit)"""
     response1 = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
         canister_argument='(record { botName = "testbot"; payment = null })',
         network=network,
     )
     response2 = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
         canister_argument='(record { botName = "testbot"; payment = null })',
@@ -743,7 +742,7 @@ def test__getPublicKeyQuery_cache_hit(network: str) -> None:
     """Test getPublicKeyQuery returns cached result after getPublicKey populated it"""
     # getPublicKey for "testbot" was called in earlier tests, so cache is populated
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKeyQuery",
         canister_argument='(record { botName = "testbot" })',
@@ -758,14 +757,14 @@ def test__getPublicKeyQuery_cache_hit(network: str) -> None:
 def test__getPublicKeyQuery_matches_getPublicKey(network: str) -> None:
     """Test getPublicKeyQuery returns identical result to getPublicKey for same bot"""
     update_response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
         canister_argument='(record { botName = "testbot"; payment = null })',
         network=network,
     )
     query_response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKeyQuery",
         canister_argument='(record { botName = "testbot" })',
@@ -777,14 +776,14 @@ def test__getPublicKeyQuery_matches_getPublicKey(network: str) -> None:
 def test__getPublicKey_different_botNames(network: str) -> None:
     """Test getPublicKey returns different keys for different bot names"""
     response1 = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
         canister_argument='(record { botName = "bot_alpha"; payment = null })',
         network=network,
     )
     response2 = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
         canister_argument='(record { botName = "bot_beta"; payment = null })',
@@ -798,14 +797,14 @@ def test__getPublicKey_different_botNames(network: str) -> None:
 def test__getPublicKeyQuery_different_bots_cached(network: str) -> None:
     """Test getPublicKeyQuery returns different cached keys for different bots"""
     query1 = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKeyQuery",
         canister_argument='(record { botName = "bot_alpha" })',
         network=network,
     )
     query2 = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKeyQuery",
         canister_argument='(record { botName = "bot_beta" })',
@@ -819,7 +818,7 @@ def test__getPublicKeyQuery_different_bots_cached(network: str) -> None:
 def test__sign(network: str) -> None:
     """Test sign returns a valid signature (no fees configured)"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="sign",
         canister_argument=f'(record {{ botName = "testbot"; message = blob "{SIGHASH_32_BYTES}"; payment = null }})',
@@ -833,7 +832,7 @@ def test__sign(network: str) -> None:
 def test__sign_signature_format(network: str) -> None:
     """Test sign returns a 64-byte (128 hex char) Schnorr signature"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="sign",
         canister_argument=f'(record {{ botName = "testbot"; message = blob "{SIGHASH_32_BYTES}"; payment = null }})',
@@ -851,14 +850,14 @@ def test__sign_different_messages(network: str) -> None:
     msg2 = r'\ff\fe\fd\fc\fb\fa\f9\f8\f7\f6\f5\f4\f3\f2\f1\f0\ef\ee\ed\ec\eb\ea\e9\e8\e7\e6\e5\e4\e3\e2\e1\e0'
 
     response1 = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="sign",
         canister_argument=f'(record {{ botName = "testbot"; message = blob "{msg1}"; payment = null }})',
         network=network,
     )
     response2 = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="sign",
         canister_argument=f'(record {{ botName = "testbot"; message = blob "{msg2}"; payment = null }})',
@@ -875,14 +874,14 @@ def test__sign_different_messages(network: str) -> None:
 def test__sign_different_botNames(network: str) -> None:
     """Test sign produces different signatures for different bot names"""
     response1 = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="sign",
         canister_argument=f'(record {{ botName = "bot_alpha"; message = blob "{SIGHASH_32_BYTES}"; payment = null }})',
         network=network,
     )
     response2 = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="sign",
         canister_argument=f'(record {{ botName = "bot_beta"; message = blob "{SIGHASH_32_BYTES}"; payment = null }})',
@@ -913,7 +912,7 @@ def test__sign_verify_signature(network: str) -> None:
 
     # Step 1: Get the internal x-only public key
     pk_response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
         canister_argument='(record { botName = "testbot"; payment = null })',
@@ -925,7 +924,7 @@ def test__sign_verify_signature(network: str) -> None:
 
     # Step 2: Sign a message
     sign_response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="sign",
         canister_argument=f'(record {{ botName = "testbot"; message = blob "{SIGHASH_32_BYTES}"; payment = null }})',
@@ -969,46 +968,46 @@ def test__signBip322_anonymous(identity_anonymous: Dict[str, str], network: str)
     assert identity_anonymous["identity"] == "anonymous"
 
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="signBip322",
         canister_argument='(record { botName = "testbot"; message = "Hello World"; payment = null })',
         network=network,
     )
     expected_response = '(variant { Err = variant { Unauthorized } })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__signBip322_empty_botName(network: str) -> None:
     """Test signBip322 rejects empty botName"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="signBip322",
         canister_argument='(record { botName = ""; message = "Hello World"; payment = null })',
         network=network,
     )
     expected_response = '(variant { Err = variant { Other = "botName cannot be empty" } })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__signBip322_empty_message(network: str) -> None:
     """Test signBip322 rejects empty message"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="signBip322",
         canister_argument='(record { botName = "testbot"; message = ""; payment = null })',
         network=network,
     )
     expected_response = '(variant { Err = variant { Other = "message cannot be empty" } })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__signBip322(network: str) -> None:
     """Test signBip322 returns Ok with all fields present"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="signBip322",
         canister_argument='(record { botName = "testbot"; message = "Hello World"; payment = null })',
@@ -1024,7 +1023,7 @@ def test__signBip322(network: str) -> None:
 def test__signBip322_signature_format(network: str) -> None:
     """Test signBip322 returns a 64-byte (128 hex char) Schnorr signature"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="signBip322",
         canister_argument='(record { botName = "testbot"; message = "Hello World"; payment = null })',
@@ -1041,7 +1040,7 @@ def test__signBip322_witness_format(network: str) -> None:
     import base64
 
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="signBip322",
         canister_argument='(record { botName = "testbot"; message = "Hello World"; payment = null })',
@@ -1064,7 +1063,7 @@ def test__signBip322_witness_format(network: str) -> None:
 def test__signBip322_address_matches(network: str) -> None:
     """Test signBip322 address matches getPublicKey address for same bot"""
     pk_response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
         canister_argument='(record { botName = "testbot"; payment = null })',
@@ -1073,7 +1072,7 @@ def test__signBip322_address_matches(network: str) -> None:
     pk_address = re.search(r'address = "(bc1p[a-z0-9]+)"', pk_response).group(1)
 
     bip322_response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="signBip322",
         canister_argument='(record { botName = "testbot"; message = "Hello World"; payment = null })',
@@ -1089,14 +1088,14 @@ def test__signBip322_address_matches(network: str) -> None:
 def test__signBip322_different_messages(network: str) -> None:
     """Test signBip322 produces different signatures for different messages"""
     response1 = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="signBip322",
         canister_argument='(record { botName = "testbot"; message = "Hello World"; payment = null })',
         network=network,
     )
     response2 = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="signBip322",
         canister_argument='(record { botName = "testbot"; message = "Goodbye World"; payment = null })',
@@ -1110,14 +1109,14 @@ def test__signBip322_different_messages(network: str) -> None:
 def test__signBip322_different_botNames(network: str) -> None:
     """Test signBip322 produces different signatures for different bot names"""
     response1 = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="signBip322",
         canister_argument='(record { botName = "bot_alpha"; message = "Hello World"; payment = null })',
         network=network,
     )
     response2 = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="signBip322",
         canister_argument='(record { botName = "bot_beta"; message = "Hello World"; payment = null })',
@@ -1136,7 +1135,7 @@ def test__signBip322_witness_matches_bip322_py(network: str) -> None:
         pytest.skip("iconfucius not installed")
 
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="signBip322",
         canister_argument='(record { botName = "testbot"; message = "Hello World"; payment = null })',
@@ -1159,7 +1158,7 @@ def test__signBip322_address_matches_bip322_py(network: str) -> None:
         pytest.skip("iconfucius not installed")
 
     pk_response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
         canister_argument='(record { botName = "testbot"; payment = null })',
@@ -1168,7 +1167,7 @@ def test__signBip322_address_matches_bip322_py(network: str) -> None:
     pubkey_hex = re.search(r'publicKeyHex = "([0-9a-f]{64})"', pk_response).group(1)
 
     bip322_response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="signBip322",
         canister_argument='(record { botName = "testbot"; message = "Hello World"; payment = null })',
@@ -1200,7 +1199,7 @@ def test__signBip322_verify_with_bip322_py(network: str) -> None:
 
     # Get internal x-only public key
     pk_response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
         canister_argument='(record { botName = "testbot"; payment = null })',
@@ -1212,7 +1211,7 @@ def test__signBip322_verify_with_bip322_py(network: str) -> None:
     # Sign a BIP322 message
     message = "Hello World"
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="signBip322",
         canister_argument=f'(record {{ botName = "testbot"; message = "{message}"; payment = null }})',
@@ -1257,7 +1256,7 @@ def test__signBip322_unicode_message(network: str) -> None:
 
     # Get internal key
     pk_response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getPublicKey",
         canister_argument='(record { botName = "testbot"; payment = null })',
@@ -1269,7 +1268,7 @@ def test__signBip322_unicode_message(network: str) -> None:
     # UTF-8 message with CJK characters
     message = "Sign In With Bitcoin"
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="signBip322",
         canister_argument=f'(record {{ botName = "testbot"; message = "{message}"; payment = null }})',

@@ -47,5 +47,5 @@ for i in $(seq $llm_id_start $llm_id_end)
 do
     echo "==================================================="
     echo "Calling log_pause for llm_$i"
-    dfx canister call llm_$i log_pause  --network $NETWORK_TYPE
+    icp canister call llm_$i log_pause '()' -e $NETWORK_TYPE
 done

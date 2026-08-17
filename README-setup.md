@@ -1,76 +1,15 @@
 # PoAIW setup instructions
 
-## Clone
+For operations of PoAIW within the funnAI context, see funnAI/README-setup.md
 
-Clone the following repos to your local disk using this folder structure:
-
-```
-|-funnAI       (https://github.com/onicai/funnAI)
-  |-PoAIW      (https://github.com/onicai/PoAIW)
-```
-
-Note: The folder structure is important, because the scripts use relative paths.
-
-## Miniconda
-
-Create a conda environment with python dependencies of `llama_cpp_canister` repo
-
-```bash
-# install Miniconda on your system
-
-# create a conda environment
-conda create --name llama_cpp_canister python=3.11
-conda activate llama_cpp_canister
-
-# from folder: PoAIW/llms/llama_cpp_canister
-pip install -r requirements.txt
-```
-
-## mops
-
-Install mops (https://mops.one/docs/install), and then:
-
-```bash
-# Do this in all these folders:
-# - from folder: `PoAIW/src/Challenger`
-# - from folder: `PoAIW/src/Judge`
-# - from folder: `PoAIW/src/mAIner`
-# - from folder: `PoAIW/src/ckSigner`
-mops install
-```
-
-## Install dfx
-
-```bash
-sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
-```
-
-# Download the LLMs from HuggingFace
-
-## Download LLM model (gguf)
-
-Download the model `qwen2.5-0.5b-instruct-q8_0.gguf` from huggingface: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF
-
-Store it in: 
-```
-PoAIW/llms/models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q8_0.gguf
-```
+---
 
 ## ckSigner Python test dependencies
 
-The ckSigner canister tests require additional Python packages:
+ckSigner is a component used by the experimental IConfucius trading agent.
 
-```bash
-pip install -r requirements.txt
-```
+`PoAIW/requirements.txt`, brings in `icpp-pro` and `bitcoin-utils` (needed for BIP340 signature verification in the ckSigner tests).
 
-This installs `icpp-pro` and `bitcoin-utils` (needed for BIP340 signature verification in tests).
-
-# Deploy ALL canisters:
-
-Follow instructions of:
-- funnAI/README.md
-- README-prd-upgrade-commands.md
 
 # Admin RBAC
 
@@ -94,26 +33,28 @@ controller > AdminUpdate > AdminQuery
 
 ## Management Endpoints (Controller-Only)
 
-| Endpoint           | Description                        |
-| ------------------ | ---------------------------------- |
-| `assignAdminRole`  | Assign an admin role to a principal |
-| `revokeAdminRole`  | Revoke an admin role from a principal |
-| `getAdminRoles`    | List all admin role assignments    |
+| Endpoint          | Description                           |
+| ----------------- | ------------------------------------- |
+| `assignAdminRole` | Assign an admin role to a principal   |
+| `revokeAdminRole` | Revoke an admin role from a principal |
+| `getAdminRoles`   | List all admin role assignments       |
 
 ## Usage Examples
 
 ```bash
 # Assign AdminQuery role
-dfx canister --network $NETWORK call <canister> assignAdminRole \
-  '( record { "principal" = "<principal-id>"; role = variant { AdminQuery }; note = "Description" } )'
+icp canister call <canister> assignAdminRole \
+  '( record { "principal" = "<principal-id>"; role = variant { AdminQuery }; note = "Description" } )' \
+  -e $NETWORK
 
 # Assign AdminUpdate role
-dfx canister --network $NETWORK call <canister> assignAdminRole \
-  '( record { "principal" = "<principal-id>"; role = variant { AdminUpdate }; note = "Description" } )'
+icp canister call <canister> assignAdminRole \
+  '( record { "principal" = "<principal-id>"; role = variant { AdminUpdate }; note = "Description" } )' \
+  -e $NETWORK
 
 # List all admin role assignments
-dfx canister --network $NETWORK call <canister> getAdminRoles
+icp canister call <canister> getAdminRoles '()' -e $NETWORK
 
 # Revoke an admin role
-dfx canister --network $NETWORK call <canister> revokeAdminRole '( "<principal-id>" )'
+icp canister call <canister> revokeAdminRole '( "<principal-id>" )' -e $NETWORK
 ```

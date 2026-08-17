@@ -80,14 +80,14 @@ fi
 # Do this setting manually, once we add new LLMs to the protocol...
 # # go to the funnAI folder
 # cd ../../../
-# CANISTER_ID_GAME_STATE_CANISTER=$(dfx canister --network $NETWORK_TYPE id game_state_canister)
+# CANISTER_ID_GAME_STATE_CANISTER=$(icp canister status game_state_canister -e $NETWORK_TYPE --id-only)
 # # go back to the current folder
 # cd PoAIW/llms/Judge/
 
 # echo " "
 # echo "--------------------------------------------------"
 # echo "Calling Game State ($CANISTER_ID_GAME_STATE_CANISTER) setCyclesFlowAdmin to set numJudgeLlms to $NUM_LLMS_DEPLOYED & re-calculate the CyclesFlow variables"
-# dfx canister call $CANISTER_ID_GAME_STATE_CANISTER setCyclesFlowAdmin "(record {numJudgeLlms = opt ($NUM_LLMS_DEPLOYED : nat);})" --network $NETWORK_TYPE
+# icp canister call $CANISTER_ID_GAME_STATE_CANISTER setCyclesFlowAdmin "(record {numJudgeLlms = opt ($NUM_LLMS_DEPLOYED : nat);})" -e $NETWORK_TYPE
 
 #######################################################################
 echo " "
@@ -103,22 +103,22 @@ do
     echo "Deploying llm_$i to subnet ${!subnet_var}"
     if [ "$NETWORK_TYPE" = "ic" ] || [ "$NETWORK_TYPE" = "testing" ] || [ "$NETWORK_TYPE" = "development" ] || [ "$NETWORK_TYPE" = "demo" ] || [ "$NETWORK_TYPE" = "prd" ]; then
         if [ "${!subnet_var}" = "none" ]; then
-            yes | dfx deploy llm_$i --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
+            yes | icp deploy llm_$i -m $DEPLOY_MODE -e $NETWORK_TYPE -y
         else
-            yes | dfx deploy llm_$i --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE --subnet ${!subnet_var}
+            yes | icp deploy llm_$i -m $DEPLOY_MODE --subnet ${!subnet_var} -e $NETWORK_TYPE -y
         fi
         if [ "$DEPLOY_MODE" = "install" ]; then
             echo "Initial install to main-net: Waiting for 30 seconds before checking health endpoint for llm_$i"
             sleep 30
         fi
     else
-        yes | dfx deploy llm_$i --mode $DEPLOY_MODE --yes --network $NETWORK_TYPE
+        yes | icp deploy llm_$i -m $DEPLOY_MODE -e $NETWORK_TYPE -y
     fi 
     
     echo " "
     echo "--------------------------------------------------"
     echo "Checking health endpoint for llm_$i"
-    output=$(dfx canister call llm_$i health --network $NETWORK_TYPE )
+    output=$(icp canister call llm_$i health '()' -e $NETWORK_TYPE --query)
 
     if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
         echo "llm_$i health check failed."

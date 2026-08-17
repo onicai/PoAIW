@@ -1,12 +1,19 @@
-# Note: many packages are already installed by llama_cpp_onicai_fork/requirements.txt
-#       do not add them here again
+# These are all the Python deps needed to build, deploy & test the canister.
+#
+# We intentionally do NOT pull `-r src/llama_cpp_onicai_fork/requirements.txt`:
+# those are llama.cpp's model-CONVERSION deps (torch, numpy, transformers, ...),
+# which the canister never uses — it uploads pre-made gguf files. Since b10076
+# they pin `torch==2.11.0`, which has no x86_64-macOS wheel (Intel-Mac torch
+# stops at 2.2.2) and breaks CI. If you need to convert models, install that
+# file separately.
 
 -r scripts/requirements.txt
--r src/llama_cpp_onicai_fork/requirements.txt
-icpp-pro>=5.4.1
-icp-py-core==2.3.0
-# Pin cbor2<6: cbor2 6.x decodes tag-55799-wrapped maps to frozendict, which
-# breaks icp-py-core's isinstance(response, dict) check.
-# See https://github.com/eliezhao/icp-py-core/issues/14.
-cbor2<6
+# 6.0.0 is a breaking change: pytest is told which icp identity to run as, with
+# `pytest --identity <name>` or ${ICPP_PRO_TEST_IDENTITY}. It never reads or
+# writes the machine-wide active identity. See the Makefile's test-llm-wasm.
+icpp-pro>=6.0.0
+icp-py-core==2.3.1
+# cbor2 is intentionally unpinned: icp-py-core 2.3.1 adds cbor2 6.x compatibility,
+# resolving the frozendict/isinstance(response, dict) breakage that previously
+# required a cbor2<6 pin. See https://github.com/eliezhao/icp-py-core/issues/14.
 binaryen.py

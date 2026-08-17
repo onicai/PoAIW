@@ -33,7 +33,7 @@ echo "Using network type: $NETWORK_TYPE"
 
 # go to the funnAI folder
 cd ../../../
-CANISTER_ID_GAME_STATE_CANISTER=$(dfx canister --network $NETWORK_TYPE id game_state_canister)
+CANISTER_ID_GAME_STATE_CANISTER=$(icp canister status game_state_canister -e $NETWORK_TYPE --id-only)
 # go back to the current folder
 cd PoAIW/src/Judge/
 
@@ -41,7 +41,7 @@ cd PoAIW/src/Judge/
 echo " "
 echo "--------------------------------------------------"
 echo "Checking health endpoint"
-output=$(dfx canister call judge_ctrlb_canister health --network $NETWORK_TYPE)
+output=$(icp canister call judge_ctrlb_canister health '()' -e $NETWORK_TYPE --query)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
     echo "judge_ctrlb_canister is not healthy. Exiting."
@@ -53,7 +53,7 @@ fi
 echo " "
 echo "--------------------------------------------------"
 echo "Registering GameState with the judge_ctrlb_canister"
-output=$(dfx canister call judge_ctrlb_canister setGameStateCanisterId "(\"$CANISTER_ID_GAME_STATE_CANISTER\")" --network $NETWORK_TYPE)
+output=$(icp canister call judge_ctrlb_canister setGameStateCanisterId "(\"$CANISTER_ID_GAME_STATE_CANISTER\")" -e $NETWORK_TYPE)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
     echo "Error calling setGameStateCanisterId for GameState $CANISTER_ID_GAME_STATE_CANISTER."
@@ -65,4 +65,4 @@ fi
 echo " "
 echo "--------------------------------------------------"
 echo "Make GameState $CANISTER_ID_GAME_STATE_CANISTER a controller of the judge_ctrlb_canister"
-dfx canister update-settings judge_ctrlb_canister --add-controller $CANISTER_ID_GAME_STATE_CANISTER --network $NETWORK_TYPE
+icp canister settings update judge_ctrlb_canister --add-controller $CANISTER_ID_GAME_STATE_CANISTER -e $NETWORK_TYPE

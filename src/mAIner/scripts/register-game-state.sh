@@ -52,7 +52,7 @@ MAINER="mainer_service_canister"
 echo " "
 echo "--------------------------------------------------"
 echo "Checking health endpoint for $MAINER"
-output=$(dfx canister call $MAINER health --network $NETWORK_TYPE)
+output=$(icp canister call $MAINER health '()' -e $NETWORK_TYPE --query)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
     echo "$MAINER is not healthy. Exiting."
@@ -64,7 +64,7 @@ fi
 echo " "
 echo "--------------------------------------------------"
 echo "Registering GameState with the $MAINER"
-output=$(dfx canister call $MAINER setGameStateCanisterId "(\"$CANISTER_ID_GAME_STATE_CANISTER\")" --network $NETWORK_TYPE)
+output=$(icp canister call $MAINER setGameStateCanisterId "(\"$CANISTER_ID_GAME_STATE_CANISTER\")" -e $NETWORK_TYPE)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
     echo "Error calling setGameStateCanisterId for GameState $CANISTER_ID_GAME_STATE_CANISTER."
@@ -87,7 +87,7 @@ do
     echo " "
     echo "--------------------------------------------------"
     echo "Checking health endpoint for $MAINER"
-    output=$(dfx canister call $MAINER health --network $NETWORK_TYPE)
+    output=$(icp canister call $MAINER health '()' -e $NETWORK_TYPE --query)
 
     if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
         echo "$MAINER is not healthy. Exiting."
@@ -99,7 +99,7 @@ do
     echo " "
     echo "--------------------------------------------------"
     echo "Registering GameState with the $MAINER"
-    output=$(dfx canister call $MAINER setGameStateCanisterId "(\"$CANISTER_ID_GAME_STATE_CANISTER\")" --network $NETWORK_TYPE)
+    output=$(icp canister call $MAINER setGameStateCanisterId "(\"$CANISTER_ID_GAME_STATE_CANISTER\")" -e $NETWORK_TYPE)
 
     if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
         echo "Error calling setGameStateCanisterId for GameState $CANISTER_ID_GAME_STATE_CANISTER."

@@ -8,10 +8,11 @@ FROM --platform=linux/amd64 ${IMAGE}
 
 WORKDIR /app/mAInerCreator
 
-# Copy project files
+# mops.lock pins the exact dependency versions, so it is part of the reproducible
+# build. canister_ids.json is NOT copied: building a wasm needs no canister ids.
 COPY mAInerCreator/mops.toml ./
-COPY mAInerCreator/dfx.json ./
-COPY mAInerCreator/canister_ids.json ./
+COPY mAInerCreator/mops.lock ./
+COPY mAInerCreator/icp.yaml ./
 
 # Install mops dependencies
 RUN mops install

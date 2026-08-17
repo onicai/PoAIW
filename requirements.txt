@@ -1,9 +1,13 @@
-# icpp-pro 5.5.0 switched the smoketest framework from dfx to icp-cli: it shells out to
-# `icp identity ...` where 5.4.2 and earlier used `dfx identity ...`. Without icp-cli on
-# PATH the suite dies before the first test, as
-#   5.5.0 - 5.6.0: CalledProcessError: Command 'icp identity default ' ... exit status 127
-#   6.0.0        : ERROR: no test identity configured.
-# 5.4.2 is the last dfx-based release, so cap below 5.5.0 while this repo still builds
-# and tests with dfx. Lift the cap as part of the dfx -> icp-cli migration.
-icpp-pro>=5.3.1,<5.5.0
+# 5.6.0 was the first release whose smoketest framework drives icp-cli instead of the
+# deprecated dfx: it takes `icp_yaml_path=` (not `dfx_json_path=`), resolves canister ids
+# from .icp/data/mappings/, and needs Python >= 3.11.
+#
+# 6.0.0 is now the minimum: it is where pytest stopped switching the machine-wide icp
+# identity and started reading $ICPP_PRO_TEST_IDENTITY, which every smoketest target here
+# exports. On 5.x that export is ignored and the suites run as whatever identity happens
+# to be active.
+#
+# This replaces the temporary `<5.5.0` cap main carried while the repo was still on dfx
+# (see PR #155); lifting it is exactly what that cap was waiting for.
+icpp-pro>=6.0.0
 bitcoin-utils>=0.6.8

@@ -1,8 +1,8 @@
 """Test mainer_service_canister endpoints
 
 First deploy the canister:
-$ dfx start --clean --background
-$ dfx deploy --network local mainer_service_canister
+$ icp network start -d
+$ icp deploy mainer_service_canister -e local -y
 
 Then run all the tests:
 $ pytest -vv --exitfirst --network local test/test_mainer_service_canister.py
@@ -25,17 +25,17 @@ to be separated out into different test runs or deployments in the future.
 from pathlib import Path
 from typing import Dict
 import pytest
-from icpp.smoketest import call_canister_api
+from .candid_compat import call_canister_api, norm
 
 # Test type configuration
 # - "single_canister": Only tests that don't require other canisters (e.g., GameState)
 # - "full_deployment": All tests including integration tests (requires full deployment)
 TEST_TYPE = "single_canister"
 
-# Path to the dfx.json file
-DFX_JSON_PATH = Path(__file__).parent / "../dfx.json"
+# Path to the icp.yaml file
+ICP_YAML_PATH = Path(__file__).parent / "../icp.yaml"
 
-# Canister in the dfx.json file we want to test
+# Canister in the icp.yaml file we want to test
 CANISTER_NAME = "mainer_service_canister"
 
 
@@ -47,7 +47,7 @@ CANISTER_NAME = "mainer_service_canister"
 def test__health(network: str) -> None:
     """Test health endpoint - should be accessible by anyone"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="health",
         canister_argument="()",
@@ -55,13 +55,13 @@ def test__health(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = "(variant { Ok = record { status_code = 200 : nat16;} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__whoami_anonymous(identity_anonymous: dict[str, str], network: str) -> None:
     """Test whoami with anonymous identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="whoami",
         canister_argument="()",
@@ -69,13 +69,13 @@ def test__whoami_anonymous(identity_anonymous: dict[str, str], network: str) -> 
         timeout_seconds=10,
     )
     expected_response = f'(principal "{identity_anonymous["principal"]}")'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__whoami_default(identity_default: dict[str, str], network: str) -> None:
     """Test whoami with default identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="whoami",
         canister_argument="()",
@@ -83,7 +83,7 @@ def test__whoami_default(identity_default: dict[str, str], network: str) -> None
         timeout_seconds=10,
     )
     expected_response = f'(principal "{identity_default["principal"]}")'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__amiController_anonymous(
@@ -91,7 +91,7 @@ def test__amiController_anonymous(
 ) -> None:
     """Test amiController rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="amiController",
         canister_argument="()",
@@ -99,13 +99,13 @@ def test__amiController_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__amiController(network: str) -> None:
     """Test amiController with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="amiController",
         canister_argument="()",
@@ -113,7 +113,7 @@ def test__amiController(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = "(variant { Ok = record { status_code = 200 : nat16;} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # -----------------------------------------------------------------------------
@@ -126,7 +126,7 @@ def test__setMainerCanisterType_anonymous(
 ) -> None:
     """Test setMainerCanisterType rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setMainerCanisterType",
         canister_argument="(variant { ShareService })",
@@ -134,13 +134,13 @@ def test__setMainerCanisterType_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__setMainerCanisterType(network: str) -> None:
     """Test setMainerCanisterType with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setMainerCanisterType",
         canister_argument="(variant { ShareService })",
@@ -148,7 +148,7 @@ def test__setMainerCanisterType(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = "(variant { Ok = record { status_code = 200 : nat16;} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getMainerCanisterType_anonymous(
@@ -156,7 +156,7 @@ def test__getMainerCanisterType_anonymous(
 ) -> None:
     """Test getMainerCanisterType rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getMainerCanisterType",
         canister_argument="()",
@@ -164,13 +164,13 @@ def test__getMainerCanisterType_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getMainerCanisterType(network: str) -> None:
     """Test getMainerCanisterType with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getMainerCanisterType",
         canister_argument="()",
@@ -179,7 +179,7 @@ def test__getMainerCanisterType(network: str) -> None:
     )
     # After previous test, type should be ShareService
     expected_response = "(variant { Ok = variant { ShareService } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # -----------------------------------------------------------------------------
@@ -192,7 +192,7 @@ def test__setGameStateCanisterId_anonymous(
 ) -> None:
     """Test setGameStateCanisterId rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setGameStateCanisterId",
         canister_argument='("aaaaa-aa")',
@@ -200,13 +200,13 @@ def test__setGameStateCanisterId_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__setGameStateCanisterId(network: str) -> None:
     """Test setGameStateCanisterId with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setGameStateCanisterId",
         canister_argument='("aaaaa-aa")',
@@ -214,7 +214,7 @@ def test__setGameStateCanisterId(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = "(variant { Ok = record { status_code = 200 : nat16;} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getGameStateCanisterId_anonymous(
@@ -222,7 +222,7 @@ def test__getGameStateCanisterId_anonymous(
 ) -> None:
     """Test getGameStateCanisterId rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getGameStateCanisterId",
         canister_argument="()",
@@ -231,13 +231,13 @@ def test__getGameStateCanisterId_anonymous(
     )
     # This endpoint returns plain Text, so error is encoded as text
     expected_response = '("#Err(#Unauthorized)")'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getGameStateCanisterId(network: str) -> None:
     """Test getGameStateCanisterId with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getGameStateCanisterId",
         canister_argument="()",
@@ -246,7 +246,7 @@ def test__getGameStateCanisterId(network: str) -> None:
     )
     # Returns plain Text, should be "aaaaa-aa" from previous test
     expected_response = '("aaaaa-aa")'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # -----------------------------------------------------------------------------
@@ -259,7 +259,7 @@ def test__setShareServiceCanisterId_anonymous(
 ) -> None:
     """Test setShareServiceCanisterId rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setShareServiceCanisterId",
         canister_argument='("rrkah-fqaaa-aaaaa-aaaaq-cai")',
@@ -267,13 +267,13 @@ def test__setShareServiceCanisterId_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__setShareServiceCanisterId(network: str) -> None:
     """Test setShareServiceCanisterId with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setShareServiceCanisterId",
         canister_argument='("rrkah-fqaaa-aaaaa-aaaaq-cai")',
@@ -281,7 +281,7 @@ def test__setShareServiceCanisterId(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = "(variant { Ok = record { status_code = 200 : nat16;} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getShareServiceCanisterId_anonymous(
@@ -289,7 +289,7 @@ def test__getShareServiceCanisterId_anonymous(
 ) -> None:
     """Test getShareServiceCanisterId rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getShareServiceCanisterId",
         canister_argument="()",
@@ -298,13 +298,13 @@ def test__getShareServiceCanisterId_anonymous(
     )
     # This endpoint returns plain Text, so error is encoded as text
     expected_response = '("#Err(#Unauthorized)")'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getShareServiceCanisterId(network: str) -> None:
     """Test getShareServiceCanisterId with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getShareServiceCanisterId",
         canister_argument="()",
@@ -313,7 +313,7 @@ def test__getShareServiceCanisterId(network: str) -> None:
     )
     # Returns plain Text, should be "rrkah-fqaaa-aaaaa-aaaaq-cai" from previous test
     expected_response = '("rrkah-fqaaa-aaaaa-aaaaq-cai")'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # -----------------------------------------------------------------------------
@@ -326,7 +326,7 @@ def test__getAdminRoles_anonymous(identity_anonymous: Dict[str, str], network: s
     assert identity_anonymous["identity"] == "anonymous"
 
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getAdminRoles",
         canister_argument="()",
@@ -334,7 +334,7 @@ def test__getAdminRoles_anonymous(identity_anonymous: Dict[str, str], network: s
         timeout_seconds=10,
     )
     expected_response = '(variant { Err = variant { Unauthorized } })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__assignAdminRole_anonymous(identity_anonymous: Dict[str, str], network: str) -> None:
@@ -342,7 +342,7 @@ def test__assignAdminRole_anonymous(identity_anonymous: Dict[str, str], network:
     assert identity_anonymous["identity"] == "anonymous"
 
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="assignAdminRole",
         canister_argument='(record { "principal" = "aaaaa-aa"; role = variant { AdminQuery }; note = "test" })',
@@ -350,7 +350,7 @@ def test__assignAdminRole_anonymous(identity_anonymous: Dict[str, str], network:
         timeout_seconds=10,
     )
     expected_response = '(variant { Err = variant { Unauthorized } })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__revokeAdminRole_anonymous(identity_anonymous: Dict[str, str], network: str) -> None:
@@ -358,7 +358,7 @@ def test__revokeAdminRole_anonymous(identity_anonymous: Dict[str, str], network:
     assert identity_anonymous["identity"] == "anonymous"
 
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="revokeAdminRole",
         canister_argument='("aaaaa-aa")',
@@ -366,7 +366,7 @@ def test__revokeAdminRole_anonymous(identity_anonymous: Dict[str, str], network:
         timeout_seconds=10,
     )
     expected_response = '(variant { Err = variant { Unauthorized } })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # -----------------------------------------------------------------------------
@@ -377,7 +377,7 @@ def test__revokeAdminRole_anonymous(identity_anonymous: Dict[str, str], network:
 def test__setup_cleanup_admin_roles(network: str) -> None:
     """Setup: Clean up any existing admin roles from previous test runs"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="revokeAdminRole",
         canister_argument='("aaaaa-aa")',
@@ -386,15 +386,15 @@ def test__setup_cleanup_admin_roles(network: str) -> None:
     )
     # Accept either Ok (role revoked) or Err (role not found)
     assert response in [
-        '(variant { Ok = "Admin role revoked for principal: aaaaa-aa" })',
-        '(variant { Err = variant { Other = "No admin role found for principal: aaaaa-aa" } })'
+        norm('(variant { Ok = "Admin role revoked for principal: aaaaa-aa" })'),
+        norm('(variant { Err = variant { Other = "No admin role found for principal: aaaaa-aa" } })')
     ]
 
 
 def test__getAdminRoles_empty(network: str) -> None:
     """Test getAdminRoles returns empty list initially"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getAdminRoles",
         canister_argument="()",
@@ -402,13 +402,13 @@ def test__getAdminRoles_empty(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = '(variant { Ok = vec {} })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__assignAdminRole_AdminQuery(network: str) -> None:
     """Test assignAdminRole assigns AdminQuery role"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="assignAdminRole",
         canister_argument='(record { "principal" = "aaaaa-aa"; role = variant { AdminQuery }; note = "Test admin query role" })',
@@ -423,7 +423,7 @@ def test__assignAdminRole_AdminQuery(network: str) -> None:
 def test__getAdminRoles_after_assign(network: str) -> None:
     """Test getAdminRoles returns assigned roles"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getAdminRoles",
         canister_argument="()",
@@ -437,7 +437,7 @@ def test__getAdminRoles_after_assign(network: str) -> None:
 def test__revokeAdminRole(network: str) -> None:
     """Test revokeAdminRole removes role"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="revokeAdminRole",
         canister_argument='("aaaaa-aa")',
@@ -445,13 +445,13 @@ def test__revokeAdminRole(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = '(variant { Ok = "Admin role revoked for principal: aaaaa-aa" })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__revokeAdminRole_not_found(network: str) -> None:
     """Test revokeAdminRole returns error for non-existent principal"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="revokeAdminRole",
         canister_argument='("non-existent-principal")',
@@ -459,7 +459,7 @@ def test__revokeAdminRole_not_found(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = '(variant { Err = variant { Other = "No admin role found for principal: non-existent-principal" } })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # -----------------------------------------------------------------------------
@@ -471,7 +471,7 @@ def test__revokeAdminRole_not_found(network: str) -> None:
 def test__getSendCyclesPeriodInSecondsAdmin_default(network: str) -> None:
     """Default send-cycles drain period is 3600 seconds"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getSendCyclesPeriodInSecondsAdmin",
         canister_argument="()",
@@ -483,16 +483,16 @@ def test__getSendCyclesPeriodInSecondsAdmin_default(network: str) -> None:
 def test__setSendCyclesPeriodInSecondsAdmin_roundtrip(network: str) -> None:
     """setSendCyclesPeriodInSecondsAdmin updates the period"""
     set_response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setSendCyclesPeriodInSecondsAdmin",
         canister_argument="(7200 : nat)",
         network=network,
     )
-    assert set_response == "(variant { Ok = record { status_code = 200 : nat16;} })"
+    assert set_response == norm("(variant { Ok = record { status_code = 200 : nat16;} })")
 
     get_response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getSendCyclesPeriodInSecondsAdmin",
         canister_argument="()",
@@ -502,7 +502,7 @@ def test__setSendCyclesPeriodInSecondsAdmin_roundtrip(network: str) -> None:
 
     # Reset to the 3600s default
     call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setSendCyclesPeriodInSecondsAdmin",
         canister_argument="(3600 : nat)",
@@ -513,7 +513,7 @@ def test__setSendCyclesPeriodInSecondsAdmin_roundtrip(network: str) -> None:
 def test__stopSendCyclesTimerAdmin(network: str) -> None:
     """stopSendCyclesTimerAdmin returns Ok (no active timer is acceptable)"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="stopSendCyclesTimerAdmin",
         canister_argument="()",

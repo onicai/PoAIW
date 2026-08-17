@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import Generator
 from pprint import pprint
-from .ic_py_canister import extract_variant, get_canister, run_dfx_command
+from .ic_py_canister import extract_variant, get_canister, run_icp_command
 from .parse_args_upload import parse_args
 
 ROOT_PATH = Path(__file__).parent.parent
@@ -58,11 +58,11 @@ def main() -> int:
     chunksize = args.chunksize
     wasm_path = ROOT_PATH / args.wasm
 
-    dfx_json_path = ROOT_PATH / "dfx.json"
+    icp_yaml_path = ROOT_PATH / "icp.yaml"
 
     if canister_id == "":
-        canister_id = run_dfx_command(
-            f"dfx canister --network {network} id {canister_name} "
+        canister_id = run_icp_command(
+            f"icp canister status {canister_name} -e {network} --id-only "
         )
 
     print(
@@ -70,7 +70,7 @@ def main() -> int:
         f"\n - network         = {network}"
         f"\n - canister        = {canister_name}"
         f"\n - canister_id     = {canister_id}"
-        f"\n - dfx_json_path   = {dfx_json_path}"
+        f"\n - icp_yaml_path   = {icp_yaml_path}"
         f"\n - candid_path     = {candid_path}"
         f"\n - wasm_path       = {wasm_path}",
         f"\n - chunksize       = {chunksize} ({chunksize/1024/1024:.3f} Mb)"

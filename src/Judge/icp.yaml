@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=https://github.com/dfinity/icp-cli/raw/refs/tags/v1.2.0/docs/schemas/icp-yaml-schema.json
+#
+# icp-cli project configuration.
+#
+# The @dfinity/motoko recipe compiles via `mops build judge_ctrlb_canister`, so the
+# canister `name` below must exactly match the `[canisters.<name>]` key in mops.toml, and
+# the moc version comes from mops.toml's `[toolchain]`.
+
+canisters:
+  - name: judge_ctrlb_canister
+    recipe:
+      type: '@dfinity/motoko@v5.0.0'
+      configuration:
+        # Pinned explicitly: shrink defaults to OFF, and turning it on changes the
+        # module hash, so it must be a property of this repo rather than of whichever
+        # recipe version happens to resolve.
+        shrink: true
+
+networks:
+  # A project-local replica, started with `icp network start`. icp-cli runs one local
+  # network per project (keyed by project root), so this does not collide with the
+  # replicas of the other canister projects in this repo, or of other worktrees.
+  #
+  # `port: 0` lets the OS assign a free ephemeral port, so parallel projects and worktrees
+  # never fight over one. The port therefore changes on every start: never hardcode it,
+  # read it back with `icp network status -e local --json`.
+  - name: local
+    mode: managed
+    gateway:
+      port: 0
+
+environments:
+  # An environment is a named set of canister ids on a network. `--network <env>` in the
+  # Makefiles, scripts and pytest selects one of these, and `-e <env>` does on the command
+  # line.
+  #
+  # The mainnet environments all run on the same `ic` network and differ only in which
+  # canister ids they address; each has its own .icp/data/mappings/<env>.ids.json.
+  # `prd` is this project's production environment.
+  - name: local
+    network: local
+  - name: prd
+    network: ic
+  - name: testing
+    network: ic
+  - name: development
+    network: ic

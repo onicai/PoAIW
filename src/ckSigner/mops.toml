@@ -1,4 +1,11 @@
+[toolchain]
+moc = "1.4.1"
+
 [dependencies]
 base = "0.16.0"
 bitcoin = "0.1.1"
 sha2 = "0.1.0"
+
+[canisters.ck_signer_canister]
+main = "src/Main.mo"
+args = ["--enhanced-orthogonal-persistence"]

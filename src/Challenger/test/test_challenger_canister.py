@@ -1,8 +1,8 @@
 """Test challenger_ctrlb_canister endpoints
 
 First deploy the canister:
-$ dfx start --clean --background
-$ dfx deploy --network local challenger_ctrlb_canister
+$ icp network start -d
+$ icp deploy challenger_ctrlb_canister -e local -y
 
 Then run all the tests:
 $ pytest -vv --exitfirst --network local test/test_challenger_canister.py
@@ -21,17 +21,17 @@ $ pytest -vv --network testing test/test_challenger_canister.py::test__health
 from pathlib import Path
 from typing import Dict
 import pytest
-from icpp.smoketest import call_canister_api
+from .candid_compat import call_canister_api, norm
 
 # Test type configuration
 # - "single_canister": Only tests that don't require other canisters (e.g., GameState)
 # - "full_deployment": All tests including integration tests (requires full deployment)
 TEST_TYPE = "single_canister"
 
-# Path to the dfx.json file
-DFX_JSON_PATH = Path(__file__).parent / "../dfx.json"
+# Path to the icp.yaml file
+ICP_YAML_PATH = Path(__file__).parent / "../icp.yaml"
 
-# Canister in the dfx.json file we want to test
+# Canister in the icp.yaml file we want to test
 CANISTER_NAME = "challenger_ctrlb_canister"
 
 
@@ -43,7 +43,7 @@ CANISTER_NAME = "challenger_ctrlb_canister"
 def test__health(network: str) -> None:
     """Test health endpoint - should be accessible by anyone"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="health",
         canister_argument="()",
@@ -51,13 +51,13 @@ def test__health(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = "(variant { Ok = record { status_code = 200 : nat16;} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__whoami_anonymous(identity_anonymous: Dict[str, str], network: str) -> None:
     """Test whoami with anonymous identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="whoami",
         canister_argument="()",
@@ -65,13 +65,13 @@ def test__whoami_anonymous(identity_anonymous: Dict[str, str], network: str) -> 
         timeout_seconds=10,
     )
     expected_response = f'(principal "{identity_anonymous["principal"]}")'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__whoami_default(identity_default: Dict[str, str], network: str) -> None:
     """Test whoami with default identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="whoami",
         canister_argument="()",
@@ -79,7 +79,7 @@ def test__whoami_default(identity_default: Dict[str, str], network: str) -> None
         timeout_seconds=10,
     )
     expected_response = f'(principal "{identity_default["principal"]}")'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__amiController_anonymous(
@@ -87,7 +87,7 @@ def test__amiController_anonymous(
 ) -> None:
     """Test amiController rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="amiController",
         canister_argument="()",
@@ -95,13 +95,13 @@ def test__amiController_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__amiController(network: str) -> None:
     """Test amiController with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="amiController",
         canister_argument="()",
@@ -109,7 +109,7 @@ def test__amiController(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = "(variant { Ok = record { status_code = 200 : nat16;} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # -----------------------------------------------------------------------------
@@ -120,7 +120,7 @@ def test__amiController(network: str) -> None:
 def test__ready_anonymous(identity_anonymous: Dict[str, str], network: str) -> None:
     """Test ready rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="ready",
         canister_argument="()",
@@ -128,13 +128,13 @@ def test__ready_anonymous(identity_anonymous: Dict[str, str], network: str) -> N
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__ready(network: str) -> None:
     """Test ready with controller identity (no LLMs configured yet)"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="ready",
         canister_argument="()",
@@ -143,7 +143,7 @@ def test__ready(network: str) -> None:
     )
     # With no LLMs configured, should return Ok
     expected_response = "(variant { Ok = record { status_code = 200 : nat16;} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # -----------------------------------------------------------------------------
@@ -156,7 +156,7 @@ def test__setGameStateCanisterId_anonymous(
 ) -> None:
     """Test setGameStateCanisterId rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setGameStateCanisterId",
         canister_argument='("aaaaa-aa")',
@@ -164,13 +164,13 @@ def test__setGameStateCanisterId_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__setGameStateCanisterId(network: str) -> None:
     """Test setGameStateCanisterId with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setGameStateCanisterId",
         canister_argument='("aaaaa-aa")',
@@ -178,7 +178,7 @@ def test__setGameStateCanisterId(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = "(variant { Ok = record { status_code = 200 : nat16;} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getGameStateCanisterId_anonymous(
@@ -186,7 +186,7 @@ def test__getGameStateCanisterId_anonymous(
 ) -> None:
     """Test getGameStateCanisterId rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getGameStateCanisterId",
         canister_argument="()",
@@ -195,13 +195,13 @@ def test__getGameStateCanisterId_anonymous(
     )
     # This endpoint returns plain Text, so error is encoded as text
     expected_response = '("#Err(#Unauthorized)")'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getGameStateCanisterId(network: str) -> None:
     """Test getGameStateCanisterId with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getGameStateCanisterId",
         canister_argument="()",
@@ -210,7 +210,7 @@ def test__getGameStateCanisterId(network: str) -> None:
     )
     # Returns plain Text - should be "aaaaa-aa" from previous test
     expected_response = '("aaaaa-aa")'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # -----------------------------------------------------------------------------
@@ -223,7 +223,7 @@ def test__toggleSendCyclesToLlmFlagAdmin_anonymous(
 ) -> None:
     """Test toggleSendCyclesToLlmFlagAdmin rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="toggleSendCyclesToLlmFlagAdmin",
         canister_argument="()",
@@ -231,7 +231,7 @@ def test__toggleSendCyclesToLlmFlagAdmin_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getSendCyclesToLlmFlagAdmin_anonymous(
@@ -239,7 +239,7 @@ def test__getSendCyclesToLlmFlagAdmin_anonymous(
 ) -> None:
     """Test getSendCyclesToLlmFlagAdmin rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getSendCyclesToLlmFlagAdmin",
         canister_argument="()",
@@ -247,13 +247,13 @@ def test__getSendCyclesToLlmFlagAdmin_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getSendCyclesToLlmFlagAdmin(network: str) -> None:
     """Test getSendCyclesToLlmFlagAdmin with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getSendCyclesToLlmFlagAdmin",
         canister_argument="()",
@@ -262,13 +262,13 @@ def test__getSendCyclesToLlmFlagAdmin(network: str) -> None:
     )
     # Default is true
     expected_response = "(variant { Ok = record { flag = true;} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__toggleSendCyclesToLlmFlagAdmin(network: str) -> None:
     """Test toggleSendCyclesToLlmFlagAdmin with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="toggleSendCyclesToLlmFlagAdmin",
         canister_argument="()",
@@ -277,13 +277,13 @@ def test__toggleSendCyclesToLlmFlagAdmin(network: str) -> None:
     )
     # Toggle from true to false
     expected_response = '(variant { Ok = record { auth = "You set the flag to false";} })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__toggleSendCyclesToLlmFlagAdmin_back(network: str) -> None:
     """Test toggleSendCyclesToLlmFlagAdmin toggles back to true"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="toggleSendCyclesToLlmFlagAdmin",
         canister_argument="()",
@@ -292,7 +292,7 @@ def test__toggleSendCyclesToLlmFlagAdmin_back(network: str) -> None:
     )
     # Toggle from false back to true
     expected_response = '(variant { Ok = record { auth = "You set the flag to true";} })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # -----------------------------------------------------------------------------
@@ -305,7 +305,7 @@ def test__getCyclesTransactionsAdmin_anonymous(
 ) -> None:
     """Test getCyclesTransactionsAdmin rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getCyclesTransactionsAdmin",
         canister_argument="()",
@@ -313,13 +313,13 @@ def test__getCyclesTransactionsAdmin_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getCyclesTransactionsAdmin(network: str) -> None:
     """Test getCyclesTransactionsAdmin with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getCyclesTransactionsAdmin",
         canister_argument="()",
@@ -328,7 +328,7 @@ def test__getCyclesTransactionsAdmin(network: str) -> None:
     )
     # Empty initially
     expected_response = "(variant { Ok = vec {} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # -----------------------------------------------------------------------------
@@ -341,7 +341,7 @@ def test__setMinCyclesBalanceAdmin_anonymous(
 ) -> None:
     """Test setMinCyclesBalanceAdmin rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setMinCyclesBalanceAdmin",
         canister_argument="(30_000_000_000_000 : nat)",
@@ -349,7 +349,7 @@ def test__setMinCyclesBalanceAdmin_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getMinCyclesBalanceAdmin_anonymous(
@@ -357,7 +357,7 @@ def test__getMinCyclesBalanceAdmin_anonymous(
 ) -> None:
     """Test getMinCyclesBalanceAdmin rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getMinCyclesBalanceAdmin",
         canister_argument="()",
@@ -366,13 +366,13 @@ def test__getMinCyclesBalanceAdmin_anonymous(
     )
     # Returns 0 for unauthorized
     expected_response = "(0 : nat)"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getMinCyclesBalanceAdmin(network: str) -> None:
     """Test getMinCyclesBalanceAdmin with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getMinCyclesBalanceAdmin",
         canister_argument="()",
@@ -381,13 +381,13 @@ def test__getMinCyclesBalanceAdmin(network: str) -> None:
     )
     # Default is 30 trillion
     expected_response = "(30_000_000_000_000 : nat)"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__setMinCyclesBalanceAdmin(network: str) -> None:
     """Test setMinCyclesBalanceAdmin with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setMinCyclesBalanceAdmin",
         canister_argument="(25_000_000_000_000 : nat)",
@@ -395,13 +395,13 @@ def test__setMinCyclesBalanceAdmin(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = "(variant { Ok = record { status_code = 200 : nat16;} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__setMinCyclesBalanceAdmin_too_low(network: str) -> None:
     """Test setMinCyclesBalanceAdmin rejects values below 20 trillion"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setMinCyclesBalanceAdmin",
         canister_argument="(10_000_000_000_000 : nat)",
@@ -409,7 +409,7 @@ def test__setMinCyclesBalanceAdmin_too_low(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # -----------------------------------------------------------------------------
@@ -422,7 +422,7 @@ def test__setCyclesToSendToGameStateAdmin_anonymous(
 ) -> None:
     """Test setCyclesToSendToGameStateAdmin rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setCyclesToSendToGameStateAdmin",
         canister_argument="(10_000_000_000_000 : nat)",
@@ -430,7 +430,7 @@ def test__setCyclesToSendToGameStateAdmin_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getCyclesToSendToGameStateAdmin_anonymous(
@@ -438,7 +438,7 @@ def test__getCyclesToSendToGameStateAdmin_anonymous(
 ) -> None:
     """Test getCyclesToSendToGameStateAdmin rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getCyclesToSendToGameStateAdmin",
         canister_argument="()",
@@ -447,13 +447,13 @@ def test__getCyclesToSendToGameStateAdmin_anonymous(
     )
     # Returns 0 for unauthorized
     expected_response = "(0 : nat)"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getCyclesToSendToGameStateAdmin(network: str) -> None:
     """Test getCyclesToSendToGameStateAdmin with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getCyclesToSendToGameStateAdmin",
         canister_argument="()",
@@ -462,13 +462,13 @@ def test__getCyclesToSendToGameStateAdmin(network: str) -> None:
     )
     # Default is 10 trillion
     expected_response = "(10_000_000_000_000 : nat)"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__setCyclesToSendToGameStateAdmin(network: str) -> None:
     """Test setCyclesToSendToGameStateAdmin with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setCyclesToSendToGameStateAdmin",
         canister_argument="(15_000_000_000_000 : nat)",
@@ -476,13 +476,13 @@ def test__setCyclesToSendToGameStateAdmin(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = "(variant { Ok = record { status_code = 200 : nat16;} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__setCyclesToSendToGameStateAdmin_too_high(network: str) -> None:
     """Test setCyclesToSendToGameStateAdmin rejects values above 100 trillion"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setCyclesToSendToGameStateAdmin",
         canister_argument="(150_000_000_000_000 : nat)",
@@ -490,7 +490,7 @@ def test__setCyclesToSendToGameStateAdmin_too_high(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # -----------------------------------------------------------------------------
@@ -503,7 +503,7 @@ def test__getIsGeneratingChallengeFlag_anonymous(
 ) -> None:
     """Test getIsGeneratingChallengeFlag rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getIsGeneratingChallengeFlag",
         canister_argument="()",
@@ -511,13 +511,13 @@ def test__getIsGeneratingChallengeFlag_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getIsGeneratingChallengeFlag(network: str) -> None:
     """Test getIsGeneratingChallengeFlag with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getIsGeneratingChallengeFlag",
         canister_argument="()",
@@ -526,7 +526,7 @@ def test__getIsGeneratingChallengeFlag(network: str) -> None:
     )
     # Default is false
     expected_response = "(variant { Ok = record { flag = false;} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__resetIsGeneratingChallengeFlag_anonymous(
@@ -534,7 +534,7 @@ def test__resetIsGeneratingChallengeFlag_anonymous(
 ) -> None:
     """Test resetIsGeneratingChallengeFlag rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="resetIsGeneratingChallengeFlag",
         canister_argument="()",
@@ -542,13 +542,13 @@ def test__resetIsGeneratingChallengeFlag_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__resetIsGeneratingChallengeFlag(network: str) -> None:
     """Test resetIsGeneratingChallengeFlag with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="resetIsGeneratingChallengeFlag",
         canister_argument="()",
@@ -556,7 +556,7 @@ def test__resetIsGeneratingChallengeFlag(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = '(variant { Ok = record { auth = "You set the flag to false";} })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # -----------------------------------------------------------------------------
@@ -569,7 +569,7 @@ def test__getChallengesAdmin_anonymous(
 ) -> None:
     """Test getChallengesAdmin rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getChallengesAdmin",
         canister_argument="()",
@@ -577,13 +577,13 @@ def test__getChallengesAdmin_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getChallengesAdmin(network: str) -> None:
     """Test getChallengesAdmin with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getChallengesAdmin",
         canister_argument="()",
@@ -592,7 +592,7 @@ def test__getChallengesAdmin(network: str) -> None:
     )
     # Empty initially
     expected_response = "(variant { Ok = vec {} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getChallengesListAdmin_anonymous(
@@ -600,7 +600,7 @@ def test__getChallengesListAdmin_anonymous(
 ) -> None:
     """Test getChallengesListAdmin rejects anonymous callers (returns empty list)"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getChallengesListAdmin",
         canister_argument="()",
@@ -609,13 +609,13 @@ def test__getChallengesListAdmin_anonymous(
     )
     # Returns empty list for unauthorized callers
     expected_response = "(null)"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getChallengesListAdmin(network: str) -> None:
     """Test getChallengesListAdmin with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getChallengesListAdmin",
         canister_argument="()",
@@ -624,7 +624,7 @@ def test__getChallengesListAdmin(network: str) -> None:
     )
     # Empty initially - returns null for empty list
     expected_response = "(null)"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # -----------------------------------------------------------------------------
@@ -637,7 +637,7 @@ def test__get_llm_canisters_anonymous(
 ) -> None:
     """Test get_llm_canisters rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="get_llm_canisters",
         canister_argument="()",
@@ -645,13 +645,13 @@ def test__get_llm_canisters_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__get_llm_canisters(network: str) -> None:
     """Test get_llm_canisters with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="get_llm_canisters",
         canister_argument="()",
@@ -660,7 +660,7 @@ def test__get_llm_canisters(network: str) -> None:
     )
     # Empty initially - response includes roundRobin config
     expected_response = "(variant { Ok = record { roundRobinUseAll = true; roundRobinLLMs = 0 : nat; llmCanisterIds = vec {};} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__reset_llm_canisters_anonymous(
@@ -668,7 +668,7 @@ def test__reset_llm_canisters_anonymous(
 ) -> None:
     """Test reset_llm_canisters rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="reset_llm_canisters",
         canister_argument="()",
@@ -676,13 +676,13 @@ def test__reset_llm_canisters_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__reset_llm_canisters(network: str) -> None:
     """Test reset_llm_canisters with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="reset_llm_canisters",
         canister_argument="()",
@@ -690,7 +690,7 @@ def test__reset_llm_canisters(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = "(variant { Ok = record { status_code = 200 : nat16;} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__add_llm_canister_anonymous(
@@ -698,7 +698,7 @@ def test__add_llm_canister_anonymous(
 ) -> None:
     """Test add_llm_canister rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="add_llm_canister",
         canister_argument='(record { canister_id = "aaaaa-aa" })',
@@ -706,13 +706,13 @@ def test__add_llm_canister_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__add_llm_canister(network: str) -> None:
     """Test add_llm_canister with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="add_llm_canister",
         canister_argument='(record { canister_id = "aaaaa-aa" })',
@@ -720,7 +720,7 @@ def test__add_llm_canister(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = "(variant { Ok = record { status_code = 200 : nat16;} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__remove_llm_canister_anonymous(
@@ -728,7 +728,7 @@ def test__remove_llm_canister_anonymous(
 ) -> None:
     """Test remove_llm_canister rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="remove_llm_canister",
         canister_argument='(record { canister_id = "aaaaa-aa" })',
@@ -736,13 +736,13 @@ def test__remove_llm_canister_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__remove_llm_canister(network: str) -> None:
     """Test remove_llm_canister with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="remove_llm_canister",
         canister_argument='(record { canister_id = "aaaaa-aa" })',
@@ -750,7 +750,7 @@ def test__remove_llm_canister(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = "(variant { Ok = record { status_code = 200 : nat16;} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # -----------------------------------------------------------------------------
@@ -763,7 +763,7 @@ def test__resetRoundRobinLLMs_anonymous(
 ) -> None:
     """Test resetRoundRobinLLMs rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="resetRoundRobinLLMs",
         canister_argument="()",
@@ -771,13 +771,13 @@ def test__resetRoundRobinLLMs_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__resetRoundRobinLLMs(network: str) -> None:
     """Test resetRoundRobinLLMs with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="resetRoundRobinLLMs",
         canister_argument="()",
@@ -785,7 +785,7 @@ def test__resetRoundRobinLLMs(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = "(variant { Ok = record { status_code = 200 : nat16;} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__setRoundRobinLLMs_anonymous(
@@ -793,7 +793,7 @@ def test__setRoundRobinLLMs_anonymous(
 ) -> None:
     """Test setRoundRobinLLMs rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setRoundRobinLLMs",
         canister_argument="(2 : nat)",
@@ -801,13 +801,13 @@ def test__setRoundRobinLLMs_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__setRoundRobinLLMs(network: str) -> None:
     """Test setRoundRobinLLMs with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setRoundRobinLLMs",
         canister_argument="(2 : nat)",
@@ -815,7 +815,7 @@ def test__setRoundRobinLLMs(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = "(variant { Ok = record { status_code = 200 : nat16;} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # -----------------------------------------------------------------------------
@@ -828,7 +828,7 @@ def test__checkAccessToLLMs_anonymous(
 ) -> None:
     """Test checkAccessToLLMs rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="checkAccessToLLMs",
         canister_argument="()",
@@ -836,13 +836,13 @@ def test__checkAccessToLLMs_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__checkAccessToLLMs(network: str) -> None:
     """Test checkAccessToLLMs with controller identity (no LLMs configured)"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="checkAccessToLLMs",
         canister_argument="()",
@@ -851,7 +851,7 @@ def test__checkAccessToLLMs(network: str) -> None:
     )
     # No LLMs configured, should return Ok
     expected_response = "(variant { Ok = record { status_code = 200 : nat16;} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # -----------------------------------------------------------------------------
@@ -864,7 +864,7 @@ def test__getRoundRobinCanister_anonymous(
 ) -> None:
     """Test getRoundRobinCanister rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getRoundRobinCanister",
         canister_argument="()",
@@ -872,13 +872,13 @@ def test__getRoundRobinCanister_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getRoundRobinCanister(network: str) -> None:
     """Test getRoundRobinCanister with controller identity (no LLMs configured)"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getRoundRobinCanister",
         canister_argument="()",
@@ -887,7 +887,7 @@ def test__getRoundRobinCanister(network: str) -> None:
     )
     # No LLMs configured - should return error
     expected_response = '(variant { Err = variant { Other = "No LLM canisters configured" } })'
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 # -----------------------------------------------------------------------------
@@ -900,7 +900,7 @@ def test__setTimerActionRegularityInSecondsAdmin_anonymous(
 ) -> None:
     """Test setTimerActionRegularityInSecondsAdmin rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setTimerActionRegularityInSecondsAdmin",
         canister_argument="(60 : nat)",
@@ -908,13 +908,13 @@ def test__setTimerActionRegularityInSecondsAdmin_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__setTimerActionRegularityInSecondsAdmin(network: str) -> None:
     """Test setTimerActionRegularityInSecondsAdmin with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setTimerActionRegularityInSecondsAdmin",
         canister_argument="(60 : nat)",
@@ -922,7 +922,7 @@ def test__setTimerActionRegularityInSecondsAdmin(network: str) -> None:
         timeout_seconds=10,
     )
     expected_response = "(variant { Ok = record { status_code = 200 : nat16;} })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getTimerActionRegularityInSecondsAdmin_anonymous(
@@ -930,7 +930,7 @@ def test__getTimerActionRegularityInSecondsAdmin_anonymous(
 ) -> None:
     """Test getTimerActionRegularityInSecondsAdmin rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getTimerActionRegularityInSecondsAdmin",
         canister_argument="()",
@@ -938,13 +938,13 @@ def test__getTimerActionRegularityInSecondsAdmin_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__getTimerActionRegularityInSecondsAdmin(network: str) -> None:
     """Test getTimerActionRegularityInSecondsAdmin with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getTimerActionRegularityInSecondsAdmin",
         canister_argument="()",
@@ -959,7 +959,7 @@ def test__startTimerExecutionAdmin_anonymous(
 ) -> None:
     """Test startTimerExecutionAdmin rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="startTimerExecutionAdmin",
         canister_argument="()",
@@ -967,14 +967,14 @@ def test__startTimerExecutionAdmin_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 @pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Integration test - requires GameState canister")
 def test__startTimerExecutionAdmin(network: str) -> None:
     """Test startTimerExecutionAdmin with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="startTimerExecutionAdmin",
         canister_argument="()",
@@ -989,7 +989,7 @@ def test__stopTimerExecutionAdmin_anonymous(
 ) -> None:
     """Test stopTimerExecutionAdmin rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="stopTimerExecutionAdmin",
         canister_argument="()",
@@ -997,13 +997,13 @@ def test__stopTimerExecutionAdmin_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 def test__stopTimerExecutionAdmin(network: str) -> None:
     """Test stopTimerExecutionAdmin with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="stopTimerExecutionAdmin",
         canister_argument="()",
@@ -1023,7 +1023,7 @@ def test__generateNewChallenge_anonymous(
 ) -> None:
     """Test generateNewChallenge rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="generateNewChallenge",
         canister_argument="()",
@@ -1031,14 +1031,14 @@ def test__generateNewChallenge_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 @pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Integration test - requires GameState and LLM canisters")
 def test__generateNewChallenge(network: str) -> None:
     """Test generateNewChallenge with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="generateNewChallenge",
         canister_argument="()",
@@ -1058,7 +1058,7 @@ def test__sendCyclesToGameStateCanister_anonymous(
 ) -> None:
     """Test sendCyclesToGameStateCanister rejects anonymous callers"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="sendCyclesToGameStateCanister",
         canister_argument="()",
@@ -1066,14 +1066,14 @@ def test__sendCyclesToGameStateCanister_anonymous(
         timeout_seconds=10,
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
-    assert response == expected_response
+    assert response == norm(expected_response)
 
 
 @pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Integration test - requires GameState canister and sufficient cycles")
 def test__sendCyclesToGameStateCanister(network: str) -> None:
     """Test sendCyclesToGameStateCanister with controller identity"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="sendCyclesToGameStateCanister",
         canister_argument="()",
@@ -1092,7 +1092,7 @@ def test__sendCyclesToGameStateCanister(network: str) -> None:
 def test__getSendCyclesPeriodInSecondsAdmin_default(network: str) -> None:
     """Default send-cycles drain period is 3600 seconds"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getSendCyclesPeriodInSecondsAdmin",
         canister_argument="()",
@@ -1104,16 +1104,16 @@ def test__getSendCyclesPeriodInSecondsAdmin_default(network: str) -> None:
 def test__setSendCyclesPeriodInSecondsAdmin_roundtrip(network: str) -> None:
     """setSendCyclesPeriodInSecondsAdmin updates the period"""
     set_response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setSendCyclesPeriodInSecondsAdmin",
         canister_argument="(7200 : nat)",
         network=network,
     )
-    assert set_response == "(variant { Ok = record { status_code = 200 : nat16;} })"
+    assert set_response == norm("(variant { Ok = record { status_code = 200 : nat16;} })")
 
     get_response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getSendCyclesPeriodInSecondsAdmin",
         canister_argument="()",
@@ -1123,7 +1123,7 @@ def test__setSendCyclesPeriodInSecondsAdmin_roundtrip(network: str) -> None:
 
     # Reset to the 3600s default
     call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="setSendCyclesPeriodInSecondsAdmin",
         canister_argument="(3600 : nat)",
@@ -1134,7 +1134,7 @@ def test__setSendCyclesPeriodInSecondsAdmin_roundtrip(network: str) -> None:
 def test__stopSendCyclesTimerAdmin(network: str) -> None:
     """stopSendCyclesTimerAdmin returns Ok (no active timer is acceptable)"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="stopSendCyclesTimerAdmin",
         canister_argument="()",
@@ -1154,48 +1154,48 @@ def test__getAdminRoles_anonymous(identity_anonymous: Dict[str, str], network: s
     """getAdminRoles rejects anonymous caller"""
     assert identity_anonymous["identity"] == "anonymous"
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getAdminRoles",
         canister_argument="()",
         network=network,
         timeout_seconds=10,
     )
-    assert response == "(variant { Err = variant { Unauthorized } })"
+    assert response == norm("(variant { Err = variant { Unauthorized } })")
 
 
 def test__assignAdminRole_anonymous(identity_anonymous: Dict[str, str], network: str) -> None:
     """assignAdminRole rejects anonymous caller"""
     assert identity_anonymous["identity"] == "anonymous"
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="assignAdminRole",
         canister_argument='(record { "principal" = "aaaaa-aa"; role = variant { AdminQuery }; note = "test" })',
         network=network,
         timeout_seconds=10,
     )
-    assert response == "(variant { Err = variant { Unauthorized } })"
+    assert response == norm("(variant { Err = variant { Unauthorized } })")
 
 
 def test__revokeAdminRole_anonymous(identity_anonymous: Dict[str, str], network: str) -> None:
     """revokeAdminRole rejects anonymous caller"""
     assert identity_anonymous["identity"] == "anonymous"
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="revokeAdminRole",
         canister_argument='("aaaaa-aa")',
         network=network,
         timeout_seconds=10,
     )
-    assert response == "(variant { Err = variant { Unauthorized } })"
+    assert response == norm("(variant { Err = variant { Unauthorized } })")
 
 
 def test__rbac_setup_cleanup(network: str) -> None:
     """Setup: clean up any admin role left from a previous run"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="revokeAdminRole",
         canister_argument='("aaaaa-aa")',
@@ -1203,28 +1203,30 @@ def test__rbac_setup_cleanup(network: str) -> None:
         timeout_seconds=10,
     )
     assert response in [
-        '(variant { Ok = "Admin role revoked for principal: aaaaa-aa" })',
-        '(variant { Err = variant { Other = "No admin role found for principal: aaaaa-aa" } })',
+        norm('(variant { Ok = "Admin role revoked for principal: aaaaa-aa" })'),
+        norm(
+            '(variant { Err = variant { Other = "No admin role found for principal: aaaaa-aa" } })'
+        ),
     ]
 
 
 def test__getAdminRoles_empty(network: str) -> None:
     """getAdminRoles returns empty list initially"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getAdminRoles",
         canister_argument="()",
         network=network,
         timeout_seconds=10,
     )
-    assert response == "(variant { Ok = vec {} })"
+    assert response == norm("(variant { Ok = vec {} })")
 
 
 def test__assignAdminRole_AdminQuery(network: str) -> None:
     """assignAdminRole assigns an AdminQuery role (controller identity)"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="assignAdminRole",
         canister_argument='(record { "principal" = "aaaaa-aa"; role = variant { AdminQuery }; note = "Test admin query role" })',
@@ -1239,7 +1241,7 @@ def test__assignAdminRole_AdminQuery(network: str) -> None:
 def test__getAdminRoles_after_assign(network: str) -> None:
     """getAdminRoles returns the assigned role"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="getAdminRoles",
         canister_argument="()",
@@ -1253,24 +1255,24 @@ def test__getAdminRoles_after_assign(network: str) -> None:
 def test__revokeAdminRole(network: str) -> None:
     """revokeAdminRole removes the role"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="revokeAdminRole",
         canister_argument='("aaaaa-aa")',
         network=network,
         timeout_seconds=10,
     )
-    assert response == '(variant { Ok = "Admin role revoked for principal: aaaaa-aa" })'
+    assert response == norm('(variant { Ok = "Admin role revoked for principal: aaaaa-aa" })')
 
 
 def test__revokeAdminRole_not_found(network: str) -> None:
     """revokeAdminRole returns error for a non-existent principal"""
     response = call_canister_api(
-        dfx_json_path=DFX_JSON_PATH,
+        icp_yaml_path=ICP_YAML_PATH,
         canister_name=CANISTER_NAME,
         canister_method="revokeAdminRole",
         canister_argument='("non-existent-principal")',
         network=network,
         timeout_seconds=10,
     )
-    assert response == '(variant { Err = variant { Other = "No admin role found for principal: non-existent-principal" } })'
+    assert response == norm('(variant { Err = variant { Other = "No admin role found for principal: non-existent-principal" } })')

@@ -57,7 +57,7 @@ do
     echo " "
     echo "--------------------------------------------------"
     echo "Checking health endpoint for llm_$i"
-    output=$(dfx canister call llm_$i health --network $NETWORK_TYPE )
+    output=$(icp canister call llm_$i health '()' -e $NETWORK_TYPE --query)
 
     if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
         echo "llm_$i health check failed"
@@ -70,9 +70,9 @@ do
     echo " "
     echo "--------------------------------------------------"
     echo "Setting max tokens to ($MAX_TOKENS) for llm_$i"
-    output=$(dfx canister call llm_$i set_max_tokens \
+    output=$(icp canister call llm_$i set_max_tokens \
             '(record { max_tokens_query = '"$MAX_TOKENS"' : nat64; max_tokens_update = '"$MAX_TOKENS"' : nat64 })' \
-            --network "$NETWORK_TYPE")
+            -e "$NETWORK_TYPE")
 
 
     if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then

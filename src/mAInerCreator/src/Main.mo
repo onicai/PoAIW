@@ -1435,8 +1435,15 @@ persistent actor class MainerCreatorCanister() = this {
 
                 // --------------------------------------------------
                 // upgrade code
-                let mode : ICManagementCanister.canister_install_mode = #upgrade(null); // for enhanced orthogonal persistence
-                // let mode : ICManagementCanister.canister_install_mode = #upgrade(?{wasm_memory_persistence = ?#keep; skip_pre_upgrade = ?false}); // for enhanced orthogonal persistence
+                // The mAIner wasm is built with enhanced orthogonal persistence, and the IC
+                // REJECTS an EOP upgrade that does not say what to do with the memory:
+                //   "Missing upgrade option: Enhanced orthogonal persistence requires the
+                //    `wasm_memory_persistence` upgrade option."
+                // `#upgrade(null)` sends no options, so it failed every time -- and because
+                // GameState marks the mAIner "Controller Upgrade in Progress" before this
+                // runs and only clears it on the callback below, a failure here looks like a
+                // hung upgrade rather than a rejected one.
+                let mode : ICManagementCanister.canister_install_mode = #upgrade(?{wasm_memory_persistence = ?#keep; skip_pre_upgrade = ?false});
                 D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): upgradeMainerctrl (" # canisterAddress # ") - start upgrading ctrlb canister " # canisterAddress);
                 let installResult = await InstallCanisterCode.installCanisterCode(canisterPrincipal, mainerControllerCanisterWasm, mode);
                 switch (installResult) {

@@ -3,7 +3,7 @@
 Send 0.1 ICP from the `topup-tester` identity to GameState's ledger account
 with an ICRC-1 memo blob that binds the payment to a given target mAIner.
 
-Why this script exists (instead of `dfx ledger transfer` or `dfx canister call
+Why this script exists (instead of `icp` CLI transfers or `icp canister call
 ... icrc1_transfer ...`):
   - `dfx ledger transfer` (legacy) only accepts an 8-byte `--memo <Nat64>`,
     so it can't carry the 11-byte bound memo at all.
@@ -14,8 +14,8 @@ Why this script exists (instead of `dfx ledger transfer` or `dfx canister call
   - `icp-py-core` encodes the memo blob correctly. Verified end-to-end: the
     same 11-byte memo sent here is accepted by the ledger.
 
-The redeem step (`dfx canister call <GameState> topUpCyclesForAnyMainerAgent
-...`) does not have the blob-escape issue and remains a plain dfx call.
+The redeem step (`icp canister call <GameState> topUpCyclesForAnyMainerAgent
+...`) does not have the blob-escape issue and remains a plain CLI call.
 
 Usage:
     python3 pay_topup.py <target_mainer_canister_id> <gamestate_canister_id>
@@ -23,7 +23,7 @@ Usage:
 Prereqs:
   - `pip install icp-py-core` in the active env (the `llama_cpp_canister`
     conda env already has it).
-  - `dfx identity export topup-tester > ~/.config/dfx/identity/topup-tester/identity.pem`
+  - `icp identity export topup-tester > /tmp/topup-tester.pem`  (icp-cli; dfx is deprecated)
     (one-time, decrypts the keyring-stored PEM).
 
 On success, prints the ICP-ledger block index on stdout (capture-friendly):
@@ -41,7 +41,7 @@ from icp_principal import Principal
 MEMO_PAYMENT_MARKER = 0xAD
 ICP_LEDGER_CANISTER_ID = "ryjl3-tyaaa-aaaaa-aaaba-cai"
 TOPUP_TESTER_PEM = os.path.expanduser(
-    "~/.config/dfx/identity/topup-tester/identity.pem"
+    "~/.config/icp/identity/topup-tester/identity.pem"
 )
 AMOUNT_E8S = 10_000_000  # 0.1 ICP
 FEE_E8S = 10_000
@@ -85,7 +85,7 @@ def main() -> int:
     if not os.path.exists(TOPUP_TESTER_PEM):
         print(
             f"ERROR: no plaintext PEM at {TOPUP_TESTER_PEM}.\n"
-            f"Run: dfx identity export topup-tester > {TOPUP_TESTER_PEM}",
+            f"Run: icp identity export topup-tester > {TOPUP_TESTER_PEM}",
             file=sys.stderr,
         )
         return 1

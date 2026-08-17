@@ -49,7 +49,7 @@ echo "--------------------------------------------------"
 echo "Checking readiness endpoint for all llms"
 for i in $(seq $llm_id_start $llm_id_end)
 do
-    output=$(dfx canister call llm_$i ready --network $NETWORK_TYPE )
+    output=$(icp canister call llm_$i ready '()' -e $NETWORK_TYPE)
 
     if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
         echo "llm_$i is not ready. Exiting."

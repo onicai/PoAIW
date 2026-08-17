@@ -1,13 +1,17 @@
 # FUNNAI Token Index Canister
 
+> **No `icp.yaml` here, on purpose.** Like TokenLedger, this is a download-only canister:
+> the wasm is the official ICRC-1 index, not built from source in this repo. Its deployed
+> ids live in `token_ids.json` and are addressed by principal, not via an icp-cli environment.
+
 ## Deployment
 
 ```bash
 # Deploy to production network (same subnet as ledger)
-dfx deploy --network prd funnAI_index_canister --subnet snjp4-xlbw4-mnbog-ddwy6-6ckfd-2w5a2-eipqo-7l436-pxqkh-l6fuv-vae
+icp deploy -e prd funnAI_index_canister --subnet snjp4-xlbw4-mnbog-ddwy6-6ckfd-2w5a2-eipqo-7l436-pxqkh-l6fuv-vae
 
 # Add all appropriate controllers
-dfx canister --network prd update-settings mziuv-biaaa-aaaaa-qccrq-cai --add-controller ...
+icp canister settings update mziuv-biaaa-aaaaa-qccrq-cai -e prd --add-controller ...
 
 # Add canister to CycleOps & canister_ids-prd.env
 ```
@@ -16,11 +20,11 @@ dfx canister --network prd update-settings mziuv-biaaa-aaaaa-qccrq-cai --add-con
 
 ```bash
 # Check sync progress after deployment
-dfx canister --network prd call funnAI_index_canister status '()'
+icp canister call funnAI_index_canister status '()'
 # Returns: (record { num_blocks_synced = <number> : nat64 })
 
 # Verify correct ledger ID
-dfx canister --network prd call funnAI_index_canister ledger_id '()'
+icp canister call funnAI_index_canister ledger_id '()'
 # Should return: vpyot-zqaaa-aaaaa-qavaq-cai
 ```
 
@@ -28,10 +32,10 @@ dfx canister --network prd call funnAI_index_canister ledger_id '()'
 
 ```bash
 # Get account transactions
-dfx canister --network prd call funnAI_index_canister get_account_transactions '(record {account = record {owner = principal "<account-principal>"}; max_results = 10})'
+icp canister call funnAI_index_canister get_account_transactions '(record {account = record {owner = principal "<account-principal>"}; max_results = 10})'
 
 # Get blocks
-dfx canister --network prd call funnAI_index_canister get_blocks '(record {start = 0; length = 10})'
+icp canister call funnAI_index_canister get_blocks '(record {start = 0; length = 10})'
 ```
 
 ---
@@ -46,7 +50,7 @@ The index canister is a pre-built canister from DFINITY that indexes transaction
 
 ### Structure
 
-- `dfx.json` - DFX configuration for the index canister
+- `token_ids.json` - deployed canister ids (there is no `icp.yaml`: the wasm is downloaded, not built)
 - `canister_ids.json` - Canister IDs for different networks
 - `download_latest_icrc1_index.sh` - Script to download the latest index canister wasm and candid files
 
@@ -87,7 +91,7 @@ After running the script, you'll have:
 
 ### Configuration
 
-The index canister is configured with the following parameters in `dfx.json`:
+The index canister is configured with the following parameters at install time:
 
 - **ledger_id**: `vpyot-zqaaa-aaaaa-qavaq-cai` (FUNNAI production ledger)
 - **retrieve_blocks_from_ledger_interval_seconds**: Set to 10 seconds (how often the index fetches new blocks from the ledger)
@@ -101,16 +105,19 @@ To update the index canister to a newer version:
    ./download_latest_icrc1_index.sh
    ```
 
-2. Update the URLs in `dfx.json` if the release tag has changed
+2. Update `RELEASE_TAG` in `download_latest_icrc1_index.sh` if the release tag has changed
+   (this is where the download URLs live now; the old `dfx.json` is gone)
 
-3. Upgrade the canister:
+3. Upgrade the canister. There is no `icp.yaml` for this project, so target the canister by
+   principal from `token_ids.json` and select the network directly:
    ```bash
-   dfx canister --network prd install funnAI_index_canister --mode upgrade
+   icp canister install mziuv-biaaa-aaaaa-qccrq-cai \
+       --wasm ic-icrc1-index-ng.wasm.gz --mode upgrade -n ic -y
    ```
 
 ### Networks
 
-The canister is configured for the following networks in `dfx.json`:
+The canister ids per environment are recorded in `token_ids.json`:
 - **prd**: Production environment (primary deployment target)
 - **development**: Development environment
 - **testing**: Testing environment

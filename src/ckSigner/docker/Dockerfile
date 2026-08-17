@@ -9,10 +9,11 @@ FROM --platform=linux/amd64 ${IMAGE}
 
 WORKDIR /app/ckSigner
 
-# Copy project files
+# mops.lock pins the exact dependency versions, so it is part of the reproducible
+# build. canister_ids.json is NOT copied: building a wasm needs no canister ids.
 COPY ckSigner/mops.toml ./
-COPY ckSigner/dfx.json ./
-COPY ckSigner/canister_ids.json ./
+COPY ckSigner/mops.lock ./
+COPY ckSigner/icp.yaml ./
 
 # Install mops dependencies
 RUN mops install

@@ -112,25 +112,25 @@ echo ""
 
 # Execute the bulk create command
 if [ "$NETWORK" = "local" ]; then
-    dfx canister call api_canister bulkCreateDailyMetricsAdmin "($BULK_DATA)" 2>&1 | tee /Users/arjaan/github/repos/funnAI/secret/.current_claude_command.txt
+    icp canister call api_canister bulkCreateDailyMetricsAdmin "($BULK_DATA)" 2>&1 -e local| tee /Users/arjaan/github/repos/funnAI/secret/.current_claude_command.txt
 else
-    dfx canister call api_canister bulkCreateDailyMetricsAdmin "($BULK_DATA)" --network $NETWORK 2>&1 | tee /Users/arjaan/github/repos/funnAI/secret/.current_claude_command.txt
+    icp canister call api_canister bulkCreateDailyMetricsAdmin "($BULK_DATA)" -e $NETWORK 2>&1 | tee /Users/arjaan/github/repos/funnAI/secret/.current_claude_command.txt
 fi
 
 echo ""
 echo "Verifying data was created..."
 if [ "$NETWORK" = "local" ]; then
-    dfx canister call api_canister getNumDailyMetrics
+    icp canister call api_canister getNumDailyMetrics '()' -e local
 else
-    dfx canister call api_canister getNumDailyMetrics --network $NETWORK
+    icp canister call api_canister getNumDailyMetrics -e $NETWORK
 fi
 
 echo ""
 echo "Getting latest metric (first 50 lines)..."
 if [ "$NETWORK" = "local" ]; then
-    dfx canister call api_canister getLatestDailyMetric 2>&1 | head -50 || true
+    icp canister call api_canister getLatestDailyMetric 2>&1 -e local| head -50 || true
 else
-    dfx canister call api_canister getLatestDailyMetric --network $NETWORK 2>&1 | head -50 || true
+    icp canister call api_canister getLatestDailyMetric -e $NETWORK 2>&1 | head -50 || true
 fi
 
 echo ""

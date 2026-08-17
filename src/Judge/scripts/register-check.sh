@@ -36,7 +36,7 @@ echo "Using network type: $NETWORK_TYPE"
 echo " "
 echo "--------------------------------------------------"
 echo "Checking if judge_ctrlb_canister is a controller of the LLM canisters"
-output=$(dfx canister call judge_ctrlb_canister checkAccessToLLMs --network $NETWORK_TYPE)
+output=$(icp canister call judge_ctrlb_canister checkAccessToLLMs '()' -e $NETWORK_TYPE)
 
 if [ "$output" != "(variant { Ok = record { status_code = 200 : nat16 } })" ]; then
     echo "ERROR: judge_ctrlb_canister is not a controller of all LLMs. Make sure to update the LLMs."

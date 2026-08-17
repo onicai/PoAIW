@@ -44,18 +44,18 @@ echo "Using network type: $NETWORK_TYPE"
 #######################################################################
 echo " "
 echo "==========================================="
-echo "dfx identity"
-dfx identity whoami
+echo "icp identity"
+icp identity default
 
 echo " "
 echo "==========================================="
 echo "Wallet canister for this identity:"
-dfx identity get-wallet --network $NETWORK_TYPE
+echo "jh35u-eqaaa-aaaag-abf3a-cai   # the funnAI cycles wallet (icp-cli has no wallet concept)"
 
 echo " "
 echo "==========================================="
 echo "Wallet balance before top-off:"
-dfx wallet --network $NETWORK_TYPE balance
+icp canister call jh35u-eqaaa-aaaag-abf3a-cai wallet_balance '()' -e $NETWORK_TYPE --query
 
 echo " "
 echo "==========================================="
@@ -91,4 +91,4 @@ scripts/top-off.sh --network $NETWORK_TYPE
 echo "==========================================="
 echo " "
 echo "Wallet balance after top-off:"
-dfx wallet --network $NETWORK_TYPE balance
+icp canister call jh35u-eqaaa-aaaag-abf3a-cai wallet_balance '()' -e $NETWORK_TYPE --query

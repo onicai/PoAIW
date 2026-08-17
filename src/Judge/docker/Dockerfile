@@ -8,10 +8,11 @@ FROM --platform=linux/amd64 ${IMAGE}
 
 WORKDIR /app/Judge
 
-# Copy project files
+# mops.lock pins the exact dependency versions, so it is part of the reproducible
+# build. canister_ids.json is NOT copied: building a wasm needs no canister ids.
 COPY Judge/mops.toml ./
-COPY Judge/dfx.json ./
-COPY Judge/canister_ids.json ./
+COPY Judge/mops.lock ./
+COPY Judge/icp.yaml ./
 
 # Install mops dependencies
 RUN mops install

@@ -8,10 +8,11 @@ FROM --platform=linux/amd64 ${IMAGE}
 
 WORKDIR /app/ArchiveChallenges
 
-# Copy project files
+# mops.lock pins the exact dependency versions, so it is part of the reproducible
+# build. canister_ids.json is NOT copied: building a wasm needs no canister ids.
 COPY ArchiveChallenges/mops.toml ./
-COPY ArchiveChallenges/dfx.json ./
-COPY ArchiveChallenges/canister_ids.json ./
+COPY ArchiveChallenges/mops.lock ./
+COPY ArchiveChallenges/icp.yaml ./
 
 # Install mops dependencies
 RUN mops install

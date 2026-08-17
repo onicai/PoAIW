@@ -13,7 +13,7 @@ Usage:
 Prereqs (same as pay_topup.py):
   - `pip install icp-py-core` in the active env (the `llama_cpp_canister`
     conda env already has it).
-  - `dfx identity export topup-tester > ~/.config/dfx/identity/topup-tester/identity.pem`
+  - `icp identity export topup-tester > /tmp/topup-tester.pem`  (icp-cli; dfx is deprecated)
 
 On success, prints the ICP-ledger block index on stdout.
 """
@@ -28,7 +28,7 @@ from icp_principal import Principal
 
 ICP_LEDGER_CANISTER_ID = "ryjl3-tyaaa-aaaaa-aaaba-cai"
 TOPUP_TESTER_PEM = os.path.expanduser(
-    "~/.config/dfx/identity/topup-tester/identity.pem"
+    "~/.config/icp/identity/topup-tester/identity.pem"
 )
 AMOUNT_E8S = 10_000_000  # 0.1 ICP
 FEE_E8S = 10_000
@@ -71,7 +71,7 @@ def main() -> int:
     if not os.path.exists(TOPUP_TESTER_PEM):
         print(
             f"ERROR: no plaintext PEM at {TOPUP_TESTER_PEM}.\n"
-            f"Run: dfx identity export topup-tester > {TOPUP_TESTER_PEM}",
+            f"Run: icp identity export topup-tester > {TOPUP_TESTER_PEM}",
             file=sys.stderr,
         )
         return 1

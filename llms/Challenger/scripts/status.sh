@@ -43,16 +43,16 @@ llm_id_start=0
 llm_id_end=$((NUM_LLMS_DEPLOYED - 1))
 
 echo " "
-echo "- dfx identity"
-dfx identity whoami
+echo "- icp identity"
+icp identity default
 
 echo " "
 echo "- Wallet balance"
-dfx wallet --network $NETWORK_TYPE balance
+icp canister call jh35u-eqaaa-aaaag-abf3a-cai wallet_balance '()' -e $NETWORK_TYPE --query
 
 for i in $(seq $llm_id_start $llm_id_end)
 do
     echo " "
 	echo "- llm_$i "
-    dfx canister status llm_$i --network $NETWORK_TYPE
+    icp canister status llm_$i -e $NETWORK_TYPE
 done
