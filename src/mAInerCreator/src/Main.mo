@@ -26,6 +26,12 @@ persistent actor class MainerCreatorCanister() = this {
 
     var MASTER_CANISTER_ID : Text = "r5m5y-diaaa-aaaaa-qanaa-cai"; // prd
 
+    // Maintainer principals. Together with this canister they form the canonical
+    // controller set of every mAIner: exactly three, no more, no less.
+    // Same on all networks. Post-SNS these are replaced by SNS root.
+    transient let MAINTAINER_PRINCIPAL_1 : Text = "cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe";
+    transient let MAINTAINER_PRINCIPAL_2 : Text = "chfec-vmrjj-vsmhw-uiolc-dpldl-ujifg-k6aph-pwccq-jfwii-nezv4-2ae";
+
     public shared (msg) func setMasterCanisterId(_master_canister_id : Text) : async Types.AuthRecordResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -676,7 +682,20 @@ persistent actor class MainerCreatorCanister() = this {
                 // CMC based approach, allows to specify the subnet
                 let subnetCtrl : Text = configurationInput.mainerConfig.subnetCtrl;
                 let cyclesToAttach : Nat = configurationInput.cyclesCreateMainerctrlMcMainerctrl;
-                let controllers : [Principal] = [Principal.fromActor(this), configurationInput.owner, Principal.fromText("3v5vy-2aaaa-aaaai-aapla-cai"), Principal.fromText("fqkhp-waaaa-aaaam-qdmta-cai"), Principal.fromText("cda4n-7jjpo-s4eus-yjvy7-o6qjc-vrueo-xd2hh-lh5v2-k7fpf-hwu5o-yqe"), Principal.fromText("fsmbm-odyjn-hkwt2-3be4e-h6bg3-yi3pi-f5eny-2rosh-4u6jm-3rwa5-xae"), Principal.fromText("chfec-vmrjj-vsmhw-uiolc-dpldl-ujifg-k6aph-pwccq-jfwii-nezv4-2ae"), Principal.fromText("opcne-svazk-6dnsy-iejci-fsm7h-miuun-ovpm4-wtsgw-5pgbz-teu3h-eqe")];
+                // Canonical controller set for a mAIner: this canister plus the two
+                // maintainer principals. Exactly these three, no more, no less.
+                //
+                // The owner is deliberately NOT a controller. A controller can install
+                // arbitrary code, which let owners drain cycles from mAIners they had
+                // sold and made every marketplace transfer unsafe. Owners get the
+                // #AdminQuery role instead (assigned in setupCanister), which covers
+                // every read-only owner-facing endpoint, and updateAgentSettings
+                // verifies ownership against GameState.
+                let controllers : [Principal] = [
+                    Principal.fromActor(this),
+                    Principal.fromText(MAINTAINER_PRINCIPAL_1),
+                    Principal.fromText(MAINTAINER_PRINCIPAL_2),
+                ];
                 D.print("mAInerCreator: createCanister - Calling CMC.create_canister_on_subnet targeting subnet " # subnetCtrl # " with " # debug_show(cyclesToAttach) # " cycles.");
                 let createCanisterWithCMCResult = await CreateCanisterWithCMC.createCanisterOnSubnet(cyclesToAttach, subnetCtrl, ?controllers);
                 var canister_id = Principal.fromText("aaaaa-aa"); // Placeholder
@@ -896,6 +915,33 @@ persistent actor class MainerCreatorCanister() = this {
                 D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): setupCanister (" # newCanisterId # ") - setControllerGameStateResult " # debug_show (setControllerGameStateResult));
                 switch (statusCodeRecordResult) {
                     case (#Err(error)) {
+                        return #Err(error);
+                    };
+                    case _ {
+                        // all good, continue
+                    };
+                };
+
+                // Grant the owner #AdminQuery on their own mAIner.
+                //
+                // The owner is NOT a controller (see the canonical controller set in
+                // createCanister), so without this role every owner-facing read in the
+                // frontend would return #Err(#Unauthorized). #AdminQuery is read-only:
+                // it opens getters on this canister and nothing that mutates it.
+                // #AdminUpdate is deliberately never granted to an owner.
+                //
+                // This canister is a controller of the new mAIner, so it can assign the
+                // role directly. On a marketplace sale GameState cannot - it is not a
+                // controller - so it routes through assignAdminRoleOnMainerCanister below.
+                D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): setupCanister (" # newCanisterId # ") - granting #AdminQuery to owner " # Principal.toText(configurationInput.owner));
+                let assignOwnerRoleResult = await controllerCanisterActor.assignAdminRole({
+                    principal = Principal.toText(configurationInput.owner);
+                    role = #AdminQuery;
+                    note = "mAIner owner";
+                });
+                switch (assignOwnerRoleResult) {
+                    case (#Err(error)) {
+                        D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): setupCanister (" # newCanisterId # ") - failed to grant #AdminQuery to owner: " # debug_show (error));
                         return #Err(error);
                     };
                     case _ {
@@ -1901,6 +1947,67 @@ persistent actor class MainerCreatorCanister() = this {
         catch (e) {
             D.print("mAInerCreator: removeControllerFromMainerCanister - failed to remove controller. Error: " # Error.message(e) # debug_show(msg));
             return #Err(#Other("mAInerCreator: removeControllerFromMainerCanister - failed to remove controller. Error: " # Error.message(e)));
+        };
+    };
+
+    // Functions for Game State to manage admin roles on mAIner canisters
+    // (e.g. moving the owner's #AdminQuery on a marketplace sale).
+    //
+    // assignAdminRole/revokeAdminRole on the mAIner are strictly isController, and
+    // GameState is NOT a controller of any mAIner - this canister is. So GameState
+    // routes role changes through here, exactly as it routes controller changes.
+    //
+    // Only #AdminQuery may be granted this way. #AdminUpdate unlocks 25 endpoints on
+    // the mAIner, including setGameStateCanisterId, sendCyclesToGameStateCanister and
+    // the LLM-swap family; granting it to a user would recreate the very vulnerability
+    // that removing owners as controllers is meant to close.
+    public shared (msg) func assignAdminRoleOnMainerCanister(assignRoleInput : Types.AssignAdminRoleOnMainerCanisterInput) : async Types.AdminRoleAssignmentResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Only the GameState canister may call this
+        if (not Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID))) {
+            return #Err(#Unauthorized);
+        };
+        // Never hand out #AdminUpdate on a mAIner via this path.
+        switch (assignRoleInput.role) {
+            case (#AdminQuery) {
+                // allowed
+            };
+            case (_) {
+                D.print("mAInerCreator: assignAdminRoleOnMainerCanister - refused non-#AdminQuery role: " # debug_show(assignRoleInput.role));
+                return #Err(#Unauthorized);
+            };
+        };
+        try {
+            let mainerCanisterActor = actor (assignRoleInput.mainerEntry.address) : Types.MainerAgentCtrlbCanister;
+            return await mainerCanisterActor.assignAdminRole({
+                principal = assignRoleInput.principal;
+                role = assignRoleInput.role;
+                note = assignRoleInput.note;
+            });
+        }
+        catch (e) {
+            D.print("mAInerCreator: assignAdminRoleOnMainerCanister - failed. Error: " # Error.message(e));
+            return #Err(#Other("mAInerCreator: assignAdminRoleOnMainerCanister - failed. Error: " # Error.message(e)));
+        };
+    };
+
+    public shared (msg) func revokeAdminRoleOnMainerCanister(revokeRoleInput : Types.RevokeAdminRoleOnMainerCanisterInput) : async Types.TextResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        // Only the GameState canister may call this
+        if (not Principal.equal(msg.caller, Principal.fromText(MASTER_CANISTER_ID))) {
+            return #Err(#Unauthorized);
+        };
+        try {
+            let mainerCanisterActor = actor (revokeRoleInput.mainerEntry.address) : Types.MainerAgentCtrlbCanister;
+            return await mainerCanisterActor.revokeAdminRole(revokeRoleInput.principal);
+        }
+        catch (e) {
+            D.print("mAInerCreator: revokeAdminRoleOnMainerCanister - failed. Error: " # Error.message(e));
+            return #Err(#Other("mAInerCreator: revokeAdminRoleOnMainerCanister - failed. Error: " # Error.message(e)));
         };
     };
 

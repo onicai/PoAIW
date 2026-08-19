@@ -1096,6 +1096,23 @@ module Types {
         mainerEntry : OfficialMainerAgentCanister;
         newControllerPrincipal : Principal;
     };
+
+    // Inputs for GameState to manage admin roles on mAIner canisters.
+    // Needed because assignAdminRole/revokeAdminRole on the mAIner are strictly
+    // isController, and GameState is NOT a controller of any mAIner - only the
+    // mAInerCreator is. GameState therefore routes role changes through it, the
+    // same way it routes controller changes.
+    public type AssignAdminRoleOnMainerCanisterInput = {
+        mainerEntry : OfficialMainerAgentCanister;
+        principal : Text;
+        role : AdminRole;
+        note : Text;
+    };
+
+    public type RevokeAdminRoleOnMainerCanisterInput = {
+        mainerEntry : OfficialMainerAgentCanister;
+        principal : Text;
+    };
     
     public type AddControllerToMainerCanisterRecord = {
         added : Bool;
@@ -1446,6 +1463,7 @@ module Types {
         getCyclesBurnRate : (Types.CyclesBurnRateDefault) -> async Types.CyclesBurnRateResult;
         addCycles: () -> async AddCyclesResult;
         getRecentProtocolActivity : () -> async ProtocolActivityResult;
+        isCallerMainerOwnedBy : (Principal) -> async Bool;
     };
 
     public type MainerCreator_Actor = actor {
@@ -1455,6 +1473,8 @@ module Types {
         reinstallMainerctrl: shared ReinstallMainerctrlInput -> async Types.StatusCodeRecordResult;
         addControllerToMainerCanister: shared AddControllerToMainerCanisterInput -> async Types.AddControllerToMainerCanisterResult;
         removeControllerFromMainerCanister: shared RemoveControllerFromMainerCanisterInput -> async Types.RemoveControllerFromMainerCanisterResult;
+        assignAdminRoleOnMainerCanister: shared AssignAdminRoleOnMainerCanisterInput -> async AdminRoleAssignmentResult;
+        revokeAdminRoleOnMainerCanister: shared RevokeAdminRoleOnMainerCanisterInput -> async TextResult;
     };
 
     // mAIner
@@ -1470,6 +1490,9 @@ module Types {
         addMainerShareAgentCanister: (OfficialMainerAgentCanister) -> async MainerAgentCanisterResult;
         startTimerExecutionAdmin: () -> async AuthRecordResult;
         addCycles: () -> async AddCyclesResult;
+        assignAdminRole: (AssignAdminRoleInputRecord) -> async AdminRoleAssignmentResult;
+        revokeAdminRole: (Text) -> async TextResult;
+        getAdminRoles: () -> async AdminRoleAssignmentsResult;
     };
 
     // LLM canister recurring cycle-balance monitor (llama_cpp_canister >= v0.11.0).
