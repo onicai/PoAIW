@@ -22,6 +22,28 @@ type StatisticsRecord =
    cyclesBurnRate: CyclesBurnRate;
    totalCyclesBurnt: nat;
  };
+type ShareAgentStatus = 
+ record {
+   cycleBalance: nat;
+   cyclesBurnRate: CyclesBurnRateDefault;
+ };
+type ShareAgentRegistryWithActivityResult = 
+ variant {
+   Err: ApiError;
+   Ok: ShareAgentRegistryWithActivity;
+ };
+type ShareAgentRegistryWithActivity = 
+ record {
+   activity: vec ShareAgentActivity;
+   registry: vec OfficialMainerAgentCanister;
+ };
+type ShareAgentActivity = 
+ record {
+   address: text;
+   cycleBalance: nat;
+   cyclesBurnRate: CyclesBurnRateDefault;
+   lastChallengeRequestTimestamp: nat64;
+ };
 type SelectableMainerLLMs = variant {Qwen2_5_500M;};
 type ProtocolCanisterType = 
  variant {
@@ -121,7 +143,8 @@ type MainerAgentCtrlbCanister =
    addChallengeResponseToShareAgent: (challengeResponseSubmissionInput:
     ChallengeResponseSubmissionInput) -> (StatusCodeRecordResult);
    addChallengeToShareServiceQueue: (challengeQueueInput:
-    ChallengeQueueInput) -> (ChallengeQueueInputResult);
+    ChallengeQueueInput, shareAgentStatus: opt ShareAgentStatus) ->
+    (ChallengeQueueInputResult);
    addCycles: () -> (AddCyclesResult);
    addMainerShareAgentCanister: (canisterEntryToAdd:
     OfficialMainerAgentCanister) -> (MainerAgentCanisterResult);
@@ -140,16 +163,21 @@ type MainerAgentCtrlbCanister =
    getChallengeQueueAdmin: () -> (ChallengeQueueInputsResult) query;
    getCurrentAgentSettingsAdmin: () -> (MainerAgentSettingsResult) query;
    getCurrentAgentTimersAdmin: () -> (MainerAgentTimersResult) query;
+   getCyclesToSendToGameStateAdmin: () -> (nat) query;
    getGameStateCanisterId: () -> (text) query;
    getIssueFlagsAdmin: () -> (IssueFlagsRetrievalResult) query;
    getLLMCanisterIds: () -> (CanisterAddressesResult) query;
    getMainerCanisterType: () -> (MainerAgentCanisterTypeResult) query;
    getMainerStatisticsAdmin: () -> (StatisticsRetrievalResult) query;
    getMaintenanceFlag: () -> (FlagResult) query;
+   getMinCyclesBalanceAdmin: () -> (nat) query;
    getOfficialCyclesBalanceAdmin: () -> (CycleBalanceResult) query;
    getRecentSubmittedResponsesAdmin: () ->
     (ChallengeResponseSubmissionsResult) query;
    getRoundRobinCanister: () -> (CanisterIDRecordResult) query;
+   getSendCyclesPeriodInSecondsAdmin: () -> (NatResult) query;
+   getShareAgentRegistryWithActivityAdmin: () ->
+    (ShareAgentRegistryWithActivityResult) query;
    getShareServiceCanisterId: () -> (text) query;
    getSubmittedResponsesAdmin: () ->
     (ChallengeResponseSubmissionsResult) query;
@@ -165,17 +193,28 @@ type MainerAgentCtrlbCanister =
    resetRoundRobinLLMs: () -> (StatusCodeRecordResult);
    reset_llm_canisters: () -> (StatusCodeRecordResult);
    revokeAdminRole: ("principal": text) -> (TextResult);
+   sendCyclesToGameStateCanister: () -> (AddCyclesResult);
+   setActivityTimestampAdmin: (address: text, timestamp: nat64) ->
+    (StatusCodeRecordResult);
+   setCyclesToSendToGameStateAdmin: (newValue: nat) ->
+    (StatusCodeRecordResult);
    setGameStateCanisterId: (_game_state_canister_id: text) ->
     (StatusCodeRecordResult);
    setMainerCanisterType: (_mainer_agent_canister_type:
     MainerAgentCanisterType) -> (StatusCodeRecordResult);
+   setMinCyclesBalanceAdmin: (newCyclesBalance: nat) ->
+    (StatusCodeRecordResult);
    setRoundRobinLLMs: (_roundRobinLLMs: nat) -> (StatusCodeRecordResult);
+   setSendCyclesPeriodInSecondsAdmin: (_periodInSeconds: nat) ->
+    (StatusCodeRecordResult);
    setShareServiceCanisterId: (_share_service_canister_id: text) ->
     (StatusCodeRecordResult);
    setTimerAction2RegularityInSecondsAdmin: (_action2RegularityInSeconds:
     nat) -> (StatusCodeRecordResult);
    setTimerBufferMaxSizeAdmin: (maxSize: nat) -> (StatusCodeRecordResult);
+   startSendCyclesTimerAdmin: () -> (AuthRecordResult);
    startTimerExecutionAdmin: () -> (AuthRecordResult);
+   stopSendCyclesTimerAdmin: () -> (AuthRecordResult);
    stopTimerExecutionAdmin: () -> (AuthRecordResult);
    timeToNextAgentSettingsUpdate: () -> (NatResult);
    toggleMaintenanceFlagAdmin: () -> (AuthRecordResult);
