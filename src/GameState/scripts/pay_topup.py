@@ -21,7 +21,7 @@ Usage:
     python3 pay_topup.py <target_mainer_canister_id> <gamestate_canister_id>
 
 Prereqs:
-  - `pip install icp-py-core` in the active env (the `llama_cpp_canister`
+  - `pip install icp-py-core` in the active env (the `funnAI`
     conda env already has it).
   - `dfx identity export topup-tester > ~/.config/dfx/identity/topup-tester/identity.pem`
     (one-time, decrypts the keyring-stored PEM).

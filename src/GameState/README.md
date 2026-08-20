@@ -265,7 +265,7 @@ ICP_LEDGER=ryjl3-tyaaa-aaaaa-aaaba-cai
 
 ```bash
 # Requires icp-py-core in the active conda env: pip install icp-py-core
-# Note: llama_cpp_canister conda env has it already installed
+# Note: funnAI conda env has it already installed
 make_memo() {
     local target="$1"
     python3 -c "

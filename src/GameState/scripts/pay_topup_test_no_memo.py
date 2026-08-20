@@ -11,7 +11,7 @@ Usage:
     python3 pay_topup_test_no_memo.py <gamestate_canister_id>
 
 Prereqs (same as pay_topup.py):
-  - `pip install icp-py-core` in the active env (the `llama_cpp_canister`
+  - `pip install icp-py-core` in the active env (the `funnAI`
     conda env already has it).
   - `dfx identity export topup-tester > ~/.config/dfx/identity/topup-tester/identity.pem`
 
