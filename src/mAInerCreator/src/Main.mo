@@ -1481,8 +1481,12 @@ persistent actor class MainerCreatorCanister() = this {
 
                 // --------------------------------------------------
                 // upgrade code
-                let mode : ICManagementCanister.canister_install_mode = #upgrade(null); // for enhanced orthogonal persistence
-                // let mode : ICManagementCanister.canister_install_mode = #upgrade(?{wasm_memory_persistence = ?#keep; skip_pre_upgrade = ?false}); // for enhanced orthogonal persistence
+                // These canisters are built with --enhanced-orthogonal-persistence, so
+                // wasm_memory_persistence = keep is mandatory. Passing #upgrade(null)
+                // requests classical persistence, which the IC rejects outright for an
+                // EOP module with IC0504 "Missing upgrade option: Enhanced orthogonal
+                // persistence requires the `wasm_memory_persistence` upgrade option."
+                let mode : ICManagementCanister.canister_install_mode = #upgrade(?{wasm_memory_persistence = ?#keep; skip_pre_upgrade = ?false});
                 D.print("mAInerCreator ("  # debug_show (mainerAgentCanisterType) # "): upgradeMainerctrl (" # canisterAddress # ") - start upgrading ctrlb canister " # canisterAddress);
                 let installResult = await InstallCanisterCode.installCanisterCode(canisterPrincipal, mainerControllerCanisterWasm, mode);
                 switch (installResult) {
