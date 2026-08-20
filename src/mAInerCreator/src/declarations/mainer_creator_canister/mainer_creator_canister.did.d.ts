@@ -21,6 +21,17 @@ export interface AddModelCreationArtefactsEntry {
   'selectedModel' : SelectableMainerLLMs,
   'creationArtefacts' : ModelCreationArtefacts,
 }
+export type AdminRole = { 'AdminQuery' : null } |
+  { 'AdminUpdate' : null };
+export interface AdminRoleAssignment {
+  'principal' : string,
+  'assignedAt' : bigint,
+  'assignedBy' : string,
+  'note' : string,
+  'role' : AdminRole,
+}
+export type AdminRoleAssignmentResult = { 'Ok' : AdminRoleAssignment } |
+  { 'Err' : ApiError };
 export type ApiError = { 'FailedOperation' : null } |
   { 'InvalidId' : null } |
   { 'ZeroAddress' : null } |
@@ -28,6 +39,12 @@ export type ApiError = { 'FailedOperation' : null } |
   { 'StatusCode' : StatusCode } |
   { 'Other' : string } |
   { 'InsuffientCycles' : bigint };
+export interface AssignAdminRoleOnMainerCanisterInput {
+  'principal' : string,
+  'note' : string,
+  'role' : AdminRole,
+  'mainerEntry' : OfficialMainerAgentCanister,
+}
 export interface AuthRecord { 'auth' : string }
 export type AuthRecordResult = { 'Ok' : AuthRecord } |
   { 'Err' : ApiError };
@@ -105,6 +122,10 @@ export interface MainerCreatorCanister {
     InsertArtefactsResult
   >,
   'amiController' : ActorMethod<[], AuthRecordResult>,
+  'assignAdminRoleOnMainerCanister' : ActorMethod<
+    [AssignAdminRoleOnMainerCanisterInput],
+    AdminRoleAssignmentResult
+  >,
   'createCanister' : ActorMethod<
     [CanisterCreationConfiguration],
     CanisterCreationResult
@@ -144,6 +165,10 @@ export interface MainerCreatorCanister {
   'removeControllerFromMainerCanister' : ActorMethod<
     [RemoveControllerFromMainerCanisterInput],
     RemoveControllerFromMainerCanisterResult
+  >,
+  'revokeAdminRoleOnMainerCanister' : ActorMethod<
+    [RevokeAdminRoleOnMainerCanisterInput],
+    TextResult
   >,
   'sendCyclesToGameStateCanister' : ActorMethod<[], AddCyclesResult>,
   'setCyclesToSendToGameStateAdmin' : ActorMethod<
@@ -220,6 +245,10 @@ export type RemoveControllerFromMainerCanisterResult = {
     'Ok' : RemoveControllerFromMainerCanisterRecord
   } |
   { 'Err' : ApiError };
+export interface RevokeAdminRoleOnMainerCanisterInput {
+  'principal' : string,
+  'mainerEntry' : OfficialMainerAgentCanister,
+}
 export type SelectableMainerLLMs = { 'Qwen2_5_500M' : null };
 export interface SetupCanisterInput {
   'configurationInput' : CanisterCreationConfiguration,
@@ -237,6 +266,8 @@ export type Sha256HashesResult = { 'Ok' : Sha256HashesRecord } |
 export type StatusCode = number;
 export interface StatusCodeRecord { 'status_code' : StatusCode }
 export type StatusCodeRecordResult = { 'Ok' : StatusCodeRecord } |
+  { 'Err' : ApiError };
+export type TextResult = { 'Ok' : string } |
   { 'Err' : ApiError };
 export interface UpgradeMainerctrlInput {
   'cyclesUpgradeMainerctrlGsMc' : bigint,
