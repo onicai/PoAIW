@@ -1342,7 +1342,7 @@ persistent actor class GameStateCanister() = this {
         if (not Principal.isController(msg.caller)) {
             return #Err(#Unauthorized);
         };
-        if (newPercent < 10 or newPercent > 50) {
+        if (newPercent < 10 or newPercent > 60) {
             return #Err(#Unauthorized);
         };
         bonusCyclesTopupInPercent := newPercent;
