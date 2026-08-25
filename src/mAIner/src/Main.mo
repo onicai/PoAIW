@@ -1106,9 +1106,34 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         };        
     };
 
+    // Authorization: the owner of this mAIner, or a controller.
+    //
+    // Ownership is NOT tracked here - GameState is the single source of truth, so we
+    // ask it. Owners are deliberately not controllers of their mAIner (a controller
+    // can install arbitrary code) and are deliberately not granted #AdminUpdate
+    // (it unlocks 25 endpoints, including setGameStateCanisterId, which would let an
+    // owner repoint this check at a GameState they control). Owners hold #AdminQuery
+    // only, which covers every read-only owner-facing endpoint but not this one.
+    //
+    // Fails closed: if GameState is unreachable, paused or rate limited we reject,
+    // and the frontend surfaces it as retryable rather than as a dead button.
     public shared (msg) func updateAgentSettings(settingsInput : Types.MainerAgentSettingsInput) : async Types.StatusCodeRecordResult {
-        if (not hasAdminRole(msg.caller, #AdminUpdate)) {
+        if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            let gameStateCanisterActor = actor (GAME_STATE_CANISTER_ID) : Types.GameStateCanister_Actor;
+            try {
+                let isOwner = await gameStateCanisterActor.isCallerMainerOwnedBy(msg.caller);
+                if (not isOwner) {
+                    D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): updateAgentSettings - caller is not the owner: " # Principal.toText(msg.caller));
+                    return #Err(#Unauthorized);
+                };
+            } catch (e) {
+                // Fail closed - do not fall back to allowing the call.
+                D.print("mAIner (" # debug_show(MAINER_AGENT_CANISTER_TYPE) # "): updateAgentSettings - ownership verification against GameState failed: " # Error.message(e));
+                return #Err(#Other("Could not verify ownership with GameState, please try again"));
+            };
         };
         switch (settingsInput.cyclesBurnRate) {
             case (#Low) {

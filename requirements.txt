@@ -5,5 +5,9 @@
 #   6.0.0        : ERROR: no test identity configured.
 # 5.4.2 is the last dfx-based release, so cap below 5.5.0 while this repo still builds
 # and tests with dfx. Lift the cap as part of the dfx -> icp-cli migration.
+#
+# KEEP IN SYNC with llms/llama_cpp_canister/requirements.txt, which pins
+# icpp-pro==5.4.2. Both are installed into the same `funnAI` conda env, so lifting
+# this cap without also bumping the vendored pin leaves pip unresolvable.
 icpp-pro>=5.3.1,<5.5.0
 bitcoin-utils>=0.6.8

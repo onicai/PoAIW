@@ -7896,6 +7896,32 @@ persistent actor class GameStateCanister() = this {
         };
     };
 
+    // Function for a mAIner agent canister to verify that a user owns it.
+    //
+    // The mAIner is identified by msg.caller, NOT by a parameter, so a canister can
+    // only ever ask about itself. That makes the answer unspoofable and means the
+    // call leaks nothing about other mAIners.
+    //
+    // Deliberately NOT admin gated: the caller is a mAIner canister, which is
+    // neither a controller of GameState nor a role holder on it, so an #AdminQuery
+    // gate would reject the very caller this exists to serve. A caller that is not
+    // a registered mAIner agent canister simply gets false.
+    public shared query (msg) func isCallerMainerOwnedBy(user : Principal) : async Bool {
+        if (Principal.isAnonymous(msg.caller)) {
+            return false;
+        };
+        if (Principal.isAnonymous(user)) {
+            return false;
+        };
+
+        switch (getMainerAgentCanister(Principal.toText(msg.caller))) {
+            case (null) { return false; };
+            case (?mainerAgentEntry) {
+                return Principal.equal(mainerAgentEntry.ownedBy, user);
+            };
+        };
+    };
+
     // Function for mAIner agent canister to retrieve a random open challenge
     public shared (msg) func getRandomOpenChallenge() : async Types.ChallengeResult {
         if (Principal.isAnonymous(msg.caller)) {
@@ -9030,18 +9056,20 @@ persistent actor class GameStateCanister() = this {
                                                         // Transfer mAIner ownership
                                                         let buyerPrincipal : Principal = msg.caller;
                                                         let sellerPrincipal : Principal = mainerEntry.ownedBy;
-                                                        // Add the buyer as a controller of the mAIner canister via mAIner Creator 
+                                                        // Grant the buyer #AdminQuery on the mAIner canister via mAIner Creator.
                                                         let creatorCanisterActor = actor(mainerCreatorEntry.address): Types.MainerCreator_Actor;
-                                                        let addControllerInput : Types.AddControllerToMainerCanisterInput = {
+                                                        let assignRoleInput : Types.AssignAdminRoleOnMainerCanisterInput = {
                                                             mainerEntry : Types.OfficialMainerAgentCanister  = mainerEntry;
-                                                            newControllerPrincipal : Principal = buyerPrincipal;
+                                                            principal : Text = Principal.toText(buyerPrincipal);
+                                                            role : Types.AdminRole = #AdminQuery;
+                                                            note : Text = "mAIner owner";
                                                         };
-                                                        let addControllerResult : Types.AddControllerToMainerCanisterResult = await creatorCanisterActor.addControllerToMainerCanister(addControllerInput);
-                                                        D.print("GameState: icrc37_transfer_from - addControllerResult: "# debug_show(addControllerResult));
+                                                        let assignRoleResult : Types.AdminRoleAssignmentResult = await creatorCanisterActor.assignAdminRoleOnMainerCanister(assignRoleInput);
+                                                        D.print("GameState: icrc37_transfer_from - assignRoleResult: "# debug_show(assignRoleResult));
 
-                                                        switch (addControllerResult) {
-                                                            case (#Ok(addControllerToMainerCanisterRecord)) {
-                                                                D.print("GameState: icrc37_transfer_from - addControllerToMainerCanisterRecord: " # debug_show(addControllerToMainerCanisterRecord) );
+                                                        switch (assignRoleResult) {
+                                                            case (#Ok(assignAdminRoleRecord)) {
+                                                                D.print("GameState: icrc37_transfer_from - assignAdminRoleRecord: " # debug_show(assignAdminRoleRecord) );
                                                                 // Update mAIner entry 
                                                                 let newCanisterEntry : Types.OfficialMainerAgentCanister = {
                                                                     address : Text = mainerEntry.address;
@@ -9064,15 +9092,19 @@ persistent actor class GameStateCanister() = this {
                                                                 let addResult : Bool = putUserMainerAgent(newCanisterEntry);
                                                                 D.print("GameState: icrc37_transfer_from - added to buyer: "# debug_show(addResult));  
 
-                                                                // Remove the seller as controller from the mAIner canister via mAIner Creator
-                                                                let removeControllerInput : Types.RemoveControllerFromMainerCanisterInput = {
+                                                                // Revoke the seller's #AdminQuery on the mAIner canister via mAIner Creator.
+                                                                //
+                                                                // Grant to the buyer happens before this revoke, so the mAIner is never
+                                                                // left with no authorised reader. A stale grant here would be a read-only
+                                                                // privacy leak, not a path to drain or seize the canister.
+                                                                let revokeRoleInput : Types.RevokeAdminRoleOnMainerCanisterInput = {
                                                                     mainerEntry : Types.OfficialMainerAgentCanister  = mainerEntry;
-                                                                    toRemoveControllerPrincipal : Principal = sellerPrincipal;
+                                                                    principal : Text = Principal.toText(sellerPrincipal);
                                                                 };
-                                                                let removeControllerResult : Types.RemoveControllerFromMainerCanisterResult = await creatorCanisterActor.removeControllerFromMainerCanister(removeControllerInput);
-                                                                D.print("GameState: icrc37_transfer_from - removeControllerResult: "# debug_show(removeControllerResult));
-                                                                switch (removeControllerResult) {
-                                                                    case (#Ok(removeControllerFromMainerCanisterRecord)) {
+                                                                let revokeRoleResult : Types.TextResult = await creatorCanisterActor.revokeAdminRoleOnMainerCanister(revokeRoleInput);
+                                                                D.print("GameState: icrc37_transfer_from - revokeRoleResult: "# debug_show(revokeRoleResult));
+                                                                switch (revokeRoleResult) {
+                                                                    case (#Ok(revokeAdminRoleRecord)) {
                                                                         // Record the sale for statistics
                                                                         let sale : Types.MarketplaceSale = {
                                                                             mainerAddress = mainerAddress;
@@ -9164,15 +9196,18 @@ persistent actor class GameStateCanister() = this {
                                                                         return [?#Ok(getNextMainerMarketplaceTransactionId())];
                                                                     };
                                                                     case (_) {
-                                                                        // Removing seller as controller failed - store the failure for an admin to check
-                                                                        D.print("GameState: icrc37_transfer_from - removeController failed, storing the failure for admin to check");
+                                                                        // Revoking the seller's #AdminQuery failed - store the failure for an admin to check.
+                                                                        // The sale itself stands: the buyer already owns the mAIner and holds the role.
+                                                                        // A lingering seller role is read-only, so this is a privacy leak to clean up,
+                                                                        // not a way for the seller to drain or seize the canister.
+                                                                        D.print("GameState: icrc37_transfer_from - revokeAdminRoleOnMainerCanister failed, storing the failure for admin to check");
                                                                         let failureEntry : Types.MainerTransferFailure = {
                                                                             transactionId : Nat = getNextMainerMarketplaceTransactionId();
                                                                             seller : Principal = sellerPrincipal;
                                                                             buyer : Principal = buyerPrincipal;
                                                                             mainerListing : Types.MainerMarketplaceListing = userCanisterEntry;
                                                                             failureTimestamp : Nat64 = Nat64.fromNat(Int.abs(Time.now()));
-                                                                            failureReason : Text = "removeController failed";
+                                                                            failureReason : Text = "revokeAdminRoleOnMainerCanister failed";
                                                                             resolvedTimestamp : ?Nat64 = null;
                                                                             resolvedBy : ?Principal = null;
                                                                             resolvedNote : ?Text = null;
@@ -9183,8 +9218,9 @@ persistent actor class GameStateCanister() = this {
                                                                 };                                                        
                                                             };
                                                             case (_) {
-                                                                // Adding buyer as controller failed - try to return ICP to buyer
-                                                                D.print("GameState: icrc37_transfer_from - addController failed, attempting to refund buyer");
+                                                                // Granting the buyer #AdminQuery failed - try to return ICP to buyer.
+                                                                // Nothing has been transferred yet at this point, so refunding is correct.
+                                                                D.print("GameState: icrc37_transfer_from - assignAdminRoleOnMainerCanister failed, attempting to refund buyer");
                                                                 try {
                                                                     let refundArg : TokenLedger.TransferArg = {
                                                                         to = { owner = msg.caller; subaccount = null };

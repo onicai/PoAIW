@@ -2806,3 +2806,37 @@ def test__getScoreForSubmission_anonymous(network: str, identity_anonymous: dict
     )
     expected_response = "(variant { Err = variant { Unauthorized } })"
     assert response == expected_response
+
+
+def test__isCallerMainerOwnedBy_anonymous(network: str, identity_anonymous: dict) -> None:
+    """Test isCallerMainerOwnedBy - anonymous caller gets false, never a trap.
+
+    This endpoint is deliberately not admin gated: the caller is a mAIner canister,
+    which is neither a controller of GameState nor a role holder on it. It is safe
+    because the mAIner is identified by msg.caller, so a caller can only ever ask
+    about itself.
+    """
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="isCallerMainerOwnedBy",
+        canister_argument=f'(principal "{identity_anonymous["principal"]}")',
+        network=network,
+    )
+    assert response == "(false)"
+
+
+def test__isCallerMainerOwnedBy_non_mainer_caller(network: str, identity_default: dict) -> None:
+    """Test isCallerMainerOwnedBy - a caller that is not a registered mAIner gets false.
+
+    The default identity is not a mAIner agent canister, so the address lookup misses
+    and the answer is false regardless of the principal passed in.
+    """
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="isCallerMainerOwnedBy",
+        canister_argument=f'(principal "{identity_default["principal"]}")',
+        network=network,
+    )
+    assert response == "(false)"

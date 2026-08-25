@@ -87,6 +87,27 @@ export const idlFactory = ({ IDL }) => {
   });
   const AuthRecord = IDL.Record({ 'auth' : IDL.Text });
   const AuthRecordResult = IDL.Variant({ 'Ok' : AuthRecord, 'Err' : ApiError });
+  const AdminRole = IDL.Variant({
+    'AdminQuery' : IDL.Null,
+    'AdminUpdate' : IDL.Null,
+  });
+  const AssignAdminRoleOnMainerCanisterInput = IDL.Record({
+    'principal' : IDL.Text,
+    'note' : IDL.Text,
+    'role' : AdminRole,
+    'mainerEntry' : OfficialMainerAgentCanister,
+  });
+  const AdminRoleAssignment = IDL.Record({
+    'principal' : IDL.Text,
+    'assignedAt' : IDL.Nat64,
+    'assignedBy' : IDL.Text,
+    'note' : IDL.Text,
+    'role' : AdminRole,
+  });
+  const AdminRoleAssignmentResult = IDL.Variant({
+    'Ok' : AdminRoleAssignment,
+    'Err' : ApiError,
+  });
   const CanisterCreationConfiguration = IDL.Record({
     'associatedCanisterSubnet' : IDL.Text,
     'canisterType' : ProtocolCanisterType,
@@ -167,6 +188,11 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : RemoveControllerFromMainerCanisterRecord,
     'Err' : ApiError,
   });
+  const RevokeAdminRoleOnMainerCanisterInput = IDL.Record({
+    'principal' : IDL.Text,
+    'mainerEntry' : OfficialMainerAgentCanister,
+  });
+  const TextResult = IDL.Variant({ 'Ok' : IDL.Text, 'Err' : ApiError });
   const AddCyclesRecord = IDL.Record({
     'added' : IDL.Bool,
     'amount' : IDL.Nat,
@@ -207,6 +233,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'amiController' : IDL.Func([], [AuthRecordResult], ['query']),
+    'assignAdminRoleOnMainerCanister' : IDL.Func(
+        [AssignAdminRoleOnMainerCanisterInput],
+        [AdminRoleAssignmentResult],
+        [],
+      ),
     'createCanister' : IDL.Func(
         [CanisterCreationConfiguration],
         [CanisterCreationResult],
@@ -265,6 +296,11 @@ export const idlFactory = ({ IDL }) => {
     'removeControllerFromMainerCanister' : IDL.Func(
         [RemoveControllerFromMainerCanisterInput],
         [RemoveControllerFromMainerCanisterResult],
+        [],
+      ),
+    'revokeAdminRoleOnMainerCanister' : IDL.Func(
+        [RevokeAdminRoleOnMainerCanisterInput],
+        [TextResult],
         [],
       ),
     'sendCyclesToGameStateCanister' : IDL.Func([], [AddCyclesResult], []),

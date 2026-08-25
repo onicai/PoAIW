@@ -3,7 +3,12 @@
 
 -r scripts/requirements.txt
 -r src/llama_cpp_onicai_fork/requirements.txt
-icpp-pro>=5.4.1
+# Pin icpp-pro to the last dfx-based release. 5.5.0 switched the smoketest
+# framework from dfx to icp-cli; lift this as part of the dfx -> icp-cli migration.
+# KEEP IN SYNC with PoAIW/requirements.txt (icpp-pro>=5.3.1,<5.5.0), which carries
+# the full explanation - both are installed into the same `funnAI` conda env, so a
+# bump here without a matching bump there makes pip unresolvable.
+icpp-pro==5.4.2
 icp-py-core==2.3.0
 # Pin cbor2<6: cbor2 6.x decodes tag-55799-wrapped maps to frozendict, which
 # breaks icp-py-core's isinstance(response, dict) check.
