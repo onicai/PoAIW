@@ -3725,6 +3725,56 @@
       "main": "src/Main.mo",
       "type": "motoko",
       "args": "--enhanced-orthogonal-persistence"
+    },
+    "mainer_ctrlb_canister_744": {
+      "main": "src/Main.mo",
+      "type": "motoko",
+      "args": "--enhanced-orthogonal-persistence"
+    },
+    "mainer_ctrlb_canister_745": {
+      "main": "src/Main.mo",
+      "type": "motoko",
+      "args": "--enhanced-orthogonal-persistence"
+    },
+    "mainer_ctrlb_canister_746": {
+      "main": "src/Main.mo",
+      "type": "motoko",
+      "args": "--enhanced-orthogonal-persistence"
+    },
+    "mainer_ctrlb_canister_747": {
+      "main": "src/Main.mo",
+      "type": "motoko",
+      "args": "--enhanced-orthogonal-persistence"
+    },
+    "mainer_ctrlb_canister_748": {
+      "main": "src/Main.mo",
+      "type": "motoko",
+      "args": "--enhanced-orthogonal-persistence"
+    },
+    "mainer_ctrlb_canister_749": {
+      "main": "src/Main.mo",
+      "type": "motoko",
+      "args": "--enhanced-orthogonal-persistence"
+    },
+    "mainer_ctrlb_canister_750": {
+      "main": "src/Main.mo",
+      "type": "motoko",
+      "args": "--enhanced-orthogonal-persistence"
+    },
+    "mainer_ctrlb_canister_751": {
+      "main": "src/Main.mo",
+      "type": "motoko",
+      "args": "--enhanced-orthogonal-persistence"
+    },
+    "mainer_ctrlb_canister_752": {
+      "main": "src/Main.mo",
+      "type": "motoko",
+      "args": "--enhanced-orthogonal-persistence"
+    },
+    "mainer_ctrlb_canister_753": {
+      "main": "src/Main.mo",
+      "type": "motoko",
+      "args": "--enhanced-orthogonal-persistence"
     }
   },
   "defaults": {
