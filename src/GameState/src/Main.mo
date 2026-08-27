@@ -7216,6 +7216,69 @@ persistent actor class GameStateCanister() = this {
         putMainerAgentCanister(canisterEntryToAdd.address, canisterEntry);
     };
 
+    // Admin function to remove a mAIner from the marketplace and protocol registry.
+    // This only deregisters the mAIner; it does not stop or delete its canister.
+    public shared (msg) func removeMainerAgentCanisterAdmin({ canisterId : Text }) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (canisterId == "") {
+            return #Err(#InvalidId);
+        };
+
+        // Validate everything before mutating storage. A reserved mAIner must not
+        // be changed because its marketplace transfer may be in progress.
+        let mainerEntry = switch (getMainerAgentCanister(canisterId)) {
+            case (null) {
+                return #Err(#Other("mAIner canister ID not found: " # canisterId));
+            };
+            case (?entry) { entry };
+        };
+        switch (getMarketplaceReservedMainer(canisterId)) {
+            case (?_) {
+                return #Err(#Other("Cannot remove a reserved marketplace mAIner: " # canisterId));
+            };
+            case (null) {};
+        };
+
+        // If it is listed, remove both the primary marketplace listing and its
+        // seller index before removing the protocol registry entry.
+        ignore removeMarketplaceListedMainer(canisterId);
+
+        // Remove the mAIner from the owner's index.
+        switch (userToMainerAgentsStorage.get(mainerEntry.ownedBy)) {
+            case (null) {};
+            case (?userMainerAgents) {
+                let updatedUserMainerAgents = List.filter<Types.OfficialMainerAgentCanister>(
+                    userMainerAgents,
+                    func (entry : Types.OfficialMainerAgentCanister) : Bool {
+                        entry.address != canisterId
+                    }
+                );
+                if (List.size(updatedUserMainerAgents) == 0) {
+                    ignore userToMainerAgentsStorage.remove(mainerEntry.ownedBy);
+                } else {
+                    userToMainerAgentsStorage.put(mainerEntry.ownedBy, updatedUserMainerAgents);
+                };
+            };
+        };
+
+        // The entry was validated above and there are no awaits between validation
+        // and removal, so it remains present here.
+        ignore mainerAgentCanistersStorage.remove(canisterId);
+
+        D.print(
+            "GameState: removeMainerAgentCanisterAdmin - removed mAIner: "
+            # debug_show(mainerEntry)
+            # ", removed by controller: "
+            # Principal.toText(msg.caller)
+        );
+        return #Ok({ status_code = 200 });
+    };
+
     // Function for user to top up cycles of an existing mAIner agent
     public shared (msg) func topUpCyclesForMainerAgent(mainerTopUpInfo : Types.MainerAgentTopUpInput) : async Types.MainerAgentCanisterResult {
         if (Principal.isAnonymous(msg.caller)) {

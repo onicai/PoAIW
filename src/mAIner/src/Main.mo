@@ -2344,6 +2344,68 @@ persistent actor class MainerAgentCtrlbCanister() = this {
         putShareAgentCanister(canisterEntryToAdd.address, canisterEntry); 
     };
 
+    // Controller-only function to remove a ShareAgent from a ShareService registry.
+    // This only deregisters the ShareAgent; it does not stop or delete its canister.
+    public shared (msg) func removeMainerShareAgentCanisterAdmin({ canisterId : Text }) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (MAINER_AGENT_CANISTER_TYPE != #ShareService) {
+            return #Err(#Other("removeMainerShareAgentCanisterAdmin can only be called on a ShareService canister"));
+        };
+        if (canisterId == "") {
+            return #Err(#InvalidId);
+        };
+
+        let shareAgentEntry = switch (getShareAgentCanister(canisterId)) {
+            case (null) {
+                return #Err(#Other("ShareAgent canister ID not found: " # canisterId));
+            };
+            case (?entry) { entry };
+        };
+
+        // Remove the ShareAgent from its owner's index.
+        //
+        // A missing index row is not a reason to refuse the removal: it means there is nothing
+        // to clean up there. Returning an error here would abort before
+        // `shareAgentCanistersStorage.remove` below, leaving the ShareAgent permanently
+        // un-removable -- this endpoint is the only way to deregister one. The index and the
+        // registry can drift (see the TODO on `removeShareAgentCanister` at :270, which removes
+        // from the registry without touching this index), and GameState's twin
+        // `removeMainerAgentCanisterAdmin` already continues in this case. Match it.
+        switch (userToShareAgentsStorage.get(shareAgentEntry.ownedBy)) {
+            case (null) {};
+            case (?userShareAgents) {
+                let updatedUserShareAgents = List.filter<Types.OfficialMainerAgentCanister>(
+                    userShareAgents,
+                    func (entry : Types.OfficialMainerAgentCanister) : Bool {
+                        entry.address != canisterId
+                    }
+                );
+                if (List.size(updatedUserShareAgents) == 0) {
+                    ignore userToShareAgentsStorage.remove(shareAgentEntry.ownedBy);
+                } else {
+                    userToShareAgentsStorage.put(shareAgentEntry.ownedBy, updatedUserShareAgents);
+                };
+            };
+        };
+
+        ignore shareAgentCanistersStorage.remove(canisterId);
+        ignore shareAgentActivityStorage.remove(canisterId);
+
+        D.print(
+            "mAIner (#ShareService): removeMainerShareAgentCanisterAdmin - removed ShareAgent: "
+            # debug_show(shareAgentEntry)
+            # ", removed by controller: "
+            # Principal.toText(msg.caller)
+        );
+
+        return #Ok({ status_code = 200 });
+    };
+
 // Timers
 
     // This variable is just for reporting purposes, so an Admin can quickly check the currently used timer regularity
