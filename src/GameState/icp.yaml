@@ -1,0 +1,34 @@
+# icp-cli manifest — LOCAL END-TO-END TESTING ONLY.
+#
+# dfx remains the tool for building and for every mainnet network (testing,
+# development, demo, prd); see dfx.json alongside this file. icp-cli is used here
+# for one reason: `icp network start` brings up a local replica with the NNS system
+# canisters already installed, and the ICP ledger and CMC carry the SAME canister
+# ids locally as on mainnet (ryjl3-tyaaa-aaaaa-aaaba-cai, rkp4c-7iaaa-aaaaa-aaaca-cai)
+# — exactly the ids hardcoded in ../../common/Types.mo. GameState therefore talks to
+# a real ledger and a real CMC with no source change, which the local dfx network
+# cannot offer.
+#
+# That makes these paths testable locally for the first time: fetchLiveTransaction,
+# the icrc1_memo decode, the MIN_TOPUP_E8S floor, verifyIncomingPayment, the CMC
+# conversion in handleIncomingFunds, and the in-flight claim guard across real awaits.
+#
+# The `prebuilt` recipe deliberately consumes out/game_state_canister.wasm, the same
+# reproducible artifact `make docker-build-wasm` produces and that ships to prd —
+# so the test exercises the shipping binary, not a separately compiled one.
+# Build it first:  make docker-build-wasm
+networks:
+  - name: local
+    mode: managed
+
+environments:
+  - name: local
+    network: local
+    canisters: [game_state_canister]
+
+canisters:
+  - name: game_state_canister
+    recipe:
+      type: "@dfinity/prebuilt@v2.1.0"
+      configuration:
+        path: out/game_state_canister.wasm

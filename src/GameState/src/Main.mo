@@ -4638,6 +4638,51 @@ persistent actor class GameStateCanister() = this {
         };
     };
 
+    // In-flight claims on payment blocks, for the unauthenticated top-up paths.
+    //
+    // checkExistingTransactionBlock runs before the first await, but
+    // putRedeemedTransactionBlock only runs at the very end of
+    // processTopUpCyclesForMainer - several awaits later. Two concurrent calls on the
+    // same block id would both pass the check and both deliver cycles, so one payment
+    // would be credited twice. Claiming the block id before the first await closes
+    // that window.
+    //
+    // Keyed on Nat with Hash.hash to mirror redeemedTransactionBlocksStorage above.
+    // The value is the claim timestamp: a claim older than the TTL is treated as
+    // abandoned. The TTL is a safety net for what `finally` cannot cover - cycle
+    // exhaustion, a canister stop, or an upgrade mid-call - which would otherwise
+    // wedge a block id permanently.
+    //
+    // transient on purpose: the authoritative double-spend record is the stable
+    // redeemedTransactionBlocksStorage, so losing claims on upgrade cannot cause a
+    // double credit, and every claim is stale after an upgrade anyway.
+    transient let TOPUP_CLAIM_TTL_NS : Nat64 = 300_000_000_000; // 300 s
+    transient var inFlightTopUpBlocks : HashMap.HashMap<Nat, Nat64> = HashMap.HashMap(0, Nat.equal, Hash.hash);
+
+    // Claim a payment block for processing. Returns false when another call already
+    // holds a live claim on it. Must be called before the first await, and the caller
+    // owns the claim only when this returns true.
+    private func claimTopUpBlock(transactionBlock : Nat64) : Bool {
+        let key = Nat64.toNat(transactionBlock);
+        let now = Nat64.fromNat(Int.abs(Time.now()));
+        switch (inFlightTopUpBlocks.get(key)) {
+            case (?claimedAt) {
+                if (now < claimedAt + TOPUP_CLAIM_TTL_NS) {
+                    return false;
+                };
+                // Stale claim from an interrupted call - take it over.
+                D.print("GameState: claimTopUpBlock - taking over a stale claim on block: " # debug_show(transactionBlock));
+            };
+            case (null) { };
+        };
+        inFlightTopUpBlocks.put(key, now);
+        return true;
+    };
+
+    private func releaseTopUpBlock(transactionBlock : Nat64) {
+        inFlightTopUpBlocks.delete(Nat64.toNat(transactionBlock));
+    };
+
     private func putRedeemedTransactionBlock(transactionEntry : Types.RedeemedTransactionBlock) : Bool {
         switch (checkExistingTransactionBlock(transactionEntry.paymentTransactionBlockId)) {
             case (false) {
@@ -4784,6 +4829,23 @@ persistent actor class GameStateCanister() = this {
     // as MEMO_PAYMENT, prefixed onto the target canister's principal bytes:
     //   icrc1_memo = [MEMO_PAYMENT_MARKER] ++ Principal.toBlob(target_mainer)
     let MEMO_PAYMENT_MARKER : Nat8 = 0xAD;
+
+    // Minimum accepted payment on the UNAUTHENTICATED top-up paths.
+    //
+    // verifyIncomingPayment enforces a price floor for #MainerCreation but none for
+    // #MainerTopUp, so without this a dust payment drives the full convert-and-deliver
+    // sequence. handleIncomingFunds pays a 10_000 e8s ledger fee per outgoing transfer
+    // out of GameState's own ICP, so dust costs the protocol more than it brings in.
+    //
+    // The nominal minimum is the 0.1 ICP the UI already shows
+    // (TOP_UP_CONFIG.MIN_AMOUNT in the frontend), which is a client-side check only.
+    // We sit 10% below it so that forwarded payments still clear: a forwarding hop
+    // cannot pass on more than it holds, so it sends (received - fee). Same 10%
+    // haircut convention as E8S_PER_ICP_WITH_BUFFER in verifyIncomingPayment.
+    //
+    // Deliberately NOT applied to the authenticated UI path or the admin path.
+    let MIN_TOPUP_E8S : Nat64 = 9_000_000; // 0.09 ICP
+
     transient let PROTOCOL_PRINCIPAL_BLOB : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null);
     let TEAM_WALLET_ICP_NATIVE_ACCOUNT_IDENTIFIER : Text = "5d9bb4f164022de0933d3b45eaf33f1902e9578a2f330a1301d531c42bebf783";
     let TEAM_WALLET_ADDRESS : Blob = "\5D\9B\B4\F1\64\02\2D\E0\93\3D\3B\45\EA\F3\3F\19\02\E9\57\8A\2F\33\0A\13\01\D5\31\C4\2B\EB\F7\83";
@@ -5208,6 +5270,58 @@ persistent actor class GameStateCanister() = this {
             };
             D.print("GameState: handleIncomingFunnai - response: "# debug_show(response));
             return #Ok(response);  
+        };
+    };
+
+    // Read one transaction from the ICP ledger's LIVE block window.
+    //
+    // Used by the unauthenticated top-up paths, which need to inspect a payment
+    // (its memo, its amount) BEFORE handing it to processTopUpCyclesForMainer.
+    // verifyIncomingPayment reads the block again afterwards; that second read is
+    // accepted so that the authenticated and admin paths stay untouched. Ledger
+    // blocks are immutable at a given index, so the two reads cannot disagree.
+    //
+    // Archived blocks are NOT followed - queryBlocksResponse.archived_blocks is
+    // ignored, exactly as verifyIncomingPayment does today. A notifier that calls
+    // promptly always finds the block in the live window. Recovering blocks that
+    // have aged into an archive is the job of the (deferred) sweep.
+    private func fetchLiveTransaction(blockId : Nat64) : async Types.Result<TokenLedger.CandidTransaction, Types.ApiError> {
+        let getBlocksArgs : TokenLedger.GetBlocksArgs = {
+            start : Nat64 = blockId;
+            length : Nat64 = 1;
+        };
+        D.print("GameState: fetchLiveTransaction - getBlocksArgs: "# debug_show(getBlocksArgs));
+        let queryBlocksResponse : TokenLedger.QueryBlocksResponse = await ICP_LEDGER_ACTOR.query_blocks(getBlocksArgs);
+        if (queryBlocksResponse.blocks.size() < 1) {
+            D.print("GameState: fetchLiveTransaction - block not in live window: "# debug_show(blockId));
+            return #Err(#Other("Payment block " # Nat64.toText(blockId) # " was not found in the ledger's live query window; archived blocks are not supported yet"));
+        };
+        return #Ok(queryBlocksResponse.blocks[0].transaction);
+    };
+
+    // Amount credited to the Protocol by a payment block, in e8s.
+    // Returns null when the block is not a #Transfer.
+    private func transferredAmountE8s(transaction : TokenLedger.CandidTransaction) : ?Nat64 {
+        switch (transaction.operation) {
+            case (?#Transfer(transferDetails)) { ?transferDetails.amount.e8s };
+            case (_) { null };
+        };
+    };
+
+    // Shared floor check for the unauthenticated top-up paths.
+    private func checkMinimumTopUpAmount(transaction : TokenLedger.CandidTransaction, blockId : Nat64) : Types.Result<(), Types.ApiError> {
+        switch (transferredAmountE8s(transaction)) {
+            case (null) {
+                D.print("GameState: checkMinimumTopUpAmount - block is not a transfer: "# debug_show(blockId));
+                return #Err(#Other("Payment block " # Nat64.toText(blockId) # " is not an ICP transfer"));
+            };
+            case (?amountE8s) {
+                if (amountE8s < MIN_TOPUP_E8S) {
+                    D.print("GameState: checkMinimumTopUpAmount - below minimum: "# debug_show(amountE8s));
+                    return #Err(#Other("Payment block " # Nat64.toText(blockId) # " pays " # Nat64.toText(amountE8s) # " e8s, below the minimum top-up of " # Nat64.toText(MIN_TOPUP_E8S) # " e8s"));
+                };
+                return #Ok(());
+            };
         };
     };
 
@@ -7289,6 +7403,53 @@ persistent actor class GameStateCanister() = this {
         };
     };
 
+    // Shortest memo prefix accepted. Jupiter Faucet has about 8 characters left in
+    // its memo after the GameState principal, so 8 is the practical floor; it also
+    // keeps prefixes long enough to stay unambiguous. The '-' characters count.
+    let MIN_MAINER_PREFIX_LENGTH : Nat = 8;
+
+    // Take the leading run of characters that can legally appear in a canister id
+    // (lowercase base32 plus '-') and stop at the first character outside it.
+    //
+    // This is deliberately a leading-run scan, not a trim: an icrc1_memo is arbitrary
+    // caller-supplied bytes and wallets commonly zero-pad them. NUL is valid UTF-8, so
+    // Text.decodeUtf8 succeeds and leaves '\u{0}' characters that would silently break
+    // Text.startsWith. Stopping at the first foreign character handles NUL padding,
+    // trailing whitespace and any junk suffix in one pass, and validates the alphabet
+    // at the same time.
+    private func sanitizeMemoPrefix(memoText : Text) : Text {
+        let buf = Buffer.Buffer<Char>(32);
+        label scan for (c in memoText.chars()) {
+            if ((c >= 'a' and c <= 'z') or (c >= '0' and c <= '9') or c == '-') {
+                buf.add(c);
+            } else {
+                break scan;
+            };
+        };
+        return Text.fromIter(buf.vals());
+    };
+
+    // Find the one registered mAIner whose canister id starts with `prefix`.
+    // Short-circuits as soon as a second match is seen.
+    private func resolveMainerByPrefix(prefix : Text) : Types.MainerPrefixMatch {
+        if (Text.size(prefix) < MIN_MAINER_PREFIX_LENGTH) {
+            return #None;
+        };
+        var found : ?Types.OfficialMainerAgentCanister = null;
+        label scan for ((address, mainerEntry) in mainerAgentCanistersStorage.entries()) {
+            if (Text.startsWith(address, #text prefix)) {
+                switch (found) {
+                    case (null) { found := ?mainerEntry };
+                    case (?_) { return #Ambiguous };
+                };
+            };
+        };
+        switch (found) {
+            case (null) { return #None };
+            case (?mainerEntry) { return #One(mainerEntry) };
+        };
+    };
+
     // Ungated top-up: any authenticated caller may top up any mAIner with ICP.
     // Gating is intentionally less restrictive than topUpCyclesForMainerAgent --
     // no ownership check, no owner-scoped lookup. Double-spend protection still
@@ -7313,36 +7474,63 @@ persistent actor class GameStateCanister() = this {
             };
         };
 
-        if (mainerTopUpInfo.mainerAgentAddress == "") {
-            return #Err(#InvalidId);
+        // Claim the block before the first await. checkExistingTransactionBlock above
+        // only rules out blocks already redeemed; without this, two concurrent calls
+        // on the same block would both reach processTopUpCyclesForMainer and both
+        // deliver cycles for a single payment.
+        // NOTE: this early return sits OUTSIDE the try below on purpose - we do not
+        // own the claim here, so releasing it would free another call's live claim.
+        if (not claimTopUpBlock(transactionToVerify)) {
+            D.print("GameState: topUpCyclesForAnyMainerAgent - block already in flight: "# debug_show(transactionToVerify));
+            return #Err(#Other("Top-up for transaction block " # Nat64.toText(transactionToVerify) # " is already in progress"));
         };
 
-        switch (getMainerAgentCanister(mainerTopUpInfo.mainerAgentAddress)) {
-            case (null) {
+        try {
+            if (mainerTopUpInfo.mainerAgentAddress == "") {
                 return #Err(#InvalidId);
             };
-            case (?mainerEntry) {
-                switch (mainerEntry.canisterType) {
-                    case (#MainerAgent(_)) {
-                        // continue
+
+            // Reject dust before doing any conversion work. Costs one extra
+            // query_blocks; verifyIncomingPayment reads the block again below.
+            switch (await fetchLiveTransaction(transactionToVerify)) {
+                case (#Err(err)) { return #Err(err); };
+                case (#Ok(transaction)) {
+                    switch (checkMinimumTopUpAmount(transaction, transactionToVerify)) {
+                        case (#Err(err)) { return #Err(err); };
+                        case (#Ok(_)) { /* continue */ };
                     };
-                    case (_) { return #Err(#Other("Unsupported")); }
-                };
-                switch (await processTopUpCyclesForMainer({
-                    caller = msg.caller;
-                    paymentTransactionBlockId = mainerTopUpInfo.paymentTransactionBlockId;
-                    mainerEntry;
-                    requireBoundMemo = true;
-                })) {
-                    case (#Ok(result)) {
-                        return #Ok({
-                            cyclesAdded = result.cyclesAdded;
-                            mainerAgentAddress = result.mainerEntry.address;
-                        });
-                    };
-                    case (#Err(err)) { return #Err(err); };
                 };
             };
+
+            switch (getMainerAgentCanister(mainerTopUpInfo.mainerAgentAddress)) {
+                case (null) {
+                    return #Err(#InvalidId);
+                };
+                case (?mainerEntry) {
+                    switch (mainerEntry.canisterType) {
+                        case (#MainerAgent(_)) {
+                            // continue
+                        };
+                        case (_) { return #Err(#Other("Unsupported")); }
+                    };
+                    switch (await processTopUpCyclesForMainer({
+                        caller = msg.caller;
+                        paymentTransactionBlockId = mainerTopUpInfo.paymentTransactionBlockId;
+                        mainerEntry;
+                        requireBoundMemo = true;
+                    })) {
+                        case (#Ok(result)) {
+                            return #Ok({
+                                cyclesAdded = result.cyclesAdded;
+                                mainerAgentAddress = result.mainerEntry.address;
+                            });
+                        };
+                        case (#Err(err)) { return #Err(err); };
+                    };
+                };
+            };
+        } finally {
+            releaseTopUpBlock(transactionToVerify);
         };
     };
 
@@ -7466,6 +7654,178 @@ persistent actor class GameStateCanister() = this {
                     return #Err(#Other("GameState: processTopUpCyclesForMainer - Failed to credit cycles to mAIner: " # mainerEntry.address # " " # Error.message(e)));
                 };
             };
+        };
+    };
+
+    // Permissionless top-up where the target mAIner comes from the PAYMENT's memo
+    // instead of a call argument.
+    //
+    // A third party (e.g. Jupiter Faucet, or a notifier canister crawling this
+    // canister's ICP account) transfers ICP to GameState with the target mAIner's
+    // canister id - or an unambiguous prefix of at least MIN_MAINER_PREFIX_LENGTH
+    // characters, '-' included - as plain ASCII in icrc1_memo, then calls this with
+    // the resulting ledger block id. Nothing else is needed from the caller.
+    //
+    // Why this exists alongside topUpCyclesForAnyMainerAgent: that endpoint requires
+    // the binary [0xAD] ++ Principal.toBlob(target) memo, which cannot be produced
+    // from the NNS dapp (plain-text memo field only) and does not fit the space a
+    // faucet has left after encoding its destination.
+    //
+    // Notes for anyone changing this:
+    //  - requireBoundMemo is FALSE here, and that is not a weakening. The bound-memo
+    //    check defends an endpoint that takes the target as an independent argument.
+    //    Here the target is derived from the very block being redeemed, so a mismatch
+    //    is not merely detected, it is unrepresentable. Everything else
+    //    verifyIncomingPayment enforces still applies: block exists, operation is a
+    //    #Transfer, the funds went to this canister, and the amount is read from the
+    //    block rather than from the caller.
+    //  - Archived blocks are not supported yet: notify while the block is still in the
+    //    ledger's live window.
+    //  - A payment this endpoint REJECTS cannot be recovered with
+    //    topUpCyclesForAnyMainerAgent, because that path requires the bound memo.
+    //    Use the controller-only completeTopUpCyclesForMainerAgentAdmin.
+    //  - redeemedBy records the NOTIFIER's principal, not the payer's. The payer is
+    //    not recoverable from the block (transferDetails.from is an account
+    //    identifier, not a principal), so do not read that field as "who paid".
+    //  - Unrelated to the CMC's notify_top_up.
+    public shared (msg) func notifyMainerTopUp(input : Types.PaymentTransactionBlockId) : async Types.TopUpResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (PAUSE_PROTOCOL and not Principal.isController(msg.caller)) {
+            return #Err(#Other("Protocol is currently paused"));
+        };
+        D.print("GameState: notifyMainerTopUp - input: "# debug_show(input));
+
+        let transactionToVerify = input.paymentTransactionBlockId;
+        let blockIdText = Nat64.toText(transactionToVerify);
+
+        // Ensure this transaction block hasn't been redeemed yet (no double spending)
+        switch (checkExistingTransactionBlock(transactionToVerify)) {
+            case (false) {
+                // new transaction, continue
+            };
+            case (true) {
+                D.print("GameState: notifyMainerTopUp - already redeemed: "# blockIdText);
+                return #Err(#Other("Already redeemd this transaction block"));
+            };
+        };
+
+        // Claim before the first await. Early return is OUTSIDE the try: we do not
+        // own the claim, so releasing it would free another call's live claim.
+        if (not claimTopUpBlock(transactionToVerify)) {
+            D.print("GameState: notifyMainerTopUp - block already in flight: "# blockIdText);
+            return #Err(#Other("Top-up for transaction block " # blockIdText # " is already in progress"));
+        };
+
+        try {
+            let transaction = switch (await fetchLiveTransaction(transactionToVerify)) {
+                case (#Err(err)) { return #Err(err); };
+                case (#Ok(tx)) { tx };
+            };
+
+            switch (checkMinimumTopUpAmount(transaction, transactionToVerify)) {
+                case (#Err(err)) { return #Err(err); };
+                case (#Ok(_)) { /* continue */ };
+            };
+
+            let memoBlob = switch (transaction.icrc1_memo) {
+                case (?b) { b };
+                case (null) {
+                    D.print("GameState: notifyMainerTopUp - no icrc1_memo on block: "# blockIdText);
+                    return #Err(#Other("Payment block " # blockIdText # " has no icrc1_memo, so the target mAIner cannot be determined"));
+                };
+            };
+
+            // A legacy bound memo is [0xAD] ++ principal bytes. 0xAD is a UTF-8
+            // continuation byte so decoding would fail anyway, but rejecting it
+            // explicitly puts a usable reason in the logs.
+            let memoBytes = Blob.toArray(memoBlob);
+            if (memoBytes.size() > 0 and memoBytes[0] == MEMO_PAYMENT_MARKER) {
+                D.print("GameState: notifyMainerTopUp - legacy bound memo on block: "# blockIdText);
+                return #Err(#Other("Payment block " # blockIdText # " carries a legacy bound memo; redeem it with topUpCyclesForAnyMainerAgent instead"));
+            };
+
+            let memoText = switch (Text.decodeUtf8(memoBlob)) {
+                case (?t) { t };
+                case (null) {
+                    D.print("GameState: notifyMainerTopUp - memo is not text on block: "# blockIdText);
+                    return #Err(#Other("icrc1_memo of payment block " # blockIdText # " is not text; expected a mAIner canister-id prefix"));
+                };
+            };
+
+            let prefix = sanitizeMemoPrefix(memoText);
+            D.print("GameState: notifyMainerTopUp - resolved memo prefix: "# prefix);
+            if (Text.size(prefix) < MIN_MAINER_PREFIX_LENGTH) {
+                D.print("GameState: notifyMainerTopUp - prefix too short on block: "# blockIdText);
+                return #Err(#Other("Memo prefix from payment block " # blockIdText # " is too short; at least " # Nat.toText(MIN_MAINER_PREFIX_LENGTH) # " characters of the mAIner canister id are required"));
+            };
+
+            let mainerEntry = switch (resolveMainerByPrefix(prefix)) {
+                case (#None) {
+                    D.print("GameState: notifyMainerTopUp - no mAIner matches prefix: "# prefix);
+                    return #Err(#Other("No mAIner matches memo prefix '" # prefix # "' from payment block " # blockIdText));
+                };
+                case (#Ambiguous) {
+                    D.print("GameState: notifyMainerTopUp - ambiguous prefix: "# prefix);
+                    return #Err(#Other("Memo prefix '" # prefix # "' from payment block " # blockIdText # " matches more than one mAIner; use a longer prefix"));
+                };
+                case (#One(entry)) { entry };
+            };
+
+            switch (mainerEntry.canisterType) {
+                case (#MainerAgent(_)) {
+                    // continue
+                };
+                case (_) {
+                    D.print("GameState: notifyMainerTopUp - unsupported canisterType for: "# mainerEntry.address);
+                    return #Err(#Other("Unsupported"));
+                };
+            };
+
+            switch (await processTopUpCyclesForMainer({
+                caller = msg.caller;
+                paymentTransactionBlockId = transactionToVerify;
+                mainerEntry;
+                requireBoundMemo = false; // target came from the memo - see the note above
+            })) {
+                case (#Ok(result)) {
+                    return #Ok({
+                        cyclesAdded = result.cyclesAdded;
+                        mainerAgentAddress = result.mainerEntry.address;
+                    });
+                };
+                case (#Err(err)) {
+                    D.print("GameState: notifyMainerTopUp - processTopUpCyclesForMainer failed: "# debug_show(err));
+                    return #Err(err);
+                };
+            };
+        } finally {
+            releaseTopUpBlock(transactionToVerify);
+        };
+    };
+
+    // Diagnosis helper: what does a given memo prefix resolve to?
+    //
+    // Exists mainly so the prefix/sanitizer logic is testable without an ICP ledger -
+    // the local dfx network has none, so notifyMainerTopUp cannot get past
+    // fetchLiveTransaction there. Also useful in production for working out why a
+    // particular payment was rejected, without moving any funds.
+    public shared query (msg) func resolveMainerByPrefixAdmin(prefix : Text) : async Types.TextResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not Principal.isController(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        let sanitized = sanitizeMemoPrefix(prefix);
+        if (Text.size(sanitized) < MIN_MAINER_PREFIX_LENGTH) {
+            return #Err(#InvalidId);
+        };
+        switch (resolveMainerByPrefix(sanitized)) {
+            case (#None) { return #Err(#InvalidId); };
+            case (#Ambiguous) { return #Err(#Other("ambiguous")); };
+            case (#One(mainerEntry)) { return #Ok(mainerEntry.address); };
         };
     };
 

@@ -15,6 +15,7 @@ VERIFY_NETWORK ?= prd
 help:
 	@echo "Makefile targets:"
 	@echo "  smoketest          - Start dfx, deploy canister, and run smoke tests"
+	@echo "  smoketest-icp      - Same, on an icp-cli network that HAS the ICP ledger + CMC"
 	@echo "  build-wasm         - builds wasm using dfx and prints wasm-hash"
 	@echo "  docker-build-base  - builds the Docker base image with dfx, mops"
 	@echo "  docker-build-wasm  - builds wasm using Docker (reproducible build)"
@@ -34,6 +35,37 @@ smoketest:
 		--mode install $(CANISTER_NAME)
 	pytest -vv --exitfirst test/test_game_state_canister.py
 	dfx stop
+
+# End-to-end smoke tests against a local icp-cli network.
+#
+# WHY THIS EXISTS ALONGSIDE `smoketest`: the dfx local network has no ICP ledger, so
+# notifyMainerTopUp cannot get past its ledger read there and only its pre-await
+# gates are reachable. An icp-cli managed network starts with the NNS system
+# canisters installed, and the ICP ledger and CMC use the SAME ids as mainnet - the
+# ids hardcoded in ../../common/Types.mo - so the real payment paths run unmodified.
+#
+# `smoketest` remains the authoritative target and the one CI runs. This is an
+# additional local-only target; icp-cli is not used for building or for any mainnet
+# network. See icp.yaml.
+#
+# The canister is deployed from a NAMED identity on purpose. icp-cli's default
+# identity is `anonymous`, and the deploying identity becomes the controller - but
+# GameState's admin methods reject anonymous callers outright, so an
+# anonymous-controlled canister cannot be seeded with test mAIners.
+E2E_IDENTITY = topup-e2e
+
+.PHONY: smoketest-icp
+smoketest-icp:
+	$(MAKE) docker-build-wasm
+	@icp identity list | grep -qx "$(E2E_IDENTITY)" || icp identity new $(E2E_IDENTITY)
+	icp network start -d
+	icp deploy -e local --identity $(E2E_IDENTITY)
+	pytest -vv --exitfirst test_icp/ || ($(MAKE) smoketest-icp-stop && false)
+	$(MAKE) smoketest-icp-stop
+
+.PHONY: smoketest-icp-stop
+smoketest-icp-stop:
+	icp network stop
 
 ###########################################################################
 # Local builds

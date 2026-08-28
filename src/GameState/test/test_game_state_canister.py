@@ -2840,3 +2840,180 @@ def test__isCallerMainerOwnedBy_non_mainer_caller(network: str, identity_default
         network=network,
     )
     assert response == "(false)"
+
+
+# ------------------------------------------------------------------------------
+# notifyMainerTopUp  &  resolveMainerByPrefixAdmin
+#
+# NOTE ON COVERAGE: the local dfx network has no ICP ledger, so notifyMainerTopUp
+# cannot get past its fetchLiveTransaction call here. Only the gates that run
+# before the first await are reachable. The memo decode, the minimum-amount floor,
+# and the in-flight concurrency guard are exercised end-to-end by the icp-cli
+# target (make smoketest-icp), whose local network does have a real ledger and CMC.
+#
+# The prefix/sanitizer logic - the genuinely new algorithmic code - is covered
+# here via resolveMainerByPrefixAdmin, which needs no ledger.
+# ------------------------------------------------------------------------------
+
+
+def _mainer_record(address: str, owner: str) -> str:
+    """Minimal OfficialMainerAgentCanister literal for seeding the registry."""
+    return (
+        "record {"
+        f' address = "{address}";'
+        " canisterType = variant { MainerAgent = variant { Own } };"
+        f' createdBy = principal "{owner}";'
+        " creationTimestamp = 0 : nat64;"
+        " mainerConfig = record {"
+        "   cyclesForMainer = 0 : nat;"
+        "   mainerAgentCanisterType = variant { Own };"
+        "   selectedLLM = null;"
+        '   subnetCtrl = "";'
+        '   subnetLlm = "";'
+        " };"
+        f' ownedBy = principal "{owner}";'
+        " status = variant { Running };"
+        ' subnet = "";'
+        "}"
+    )
+
+
+# Two share the 8-char prefix "aaaaaaa-", one does not.
+SEED_AMBIGUOUS_A = "aaaaaaa-aaaaa-aaaaa-aaaaa-cai"
+SEED_AMBIGUOUS_B = "aaaaaaa-bbbbb-bbbbb-bbbbb-cai"
+SEED_UNIQUE = "zzzzzzz-zzzzz-zzzzz-zzzzz-cai"
+
+
+@pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Requires multi-canister setup")
+def test__notifyMainerTopUp_anonymous(network: str, identity_anonymous: dict) -> None:
+    """notifyMainerTopUp - anonymous caller should be rejected."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="notifyMainerTopUp",
+        canister_argument="(record { paymentTransactionBlockId = 1 : nat64 })",
+        network=network,
+    )
+    expected_response = "(variant { Err = variant { Unauthorized } })"
+    assert response == expected_response
+
+
+@pytest.mark.skipif(TEST_TYPE == "single_canister", reason="Requires multi-canister setup")
+def test__resolveMainerByPrefixAdmin_anonymous(network: str, identity_anonymous: dict) -> None:
+    """resolveMainerByPrefixAdmin - anonymous caller should be rejected."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="resolveMainerByPrefixAdmin",
+        canister_argument='("aaaaaaa-aaaaa")',
+        network=network,
+    )
+    expected_response = "(variant { Err = variant { Unauthorized } })"
+    assert response == expected_response
+
+
+def test__resolveMainerByPrefixAdmin_seed_mainers(network: str, identity_default: dict) -> None:
+    """Seed the registry so the prefix-resolution tests below have something to match.
+
+    Runs as the default identity, which is the controller on a local network.
+    """
+    owner = identity_default["principal"]
+    for address in (SEED_AMBIGUOUS_A, SEED_AMBIGUOUS_B, SEED_UNIQUE):
+        response = call_canister_api(
+            dfx_json_path=DFX_JSON_PATH,
+            canister_name=CANISTER_NAME,
+            canister_method="addMainerAgentCanisterAdmin",
+            canister_argument=f"({_mainer_record(address, owner)})",
+            network=network,
+        )
+        assert "Err" not in response, f"seeding {address} failed: {response}"
+
+
+def test__resolveMainerByPrefixAdmin_full_id(network: str, identity_default: dict) -> None:
+    """A full canister id resolves to itself."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="resolveMainerByPrefixAdmin",
+        canister_argument=f'("{SEED_UNIQUE}")',
+        network=network,
+    )
+    assert response == f'(variant {{ Ok = "{SEED_UNIQUE}" }})'
+
+
+def test__resolveMainerByPrefixAdmin_unique_prefix(network: str, identity_default: dict) -> None:
+    """An unambiguous 8-character prefix, '-' included, resolves."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="resolveMainerByPrefixAdmin",
+        canister_argument='("zzzzzzz-")',
+        network=network,
+    )
+    assert response == f'(variant {{ Ok = "{SEED_UNIQUE}" }})'
+
+
+def test__resolveMainerByPrefixAdmin_too_short(network: str, identity_default: dict) -> None:
+    """7 characters is below the minimum and must be rejected, not guessed at."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="resolveMainerByPrefixAdmin",
+        canister_argument='("zzzzzzz")',
+        network=network,
+    )
+    assert response == "(variant { Err = variant { InvalidId } })"
+
+
+def test__resolveMainerByPrefixAdmin_ambiguous(network: str, identity_default: dict) -> None:
+    """A prefix shared by two mAIners must be rejected rather than credited to either."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="resolveMainerByPrefixAdmin",
+        canister_argument='("aaaaaaa-")',
+        network=network,
+    )
+    assert response == '(variant { Err = variant { Other = "ambiguous" } })'
+
+
+def test__resolveMainerByPrefixAdmin_no_match(network: str, identity_default: dict) -> None:
+    """A well-formed prefix matching nothing is rejected."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="resolveMainerByPrefixAdmin",
+        canister_argument='("qqqqqqq-qqqqq")',
+        network=network,
+    )
+    assert response == "(variant { Err = variant { InvalidId } })"
+
+
+def test__resolveMainerByPrefixAdmin_nul_padded(network: str, identity_default: dict) -> None:
+    """NUL padding is stripped.
+
+    Wallets commonly zero-pad an icrc1_memo. NUL is valid UTF-8, so decoding
+    succeeds and leaves '\\u{0}' characters that would silently break the prefix
+    match. sanitizeMemoPrefix stops at the first character outside the canister-id
+    alphabet, so the padded form must resolve exactly like the unpadded one.
+    """
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="resolveMainerByPrefixAdmin",
+        canister_argument='("zzzzzzz-\\00\\00")',
+        network=network,
+    )
+    assert response == f'(variant {{ Ok = "{SEED_UNIQUE}" }})'
+
+
+def test__resolveMainerByPrefixAdmin_out_of_alphabet(network: str, identity_default: dict) -> None:
+    """Uppercase is outside the canister-id alphabet, so the prefix truncates to empty."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="resolveMainerByPrefixAdmin",
+        canister_argument='("ZZZZZZZ-ZZZZZ")',
+        network=network,
+    )
+    assert response == "(variant { Err = variant { InvalidId } })"
