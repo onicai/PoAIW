@@ -678,11 +678,20 @@ module Types {
     // taking it as an argument, so there is no independent target to bind against.
     // Its memo is plain ASCII, not the [0xAD] ++ principal format, so requiring the
     // bound memo there would reject every valid call.
+    // followArchive controls whether verifyIncomingPayment may follow the ICP
+    // ledger's archived_blocks to reach a payment that has aged out of the live
+    // window (measured at roughly 1.5-3 hours, and shrinking as ICP volume rises).
+    //
+    // Only the GATED callers set it. The permissionless endpoints leave it false on
+    // purpose: a caller spamming junk block ids always lands on the miss path, so
+    // following the archive there would double the ledger work an unauthenticated
+    // caller can force the Protocol to pay for.
     public type ProcessTopUpInput = {
         caller : Principal;
         paymentTransactionBlockId : Nat64;
         mainerEntry : OfficialMainerAgentCanister;
         requireBoundMemo : Bool;
+        followArchive : Bool;
     };
 
     // Internal result returned by GameState's processTopUpCyclesForMainer helper.
@@ -699,6 +708,92 @@ module Types {
         #Ambiguous;
         #One : OfficialMainerAgentCanister;
     };
+
+    // Why one ICP-ledger block read failed.
+    //
+    // Structured rather than free text because the sweep has to act on the
+    // difference: #NotFound and #LiveWindowOnly are terminal, #ArchiveUnavailable is
+    // worth retrying tomorrow. Callers that only need an ApiError map it back to the
+    // original message.
+    public type LedgerReadError = {
+        #NotFound;                    // beyond chain_length - the block does not exist
+        #LiveWindowOnly;              // archived, and this caller may not follow the archive
+        #ArchiveUnavailable : Text;   // archive read failed - transient
+    };
+
+    // A registered GameStateSidecar.
+    //
+    // Deliberately NOT a new case in ProtocolCanisterType: that variant is RETURNED
+    // by getOfficialCanistersAdmin and inside every MainerAgentCanisterResult, and
+    // adding a case to a returned variant breaks every existing decoder - the
+    // frontend declarations, dfx, and the smoketests. A separate record and its own
+    // admin methods are purely additive.
+    //
+    // lastGrantAt backs the once-per-day cycles rate limit and doubles as ops
+    // visibility, so both read the same field.
+    public type SidecarCanister = {
+        address : CanisterAddress;
+        registeredAt : Nat64;
+        registeredBy : Principal;
+        lastGrantAt : Nat64; // 0 = never granted
+    };
+
+    // Outcome of offering one archived payment block to the sweep.
+    //
+    // The sidecar MUST be able to tell "never going to work" from "try again", and
+    // ApiError collapses everything interesting into #Other : Text - notifyMainerTopUp
+    // alone returns nine distinct strings. Matching on those strings would be a trap,
+    // so the sweep endpoint returns this instead of TopUpResult.
+    //
+    // #Rejected  - terminal. The sidecar's cursor moves past the block for good.
+    // #Retry     - transient. The block goes into the sidecar's bounded retry set.
+    //
+    // Getting the PAUSE_PROTOCOL case right matters most: the sidecar is not a
+    // controller, so a paused GameState refuses it. Classified as #Retry, that is
+    // harmless; classified as #Rejected, pausing GameState for routine maintenance
+    // would permanently burn every payment the sweep was working through.
+    // #Rejected / #Retry carry the original ApiError rather than a flattened string,
+    // so notifyMainerTopUp - which shares this code path and is already deployed -
+    // keeps returning the exact error VARIANT it always did, not just the same text.
+    public type SweepVerdict = {
+        #Redeemed : { mainerAgentAddress : Text; cyclesAdded : Nat };
+        #AlreadyRedeemed;
+        #Rejected : ApiError;
+        #Retry : ApiError;
+    };
+
+    public type SweepVerdictResult = Result<SweepVerdict, ApiError>;
+
+    // One outbound cycles grant from GameState to a sidecar.
+    //
+    // Kept apart from CyclesTransaction / cyclesTransactionsStorage, which is an
+    // INBOUND-only ledger - mixing outbound entries in would silently corrupt the
+    // totals reported by getCyclesTransactionsAdmin.
+    public type CyclesGrantRecord = {
+        recipient : Text;
+        amount : Nat;
+        grantedAt : Nat64;
+        balanceBefore : Nat;
+        succeeded : Bool;
+    };
+
+    // Health snapshot of a sidecar's sweep, for getSidecarStatusAdmin.
+    //
+    // Exists because a sidecar whose timer died looks EXACTLY like a sidecar with
+    // nothing to do. Timers do not survive a canister upgrade and are re-armed by
+    // hand, so a stale lastRunAt is the only signal that the sweep has stopped.
+    public type SidecarStatusRecord = {
+        lastRunAt : Nat64;
+        scannedThroughBlockId : Nat64;
+        pendingRetriesCount : Nat;
+        offered : Nat;
+        redeemed : Nat;
+        rejected : Nat;
+        retried : Nat;
+        timerIsArmed : Bool;
+    };
+
+    public type SidecarStatusResult = Result<SidecarStatusRecord, ApiError>;
 
     public type MainerAuctionTimerInfoRecord = {        
         lastUpdateNs : Nat;
