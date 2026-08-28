@@ -672,6 +672,12 @@ module Types {
     // endpoint passes true (strict). The gated endpoint passes false during
     // the Phase-1 migration window so cached old frontends (which only send
     // the legacy 1-byte memo) keep working; flipped to true in Phase 2.
+    //
+    // notifyMainerTopUp also passes false, and that one must NOT be flipped in
+    // Phase 2: it derives the target mAIner from the payment's own memo rather than
+    // taking it as an argument, so there is no independent target to bind against.
+    // Its memo is plain ASCII, not the [0xAD] ++ principal format, so requiring the
+    // bound memo there would reject every valid call.
     public type ProcessTopUpInput = {
         caller : Principal;
         paymentTransactionBlockId : Nat64;
@@ -683,6 +689,15 @@ module Types {
     public type ProcessTopUpResult = {
         mainerEntry : OfficialMainerAgentCanister;
         cyclesAdded : Nat;
+    };
+
+    // Result of matching a memo prefix against the registered mAIners.
+    // A 3-way result rather than an option, because "nothing matched" and "several
+    // matched" must be reported differently to the caller.
+    public type MainerPrefixMatch = {
+        #None;
+        #Ambiguous;
+        #One : OfficialMainerAgentCanister;
     };
 
     public type MainerAuctionTimerInfoRecord = {        
