@@ -1551,6 +1551,17 @@ module Types {
 
     //-------------------------------------------------------------------------
 // Canister Actors
+    // The slice of GameState that GameStateSidecar calls.
+    //
+    // Kept separate from GameStateCanister_Actor rather than bolted onto it: the
+    // sidecar needs only these two methods, and a narrow interface makes the trust
+    // boundary legible. Note what is NOT here - nothing that takes a mAIner address.
+    // The sidecar passes a block id and GameState resolves the target itself.
+    public type GameStateSweep_Actor = actor {
+        sweepArchivedTopUp : (PaymentTransactionBlockId) -> async SweepVerdictResult;
+        requestCyclesForSidecar : () -> async AddCyclesResult;
+    };
+
     public type GameStateCanister_Actor = actor {
         getRandomOpenChallengeTopic : () -> async ChallengeTopicResult;
         addChallenge : (NewChallengeInput) -> async ChallengeAdditionResult;
