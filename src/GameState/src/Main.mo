@@ -4846,6 +4846,13 @@ persistent actor class GameStateCanister() = this {
     // Deliberately NOT applied to the authenticated UI path or the admin path.
     let MIN_TOPUP_E8S : Nat64 = 9_000_000; // 0.09 ICP
 
+    // Oldest payment still redeemable, on every path.
+    //
+    // handleIncomingFunds settles a payment at the rates in force AT REDEMPTION,
+    // so an unbounded age would settle old ICP at economics the payer never agreed
+    // to. Abandoned payments past the ceiling stay recoverable by a controller.
+    let MAX_PAYMENT_AGE_NS : Nat64 = 7_776_000_000_000_000; // 90 days
+
     transient let PROTOCOL_PRINCIPAL_BLOB : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null);
     let TEAM_WALLET_ICP_NATIVE_ACCOUNT_IDENTIFIER : Text = "5d9bb4f164022de0933d3b45eaf33f1902e9578a2f330a1301d531c42bebf783";
     let TEAM_WALLET_ADDRESS : Blob = "\5D\9B\B4\F1\64\02\2D\E0\93\3D\3B\45\EA\F3\3F\19\02\E9\57\8A\2F\33\0A\13\01\D5\31\C4\2B\EB\F7\83";
@@ -5273,30 +5280,116 @@ persistent actor class GameStateCanister() = this {
         };
     };
 
-    // Read one transaction from the ICP ledger's LIVE block window.
+    // Read one block from the ICP ledger, optionally following the archive.
     //
-    // Used by the unauthenticated top-up paths, which need to inspect a payment
-    // (its memo, its amount) BEFORE handing it to processTopUpCyclesForMainer.
-    // verifyIncomingPayment reads the block again afterwards; that second read is
-    // accepted so that the authenticated and admin paths stay untouched. Ledger
-    // blocks are immutable at a given index, so the two reads cannot disagree.
+    // Returns the whole CandidBlock, not just its CandidTransaction: only the block
+    // carries the ledger-assigned timestamp, and created_at_time is payer-supplied
+    // and commonly zero, so age checks must use CandidBlock.timestamp.
     //
-    // Archived blocks are NOT followed - queryBlocksResponse.archived_blocks is
-    // ignored, exactly as verifyIncomingPayment does today. A notifier that calls
-    // promptly always finds the block in the live window. Recovering blocks that
-    // have aged into an archive is the job of the (deferred) sweep.
-    private func fetchLiveTransaction(blockId : Nat64) : async Types.Result<TokenLedger.CandidTransaction, Types.ApiError> {
+    // allowArchive is a policy switch:
+    //   false - permissionless callers. A junk block id always lands on the miss
+    //           path, so following the archive there doubles the work an
+    //           unauthenticated caller can force the Protocol to pay for.
+    //   true  - gated callers only (the sidecar sweep, and the controller-only
+    //           completeTopUpCyclesForMainerAgentAdmin).
+    private func fetchLedgerBlock(blockId : Nat64, allowArchive : Bool) : async Types.Result<TokenLedger.CandidBlock, Types.LedgerReadError> {
         let getBlocksArgs : TokenLedger.GetBlocksArgs = {
             start : Nat64 = blockId;
             length : Nat64 = 1;
         };
-        D.print("GameState: fetchLiveTransaction - getBlocksArgs: "# debug_show(getBlocksArgs));
+        D.print("GameState: fetchLedgerBlock - getBlocksArgs: "# debug_show(getBlocksArgs) # " allowArchive: " # debug_show(allowArchive));
         let queryBlocksResponse : TokenLedger.QueryBlocksResponse = await ICP_LEDGER_ACTOR.query_blocks(getBlocksArgs);
-        if (queryBlocksResponse.blocks.size() < 1) {
-            D.print("GameState: fetchLiveTransaction - block not in live window: "# debug_show(blockId));
-            return #Err(#Other("Payment block " # Nat64.toText(blockId) # " was not found in the ledger's live query window; archived blocks are not supported yet"));
+
+        // Still in the live window - the common case, and the only one the
+        // permissionless paths ever reach on a legitimate payment.
+        if (queryBlocksResponse.blocks.size() > 0) {
+            return #Ok(queryBlocksResponse.blocks[0]);
         };
-        return #Ok(queryBlocksResponse.blocks[0].transaction);
+
+        // Beyond the tip: the block does not exist. Distinguishable from
+        // "archived", and terminal for the sweep - retrying can never help.
+        if (blockId >= queryBlocksResponse.chain_length) {
+            D.print("GameState: fetchLedgerBlock - beyond chain_length: "# debug_show(blockId));
+            return #Err(#NotFound);
+        };
+
+        if (not allowArchive) {
+            D.print("GameState: fetchLedgerBlock - not in live window: "# debug_show(blockId));
+            return #Err(#LiveWindowOnly);
+        };
+
+        // Find the archive range holding the block.
+        //
+        // Compare BEFORE subtracting: Nat64 subtraction traps on underflow in
+        // Motoko, and a trap here would take down the whole message.
+        for (range in queryBlocksResponse.archived_blocks.vals()) {
+            if (range.start <= blockId and blockId < range.start + range.length) {
+                // Ask the archive for exactly the one block we want, rather than
+                // echoing back range.start/range.length. The block is inside this
+                // node's range by construction, so #BadFirstBlockIndex cannot
+                // occur and the answer is at index 0. It also sidesteps the
+                // archive's max_transactions_per_response / max_message_size_bytes
+                // caps, which are what would truncate a wide request and hand us
+                // the wrong block at a computed offset.
+                let archiveArgs : TokenLedger.GetBlocksArgs = {
+                    start : Nat64 = blockId;
+                    length : Nat64 = 1;
+                };
+                try {
+                    // The ledger tells us WHICH archive canister to call - the
+                    // callback is a (principal, method) pair decoded from its
+                    // response. That is the same trust already placed in
+                    // query_blocks itself, and the fixed Motoko return type bounds
+                    // what a bad answer can do.
+                    //
+                    // A shared query invoked from an update executes replicated on
+                    // the callee. These reads are exactly as trustworthy as the
+                    // query_blocks call above - neither verifies `certificate`.
+                    let archiveResponse : TokenLedger.Result_4 = await range.callback(archiveArgs);
+                    switch (archiveResponse) {
+                        case (#Ok(blockRange)) {
+                            if (blockRange.blocks.size() < 1) {
+                                D.print("GameState: fetchLedgerBlock - archive returned no block: "# debug_show(blockId));
+                                return #Err(#ArchiveUnavailable("the archive returned no block"));
+                            };
+                            return #Ok(blockRange.blocks[0]);
+                        };
+                        case (#Err(archiveError)) {
+                            D.print("GameState: fetchLedgerBlock - archive error: "# debug_show(archiveError));
+                            return #Err(#ArchiveUnavailable(debug_show(archiveError)));
+                        };
+                    };
+                } catch (e) {
+                    // A stopped archive, a decode mismatch or an unreachable
+                    // canister arrives as a reject, which is catchable. Treat it as
+                    // retryable rather than terminal.
+                    D.print("GameState: fetchLedgerBlock - archive call failed: "# Error.message(e));
+                    return #Err(#ArchiveUnavailable(Error.message(e)));
+                };
+            };
+        };
+
+        // Below first_block_index but no range covers it: archive topology can be
+        // mid-change, so this is retryable rather than terminal.
+        D.print("GameState: fetchLedgerBlock - no archive range covers: "# debug_show(blockId));
+        return #Err(#ArchiveUnavailable("no archive range covers this block"));
+    };
+
+    // Render a ledger read failure as an ApiError. Do not reword #LiveWindowOnly:
+    // notifyMainerTopUp is deployed and third parties match on its message.
+    private func ledgerReadErrorToApiError(blockId : Nat64, readError : Types.LedgerReadError) : Types.ApiError {
+        let blockIdText = Nat64.toText(blockId);
+        switch (readError) {
+            case (#NotFound) {
+                #Other("Payment block " # blockIdText # " does not exist on the ICP ledger");
+            };
+            case (#LiveWindowOnly) {
+                #Other("Payment block " # blockIdText # " was not found in the ledger's live query window; archived blocks are not supported yet");
+            };
+            case (#ArchiveUnavailable(detail)) {
+                #Other("Could not read payment block " # blockIdText # " from the ICP-ledger archive: " # detail);
+            };
+        };
     };
 
     // Amount credited to the Protocol by a payment block, in e8s.
@@ -5326,25 +5419,49 @@ persistent actor class GameStateCanister() = this {
     };
 
     // Verify an incoming payment to the Protocol (e.g. for mAIner creation or top ups)
+    //
+    // This is the read that gates every redemption: a caller that resolved the block
+    // itself still comes through here, so an archived block fails at this line
+    // unless followArchive is set. False for permissionless paths, true for gated
+    // ones - see fetchLedgerBlock.
     private func verifyIncomingPayment(
         transactionEntry : Types.RedeemedTransactionBlock,
-        requireBoundMemo : Bool
+        requireBoundMemo : Bool,
+        followArchive : Bool
     ) : async Types.VerifyPaymentResult {
         // Retrieve transaction from Ledger
             // https://dashboard.internetcomputer.org/canister/ryjl3-tyaaa-aaaaa-aaaba-cai
-        let getBlocksArgs : TokenLedger.GetBlocksArgs = {
-            start : Nat64 = transactionEntry.paymentTransactionBlockId;
-            length : Nat64 = 1;
+        let retrievedBlock : TokenLedger.CandidBlock = switch (await fetchLedgerBlock(transactionEntry.paymentTransactionBlockId, followArchive)) {
+            case (#Err(_readError)) {
+                // Preserved from the original implementation: every read failure
+                // collapses to #InvalidId here. fetchLedgerBlock has already
+                // D.print'ed the specific reason.
+                return #Err(#InvalidId);
+            };
+            case (#Ok(block)) { block };
         };
-        D.print("GameState: verifyIncomingPayment - getBlocksArgs: "# debug_show(getBlocksArgs));
-        let queryBlocksResponse : TokenLedger.QueryBlocksResponse = await ICP_LEDGER_ACTOR.query_blocks(getBlocksArgs);
-        D.print("GameState: verifyIncomingPayment - queryBlocksResponse.blocks: "# debug_show(queryBlocksResponse.blocks));
-        // Verify transaction exists
-        if (queryBlocksResponse.blocks.size() < 1) {
-            return #Err(#InvalidId);
+        D.print("GameState: verifyIncomingPayment - retrievedBlock: "# debug_show(retrievedBlock));
+
+        // Reject payments too old to price correctly. handleIncomingFunds reads the
+        // CMC rate, the fees cut, the balance buffer and the bonus percentage at
+        // REDEMPTION time, so an ancient payment would silently be settled at
+        // today's economics. Uses the block's ledger-assigned timestamp, not the
+        // payer-supplied created_at_time.
+        // `do { ... }`: a bare brace block in expression position is an object literal.
+        let blockAgeNs : Nat64 = do {
+            let nowNs = Nat64.fromNat(Int.abs(Time.now()));
+            // Compare before subtracting: Nat64 subtraction traps on underflow, and
+            // a block timestamp can run slightly ahead of Time.now().
+            if (nowNs > retrievedBlock.timestamp.timestamp_nanos) {
+                nowNs - retrievedBlock.timestamp.timestamp_nanos;
+            } else { 0 : Nat64 };
         };
-        D.print("GameState: verifyIncomingPayment - queryBlocksResponse.blocks.size(): "# debug_show(queryBlocksResponse.blocks.size()));
-        let retrievedTransaction : TokenLedger.CandidTransaction = queryBlocksResponse.blocks[0].transaction;
+        if (blockAgeNs > MAX_PAYMENT_AGE_NS) {
+            D.print("GameState: verifyIncomingPayment - block too old: "# debug_show(blockAgeNs));
+            return #Err(#Other("Payment block " # Nat64.toText(transactionEntry.paymentTransactionBlockId) # " is older than the maximum redeemable age"));
+        };
+
+        let retrievedTransaction : TokenLedger.CandidTransaction = retrievedBlock.transaction;
         D.print("GameState: verifyIncomingPayment - retrievedTransaction: "# debug_show(retrievedTransaction));
         // Verify transaction memo
         D.print("GameState: verifyIncomingPayment - retrievedTransaction.memo: "# debug_show(retrievedTransaction.memo));
@@ -5666,7 +5783,8 @@ persistent actor class GameStateCanister() = this {
                 // requireBoundMemo = false: #MainerCreation has no target canister yet at payment time,
                 // so the binding doesn't apply. The check inside verifyIncomingPayment is gated on
                 // #MainerTopUp anyway.
-                let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify, false);
+                // followArchive = false: creation redeems its own payment immediately.
+                let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify, false, false);
                 D.print("GameState: createUserMainerAgent - verificationResponse: "# debug_show(verificationResponse));
                 switch (verificationResponse) {
                     case (#Ok(verificationResult)) {
@@ -7393,6 +7511,7 @@ persistent actor class GameStateCanister() = this {
                             paymentTransactionBlockId = mainerTopUpInfo.paymentTransactionBlockId;
                             mainerEntry = userMainerEntry;
                             requireBoundMemo = false; // PHASE 1: dual-accept legacy memos. Flip to true in Phase 2.
+                            followArchive = false;    // authenticated UI path: the user redeems immediately
                         })) {
                             case (#Ok(result)) { return #Ok(result.mainerEntry); };
                             case (#Err(err)) { return #Err(err); };
@@ -7492,10 +7611,10 @@ persistent actor class GameStateCanister() = this {
 
             // Reject dust before doing any conversion work. Costs one extra
             // query_blocks; verifyIncomingPayment reads the block again below.
-            switch (await fetchLiveTransaction(transactionToVerify)) {
-                case (#Err(err)) { return #Err(err); };
-                case (#Ok(transaction)) {
-                    switch (checkMinimumTopUpAmount(transaction, transactionToVerify)) {
+            switch (await fetchLedgerBlock(transactionToVerify, false)) {
+                case (#Err(readError)) { return #Err(ledgerReadErrorToApiError(transactionToVerify, readError)); };
+                case (#Ok(block)) {
+                    switch (checkMinimumTopUpAmount(block.transaction, transactionToVerify)) {
                         case (#Err(err)) { return #Err(err); };
                         case (#Ok(_)) { /* continue */ };
                     };
@@ -7518,6 +7637,7 @@ persistent actor class GameStateCanister() = this {
                         paymentTransactionBlockId = mainerTopUpInfo.paymentTransactionBlockId;
                         mainerEntry;
                         requireBoundMemo = true;
+                        followArchive = false;    // permissionless: see ProcessTopUpInput
                     })) {
                         case (#Ok(result)) {
                             return #Ok({
@@ -7554,7 +7674,7 @@ persistent actor class GameStateCanister() = this {
             amount : Nat = amountPaid; // to be updated
         };
         D.print("GameState: processTopUpCyclesForMainer - transactionEntryToVerify: "# debug_show(transactionEntryToVerify));
-        let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify, input.requireBoundMemo);
+        let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify, input.requireBoundMemo, input.followArchive);
         D.print("GameState: processTopUpCyclesForMainer - verificationResponse: "# debug_show(verificationResponse));
         switch (verificationResponse) {
             case (#Ok(verificationResult)) {
@@ -7688,6 +7808,114 @@ persistent actor class GameStateCanister() = this {
     //    not recoverable from the block (transferDetails.from is an account
     //    identifier, not a principal), so do not read that field as "who paid".
     //  - Unrelated to the CMC's notify_top_up.
+    // Shared core of notifyMainerTopUp and sweepArchivedTopUp. The caller owns the
+    // gating and the in-flight claim; this body runs inside their try/finally.
+    //
+    // Do not copy it - the guards must stay identical on both paths.
+    // checkMinimumTopUpAmount is not re-checked inside processTopUpCyclesForMainer,
+    // so dropping it here removes the minimum top-up floor.
+    //
+    // Returns a verdict so the sweep can tell a permanent rejection from a
+    // transient one.
+    private func redeemTopUpFromMemo(caller : Principal, transactionToVerify : Nat64, allowArchive : Bool) : async Types.SweepVerdict {
+        let blockIdText = Nat64.toText(transactionToVerify);
+
+        let transaction = switch (await fetchLedgerBlock(transactionToVerify, allowArchive)) {
+            case (#Err(#NotFound)) {
+                return #Rejected(#Other("Payment block " # blockIdText # " does not exist on the ICP ledger"));
+            };
+            case (#Err(#LiveWindowOnly)) {
+                return #Rejected(#Other("Payment block " # blockIdText # " has aged out of the ledger's live query window"));
+            };
+            case (#Err(#ArchiveUnavailable(detail))) {
+                // Archive topology can be mid-change, or a node briefly unreachable.
+                return #Retry(#Other("Archive read failed for payment block " # blockIdText # ": " # detail));
+            };
+            case (#Ok(block)) { block.transaction };
+        };
+
+        switch (checkMinimumTopUpAmount(transaction, transactionToVerify)) {
+            case (#Err(err)) { return #Rejected(err); };
+            case (#Ok(_)) { /* continue */ };
+        };
+
+        let memoBlob = switch (transaction.icrc1_memo) {
+            case (?b) { b };
+            case (null) {
+                D.print("GameState: redeemTopUpFromMemo - no icrc1_memo on block: "# blockIdText);
+                return #Rejected(#Other("Payment block " # blockIdText # " has no icrc1_memo, so the target mAIner cannot be determined"));
+            };
+        };
+
+        // A legacy bound memo is [0xAD] ++ principal bytes. 0xAD is a UTF-8
+        // continuation byte so decoding would fail anyway, but rejecting it
+        // explicitly puts a usable reason in the logs.
+        let memoBytes = Blob.toArray(memoBlob);
+        if (memoBytes.size() > 0 and memoBytes[0] == MEMO_PAYMENT_MARKER) {
+            D.print("GameState: redeemTopUpFromMemo - legacy bound memo on block: "# blockIdText);
+            return #Rejected(#Other("Payment block " # blockIdText # " carries a legacy bound memo; redeem it with topUpCyclesForAnyMainerAgent instead"));
+        };
+
+        let memoText = switch (Text.decodeUtf8(memoBlob)) {
+            case (?t) { t };
+            case (null) {
+                D.print("GameState: redeemTopUpFromMemo - memo is not text on block: "# blockIdText);
+                return #Rejected(#Other("icrc1_memo of payment block " # blockIdText # " is not text; expected a mAIner canister-id prefix"));
+            };
+        };
+
+        let prefix = sanitizeMemoPrefix(memoText);
+        D.print("GameState: redeemTopUpFromMemo - resolved memo prefix: "# prefix);
+        if (Text.size(prefix) < MIN_MAINER_PREFIX_LENGTH) {
+            D.print("GameState: redeemTopUpFromMemo - prefix too short on block: "# blockIdText);
+            return #Rejected(#Other("Memo prefix from payment block " # blockIdText # " is too short; at least " # Nat.toText(MIN_MAINER_PREFIX_LENGTH) # " characters of the mAIner canister id are required"));
+        };
+
+        let mainerEntry = switch (resolveMainerByPrefix(prefix)) {
+            case (#None) {
+                D.print("GameState: redeemTopUpFromMemo - no mAIner matches prefix: "# prefix);
+                return #Rejected(#Other("No mAIner matches memo prefix '" # prefix # "' from payment block " # blockIdText));
+            };
+            case (#Ambiguous) {
+                D.print("GameState: redeemTopUpFromMemo - ambiguous prefix: "# prefix);
+                return #Rejected(#Other("Memo prefix '" # prefix # "' from payment block " # blockIdText # " matches more than one mAIner; use a longer prefix"));
+            };
+            case (#One(entry)) { entry };
+        };
+
+        switch (mainerEntry.canisterType) {
+            case (#MainerAgent(_)) {
+                // continue
+            };
+            case (_) {
+                D.print("GameState: redeemTopUpFromMemo - unsupported canisterType for: "# mainerEntry.address);
+                return #Rejected(#Other("Unsupported"));
+            };
+        };
+
+        switch (await processTopUpCyclesForMainer({
+            caller;
+            paymentTransactionBlockId = transactionToVerify;
+            mainerEntry;
+            requireBoundMemo = false; // target came from the memo - see ProcessTopUpInput
+            followArchive = allowArchive;
+        })) {
+            case (#Ok(result)) {
+                return #Redeemed({
+                    cyclesAdded = result.cyclesAdded;
+                    mainerAgentAddress = result.mainerEntry.address;
+                });
+            };
+            case (#Err(err)) {
+                // Everything reachable here is a delivery-side failure - the CMC
+                // conversion, the mAIner's addCycles, the Protocol's own balance.
+                // All are worth retrying, unlike the memo problems above.
+                D.print("GameState: redeemTopUpFromMemo - processTopUpCyclesForMainer failed: "# debug_show(err));
+                return #Retry(err);
+            };
+        };
+    };
+
     public shared (msg) func notifyMainerTopUp(input : Types.PaymentTransactionBlockId) : async Types.TopUpResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -7719,86 +7947,22 @@ persistent actor class GameStateCanister() = this {
         };
 
         try {
-            let transaction = switch (await fetchLiveTransaction(transactionToVerify)) {
-                case (#Err(err)) { return #Err(err); };
-                case (#Ok(tx)) { tx };
-            };
-
-            switch (checkMinimumTopUpAmount(transaction, transactionToVerify)) {
-                case (#Err(err)) { return #Err(err); };
-                case (#Ok(_)) { /* continue */ };
-            };
-
-            let memoBlob = switch (transaction.icrc1_memo) {
-                case (?b) { b };
-                case (null) {
-                    D.print("GameState: notifyMainerTopUp - no icrc1_memo on block: "# blockIdText);
-                    return #Err(#Other("Payment block " # blockIdText # " has no icrc1_memo, so the target mAIner cannot be determined"));
-                };
-            };
-
-            // A legacy bound memo is [0xAD] ++ principal bytes. 0xAD is a UTF-8
-            // continuation byte so decoding would fail anyway, but rejecting it
-            // explicitly puts a usable reason in the logs.
-            let memoBytes = Blob.toArray(memoBlob);
-            if (memoBytes.size() > 0 and memoBytes[0] == MEMO_PAYMENT_MARKER) {
-                D.print("GameState: notifyMainerTopUp - legacy bound memo on block: "# blockIdText);
-                return #Err(#Other("Payment block " # blockIdText # " carries a legacy bound memo; redeem it with topUpCyclesForAnyMainerAgent instead"));
-            };
-
-            let memoText = switch (Text.decodeUtf8(memoBlob)) {
-                case (?t) { t };
-                case (null) {
-                    D.print("GameState: notifyMainerTopUp - memo is not text on block: "# blockIdText);
-                    return #Err(#Other("icrc1_memo of payment block " # blockIdText # " is not text; expected a mAIner canister-id prefix"));
-                };
-            };
-
-            let prefix = sanitizeMemoPrefix(memoText);
-            D.print("GameState: notifyMainerTopUp - resolved memo prefix: "# prefix);
-            if (Text.size(prefix) < MIN_MAINER_PREFIX_LENGTH) {
-                D.print("GameState: notifyMainerTopUp - prefix too short on block: "# blockIdText);
-                return #Err(#Other("Memo prefix from payment block " # blockIdText # " is too short; at least " # Nat.toText(MIN_MAINER_PREFIX_LENGTH) # " characters of the mAIner canister id are required"));
-            };
-
-            let mainerEntry = switch (resolveMainerByPrefix(prefix)) {
-                case (#None) {
-                    D.print("GameState: notifyMainerTopUp - no mAIner matches prefix: "# prefix);
-                    return #Err(#Other("No mAIner matches memo prefix '" # prefix # "' from payment block " # blockIdText));
-                };
-                case (#Ambiguous) {
-                    D.print("GameState: notifyMainerTopUp - ambiguous prefix: "# prefix);
-                    return #Err(#Other("Memo prefix '" # prefix # "' from payment block " # blockIdText # " matches more than one mAIner; use a longer prefix"));
-                };
-                case (#One(entry)) { entry };
-            };
-
-            switch (mainerEntry.canisterType) {
-                case (#MainerAgent(_)) {
-                    // continue
-                };
-                case (_) {
-                    D.print("GameState: notifyMainerTopUp - unsupported canisterType for: "# mainerEntry.address);
-                    return #Err(#Other("Unsupported"));
-                };
-            };
-
-            switch (await processTopUpCyclesForMainer({
-                caller = msg.caller;
-                paymentTransactionBlockId = transactionToVerify;
-                mainerEntry;
-                requireBoundMemo = false; // target came from the memo - see the note above
-            })) {
-                case (#Ok(result)) {
+            // allowArchive = false: this endpoint is permissionless, and the miss
+            // path is exactly the path a spammer picks. See fetchLedgerBlock.
+            switch (await redeemTopUpFromMemo(msg.caller, transactionToVerify, false)) {
+                case (#Redeemed(record)) {
                     return #Ok({
-                        cyclesAdded = result.cyclesAdded;
-                        mainerAgentAddress = result.mainerEntry.address;
+                        cyclesAdded = record.cyclesAdded;
+                        mainerAgentAddress = record.mainerAgentAddress;
                     });
                 };
-                case (#Err(err)) {
-                    D.print("GameState: notifyMainerTopUp - processTopUpCyclesForMainer failed: "# debug_show(err));
-                    return #Err(err);
+                case (#AlreadyRedeemed) {
+                    return #Err(#Other("Already redeemd this transaction block"));
                 };
+                // This endpoint's contract is unchanged: callers see a flat #Err
+                // either way. Only the sweep needs the distinction.
+                case (#Rejected(err)) { return #Err(err); };
+                case (#Retry(err)) { return #Err(err); };
             };
         } finally {
             releaseTopUpBlock(transactionToVerify);
@@ -7827,6 +7991,238 @@ persistent actor class GameStateCanister() = this {
             case (#Ambiguous) { return #Err(#Other("ambiguous")); };
             case (#One(mainerEntry)) { return #Ok(mainerEntry.address); };
         };
+    };
+
+    // ------------------------------------------------------------------
+    // GameStateSidecar: registry, archived-payment sweep, and cycles grants
+    // ------------------------------------------------------------------
+    //
+    // The sidecar is a separate canister with a daily timer. It crawls the ICP index
+    // for payments to this canister's account that have aged out of the ledger's
+    // live window, and offers each block id to sweepArchivedTopUp.
+    //
+    // TRUST BOUNDARY: the sidecar passes ONLY a block id, never a target mAIner.
+    // GameState re-reads the block and resolves the memo itself. Do not add a target
+    // parameter - that would make the sidecar trusted with attribution.
+    //
+    // One slot only: the sweep is a single serial crawl behind one cursor.
+    var sidecarCanister : ?Types.SidecarCanister = null;
+
+    private func isRegisteredSidecar(caller : Principal) : Bool {
+        switch (sidecarCanister) {
+            case (null) { false };
+            case (?entry) { Text.equal(entry.address, Principal.toText(caller)) };
+        };
+    };
+
+    public shared (msg) func addSidecarCanisterAdmin(address : Text) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
+        // Traps here on a malformed id rather than later at the call site.
+        let parsed = Principal.fromText(address);
+        D.print("GameState: addSidecarCanisterAdmin - address: "# address # " parsed: " # debug_show(parsed));
+        // An occupied slot is refused, not overwritten: a single call must not be
+        // able to swap the principal behind a security gate. Rotate with remove+add.
+        switch (sidecarCanister) {
+            case (?entry) {
+                if (Text.equal(entry.address, address)) {
+                    return #Err(#Other("Sidecar is already registered"));
+                };
+                return #Err(#Other("A different sidecar is already registered - remove it first"));
+            };
+            case (null) { /* continue */ };
+        };
+        sidecarCanister := ?{
+            address = address;
+            registeredAt = Nat64.fromNat(Int.abs(Time.now()));
+            registeredBy = msg.caller;
+            lastGrantAt = 0;
+        };
+        return #Ok({ status_code = 200 });
+    };
+
+    public shared (msg) func removeSidecarCanisterAdmin() : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
+        switch (sidecarCanister) {
+            case (null) { return #Err(#InvalidId); };
+            case (?entry) {
+                D.print("GameState: removeSidecarCanisterAdmin - removed: "# entry.address);
+                sidecarCanister := null;
+                return #Ok({ status_code = 200 });
+            };
+        };
+    };
+
+    public shared query (msg) func getSidecarCanisterAdmin() : async ?Types.SidecarCanister {
+        if (not Principal.isController(msg.caller)) { return null; };
+        return sidecarCanister;
+    };
+
+    // Sidecar-gated twin of notifyMainerTopUp, for blocks that have aged into an
+    // ICP-ledger archive. Returns a SweepVerdict rather than a TopUpResult so the
+    // sidecar can tell a permanent rejection (advance the cursor) from a transient
+    // one (retry tomorrow) without matching on error strings.
+    public shared (msg) func sweepArchivedTopUp(input : Types.PaymentTransactionBlockId) : async Types.SweepVerdictResult {
+        if (Principal.isAnonymous(msg.caller)) {
+            return #Err(#Unauthorized);
+        };
+        if (not (isRegisteredSidecar(msg.caller) or Principal.isController(msg.caller))) {
+            D.print("GameState: sweepArchivedTopUp - REJECTED: caller is not a registered sidecar");
+            return #Err(#Unauthorized);
+        };
+        // A paused Protocol refuses the sidecar. This MUST stay retryable: as a
+        // terminal verdict, a maintenance pause would burn every payment mid-sweep.
+        if (PAUSE_PROTOCOL and not Principal.isController(msg.caller)) {
+            return #Ok(#Retry(#Other("Protocol is currently paused")));
+        };
+        D.print("GameState: sweepArchivedTopUp - input: "# debug_show(input));
+
+        let transactionToVerify = input.paymentTransactionBlockId;
+        let blockIdText = Nat64.toText(transactionToVerify);
+
+        // Already redeemed is a normal, expected outcome here: the public endpoint
+        // may well have got there first. Terminal, not an error.
+        switch (checkExistingTransactionBlock(transactionToVerify)) {
+            case (false) { /* new transaction, continue */ };
+            case (true) {
+                D.print("GameState: sweepArchivedTopUp - already redeemed: "# blockIdText);
+                return #Ok(#AlreadyRedeemed);
+            };
+        };
+
+        // Claim before the first await. Early return is OUTSIDE the try: we do not
+        // own the claim, so releasing it would free another call's live claim.
+        if (not claimTopUpBlock(transactionToVerify)) {
+            D.print("GameState: sweepArchivedTopUp - block already in flight: "# blockIdText);
+            return #Ok(#Retry(#Other("Top-up for transaction block " # blockIdText # " is already in progress")));
+        };
+
+        try {
+            return #Ok(await redeemTopUpFromMemo(msg.caller, transactionToVerify, true));
+        } finally {
+            releaseTopUpBlock(transactionToVerify);
+        };
+    };
+
+    // --- Cycles grants to the sidecar ---------------------------------------
+    //
+    // The sidecar cannot earn cycles, so the Protocol funds it. GameState owns the
+    // threshold and the amount; the sidecar only reports that it is low, so it
+    // cannot enlarge its own ask.
+    //
+    // Keep SIDECAR_GRANT_FLOOR separate from PROTOCOL_CYCLES_BALANCE_BUFFER, which
+    // also drives effectiveBonusCyclesTopupInPercent and the CMC-conversion trigger:
+    // lowering that one to let a grant through re-enables bonus cycles on every
+    // user top-up.
+    var SIDECAR_GRANT_FLOOR : Nat = 400 * Constants.CYCLES_TRILLION;
+    var SIDECAR_GRANT_AMOUNT : Nat = 10 * Constants.CYCLES_TRILLION;
+    transient let SIDECAR_GRANT_INTERVAL_NS : Nat64 = 86_400_000_000_000; // 24h
+
+    // Bounded ring of outbound grants. Not cyclesTransactionsStorage - that ledger
+    // is inbound-only and outbound entries would corrupt its totals.
+    var cyclesGrants : [Types.CyclesGrantRecord] = [];
+    transient let MAX_CYCLES_GRANT_RECORDS : Nat = 50;
+
+    private func recordCyclesGrant(record : Types.CyclesGrantRecord) {
+        let appended = Array.append<Types.CyclesGrantRecord>(cyclesGrants, [record]);
+        if (appended.size() <= MAX_CYCLES_GRANT_RECORDS) {
+            cyclesGrants := appended;
+        } else {
+            let drop : Nat = appended.size() - MAX_CYCLES_GRANT_RECORDS;
+            cyclesGrants := Array.tabulate<Types.CyclesGrantRecord>(
+                MAX_CYCLES_GRANT_RECORDS,
+                func (i : Nat) : Types.CyclesGrantRecord { appended[i + drop] }
+            );
+        };
+    };
+
+    private func setSidecarLastGrantAt(at : Nat64) {
+        switch (sidecarCanister) {
+            case (null) { /* nothing registered - nothing to rate limit */ };
+            case (?entry) { sidecarCanister := ?{ entry with lastGrantAt = at }; };
+        };
+    };
+
+    public shared (msg) func setSidecarGrantFloorAdmin(newFloorInTrillionCycles : Nat) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
+        SIDECAR_GRANT_FLOOR := newFloorInTrillionCycles * Constants.CYCLES_TRILLION;
+        return #Ok({ status_code = 200 });
+    };
+
+    public shared (msg) func setSidecarGrantAmountAdmin(newAmountInTrillionCycles : Nat) : async Types.StatusCodeRecordResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
+        if (newAmountInTrillionCycles > 100) {
+            return #Err(#Other("Refusing a sidecar grant larger than 100T"));
+        };
+        SIDECAR_GRANT_AMOUNT := newAmountInTrillionCycles * Constants.CYCLES_TRILLION;
+        return #Ok({ status_code = 200 });
+    };
+
+    public shared query (msg) func getCyclesGrantsAdmin() : async [Types.CyclesGrantRecord] {
+        if (not Principal.isController(msg.caller)) { return []; };
+        return cyclesGrants;
+    };
+
+    public shared (msg) func requestCyclesForSidecar() : async Types.AddCyclesResult {
+        if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
+        let callerText = Principal.toText(msg.caller);
+        // Same predicate as sweepArchivedTopUp, so the two gates cannot drift apart.
+        if (not isRegisteredSidecar(msg.caller)) {
+            D.print("GameState: requestCyclesForSidecar - REJECTED: not the registered sidecar");
+            return #Err(#Unauthorized);
+        };
+        let entry = switch (sidecarCanister) {
+            case (?e) { e };
+            case (null) { return #Err(#Unauthorized) }; // unreachable: gated above
+        };
+
+        let nowNs = Nat64.fromNat(Int.abs(Time.now()));
+        // Compare before subtracting: Nat64 subtraction traps on underflow.
+        if (entry.lastGrantAt > 0 and nowNs < entry.lastGrantAt + SIDECAR_GRANT_INTERVAL_NS) {
+            D.print("GameState: requestCyclesForSidecar - rate limited: "# callerText);
+            return #Err(#Other("A cycles grant was already made to this sidecar within the last 24 hours"));
+        };
+
+        let balanceBefore : Nat = Cycles.balance();
+        if (balanceBefore < SIDECAR_GRANT_FLOOR + SIDECAR_GRANT_AMOUNT) {
+            D.print("GameState: requestCyclesForSidecar - below floor, refusing: "# debug_show(balanceBefore));
+            return #Err(#Other("The Protocol's cycles balance is below the sidecar grant floor"));
+        };
+
+        // Commit the rate limit BEFORE the await: committing after would turn a
+        // repeatedly-failing deposit into a drain loop.
+        setSidecarLastGrantAt(nowNs);
+
+        var succeeded : Bool = false;
+        try {
+            // deposit_cycles, not an addCycles call: it still works on a frozen
+            // sidecar, which is exactly the case being funded.
+            Cycles.add<system>(SIDECAR_GRANT_AMOUNT);
+            let deposit_cycles_args = { canister_id : Principal = msg.caller; };
+            // `await`, not `ignore` - the ignore form used elsewhere in this file
+            // discards the future, so its catch only ever fires on a synchronous
+            // send failure and the outcome recorded below would be a guess.
+            let _ = await IC0.deposit_cycles(deposit_cycles_args);
+            succeeded := true;
+        } catch (e) {
+            D.print("GameState: requestCyclesForSidecar - deposit failed: "# Error.message(e));
+        };
+
+        recordCyclesGrant({
+            recipient = callerText;
+            amount = if (succeeded) { SIDECAR_GRANT_AMOUNT } else { 0 };
+            grantedAt = nowNs;
+            balanceBefore = balanceBefore;
+            succeeded = succeeded;
+        });
+
+        if (not succeeded) {
+            return #Err(#Other("Failed to deposit cycles to the sidecar"));
+        };
+        return #Ok({ added = true; amount = SIDECAR_GRANT_AMOUNT });
     };
 
     // Function for admin to complete a user's topup (cycles for an existing mAIner agent)
@@ -7906,7 +8302,9 @@ persistent actor class GameStateCanister() = this {
                         // requireBoundMemo = false: admin recovery path. The controller is manually
                         // completing a top-up (e.g. one stuck due to a legacy memo), so don't block
                         // on the memo binding here.
-                        let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify, false);
+                        // followArchive = true: controller-gated rescue path, and an
+                        // aged-out payment is exactly what needs rescuing.
+                        let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify, false, true);
                         D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - verificationResponse: "# debug_show(verificationResponse));
                         switch (verificationResponse) {
                             case (#Ok(verificationResult)) {

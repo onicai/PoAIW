@@ -678,11 +678,14 @@ module Types {
     // taking it as an argument, so there is no independent target to bind against.
     // Its memo is plain ASCII, not the [0xAD] ++ principal format, so requiring the
     // bound memo there would reject every valid call.
+    // followArchive lets verifyIncomingPayment reach a payment that has aged out of
+    // the ledger's live window. Only the gated callers set it - see fetchLedgerBlock.
     public type ProcessTopUpInput = {
         caller : Principal;
         paymentTransactionBlockId : Nat64;
         mainerEntry : OfficialMainerAgentCanister;
         requireBoundMemo : Bool;
+        followArchive : Bool;
     };
 
     // Internal result returned by GameState's processTopUpCyclesForMainer helper.
@@ -699,6 +702,69 @@ module Types {
         #Ambiguous;
         #One : OfficialMainerAgentCanister;
     };
+
+    // Why one ICP-ledger block read failed. Structured because the sweep acts on the
+    // difference: #NotFound and #LiveWindowOnly are terminal, #ArchiveUnavailable is
+    // worth a retry.
+    public type LedgerReadError = {
+        #NotFound;                    // beyond chain_length - the block does not exist
+        #LiveWindowOnly;              // archived, and this caller may not follow the archive
+        #ArchiveUnavailable : Text;   // archive read failed - transient
+    };
+
+    // A registered GameStateSidecar. Kept out of ProtocolCanisterType: that variant
+    // is returned by getOfficialCanistersAdmin, so a new case would break every
+    // existing decoder.
+    public type SidecarCanister = {
+        address : CanisterAddress;
+        registeredAt : Nat64;
+        registeredBy : Principal;
+        lastGrantAt : Nat64; // 0 = never granted
+    };
+
+    // Outcome of offering one archived payment block to the sweep.
+    //
+    // #Rejected - terminal. The sidecar's cursor moves past the block for good.
+    // #Retry    - transient. The block goes into the sidecar's bounded retry set.
+    //
+    // Both carry the original ApiError, not a flattened string: notifyMainerTopUp
+    // shares this code path and is deployed, so it must keep returning the exact
+    // error VARIANT it always did.
+    public type SweepVerdict = {
+        #Redeemed : { mainerAgentAddress : Text; cyclesAdded : Nat };
+        #AlreadyRedeemed;
+        #Rejected : ApiError;
+        #Retry : ApiError;
+    };
+
+    public type SweepVerdictResult = Result<SweepVerdict, ApiError>;
+
+    // One outbound cycles grant from GameState to a sidecar. Kept apart from
+    // CyclesTransaction, whose storage is inbound-only and whose totals outbound
+    // entries would corrupt.
+    public type CyclesGrantRecord = {
+        recipient : Text;
+        amount : Nat;
+        grantedAt : Nat64;
+        balanceBefore : Nat;
+        succeeded : Bool;
+    };
+
+    // Health snapshot of a sidecar's sweep, for getSidecarStatusAdmin. A sidecar
+    // whose timer died looks exactly like one with nothing to do, so a stale
+    // lastRunAt is the only signal that the sweep has stopped.
+    public type SidecarStatusRecord = {
+        lastRunAt : Nat64;
+        scannedThroughBlockId : Nat64;
+        pendingRetriesCount : Nat;
+        offered : Nat;
+        redeemed : Nat;
+        rejected : Nat;
+        retried : Nat;
+        timerIsArmed : Bool;
+    };
+
+    public type SidecarStatusResult = Result<SidecarStatusRecord, ApiError>;
 
     public type MainerAuctionTimerInfoRecord = {        
         lastUpdateNs : Nat;
@@ -1456,6 +1522,13 @@ module Types {
 
     //-------------------------------------------------------------------------
 // Canister Actors
+    // The slice of GameState that GameStateSidecar calls. Deliberately narrow:
+    // nothing here takes a mAIner address, so the sidecar cannot name a target.
+    public type GameStateSweep_Actor = actor {
+        sweepArchivedTopUp : (PaymentTransactionBlockId) -> async SweepVerdictResult;
+        requestCyclesForSidecar : () -> async AddCyclesResult;
+    };
+
     public type GameStateCanister_Actor = actor {
         getRandomOpenChallengeTopic : () -> async ChallengeTopicResult;
         addChallenge : (NewChallengeInput) -> async ChallengeAdditionResult;

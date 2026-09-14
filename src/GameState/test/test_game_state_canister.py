@@ -3018,3 +3018,228 @@ def test__resolveMainerByPrefixAdmin_out_of_alphabet(network: str) -> None:
         network=network,
     )
     assert response == "(variant { Err = variant { InvalidId } })"
+
+
+# ------------------------------------------------------------------------------
+# GameStateSidecar: registry, archived-payment sweep, cycles grants
+# ------------------------------------------------------------------------------
+#
+# Only the GATES are testable locally: sweepArchivedTopUp needs a real ICP ledger
+# with archived blocks, and the local dfx network has no ledger at all.
+
+# Real, checksum-valid ids - addSidecarCanisterAdmin calls Principal.fromText,
+# which traps on a malformed one.
+SIDECAR_TEST_ID = "vpa37-giaaa-aaaam-qdxeq-cai"
+SIDECAR_OTHER_ID = "5suig-4yaaa-aaaam-qd5ba-cai"
+
+
+def test__sweepArchivedTopUp_anonymous(network: str, identity_anonymous: dict) -> None:
+    """sweepArchivedTopUp - anonymous caller should be rejected."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="sweepArchivedTopUp",
+        canister_argument="(record { paymentTransactionBlockId = 1 : nat64 })",
+        network=network,
+    )
+    assert response == "(variant { Err = variant { Unauthorized } })"
+
+
+def test__sweepArchivedTopUp_unregistered_caller(network: str, identity_default: dict) -> None:
+    """A caller that is neither a registered sidecar nor a controller is rejected.
+
+    Without this gate the archive path would be open to anyone.
+    """
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="sweepArchivedTopUp",
+        canister_argument="(record { paymentTransactionBlockId = 1 : nat64 })",
+        network=network,
+    )
+    assert response == "(variant { Err = variant { Unauthorized } })"
+
+
+def test__addSidecarCanisterAdmin_anonymous(network: str, identity_anonymous: dict) -> None:
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="addSidecarCanisterAdmin",
+        canister_argument=f'("{SIDECAR_TEST_ID}")',
+        network=network,
+    )
+    assert response == "(variant { Err = variant { Unauthorized } })"
+
+
+def test__getSidecarCanisterAdmin_anonymous(network: str, identity_anonymous: dict) -> None:
+    """Non-controllers get null, mirroring getOfficialCanistersAdmin's empty list."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getSidecarCanisterAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    assert response == "(null)"
+
+
+def test__removeSidecarCanisterAdmin_anonymous(network: str, identity_anonymous: dict) -> None:
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="removeSidecarCanisterAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    assert response == "(variant { Err = variant { Unauthorized } })"
+
+
+def test__sidecar_registry_lifecycle(network: str) -> None:
+    """One slot: register, read it back, refuse a second, then remove."""
+    added = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="addSidecarCanisterAdmin",
+        canister_argument=f'("{SIDECAR_TEST_ID}")',
+        network=network,
+    )
+    assert added == "(variant { Ok = record { status_code = 200 : nat16;} })"
+
+    registered = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getSidecarCanisterAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    assert registered.startswith("(opt record {")
+    assert SIDECAR_TEST_ID in registered
+    # lastGrantAt starts at 0 so the first cycles request is never rate limited.
+    assert "lastGrantAt = 0" in registered
+
+    duplicate = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="addSidecarCanisterAdmin",
+        canister_argument=f'("{SIDECAR_TEST_ID}")',
+        network=network,
+    )
+    assert "already registered" in duplicate
+
+    # An occupied slot is REFUSED, not overwritten: one call must not be able to
+    # swap the principal behind a security gate.
+    other = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="addSidecarCanisterAdmin",
+        canister_argument=f'("{SIDECAR_OTHER_ID}")',
+        network=network,
+    )
+    assert "remove it first" in other
+
+    still_the_first = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getSidecarCanisterAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    assert SIDECAR_TEST_ID in still_the_first
+    assert SIDECAR_OTHER_ID not in still_the_first
+
+    removed = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="removeSidecarCanisterAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    assert removed == "(variant { Ok = record { status_code = 200 : nat16;} })"
+
+    gone = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="removeSidecarCanisterAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    assert gone == "(variant { Err = variant { InvalidId } })"
+
+    empty = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getSidecarCanisterAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    assert empty == "(null)"
+
+
+def test__requestCyclesForSidecar_anonymous(network: str, identity_anonymous: dict) -> None:
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="requestCyclesForSidecar",
+        canister_argument="()",
+        network=network,
+    )
+    assert response == "(variant { Err = variant { Unauthorized } })"
+
+
+def test__requestCyclesForSidecar_unregistered_caller(network: str, identity_default: dict) -> None:
+    """Only the REGISTERED sidecar may draw cycles. The gate is a registry lookup,
+    not isController - the sidecar is not a controller of GameState."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="requestCyclesForSidecar",
+        canister_argument="()",
+        network=network,
+    )
+    assert response == "(variant { Err = variant { Unauthorized } })"
+
+
+def test__getCyclesGrantsAdmin_anonymous(network: str, identity_anonymous: dict) -> None:
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="getCyclesGrantsAdmin",
+        canister_argument="()",
+        network=network,
+    )
+    assert response == "(vec {})"
+
+
+def test__setSidecarGrantFloorAdmin_anonymous(network: str, identity_anonymous: dict) -> None:
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="setSidecarGrantFloorAdmin",
+        canister_argument="(400 : nat)",
+        network=network,
+    )
+    assert response == "(variant { Err = variant { Unauthorized } })"
+
+
+def test__setSidecarGrantAmountAdmin_anonymous(network: str, identity_anonymous: dict) -> None:
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="setSidecarGrantAmountAdmin",
+        canister_argument="(10 : nat)",
+        network=network,
+    )
+    assert response == "(variant { Err = variant { Unauthorized } })"
+
+
+def test__setSidecarGrantAmountAdmin_clamped(network: str) -> None:
+    """An oversized grant must be refused: the cap bounds the one outbound-cycles
+    path a non-controller can trigger."""
+    response = call_canister_api(
+        dfx_json_path=DFX_JSON_PATH,
+        canister_name=CANISTER_NAME,
+        canister_method="setSidecarGrantAmountAdmin",
+        canister_argument="(500 : nat)",
+        network=network,
+    )
+    assert "larger than 100T" in response
