@@ -4848,16 +4848,9 @@ persistent actor class GameStateCanister() = this {
 
     // Oldest payment still redeemable, on every path.
     //
-    // Needed because the archive sweep makes very old blocks reachable for the
-    // first time. handleIncomingFunds settles a payment using the CMC conversion
-    // rate, protocolOperationFeesCut, PROTOCOL_CYCLES_BALANCE_BUFFER and the bonus
-    // percentage as they stand AT REDEMPTION, not as they stood when the ICP
-    // arrived. Without a ceiling, a payment found years later would be settled at
-    // economics that have nothing to do with what the payer agreed to.
-    //
-    // 90 days is far beyond any legitimate notify-or-sweep latency (the sweep runs
-    // daily), so this only ever fires on genuinely abandoned payments, which remain
-    // recoverable by a controller.
+    // handleIncomingFunds settles a payment at the rates in force AT REDEMPTION,
+    // so an unbounded age would settle old ICP at economics the payer never agreed
+    // to. Abandoned payments past the ceiling stay recoverable by a controller.
     let MAX_PAYMENT_AGE_NS : Nat64 = 7_776_000_000_000_000; // 90 days
 
     transient let PROTOCOL_PRINCIPAL_BLOB : Blob = Principal.toLedgerAccount(Principal.fromActor(this), null);
@@ -5289,31 +5282,16 @@ persistent actor class GameStateCanister() = this {
 
     // Read one block from the ICP ledger, optionally following the archive.
     //
-    // Used by the top-up paths, which need to inspect a payment (its memo, its
-    // amount, its age) BEFORE handing it to processTopUpCyclesForMainer.
-    // verifyIncomingPayment reads the block again afterwards; that second read is
-    // accepted so that the authenticated and admin paths stay untouched. Ledger
-    // blocks are immutable at a given index, so the two reads cannot disagree.
+    // Returns the whole CandidBlock, not just its CandidTransaction: only the block
+    // carries the ledger-assigned timestamp, and created_at_time is payer-supplied
+    // and commonly zero, so age checks must use CandidBlock.timestamp.
     //
-    // Returns the whole CandidBlock rather than just its CandidTransaction,
-    // because only the block carries the LEDGER-assigned timestamp.
-    // CandidTransaction.created_at_time is supplied by the payer and is commonly
-    // zero, so any age check must use CandidBlock.timestamp.
-    //
-    // allowArchive is a deliberate policy switch, not a convenience:
-    //
-    //   false - the permissionless paths (topUpCyclesForAnyMainerAgent,
-    //           notifyMainerTopUp). Someone spamming junk block ids ALWAYS lands on
-    //           the miss path, so following the archive there would double the work
-    //           an unauthenticated caller can force the Protocol to pay for.
-    //   true  - the gated paths: the sidecar sweep and the controller-only
-    //           completeTopUpCyclesForMainerAgentAdmin. Neither can be triggered at
-    //           will, so the extra hop is not an amplification vector.
-    //
-    // Why the archive matters at all: the ICP ledger's live window was measured at
-    // 1_664 blocks, about 2h40m, and it is a sawtooth that shrinks further as ICP
-    // volume rises. A payment not redeemed within roughly 1.5 hours is only
-    // reachable through the archive.
+    // allowArchive is a policy switch:
+    //   false - permissionless callers. A junk block id always lands on the miss
+    //           path, so following the archive there doubles the work an
+    //           unauthenticated caller can force the Protocol to pay for.
+    //   true  - gated callers only (the sidecar sweep, and the controller-only
+    //           completeTopUpCyclesForMainerAgentAdmin).
     private func fetchLedgerBlock(blockId : Nat64, allowArchive : Bool) : async Types.Result<TokenLedger.CandidBlock, Types.LedgerReadError> {
         let getBlocksArgs : TokenLedger.GetBlocksArgs = {
             start : Nat64 = blockId;
@@ -5397,10 +5375,8 @@ persistent actor class GameStateCanister() = this {
         return #Err(#ArchiveUnavailable("no archive range covers this block"));
     };
 
-    // Render a ledger read failure as the ApiError the pre-existing callers return.
-    // The #LiveWindowOnly wording is deliberately unchanged from before archive
-    // support existed: notifyMainerTopUp is already deployed and third parties are
-    // coding against its messages.
+    // Render a ledger read failure as an ApiError. Do not reword #LiveWindowOnly:
+    // notifyMainerTopUp is deployed and third parties match on its message.
     private func ledgerReadErrorToApiError(blockId : Nat64, readError : Types.LedgerReadError) : Types.ApiError {
         let blockIdText = Nat64.toText(blockId);
         switch (readError) {
@@ -5443,15 +5419,11 @@ persistent actor class GameStateCanister() = this {
     };
 
     // Verify an incoming payment to the Protocol (e.g. for mAIner creation or top ups)
-    // followArchive decides whether an aged-out block can still be verified.
     //
-    // This is the read that actually gates every redemption. A caller that resolves
-    // a block itself and then hands it to processTopUpCyclesForMainer still comes
-    // through here, so an archived block fails at THIS line unless followArchive is
-    // set - which is why archive support cannot live only in the callers.
-    //
-    // Keep it false for the permissionless paths (see fetchLedgerBlock's comment on
-    // amplification) and true for the gated ones.
+    // This is the read that gates every redemption: a caller that resolved the block
+    // itself still comes through here, so an archived block fails at this line
+    // unless followArchive is set. False for permissionless paths, true for gated
+    // ones - see fetchLedgerBlock.
     private func verifyIncomingPayment(
         transactionEntry : Types.RedeemedTransactionBlock,
         requireBoundMemo : Bool,
@@ -5475,12 +5447,11 @@ persistent actor class GameStateCanister() = this {
         // REDEMPTION time, so an ancient payment would silently be settled at
         // today's economics. Uses the block's ledger-assigned timestamp, not the
         // payer-supplied created_at_time.
-        // `do { ... }` and not `{ ... }`: a bare brace block in expression position
-        // is an OBJECT literal in Motoko, not a block.
+        // `do { ... }`: a bare brace block in expression position is an object literal.
         let blockAgeNs : Nat64 = do {
             let nowNs = Nat64.fromNat(Int.abs(Time.now()));
-            // Compare before subtracting - Nat64 subtraction traps on underflow,
-            // and a block timestamp can be ahead of Time.now() by a little.
+            // Compare before subtracting: Nat64 subtraction traps on underflow, and
+            // a block timestamp can run slightly ahead of Time.now().
             if (nowNs > retrievedBlock.timestamp.timestamp_nanos) {
                 nowNs - retrievedBlock.timestamp.timestamp_nanos;
             } else { 0 : Nat64 };
@@ -5812,8 +5783,7 @@ persistent actor class GameStateCanister() = this {
                 // requireBoundMemo = false: #MainerCreation has no target canister yet at payment time,
                 // so the binding doesn't apply. The check inside verifyIncomingPayment is gated on
                 // #MainerTopUp anyway.
-                // followArchive = false: this is a user-facing creation flow that
-                // redeems its own payment moments after making it.
+                // followArchive = false: creation redeems its own payment immediately.
                 let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify, false, false);
                 D.print("GameState: createUserMainerAgent - verificationResponse: "# debug_show(verificationResponse));
                 switch (verificationResponse) {
@@ -7838,18 +7808,15 @@ persistent actor class GameStateCanister() = this {
     //    not recoverable from the block (transferDetails.from is an account
     //    identifier, not a principal), so do not read that field as "who paid".
     //  - Unrelated to the CMC's notify_top_up.
-    // Shared core of the memo-driven top-up paths.
+    // Shared core of notifyMainerTopUp and sweepArchivedTopUp. The caller owns the
+    // gating and the in-flight claim; this body runs inside their try/finally.
     //
-    // EXTRACTED ON PURPOSE - do not re-inline or copy it. The caller owns the
-    // gating and the in-flight claim; this body runs inside their try/finally. Two
-    // endpoints reach it (notifyMainerTopUp, permissionless and live-window-only;
-    // sweepArchivedTopUp, sidecar-gated and archive-capable), and the guards below
-    // must be identical on both. In particular checkMinimumTopUpAmount is NOT
-    // re-checked inside processTopUpCyclesForMainer, so a copy that dropped it
-    // would silently remove the 0.09 ICP floor from that path.
+    // Do not copy it - the guards must stay identical on both paths.
+    // checkMinimumTopUpAmount is not re-checked inside processTopUpCyclesForMainer,
+    // so dropping it here removes the minimum top-up floor.
     //
-    // Returns a structured verdict so the sweep can tell a permanent rejection
-    // (cursor moves past the block) from a transient one (retry tomorrow).
+    // Returns a verdict so the sweep can tell a permanent rejection from a
+    // transient one.
     private func redeemTopUpFromMemo(caller : Principal, transactionToVerify : Nat64, allowArchive : Bool) : async Types.SweepVerdict {
         let blockIdText = Nat64.toText(transactionToVerify);
 
@@ -8030,93 +7997,72 @@ persistent actor class GameStateCanister() = this {
     // GameStateSidecar: registry, archived-payment sweep, and cycles grants
     // ------------------------------------------------------------------
     //
-    // The sidecar is a separate canister running a daily timer. It crawls the ICP
-    // INDEX canister for payments to this canister's account that have aged out of
-    // the ledger's live window (~1.5-3h), and offers each block id to
-    // sweepArchivedTopUp below.
+    // The sidecar is a separate canister with a daily timer. It crawls the ICP index
+    // for payments to this canister's account that have aged out of the ledger's
+    // live window, and offers each block id to sweepArchivedTopUp.
     //
-    // THE TRUST BOUNDARY: the sidecar passes ONLY a block id. It never says which
-    // mAIner a payment is for - GameState re-reads the block and resolves the memo
-    // itself, exactly as the public endpoint does. That makes the sidecar a
-    // scheduler rather than something trusted with attribution: the worst a
-    // compromised or buggy sidecar can do is waste cycles pointing at junk blocks.
+    // TRUST BOUNDARY: the sidecar passes ONLY a block id, never a target mAIner.
+    // GameState re-reads the block and resolves the memo itself. Do not add a target
+    // parameter - that would make the sidecar trusted with attribution.
     //
-    // Registered in its own stable array rather than as a ProtocolCanisterType case.
-    // That variant is RETURNED by getOfficialCanistersAdmin and inside every
-    // MainerAgentCanisterResult, so adding a case to it would break every existing
-    // Candid decoder. A stable array also needs no preupgrade/postupgrade wiring -
-    // the hooks already carry two dozen hand-maintained pairs, and a forgotten
-    // twenty-fifth is silent data loss.
-    var sidecarCanisters : [Types.SidecarCanister] = [];
-
-    transient let MAX_SIDECARS : Nat = 4;
-
-    private func findSidecarIndex(address : Text) : ?Nat {
-        var i : Nat = 0;
-        for (entry in sidecarCanisters.vals()) {
-            if (Text.equal(entry.address, address)) { return ?i; };
-            i += 1;
-        };
-        return null;
-    };
+    // One slot only: the sweep is a single serial crawl behind one cursor.
+    var sidecarCanister : ?Types.SidecarCanister = null;
 
     private func isRegisteredSidecar(caller : Principal) : Bool {
-        switch (findSidecarIndex(Principal.toText(caller))) {
+        switch (sidecarCanister) {
             case (null) { false };
-            case (?_) { true };
+            case (?entry) { Text.equal(entry.address, Principal.toText(caller)) };
         };
     };
 
     public shared (msg) func addSidecarCanisterAdmin(address : Text) : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
         if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
-        // Reject a malformed id here rather than trapping later on actor(address).
+        // Traps here on a malformed id rather than later at the call site.
         let parsed = Principal.fromText(address);
         D.print("GameState: addSidecarCanisterAdmin - address: "# address # " parsed: " # debug_show(parsed));
-        switch (findSidecarIndex(address)) {
-            case (?_) { return #Err(#Other("Sidecar is already registered")); };
+        // An occupied slot is refused, not overwritten: a single call must not be
+        // able to swap the principal behind a security gate. Rotate with remove+add.
+        switch (sidecarCanister) {
+            case (?entry) {
+                if (Text.equal(entry.address, address)) {
+                    return #Err(#Other("Sidecar is already registered"));
+                };
+                return #Err(#Other("A different sidecar is already registered - remove it first"));
+            };
             case (null) { /* continue */ };
         };
-        if (sidecarCanisters.size() >= MAX_SIDECARS) {
-            return #Err(#Other("Too many registered sidecars"));
-        };
-        let entry : Types.SidecarCanister = {
+        sidecarCanister := ?{
             address = address;
             registeredAt = Nat64.fromNat(Int.abs(Time.now()));
             registeredBy = msg.caller;
             lastGrantAt = 0;
         };
-        sidecarCanisters := Array.append<Types.SidecarCanister>(sidecarCanisters, [entry]);
         return #Ok({ status_code = 200 });
     };
 
-    public shared (msg) func removeSidecarCanisterAdmin(address : Text) : async Types.StatusCodeRecordResult {
+    public shared (msg) func removeSidecarCanisterAdmin() : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
         if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
-        switch (findSidecarIndex(address)) {
+        switch (sidecarCanister) {
             case (null) { return #Err(#InvalidId); };
-            case (?_) {
-                sidecarCanisters := Array.filter<Types.SidecarCanister>(
-                    sidecarCanisters,
-                    func (entry : Types.SidecarCanister) : Bool { not Text.equal(entry.address, address) }
-                );
+            case (?entry) {
+                D.print("GameState: removeSidecarCanisterAdmin - removed: "# entry.address);
+                sidecarCanister := null;
                 return #Ok({ status_code = 200 });
             };
         };
     };
 
-    public shared query (msg) func getSidecarCanistersAdmin() : async [Types.SidecarCanister] {
-        if (not Principal.isController(msg.caller)) { return []; };
-        return sidecarCanisters;
+    public shared query (msg) func getSidecarCanisterAdmin() : async ?Types.SidecarCanister {
+        if (not Principal.isController(msg.caller)) { return null; };
+        return sidecarCanister;
     };
 
     // Sidecar-gated twin of notifyMainerTopUp, for blocks that have aged into an
-    // ICP-ledger archive.
-    //
-    // Returns a SweepVerdict rather than a TopUpResult on purpose. The sidecar has
-    // to distinguish "this block will never work" (advance the cursor past it) from
-    // "try again tomorrow" (keep it in the retry set), and ApiError collapses both
-    // into #Other : Text. Matching on error strings would be a trap.
+    // ICP-ledger archive. Returns a SweepVerdict rather than a TopUpResult so the
+    // sidecar can tell a permanent rejection (advance the cursor) from a transient
+    // one (retry tomorrow) without matching on error strings.
     public shared (msg) func sweepArchivedTopUp(input : Types.PaymentTransactionBlockId) : async Types.SweepVerdictResult {
         if (Principal.isAnonymous(msg.caller)) {
             return #Err(#Unauthorized);
@@ -8125,9 +8071,8 @@ persistent actor class GameStateCanister() = this {
             D.print("GameState: sweepArchivedTopUp - REJECTED: caller is not a registered sidecar");
             return #Err(#Unauthorized);
         };
-        // NOTE: a paused Protocol refuses the sidecar, which is correct - but the
-        // sidecar MUST classify this as retryable. Treated as terminal, a routine
-        // maintenance pause would permanently burn every payment mid-sweep.
+        // A paused Protocol refuses the sidecar. This MUST stay retryable: as a
+        // terminal verdict, a maintenance pause would burn every payment mid-sweep.
         if (PAUSE_PROTOCOL and not Principal.isController(msg.caller)) {
             return #Ok(#Retry(#Other("Protocol is currently paused")));
         };
@@ -8162,21 +8107,20 @@ persistent actor class GameStateCanister() = this {
 
     // --- Cycles grants to the sidecar ---------------------------------------
     //
-    // The sidecar cannot earn cycles, so the Protocol funds it. GameState owns both
-    // the threshold and the amount; the sidecar only reports that it is low. That
-    // way a compromised sidecar cannot enlarge its own ask.
+    // The sidecar cannot earn cycles, so the Protocol funds it. GameState owns the
+    // threshold and the amount; the sidecar only reports that it is low, so it
+    // cannot enlarge its own ask.
     //
-    // SIDECAR_GRANT_FLOOR is deliberately SEPARATE from
-    // PROTOCOL_CYCLES_BALANCE_BUFFER. That one is overloaded - it also drives
-    // effectiveBonusCyclesTopupInPercent and the CMC-conversion trigger in
-    // handleIncomingFunds - so tuning it to let a grant through would silently
-    // re-enable bonus cycles on every user top-up.
+    // Keep SIDECAR_GRANT_FLOOR separate from PROTOCOL_CYCLES_BALANCE_BUFFER, which
+    // also drives effectiveBonusCyclesTopupInPercent and the CMC-conversion trigger:
+    // lowering that one to let a grant through re-enables bonus cycles on every
+    // user top-up.
     var SIDECAR_GRANT_FLOOR : Nat = 400 * Constants.CYCLES_TRILLION;
     var SIDECAR_GRANT_AMOUNT : Nat = 10 * Constants.CYCLES_TRILLION;
     transient let SIDECAR_GRANT_INTERVAL_NS : Nat64 = 86_400_000_000_000; // 24h
 
-    // Bounded ring of outbound grants. NOT cyclesTransactionsStorage, which is an
-    // inbound-only ledger whose totals would be corrupted by outbound entries.
+    // Bounded ring of outbound grants. Not cyclesTransactionsStorage - that ledger
+    // is inbound-only and outbound entries would corrupt its totals.
     var cyclesGrants : [Types.CyclesGrantRecord] = [];
     transient let MAX_CYCLES_GRANT_RECORDS : Nat = 50;
 
@@ -8193,15 +8137,11 @@ persistent actor class GameStateCanister() = this {
         };
     };
 
-    private func setSidecarLastGrantAt(address : Text, at : Nat64) {
-        sidecarCanisters := Array.map<Types.SidecarCanister, Types.SidecarCanister>(
-            sidecarCanisters,
-            func (entry : Types.SidecarCanister) : Types.SidecarCanister {
-                if (Text.equal(entry.address, address)) {
-                    { entry with lastGrantAt = at };
-                } else { entry };
-            }
-        );
+    private func setSidecarLastGrantAt(at : Nat64) {
+        switch (sidecarCanister) {
+            case (null) { /* nothing registered - nothing to rate limit */ };
+            case (?entry) { sidecarCanister := ?{ entry with lastGrantAt = at }; };
+        };
     };
 
     public shared (msg) func setSidecarGrantFloorAdmin(newFloorInTrillionCycles : Nat) : async Types.StatusCodeRecordResult {
@@ -8229,16 +8169,17 @@ persistent actor class GameStateCanister() = this {
     public shared (msg) func requestCyclesForSidecar() : async Types.AddCyclesResult {
         if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
         let callerText = Principal.toText(msg.caller);
-        let sidecarIndex = switch (findSidecarIndex(callerText)) {
-            case (null) {
-                D.print("GameState: requestCyclesForSidecar - REJECTED: not a registered sidecar");
-                return #Err(#Unauthorized);
-            };
-            case (?i) { i };
+        // Same predicate as sweepArchivedTopUp, so the two gates cannot drift apart.
+        if (not isRegisteredSidecar(msg.caller)) {
+            D.print("GameState: requestCyclesForSidecar - REJECTED: not the registered sidecar");
+            return #Err(#Unauthorized);
+        };
+        let entry = switch (sidecarCanister) {
+            case (?e) { e };
+            case (null) { return #Err(#Unauthorized) }; // unreachable: gated above
         };
 
         let nowNs = Nat64.fromNat(Int.abs(Time.now()));
-        let entry = sidecarCanisters[sidecarIndex];
         // Compare before subtracting: Nat64 subtraction traps on underflow.
         if (entry.lastGrantAt > 0 and nowNs < entry.lastGrantAt + SIDECAR_GRANT_INTERVAL_NS) {
             D.print("GameState: requestCyclesForSidecar - rate limited: "# callerText);
@@ -8251,16 +8192,14 @@ persistent actor class GameStateCanister() = this {
             return #Err(#Other("The Protocol's cycles balance is below the sidecar grant floor"));
         };
 
-        // Commit the rate limit BEFORE the await. If the deposit then fails, the
-        // sidecar simply retries tomorrow on its own reserve. Committing after the
-        // await would turn a repeatedly-failing deposit into a drain loop.
-        setSidecarLastGrantAt(callerText, nowNs);
+        // Commit the rate limit BEFORE the await: committing after would turn a
+        // repeatedly-failing deposit into a drain loop.
+        setSidecarLastGrantAt(nowNs);
 
         var succeeded : Bool = false;
         try {
-            // deposit_cycles rather than a call to an addCycles method on the
-            // sidecar: a frozen sidecar is exactly the case being funded, and
-            // deposit_cycles still works on a frozen canister.
+            // deposit_cycles, not an addCycles call: it still works on a frozen
+            // sidecar, which is exactly the case being funded.
             Cycles.add<system>(SIDECAR_GRANT_AMOUNT);
             let deposit_cycles_args = { canister_id : Principal = msg.caller; };
             // `await`, not `ignore` - the ignore form used elsewhere in this file
@@ -8363,11 +8302,8 @@ persistent actor class GameStateCanister() = this {
                         // requireBoundMemo = false: admin recovery path. The controller is manually
                         // completing a top-up (e.g. one stuck due to a legacy memo), so don't block
                         // on the memo binding here.
-                        // followArchive = true: this is the controller's rescue path, and
-                        // an aged-out payment is exactly what needs rescuing. Previously it
-                        // could only recover blocks still inside the ~2.6h live window,
-                        // which made it useless for the cases it exists to handle. Gated on
-                        // isController, so it is not an amplification vector.
+                        // followArchive = true: controller-gated rescue path, and an
+                        // aged-out payment is exactly what needs rescuing.
                         let verificationResponse = await verifyIncomingPayment(transactionEntryToVerify, false, true);
                         D.print("GameState: completeTopUpCyclesForMainerAgentAdmin - verificationResponse: "# debug_show(verificationResponse));
                         switch (verificationResponse) {

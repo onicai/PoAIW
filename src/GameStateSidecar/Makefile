@@ -24,12 +24,10 @@ help:
 ###########################################################################
 # Smoke tests
 #
-# Builds with plain `dfx deploy` rather than docker-build-wasm, unlike the sibling
-# canisters. The reproducible docker build runs `dfx build --network prd`, which
-# needs a prd canister id in canister_ids.json - and this canister has not been
-# deployed to any network yet, so that file does not exist. Switch this target to
-# `$(MAKE) docker-build-wasm` + `dfx canister install` once it has been created on a
-# real network, matching src/Challenger/Makefile.
+# Plain `dfx deploy`, unlike the sibling canisters: the reproducible docker build
+# runs `dfx build --network prd`, which needs a prd canister id that this canister
+# does not have yet. Switch to `$(MAKE) docker-build-wasm` + `dfx canister install`
+# once it exists on a real network, matching src/Challenger/Makefile.
 .PHONY: smoketest
 smoketest:
 	dfx stop

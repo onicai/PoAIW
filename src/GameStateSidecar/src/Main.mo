@@ -22,33 +22,19 @@ import TokenLedger "../../common/icp-ledger-interface";
 import Utils "Utils";
 
 // GameStateSidecar - daily sweep for ICP top-up payments that have aged out of the
-// ledger's live window.
+// ledger's short live window and can no longer be redeemed through GameState's
+// public notifyMainerTopUp endpoint.
 //
-// WHY THIS CANISTER EXISTS
+// Once a day it crawls the ICP index for payments to GameState's account and offers
+// the archived ones back to GameState.
 //
-// GameState credits a mAIner when someone pays ICP to its account with the mAIner's
-// canister-id prefix in the icrc1_memo, and then tells GameState the block id. But
-// the ICP ledger only serves a short LIVE window - measured at 1_664 blocks, about
-// 2h40m, and it shrinks as ICP volume rises. A payment nobody notifies within
-// roughly 1.5 hours becomes unreachable through the public endpoint.
+// TRUSTED WITH TIMING, NOT ATTRIBUTION: it passes GameState a BLOCK ID and nothing
+// else. GameState re-reads the block and resolves the memo itself, so the worst a
+// compromised sidecar can do is waste cycles pointing at junk blocks. Do not add a
+// mAIner address to that call - the whole security argument rests on its absence.
 //
-// This canister closes that gap. Once a day it crawls the ICP INDEX canister for
-// payments to GameState's account, and offers the archived ones back to GameState.
-//
-// WHAT IT IS TRUSTED WITH: TIMING, NOT ATTRIBUTION
-//
-// It passes GameState a BLOCK ID and nothing else. It never says which mAIner a
-// payment belongs to - GameState re-reads the block from the ledger and resolves
-// the memo itself. So a compromised or buggy sidecar cannot redirect anyone's
-// payment; the worst it can do is waste cycles pointing at junk blocks. Keep it
-// that way: if a future change has this canister send a mAIner address, the whole
-// security argument collapses.
-//
-// WHY IT IS A SEPARATE CANISTER
-//
-// Upgrading GameState costs a full protocol pause. Crawl logic - paging, cursor
-// handling, retry policy - is exactly the part that gets iterated on, so it lives
-// here where a redeploy takes seconds and disturbs nothing.
+// Separate from GameState because upgrading GameState costs a full protocol pause,
+// and the crawl logic is the part that gets iterated on.
 persistent actor class GameStateSidecarCanister() = this {
 
     // ------------------------------------------------------------------
@@ -72,8 +58,7 @@ persistent actor class GameStateSidecarCanister() = this {
     public shared (msg) func ready() : async Types.StatusCodeRecordResult {
         if (Principal.isAnonymous(msg.caller)) { return #Err(#Unauthorized); };
         if (not Principal.isController(msg.caller)) { return #Err(#Unauthorized); };
-        // Ready means "configured and armed". A sidecar with a dead timer is the
-        // failure mode that hides, so it is part of readiness rather than a detail.
+        // Ready means configured AND armed: a dead timer is the failure that hides.
         if (Text.size(GAME_STATE_CANISTER_ID) == 0) {
             return #Err(#Other("GameState canister id is not configured"));
         };
@@ -87,9 +72,8 @@ persistent actor class GameStateSidecarCanister() = this {
     // Admin roles
     // ------------------------------------------------------------------
     //
-    // Same shape as the other protocol canisters. Post-SNS the controller is NNS/SNS
-    // root, so controller-gated endpoints stop being reachable by maintainers -
-    // these role assignments are the remaining operational path.
+    // Post-SNS the controller is NNS/SNS root, so controller-gated endpoints stop
+    // being reachable by maintainers. These assignments are the remaining path.
 
     var adminRoleAssignmentsStable : [(Text, Types.AdminRoleAssignment)] = [];
     transient var adminRoleAssignmentsStorage : HashMap.HashMap<Text, Types.AdminRoleAssignment> =
@@ -144,7 +128,7 @@ persistent actor class GameStateSidecarCanister() = this {
 
     public shared (msg) func setGameStateCanisterId(newId : Text) : async Types.StatusCodeRecordResult {
         if (not hasAdminRole(msg.caller, #AdminUpdate)) { return #Err(#Unauthorized); };
-        // Reject a malformed id here rather than trapping later on actor(id).
+        // Traps here on a malformed id rather than later at the call site.
         let parsed = Principal.fromText(newId);
         D.print("GameStateSidecar: setGameStateCanisterId - " # newId # " parsed: " # debug_show(parsed));
         GAME_STATE_CANISTER_ID := newId;
@@ -156,20 +140,14 @@ persistent actor class GameStateSidecarCanister() = this {
         return #Ok(GAME_STATE_CANISTER_ID);
     };
 
-    // The account the sweep crawls: GameState's DEFAULT subaccount on the ICP
-    // ledger, as lowercase hex.
-    //
-    // Derived, never configured. GameState computes its own the same way
-    // (Principal.toLedgerAccount(self, null)), so the two cannot drift. A
-    // hardcoded hex string per network would be a config bug waiting to happen -
-    // and the index answers a wrong identifier with an EMPTY list rather than an
-    // error, so the mistake would look exactly like having nothing to sweep.
+    // The account the sweep crawls: GameState's default subaccount, as lowercase
+    // hex. Derived, never configured - GameState computes its own the same way, so
+    // the two cannot drift.
     private func gameStateAccountIdentifier() : Text {
         Utils.blobToHex(Principal.toLedgerAccount(Principal.fromText(GAME_STATE_CANISTER_ID), null));
     };
 
-    // Exposed so a test can pin it against `dfx ledger account-id --of-principal`,
-    // which needs no ledger to be running.
+    // Exposed so a test can pin it against `dfx ledger account-id --of-principal`.
     public shared query (msg) func getGameStateAccountIdentifierAdmin() : async Types.TextResult {
         if (not hasAdminRole(msg.caller, #AdminQuery)) { return #Err(#Unauthorized); };
         return #Ok(gameStateAccountIdentifier());
@@ -187,19 +165,14 @@ persistent actor class GameStateSidecarCanister() = this {
     // Sweep state
     // ------------------------------------------------------------------
 
-    // Everything at or below this block id has been dealt with. Deliberately NOT
-    // defaulted to 0: a first run from 0 would walk GameState's entire account
-    // history. Set it with setScannedThroughBlockIdAdmin at deploy time, and stage
-    // any backfill in chunks.
+    // Everything at or below this block id has been dealt with. SEED IT at deploy
+    // time with setScannedThroughBlockIdAdmin: a first run from 0 walks GameState's
+    // entire account history.
     var scannedThroughBlockId : Nat64 = 0;
 
-    // Blocks that failed for a TRANSIENT reason, with an attempt count.
-    //
-    // This is not a "permanently skipped" list - terminal rejections are logged and
-    // the cursor simply moves past them. It exists because the cursor advances
-    // unconditionally: without it, a payment that failed because GameState was
-    // paused would be silently burned. It self-evicts at MAX_RETRY_ATTEMPTS, so it
-    // does not grow with history.
+    // Blocks that failed for a TRANSIENT reason, with an attempt count. Needed
+    // because the cursor advances unconditionally: without it, a payment that failed
+    // while GameState was paused would be burned. Self-evicts at MAX_RETRY_ATTEMPTS.
     var pendingRetries : [(Nat64, Nat8)] = [];
 
     var lastRunAt : Nat64 = 0;
@@ -207,9 +180,9 @@ persistent actor class GameStateSidecarCanister() = this {
     var lastRunRedeemed : Nat = 0;
     var lastRunRejected : Nat = 0;
     var lastRunRetried : Nat = 0;
-    // False when the run hit MAX_PAGES_PER_RUN before reaching the cursor, which
-    // means the cursor could NOT be advanced safely. Surfaced in the status record
-    // because it is the signal that a backfill needs staging by hand.
+    // False when the run hit MAX_PAGES_PER_RUN before reaching the cursor, so the
+    // cursor could not be advanced safely. Surfaced in the status record: it is the
+    // signal that a backfill needs staging by hand.
     var lastRunReachedCursor : Bool = true;
 
     transient let PAGE_SIZE : Nat64 = 100;
@@ -217,8 +190,8 @@ persistent actor class GameStateSidecarCanister() = this {
     transient let MAX_OFFERS_PER_RUN : Nat = 10;
     transient let MAX_RETRY_ATTEMPTS : Nat8 = 5;
 
-    // Re-entrancy guard. Transient on purpose: a stuck flag must not survive an
-    // upgrade, and the TTL covers a run that died mid-flight.
+    // Re-entrancy guard. Transient so a stuck flag cannot survive an upgrade; the
+    // TTL covers a run that died mid-flight.
     transient var sweepInFlightSince : ?Nat64 = null;
     transient let SWEEP_INFLIGHT_TTL_NS : Nat64 = 1_800_000_000_000; // 30 min
 
@@ -276,18 +249,15 @@ persistent actor class GameStateSidecarCanister() = this {
     // The sweep
     // ------------------------------------------------------------------
 
-    // Is this index entry a payment TO GameState that is worth offering?
-    //
-    // The index returns both directions - GameState's own disbursements appear here
-    // too - so filtering on the recipient is required, not cosmetic. GameState would
-    // reject a disbursement anyway (its to != PROTOCOL_PRINCIPAL_BLOB check), but
-    // filtering locally avoids paying for the round trip.
+    // Is this index entry a payment TO GameState that is worth offering? The index
+    // returns both directions, so filtering on the recipient is required, not
+    // cosmetic - GameState would reject a disbursement anyway, at the cost of a
+    // round trip.
     private func isInboundTopUpCandidate(entry : IcpIndex.TransactionWithId, accountId : Text) : Bool {
         switch (entry.transaction.operation) {
             case (#Transfer(details)) {
                 if (not Text.equal(details.to, accountId)) { return false; };
-                // Mirrors GameState's MIN_TOPUP_E8S. Cheap local filter; GameState
-                // enforces the real floor.
+                // Mirrors GameState's MIN_TOPUP_E8S. GameState enforces the real floor.
                 if (details.amount.e8s < 9_000_000) { return false; };
                 switch (entry.transaction.icrc1_memo) {
                     case (null) { return false; };
@@ -299,10 +269,9 @@ persistent actor class GameStateSidecarCanister() = this {
         };
     };
 
-    // The archive boundary. Everything below it has aged out of the ledger's live
-    // window and is ours to sweep; everything at or above it still belongs to the
-    // public notifyMainerTopUp endpoint, so we leave it alone and pick it up on a
-    // later run once it has aged.
+    // The archive boundary. Below it is ours to sweep; at or above it still belongs
+    // to the public notifyMainerTopUp endpoint, and is picked up on a later run once
+    // it has aged.
     private func fetchFirstBlockIndex() : async ?Nat64 {
         try {
             let response = await ICP_LEDGER_ACTOR.query_blocks({ start = 0 : Nat64; length = 0 : Nat64 });
@@ -339,16 +308,14 @@ persistent actor class GameStateSidecarCanister() = this {
                     noteRetry(blockId);
                 };
                 case (#Err(err)) {
-                    // Unauthorized, or GameState rejecting us outright. Retryable:
-                    // registration may simply not have happened yet.
+                    // Retryable: registration may simply not have happened yet.
                     D.print("GameStateSidecar: offerBlock - call returned Err for " # Nat64.toText(blockId) # ": " # debug_show(err));
                     lastRunRetried += 1;
                     noteRetry(blockId);
                 };
             };
         } catch (e) {
-            // A trap or reject covers "GameState is out of cycles" and "GameState is
-            // upgrading" with no classification logic at all. Always retryable.
+            // Covers GameState out of cycles or mid-upgrade. Always retryable.
             D.print("GameStateSidecar: offerBlock - call failed for " # Nat64.toText(blockId) # ": " # Error.message(e));
             lastRunRetried += 1;
             noteRetry(blockId);
@@ -375,9 +342,9 @@ persistent actor class GameStateSidecarCanister() = this {
             let accountId = gameStateAccountIdentifier();
             D.print("GameStateSidecar: runSweepOnce - account " # accountId # " firstBlockIndex " # Nat64.toText(firstBlockIndex));
 
-            // Page BACKWARDS from the newest transaction. The index has no forward
-            // pagination: `start` is exclusive and results come newest-first, so to
-            // page you pass the id of the OLDEST item in the previous page.
+            // Page BACKWARDS: the index has no forward pagination. `start` is
+            // exclusive and results come newest-first, so paging means passing the
+            // id of the OLDEST item in the previous page.
             let candidates = Buffer.Buffer<Nat64>(64);
             var start : ?Nat64 = null;
             var pages : Nat = 0;
@@ -425,8 +392,8 @@ persistent actor class GameStateSidecarCanister() = this {
                         };
                     };
                     // entry.id >= firstBlockIndex: still live, still the public
-                    // endpoint's job. Skipped WITHOUT advancing the cursor past it,
-                    // so it is reconsidered once it ages into the archive.
+                    // endpoint's job. Skipped WITHOUT advancing the cursor, so it is
+                    // reconsidered once it ages into the archive.
                 };
 
                 if (lastRunReachedCursor) { break paging; };
@@ -456,11 +423,9 @@ persistent actor class GameStateSidecarCanister() = this {
                 };
             };
 
-            // Advance the cursor ONLY if this run actually paged back to it.
-            // Otherwise there is an unexamined gap between the cursor and the oldest
-            // block we looked at, and advancing would skip those payments for good.
-            // lastRunReachedCursor is surfaced by getSidecarStatusAdmin so a stalled
-            // backfill is visible rather than silent.
+            // Advance the cursor ONLY if this run actually paged back to it -
+            // otherwise there is an unexamined gap, and advancing would skip those
+            // payments for good.
             if (lastRunReachedCursor and highestArchivedSeen > scannedThroughBlockId) {
                 scannedThroughBlockId := highestArchivedSeen;
                 D.print("GameStateSidecar: runSweepOnce - cursor advanced to " # Nat64.toText(scannedThroughBlockId));
@@ -478,9 +443,9 @@ persistent actor class GameStateSidecarCanister() = this {
     // Cycles
     // ------------------------------------------------------------------
 
-    // Ask GameState for cycles when running low. GameState owns the threshold and
-    // the amount and may refuse; this canister only reports that it is low, so a
-    // compromised sidecar cannot enlarge its own ask.
+    // Ask GameState for cycles when running low. GameState owns the amount and may
+    // refuse; this canister only reports that it is low, so it cannot enlarge its
+    // own ask.
     var MIN_CYCLES_BALANCE_SIDECAR : Nat = 5 * Constants.CYCLES_TRILLION;
 
     public shared (msg) func setMinCyclesBalanceAdmin(newMinInTrillionCycles : Nat) : async Types.StatusCodeRecordResult {
@@ -512,8 +477,7 @@ persistent actor class GameStateSidecarCanister() = this {
                     D.print("GameStateSidecar: topUpOwnCyclesIfLow - granted " # Nat.toText(record.amount));
                 };
                 case (#Err(err)) {
-                    // A refusal is normal: GameState rate limits to one grant a day
-                    // and refuses outright when its own balance is low.
+                    // Refusal is normal: one grant a day, and none below its floor.
                     D.print("GameStateSidecar: topUpOwnCyclesIfLow - refused: " # debug_show(err));
                 };
             };
@@ -526,11 +490,9 @@ persistent actor class GameStateSidecarCanister() = this {
     // Timer
     // ------------------------------------------------------------------
     //
-    // The timer registration does NOT survive a canister upgrade - only the id
-    // value does. Re-arm with startTimerExecutionAdmin after every upgrade; it is a
-    // documented step in README-prd-upgrade-commands.md. getSidecarStatusAdmin
-    // exists because a dead timer is otherwise indistinguishable from having
-    // nothing to sweep.
+    // The timer registration does NOT survive an upgrade - only the id value does.
+    // Re-arm with startTimerExecutionAdmin after EVERY upgrade. A dead timer is
+    // otherwise indistinguishable from having nothing to sweep.
 
     var recurringTimerId : ?Timer.TimerId = null;
     var sweepIntervalSeconds : Nat = 86_400; // 24h
@@ -539,7 +501,7 @@ persistent actor class GameStateSidecarCanister() = this {
         try {
             await runSweepOnce();
         } catch (e) {
-            // A timer callback must never trap: a trap kills the recurring timer.
+            // A timer callback must never trap - that kills the recurring timer.
             D.print("GameStateSidecar: triggerSweep - error: " # Error.message(e));
         };
     };
@@ -556,9 +518,8 @@ persistent actor class GameStateSidecarCanister() = this {
     };
 
     private func startTimerExecution() : async Types.AuthRecordResult {
-        // Idempotent: cancel any existing timer first. After an upgrade the stable
-        // id refers to a registration that no longer exists, and cancelling a dead
-        // id is harmless.
+        // Idempotent. After an upgrade the stable id refers to a registration that
+        // no longer exists, and cancelling a dead id is harmless.
         let _ = await stopTimerExecution();
         ignore setTimer<system>(
             #seconds 5,
@@ -583,8 +544,7 @@ persistent actor class GameStateSidecarCanister() = this {
 
     public shared (msg) func setSweepIntervalSecondsAdmin(seconds : Nat) : async Types.StatusCodeRecordResult {
         if (not hasAdminRole(msg.caller, #AdminUpdate)) { return #Err(#Unauthorized); };
-        // A floor, so a mistyped value cannot turn the sweep into a hot loop against
-        // the index canister.
+        // Floor, so a mistyped value cannot turn the sweep into a hot loop.
         if (seconds < 300) { return #Err(#Other("Sweep interval must be at least 300 seconds")); };
         sweepIntervalSeconds := seconds;
         // Restart so the new interval takes effect, but only if already armed.
@@ -629,8 +589,7 @@ persistent actor class GameStateSidecarCanister() = this {
         });
     };
 
-    // Run the sweep now, without waiting for the timer. Used to verify a fresh
-    // deployment and to work through a staged backfill.
+    // Run the sweep now. Verifies a fresh deployment and works a staged backfill.
     public shared (msg) func runSweepNowAdmin() : async Types.StatusCodeRecordResult {
         if (not hasAdminRole(msg.caller, #AdminUpdate)) { return #Err(#Unauthorized); };
         await runSweepOnce();

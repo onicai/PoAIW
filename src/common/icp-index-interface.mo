@@ -1,22 +1,15 @@
 // Motoko binding for the ICP LEDGER INDEX canister, qhbym-qaaaa-aaaaa-aaafq-cai.
 // https://dashboard.internetcomputer.org/canister/qhbym-qaaaa-aaaaa-aaafq-cai
 //
-// Distinct from icp-ledger-interface.mo, and the two are easy to confuse:
+// Not to be confused with icp-ledger-interface.mo. The index resolves archived
+// transactions transparently and is queryable BY ACCOUNT, which is what makes
+// discovery possible. It expresses accounts as hex TEXT where the ledger uses a
+// 32-byte Blob, and it answers a malformed identifier with an EMPTY transaction
+// list rather than an error - so getting that wrong looks exactly like having
+// nothing to sweep.
 //
-//   - The LEDGER is the source of truth. It serves only a short live window
-//     (measured at ~1_664 blocks, about 2h40m) and hands out archive callbacks for
-//     anything older. It expresses accounts as a 32-byte Blob.
-//   - The INDEX resolves archived transactions transparently and is queryable BY
-//     ACCOUNT, which is what makes discovery possible at all. It expresses accounts
-//     as a HEX TEXT string.
-//
-// That Blob-vs-Text mismatch is the easy bug here: passing a debug_show'd blob, or
-// a differently-cased hex string, yields an empty transaction list rather than an
-// error, so a broken sweep looks exactly like a sweep with nothing to do.
-//
-// The index is used for DISCOVERY only. Nothing it returns is trusted: the sidecar
-// forwards only a block id to GameState, which re-reads the block from the ledger
-// itself before crediting anyone.
+// DISCOVERY only. Nothing it returns is trusted: the sidecar forwards a block id
+// and GameState re-reads the block from the ledger before crediting anyone.
 module IcpIndex {
 
     public type TimeStamp = { timestamp_nanos : Nat64 };

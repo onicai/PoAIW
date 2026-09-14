@@ -12,22 +12,13 @@ $ pytest -vv --network local test/test_gamestate_sidecar_canister.py::test__heal
 
 Or just run `make smoketest`, which does all of the above from a clean replica.
 
-SCOPE OF WHAT IS TESTED HERE
-----------------------------
-Only the endpoint gates, the admin setters, and the account-identifier derivation.
+SCOPE: endpoint gates, admin setters, and the account-identifier derivation only.
+The sweep itself is NOT exercised - it needs the ICP index and a GameState canister,
+and a local dfx network has neither.
 
-The sweep itself is NOT exercised: it needs the ICP index canister and a GameState
-canister, neither of which exists on a local dfx network. Calling runSweepNowAdmin
-here would reach the index call, fail, log, and return - which proves nothing about
-the sweep logic. That is deliberately left to a deployed environment rather than
-faked with an assertion that always passes.
-
-IDENTITY NOTE
--------------
-Controller tests take ONLY `network` and run as the ambient dfx identity - the one
-that deployed the canister and is therefore its controller. Do NOT request the
-`identity_default` fixture on a controller test: it switches dfx to the `default`
-identity, which is not a controller, and every admin call then returns Unauthorized.
+IDENTITY: controller tests take ONLY `network` and run as the ambient dfx identity,
+which deployed the canister. Do NOT request `identity_default` on a controller test -
+it is not a controller, and every admin call then returns Unauthorized.
 """
 
 # pylint: disable=unused-argument, missing-function-docstring, unused-import, wildcard-import, unused-wildcard-import, line-too-long, invalid-name
@@ -90,11 +81,7 @@ def test__ready_anonymous(network: str, identity_anonymous: dict) -> None:
 
 
 def test__ready_as_controller_reports_unarmed_timer(network: str) -> None:
-    """A freshly installed sidecar has no timer, and readiness must say so.
-
-    This is the failure mode that otherwise hides: a sidecar with a dead timer looks
-    exactly like one with nothing to sweep.
-    """
+    """A freshly installed sidecar has no timer, and readiness must say so."""
     response = _call(network, "ready")
     assert "The sweep timer is not armed" in response
 
@@ -122,14 +109,10 @@ def test__setGameStateCanisterId_as_controller(network: str) -> None:
 def test__getGameStateAccountIdentifierAdmin_matches_dfx(network: str) -> None:
     """The derived account identifier must equal what the ledger tooling produces.
 
-    This is the one piece of sweep logic testable without any ledger, and it is worth
-    pinning: the index canister takes the account as hex TEXT while the ledger uses a
-    32-byte Blob, and it answers a wrong identifier with an EMPTY transaction list
-    rather than an error. A mistake here would look exactly like having nothing to
-    sweep.
+    The index answers a wrong identifier with an EMPTY transaction list rather than
+    an error, so a mistake here looks exactly like having nothing to sweep.
 
-    Depends on test__setGameStateCanisterId_as_controller having run first, which
-    pytest guarantees by file order.
+    Depends on test__setGameStateCanisterId_as_controller, guaranteed by file order.
     """
     expected = subprocess.run(
         ["dfx", "ledger", "account-id", "--of-principal", GAMESTATE_TESTING_ID],
@@ -165,11 +148,7 @@ def test__setSweepIntervalSecondsAdmin_anonymous(network: str, identity_anonymou
 
 
 def test__setSweepIntervalSecondsAdmin_rejects_hot_loop(network: str) -> None:
-    """A too-short interval must be refused, not accepted.
-
-    Without the floor, a mistyped value turns the daily sweep into a hot loop against
-    the ICP index canister.
-    """
+    """A too-short interval must be refused: no hot loop against the index."""
     response = _call(network, "setSweepIntervalSecondsAdmin", "(5 : nat)")
     assert "at least 300 seconds" in response
 
@@ -195,11 +174,8 @@ def test__setScannedThroughBlockIdAdmin_anonymous(network: str, identity_anonymo
 
 
 def test__setScannedThroughBlockIdAdmin_round_trip(network: str) -> None:
-    """The cursor must be settable, because it must never default to 0.
-
-    A first run from 0 would walk GameState's entire ICP account history; the cursor
-    is seeded at deploy time and any backfill is staged in chunks.
-    """
+    """The cursor must be settable: a first run from 0 walks all of GameState's
+    ICP account history, so it is seeded at deploy time."""
     response = _call(network, "setScannedThroughBlockIdAdmin", "(38034000 : nat64)")
     assert response == "(variant { Ok = record { status_code = 200 : nat16;} })"
     assert _call(network, "getScannedThroughBlockIdAdmin") == "(variant { Ok = 38_034_000 : nat })"
