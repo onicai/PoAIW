@@ -68,9 +68,13 @@ else
     NEW_MAINER_OWN_CANISTER=$(echo "$output" | sed -n 's/.*newCanisterId = "\([^"]*\)".*/\1/p')
 fi
 
-echo " "
-echo "Deploy LLM for the mAInerController $NEW_MAINER_OWN_CANISTER of type #Own"
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  --network $NETWORK_TYPE
+# 🚫 OBSOLETE / DISABLED — funnAI NEVER deploys LLM canisters via mAInerCreator.
+# LLM canisters are deployed directly with funnAI/scripts/deploy_llm.sh /
+# upgrade_llms.sh. The testCreateMainerLlmCanister calls below are disabled on
+# purpose — do not re-enable them.
+# echo " "
+# echo "Deploy LLM for the mAInerController $NEW_MAINER_OWN_CANISTER of type #Own"
+# dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  --network $NETWORK_TYPE
 # dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"   --network $NETWORK_TYPE
 # dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  --network $NETWORK_TYPE
 # -> No need to save the canister id of the LLM, it is all saved internally...
