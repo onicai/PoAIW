@@ -1,5 +1,14 @@
 # mAIner Creator Canister
 
+> 🚫 **funnAI will NEVER deploy new LLM canisters via mAInerCreator.**
+> LLM canisters (Challenger / Judge / ShareService) are deployed and upgraded
+> **directly** with `funnAI/scripts/upgrade_llms.sh` and `funnAI/scripts/deploy_llm.sh`.
+> mAInerCreator is still used to create the **mAIner CONTROLLER** canisters
+> (ShareService / ShareAgent / Own), but every **LLM** part in this README —
+> `testCreateMainerLlmCanister`, the `llama_cpp` wasm/model uploads, and the
+> `## llama_cpp_canister wasm & did` / `## LLM model` sections — is **OBSOLETE**.
+> Do not run those steps; they are kept for historical reference only.
+
 # Build, Deploy and Verify
 
 ```bash
@@ -32,18 +41,20 @@ make help
 These files are uploaded into mAInerCreator canister. 
 Create them as follows.
 
-## llama_cpp_canister wasm & did
+## llama_cpp_canister wasm & did — 🚫 OBSOLETE
 
-Build & copy it over.
+funnAI never deploys LLMs via mAInerCreator (see the banner at the top), so the
+llama_cpp wasm/did no longer needs to be copied into mAInerCreator/files. Kept
+for historical reference only — do NOT run.
 
 ```bash
 # From folder: llama_cpp_canister
 # Checkout commit of LLM code
 # -> commit `4334e3383a8434d6db85920f5a7e027f3fcdf119` , commit message `v0.6.0rc2`
 #
-icpp build-wasm
-cp build/llama_cpp.did ../funnAI/PoAIW/src/mAInerCreator/files/
-cp build/llama_cpp.wasm ../funnAI/PoAIW/src/mAInerCreator/files/
+# icpp build-wasm
+# cp build/llama_cpp.did ../funnAI/PoAIW/src/mAInerCreator/files/
+# cp build/llama_cpp.wasm ../funnAI/PoAIW/src/mAInerCreator/files/
 ```
 
 ## mAIner ctrlb canister wasm & did 
@@ -61,9 +72,11 @@ cp .dfx/local/canisters/mainer_ctrlb_canister_0/mainer_ctrlb_canister_0.did ../m
 cp .dfx/local/canisters/mainer_ctrlb_canister_0/mainer_ctrlb_canister_0.wasm ../mAInerCreator/files/mainer_ctrlb_canister.wasm
 ```
 
-## LLM model
+## LLM model — 🚫 OBSOLETE
 
-You must manually download:
+funnAI never deploys LLMs via mAInerCreator (see the banner at the top), so no
+LLM model file needs to be downloaded for or uploaded to mAInerCreator. Kept for
+historical reference only.
 
 - [qwen2.5-0.5b-instruct-q8_0.gguf](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF)
 
@@ -118,11 +131,14 @@ dfx canister call mainer_creator_canister amiController
 dfx canister call mainer_creator_canister testCreateMainerControllerCanister '(record {mainerAgentCanisterType = variant {Own}, shareServiceCanisterAddress = null})'
 NEW_MAINER_OWN_CANISTER="xxxxx-...-cai"   # copy newCanisterId from printout
 
-# Create one or more llm canister for the just created mAIner controller canister of type #Own
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  # To add another LLM
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  # Etc..
-# -> No need to save the canister id of the LLM, it is all saved internally...
+# 🚫 OBSOLETE — funnAI never deploys LLM canisters via mAInerCreator
+# (testCreateMainerLlmCanister). LLMs are deployed directly with
+# funnAI/scripts/deploy_llm.sh / upgrade_llms.sh. Kept for reference only.
+# # Create one or more llm canister for the just created mAIner controller canister of type #Own
+# dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"
+# dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  # To add another LLM
+# dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_OWN_CANISTER\")"  # Etc..
+# # -> No need to save the canister id of the LLM, it is all saved internally...
 
 # ================================================================
 # Type: #ShareService & #ShareAgent
@@ -131,10 +147,13 @@ dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_M
 dfx canister call mainer_creator_canister testCreateMainerControllerCanister '(record {mainerAgentCanisterType = variant {ShareService}, shareServiceCanisterAddress = null})'
 NEW_MAINER_SHARE_SERVICE_CANISTER="yyyyy-...-cai"   # copy newCanisterId from printout
 
-# Create one or more llm canisters for use by the just created mAIner ShareService canister
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")"
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")" # To add another LLM
-dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")" # Etc.
+# 🚫 OBSOLETE — funnAI never deploys LLM canisters via mAInerCreator
+# (testCreateMainerLlmCanister). LLMs are deployed directly with
+# funnAI/scripts/deploy_llm.sh / upgrade_llms.sh. Kept for reference only.
+# # Create one or more llm canisters for use by the just created mAIner ShareService canister
+# dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")"
+# dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")" # To add another LLM
+# dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_SERVICE_CANISTER\")" # Etc.
 
 # Create mAIner controller canisters of type #ShareAgent
 # -> A ShareAgent canister uses the ShareService and not its own LLMs,
@@ -148,8 +167,9 @@ dfx canister call mainer_creator_canister testCreateMainerControllerCanister "(r
 ANOTHER_MAINER_SHARE_AGENT_CANISTER="zzzzz-...-cai"   # copy newCanisterId from printout
 # etc.
 
-# You can verify that a ShareAgent is not allowed to have it's own LLMs
-# This will give an error
+# NOTE: this is a NEGATIVE test (not an LLM deploy) — it verifies a ShareAgent is
+# NOT allowed to have its own LLMs and is EXPECTED to error. It is unaffected by
+# the obsoletion banner above and is fine to keep for that verification.
 dfx canister call mainer_creator_canister testCreateMainerLlmCanister "(\"$NEW_MAINER_SHARE_AGENT_CANISTER\")"
 
 ###################################################
@@ -261,11 +281,18 @@ class SyncStream(NetworkStream):
 # Upload the mainer controller canister wasm
 python -m scripts.upload_mainer_controller_canister --network $NETWORK --canister mainer_creator_canister --wasm files/mainer_ctrlb_canister.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 
-# Upload the mainer LLM canister wasm
-python -m scripts.upload_mainer_llm_canister_wasm --network local --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
-
-# Upload the mainer LLM model file (gguf)
-python -m scripts.upload_mainer_llm_canister_modelfile --network local --canister mainer_creator_canister --chunksize 2000000 --wasm files/qwen2.5-0.5b-instruct-q8_0.gguf --hf-sha256 "ca59ca7f13d0e15a8cfa77bd17e65d24f6844b554a7b6c12e07a5f89ff76844e" --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+# 🚫 OBSOLETE — funnAI will NEVER deploy new LLM canisters via mAInerCreator.
+# LLM canisters (Challenger / Judge / ShareService) are deployed and upgraded
+# directly with funnAI/scripts/upgrade_llms.sh and funnAI/scripts/deploy_llm.sh.
+# Do NOT upload an LLM wasm/model to mAInerCreator. The two steps below are kept
+# for historical reference only. (The mAIner CONTROLLER wasm step above stays
+# valid — mAInerCreator still creates the ShareAgent mAIner controllers.)
+#
+# # Upload the mainer LLM canister wasm
+# python -m scripts.upload_mainer_llm_canister_wasm --network local --canister mainer_creator_canister --wasm files/llama_cpp.wasm --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
+#
+# # Upload the mainer LLM model file (gguf)
+# python -m scripts.upload_mainer_llm_canister_modelfile --network local --canister mainer_creator_canister --chunksize 2000000 --wasm files/qwen2.5-0.5b-instruct-q8_0.gguf --hf-sha256 "ca59ca7f13d0e15a8cfa77bd17e65d24f6844b554a7b6c12e07a5f89ff76844e" --candid src/declarations/mainer_creator_canister/mainer_creator_canister.did
 
 # Verify the sha256 hashes of all uploaded files
 # Warning: do not run this while upload is in process. Wait till it is fully completed.

@@ -93,20 +93,27 @@ echo " "
 echo "Upload the mAIner CONTROLLER canister wasm with scripts.upload_mainer_controller_canister"
 python -m scripts.upload_mainer_controller_canister --network $NETWORK_TYPE --canister mainer_creator_canister --chunksize 1000000 --wasm files/mainer_ctrlb_canister.wasm --candid $CANDID
 
-echo " "
-echo "Upload the mAIner LLM canister wasm with scripts.upload_mainer_llm_canister_wasm"
-python -m scripts.upload_mainer_llm_canister_wasm --network $NETWORK_TYPE --canister mainer_creator_canister --chunksize 1000000 --wasm files/llama_cpp.wasm --candid $CANDID
-
-# Skip this time-consuming step when when upgrading the code
-if [ "$DEPLOY_MODE" != "upgrade" ]; then
-    # Note:
-    # The --hf-sha256 can be found at https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/blob/main/qwen2.5-0.5b-instruct-q8_0.gguf
-    echo " "
-    echo "Upload the mainer LLM model file (gguf) "
-    python -m scripts.upload_mainer_llm_canister_modelfile --network $NETWORK_TYPE \
-        --canister mainer_creator_canister \
-        --chunksize 2000000 \
-        --wasm files/qwen2.5-0.5b-instruct-q8_0.gguf  \
-        --hf-sha256 "ca59ca7f13d0e15a8cfa77bd17e65d24f6844b554a7b6c12e07a5f89ff76844e" \
-        --candid $CANDID
-fi
+# 🚫 OBSOLETE — funnAI will NEVER deploy new LLM canisters via mAInerCreator.
+# LLM canisters (Challenger / Judge / ShareService) are deployed and upgraded
+# directly with funnAI/scripts/upgrade_llms.sh and funnAI/scripts/deploy_llm.sh.
+# The LLM wasm/model uploads below are DISABLED on purpose — do not re-enable
+# them. (The mAIner CONTROLLER wasm upload above stays valid: mAInerCreator still
+# creates the ShareAgent mAIner controllers.)
+#
+# echo " "
+# echo "Upload the mAIner LLM canister wasm with scripts.upload_mainer_llm_canister_wasm"
+# python -m scripts.upload_mainer_llm_canister_wasm --network $NETWORK_TYPE --canister mainer_creator_canister --chunksize 1000000 --wasm files/llama_cpp.wasm --candid $CANDID
+#
+# # Skip this time-consuming step when when upgrading the code
+# if [ "$DEPLOY_MODE" != "upgrade" ]; then
+#     # Note:
+#     # The --hf-sha256 can be found at https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/blob/main/qwen2.5-0.5b-instruct-q8_0.gguf
+#     echo " "
+#     echo "Upload the mainer LLM model file (gguf) "
+#     python -m scripts.upload_mainer_llm_canister_modelfile --network $NETWORK_TYPE \
+#         --canister mainer_creator_canister \
+#         --chunksize 2000000 \
+#         --wasm files/qwen2.5-0.5b-instruct-q8_0.gguf  \
+#         --hf-sha256 "ca59ca7f13d0e15a8cfa77bd17e65d24f6844b554a7b6c12e07a5f89ff76844e" \
+#         --candid $CANDID
+# fi
