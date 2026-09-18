@@ -21,6 +21,10 @@ CLAUDE.md
 .dfx/
 **/.dfx/
 
+# icp-cli temporary files
+.icp/
+**/.icp/
+
 # generated files
 **/declarations/
 
